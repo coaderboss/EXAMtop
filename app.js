@@ -15,8 +15,27 @@ const db = firebase.database();
 
 // --- YE CODE DATABASE SE DATA REALTIME ME LAYEGA ---
 db.ref('tests').on('value', (snapshot) => {
-  tests = snapshot.val() || [];
-  // Agar examiner Tests ya Results tab par hai toh UI update kar do
+  var data = snapshot.val();
+  
+  // FIREBASE FIX: Agar Firebase array ko object bana de, toh usey wapas array me badalna
+  if (!data) {
+      tests = [];
+  } else if (Array.isArray(data)) {
+      tests = data;
+  } else {
+      tests = Object.values(data).filter(item => item !== null);
+  }
+  
+  // Submissions array ko bhi secure karna taaki test start karne me dikkat na aaye
+  tests.forEach(t => {
+      if (t.submissions && !Array.isArray(t.submissions)) {
+          t.submissions = Object.values(t.submissions).filter(item => item !== null);
+      } else if (!t.submissions) {
+          t.submissions = [];
+      }
+  });
+
+  // UI Update karo agar user Tests ya Results page par hai
   if(document.getElementById('page-tests').classList.contains('active')) renderTestList();
   if(document.getElementById('page-results').classList.contains('active')) renderAllResults();
 });
