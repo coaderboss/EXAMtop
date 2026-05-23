@@ -194,6 +194,12 @@ function saveTest(){
     showPalette:document.getElementById('t-palette').checked,
     allowNav:document.getElementById('t-nav').checked,
     randomOrder:document.getElementById('t-rand').checked,
+    
+    // NAYI LINES YAHAN HAIN:
+    expiryDate: document.getElementById('t-expiry').value || null,
+    shuffleOpts: document.getElementById('t-shuffle-opts').checked,
+    antiCheat: document.getElementById('t-anticheat').checked,
+    
     questions:JSON.parse(JSON.stringify(qList)),
     submissions:[],released:false,
     createdAt:new Date().toLocaleDateString('en-IN')
@@ -372,7 +378,13 @@ function joinTest(){
   if(!code){alert('Please enter the test code.');return;}
   
   var t=tests.find(x=>x.code===code);
-  if(!t){showModal('<div style="text-align:center;padding:1.5rem"><i class="ti ti-alert-triangle" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px">Invalid Test Code.</div><div style="font-size:14px;color:var(--color-text-secondary);margin-top:0.5rem;margin-bottom:1.5rem">Please check the code with your examiner and try again.</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>');return;}
+  if(!t){showModal('<div style="text-align:center;padding:1.5rem"><i class="ti ti-alert-triangle" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px">Invalid Test Code.</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>');return;}
+  
+  // NAYA: Expiry Check Logic
+  if(t.expiryDate && new Date() > new Date(t.expiryDate)) {
+      showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-clock-off" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px;margin-bottom:0.5rem">Exam Expired!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">The deadline for this exam has passed.</p><button class="btn btn-primary" onclick="hideModal()">Close</button></div>`);
+      return;
+  }
   
   // Check if student already submitted
   var existingSub = t.submissions.find(s => s.name.toLowerCase() === name.toLowerCase() && s.roll === roll);
@@ -398,11 +410,52 @@ function launchExistingResult(testId, name, roll) {
 
 function launchAsStudent(i){nav('student');launchTest(tests[i],'Demo Student','');}
 
-function launchTest(test,name,roll){
+// Anti-Cheat global function
+function handleCheat() {
+    if (document.hidden && activeTest && activeTest.antiCheat && !activeState.done) {
+        window.examWarnings = (window.examWarnings || 0) + 1;
+        if (window.examWarnings >= 3) {
+            alert("SECURITY ALERT: Exam Blocked! You switched tabs too many times. Auto-submitting paper.");
+            doSubmit();
+        } else {
+            alert(`WARNING ${window.examWarnings}/2: Tab switching detected! Do not leave this screen or your exam will be cancelled.`);
+        }
+    }
+}
+
+function launchTest(dbTest, name, roll){
   document.getElementById('student-home').classList.add('hidden');
   document.getElementById('student-result').classList.add('hidden');
-  activeTest=test;
+  
+  // NAYA: Database ki copy banayi taaki original data mix na ho
+  var test = JSON.parse(JSON.stringify(dbTest));
+
+  // NAYA: Questions Shuffle Logic
+  if (test.randomOrder) {
+      test.questions = test.questions.sort(() => Math.random() - 0.5);
+  }
+
+  // NAYA: Options Shuffle Logic (Correct index ko sath me move karega)
+  if (test.shuffleOpts) {
+      test.questions.forEach(q => {
+          if (q.type === 'mcq' || q.type === 'msq') {
+              let optsWithKeys = q.options.map((opt, idx) => ({ text: opt, isCorrect: q.correct.includes(idx) }));
+              optsWithKeys.sort(() => Math.random() - 0.5); // Shuffle
+              q.options = optsWithKeys.map(o => o.text);
+              q.correct = optsWithKeys.map((o, idx) => o.isCorrect ? idx : -1).filter(idx => idx !== -1);
+          }
+      });
+  }
+
+  activeTest = test;
   activeState={name,roll,answers:Array(test.questions.length).fill(0).map(()=>({val:null,marked:false})),cur:0,start:Date.now(),done:false};
+  
+  // NAYA: Anti-Cheat Tracker start
+  window.examWarnings = 0;
+  if (activeTest.antiCheat) {
+      document.addEventListener("visibilitychange", handleCheat);
+  }
+
   renderTest();
   if(timerIv)clearInterval(timerIv);
   var secs=test.duration*60;
@@ -547,6 +600,7 @@ function doSubmit(){
   if(!activeTest||activeState.done)return;
   clearInterval(timerIv);
   activeState.done=true;
+  document.removeEventListener("visibilitychange", handleCheat);
   var neg=activeTest.negMarking||0;
   var score=0,correct=0,wrong=0,skipped=0;
   var details=activeTest.questions.map((q,i)=>{

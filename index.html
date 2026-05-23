@@ -51,11 +51,17 @@
       <div><label>Result release</label><select id="t-resultvis"><option value="instant">Instant after submit</option><option value="manual">Manual by examiner</option></select></div>
       <div><label>Score visible during test</label><select id="t-scorevis"><option value="show">Show live</option><option value="hide">Hide till result</option></select></div>
     </div>
+    <div class="grid2" style="margin-bottom:1.5rem; padding-top: 1rem; border-top: 1px dashed var(--color-border-secondary);">
+      <div><label style="color:#A32D2D"><i class="ti ti-clock"></i> Test Expiry (Deadline)</label>
+      <input type="datetime-local" id="t-expiry" style="border-color:#F7C1C1; background:#FCEBEB;"></div>
+    </div>
     <div style="background:var(--color-background-tertiary); padding: 1rem; border-radius: var(--border-radius-md); border: 1px solid var(--color-border-secondary);">
       <div class="toggle-wrap"><span style="font-size:14px; font-weight:500;">Allow changing previous answers</span><label class="toggle"><input type="checkbox" id="t-change" checked><span class="tog-slider"></span></label></div>
       <div class="toggle-wrap"><span style="font-size:14px; font-weight:500;">Show question palette</span><label class="toggle"><input type="checkbox" id="t-palette" checked><span class="tog-slider"></span></label></div>
       <div class="toggle-wrap"><span style="font-size:14px; font-weight:500;">Allow free navigation between questions</span><label class="toggle"><input type="checkbox" id="t-nav" checked><span class="tog-slider"></span></label></div>
       <div class="toggle-wrap"><span style="font-size:14px; font-weight:500;">Randomise question order</span><label class="toggle"><input type="checkbox" id="t-rand"><span class="tog-slider"></span></label></div>
+      <div class="toggle-wrap"><span style="font-size:14px; font-weight:500;">Shuffle Options for each student</span><label class="toggle"><input type="checkbox" id="t-shuffle-opts"><span class="tog-slider"></span></label></div>
+      <div class="toggle-wrap"><span style="font-size:14px; font-weight:500; color:#A32D2D"><i class="ti ti-shield-lock"></i> Strict Anti-Cheat (Block on Tab Switch)</span><label class="toggle"><input type="checkbox" id="t-anticheat"><span class="tog-slider"></span></label></div>
     </div>
   </div>
 
