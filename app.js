@@ -468,8 +468,14 @@ function joinTest(){
       <button id="start-btn-actual" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px; font-size:16px;" disabled onclick="initiateTestStart('${t.id}', '${name}', '${roll}')">
           <i class="ti ti-player-play"></i> Start Exam Now
       </button>
+      
+      <button class="btn" style="width:100%; justify-content:center; padding:12px; font-size:16px; margin-top:12px; background:var(--color-background-secondary); border:1px solid var(--color-border-secondary); color:var(--color-text-primary);" onclick="exitToHome()">
+          <i class="ti ti-arrow-left"></i> Go Back
+      </button>
+
   </div>`;
 }
+
 
 function launchExistingResult(testId, name, roll) {
     var t = tests.find(x => x.id == testId);
@@ -989,6 +995,45 @@ function importQ(inp){
   };
   r.readAsText(f);
   inp.value = ''; // Reset input
+}
+
+// --- NAYA: UNIVERSAL EXIT / GO BACK FUNCTION ---
+function exitToHome(isTestActive = false) {
+    // Agar test start ho chuka hai, toh pehle confirm karo
+    if (isTestActive && activeState && !activeState.done) {
+        if (!confirm("Are you sure you want to exit? Your exam progress will be lost and test will be cancelled.")) {
+            return; // Agar user ne 'Cancel' dabaya toh wahi ruk jao
+        }
+    }
+    
+    // Security aur timers band karo
+    if(timerIv) clearInterval(timerIv);
+    document.removeEventListener("visibilitychange", handleCheat);
+    document.removeEventListener("fullscreenchange", handleCheat);
+    
+    // Agar full-screen me hai toh usse bahar aao
+    if (document.fullscreenElement) {
+        document.exitFullscreen().catch(err => console.log(err));
+    }
+
+    // State reset karo
+    activeTest = null;
+    activeState = null;
+    
+    // Test aur Result screen chhupao
+    var testScreen = document.getElementById('student-test');
+    if(testScreen) testScreen.classList.add('hidden');
+    
+    var resultScreen = document.getElementById('student-result');
+    if(resultScreen) resultScreen.classList.add('hidden');
+    
+    // Wapas sahi tab par bhejo (Examiner ko uske tests par, aur student ko join page par)
+    document.getElementById('student-home').classList.remove('hidden');
+    if(currentUser) {
+        nav('tests');
+    } else {
+        nav('student');
+    }
 }
 
 // Pre-fill some demo questions
