@@ -18,6 +18,51 @@ const provider = new firebase.auth.GoogleAuthProvider();
 
 var tests=[], qList=[], activeTest=null, activeState=null, timerIv=null;
 var currentUser = null; 
+// ==========================================
+// UTILITY FUNCTIONS: Toasts, Copy & CSV
+// ==========================================
+function showToast(msg, type = 'normal') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+    let toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    let icon = type === 'error' ? 'ti-alert-circle' : type === 'success' ? 'ti-check' : 'ti-info-circle';
+    toast.innerHTML = `<i class="ti ${icon}" style="font-size:18px"></i> ${msg}`;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function copyToClip(text) {
+    navigator.clipboard.writeText(text).then(() => showToast('Test Code Copied Successfully!', 'success'));
+}
+
+function exportToCSV(testIdx) {
+    var t = tests.find(x => x.id === testIdx);
+    if(!t.submissions || !t.submissions.length) return showToast('No submissions to export yet.', 'error');
+    
+    var csv = 'Student Name,Roll Number,Total Score,Max Marks,Accuracy (%),Correct Qs,Wrong Qs,Skipped Qs,Submission Time\n';
+    t.submissions.forEach(s => {
+        var accuracy = s.correct + s.wrong > 0 ? Math.round((s.correct / (s.correct + s.wrong)) * 100) : 0;
+        csv += `"${s.name}","${s.roll||'N/A'}",${s.score},${t.totalMarks},${accuracy},${s.correct},${s.wrong},${s.skipped},"${s.time}"\n`;
+    });
+    
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement("a");
+    if (link.download !== undefined) {
+        var url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `${t.title.replace(/ /g,"_")}_Results.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Excel/CSV File Downloaded!', 'success');
+    }
+}
 
 // ==========================================
 // 1. AUTHENTICATION LISTENER (Login Check)
@@ -172,17 +217,14 @@ function tlabel(t){return{mcq:'Single Correct',msq:'Multi Correct',integer:'Inte
 function tbadge(t){return{mcq:'b-blue',msq:'b-green',integer:'b-amber',subjective:'b-purple'}[t]||'b-gray'}
 
 function saveTest(){
-  if(!currentUser) {
-      showModal('<div style="text-align:center;padding:1rem"><i class="ti ti-lock" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Login Required!</div><p>You must login with Google as an Examiner to create and save tests.</p><button class="btn btn-primary" onclick="hideModal()">OK</button></div>');
-      return;
-  }
+  if(!currentUser) { showModal('<div style="text-align:center;padding:1rem"><i class="ti ti-lock" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Login Required!</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>'); return; }
   var title=document.getElementById('t-title').value.trim();
-  if(!title){showModal('<div style="text-align:center;padding:1rem"><i class="ti ti-alert-circle" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Please enter a test title.</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>');return;}
-  if(!qList.length){showModal('<div style="text-align:center;padding:1rem"><i class="ti ti-alert-circle" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Add at least one question.</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>');return;}
+  if(!title){ showToast('Please enter a test title.', 'error'); return;}
+  if(!qList.length){ showToast('Add at least one question.', 'error'); return;}
+  
   var code=Math.random().toString(36).substring(2,8).toUpperCase();
   var test={
-    id:Date.now(),code,title,
-    creatorUid: currentUser.uid,
+    id:Date.now(),code,title,creatorUid: currentUser.uid,
     subject:document.getElementById('t-subject').value,
     duration:+document.getElementById('t-dur').value||60,
     totalMarks:+document.getElementById('t-total').value||100,
@@ -194,52 +236,57 @@ function saveTest(){
     showPalette:document.getElementById('t-palette').checked,
     allowNav:document.getElementById('t-nav').checked,
     randomOrder:document.getElementById('t-rand').checked,
-    
-    // NAYI LINES YAHAN HAIN:
     expiryDate: document.getElementById('t-expiry').value || null,
     shuffleOpts: document.getElementById('t-shuffle-opts').checked,
     antiCheat: document.getElementById('t-anticheat').checked,
-    
+    fullScreenMode: document.getElementById('t-fullscreen').checked, // NAYA
     questions:JSON.parse(JSON.stringify(qList)),
     submissions:[],released:false,
     createdAt:new Date().toLocaleDateString('en-IN')
   };
-  
   
   tests.push(test);
   updateDatabase(); // NAYI LINE: Cloud me save kar dega
   
   qList=[];renderQs();
   document.getElementById('t-title').value='';
+  // NAYA: Copy to Clipboard Button in Modal
   showModal(`<div style="text-align:center;padding:1rem">
     <div style="width:72px;height:72px;border-radius:50%;background:#EAF3DE;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem"><i class="ti ti-circle-check" style="font-size:40px;color:#3B6D11"></i></div>
     <div style="font-size:22px;font-weight:600;margin-bottom:0.5rem">Test Saved to Cloud!</div>
-    <div style="font-size:15px;color:var(--color-text-secondary);margin-bottom:1.5rem">Students can now join using this code from any device:</div>
-    <div style="font-size:36px;font-weight:600;letter-spacing:10px;color:#185FA5;background:#E6F1FB;padding:1.5rem;border-radius:var(--border-radius-lg);margin-bottom:2rem; border:1px dashed #b9d7f4;">${code}</div>
-    <div style="display:flex;gap:12px;justify-content:center">
-      <button class="btn btn-primary" onclick="hideModal();nav('tests')"><i class="ti ti-list-check"></i> View My Tests</button>
-      <button class="btn" onclick="hideModal()">Create Another</button>
-    </div>
+    <div style="font-size:15px;color:var(--color-text-secondary);margin-bottom:1.5rem">Students can now join using this code:</div>
+    <div style="font-size:36px;font-weight:600;letter-spacing:10px;color:#185FA5;background:#E6F1FB;padding:1.5rem;border-radius:var(--border-radius-lg);margin-bottom:1rem; border:1px dashed #b9d7f4;">${code}</div>
+    <button class="btn btn-sm btn-blue" style="margin-bottom:2rem; font-weight:600" onclick="copyToClip('${code}')"><i class="ti ti-copy"></i> Copy Code</button>
+    <div style="display:flex;gap:12px;justify-content:center"><button class="btn btn-primary" onclick="hideModal();nav('tests')"><i class="ti ti-list-check"></i> View My Tests</button></div>
   </div>`);
 }
 
 function renderTestList(){
   var c = document.getElementById('test-list-area');
-  
-  // 1. Agar user login nahi hai, toh lock icon dikhao
-  if(!currentUser) {
-      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view your managed tests.</div></div>`;
-      return;
-  }
-
-  // 2. Database me se sirf wahi test nikalo jo is user ne banaye hain
+  if(!currentUser) { c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view your managed tests.</div></div>`; return; }
   var myTests = tests.filter(t => t.creatorUid === currentUser.uid);
-
-  // 3. Agar is user ka koi test nahi hai, toh khali list dikhao
-  if(!myTests.length){
-      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-clipboard-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests created yet. Go to the Create tab to make one.</div></div>`;
-      return;
-  }
+  if(!myTests.length){ c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-clipboard-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests created yet.</div></div>`; return; }
+  
+  c.innerHTML = myTests.map((t) => {
+    var origIdx = tests.findIndex(x => x.id === t.id);
+    return `<div class="test-entry">
+      <div class="te-meta">
+        <div style="font-weight:600;font-size:16px;color:var(--color-text-primary)">${t.title}</div>
+        <div style="font-size:13px;color:var(--color-text-secondary)">${t.subject||'No Subject'} &bull; ${t.questions.length} Qs &bull; ${t.duration} Mins</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <span class="badge b-blue" style="cursor:pointer" onclick="copyToClip('${t.code}')" title="Click to copy code"><i class="ti ti-copy" style="font-size:12px"></i> ${t.code}</span>
+          <span class="badge b-green">${t.submissions ? t.submissions.length : 0} Submissions</span>
+          ${t.resultVis==='manual' ? (t.released?'<span class="badge b-amber">Results Released</span>':'<span class="badge b-gray">Manual Evaluation Pending</span>') : '<span class="badge b-purple">Instant Results Active</span>'}
+        </div>
+      </div>
+      <div class="te-actions">
+        <button class="btn btn-sm btn-blue" onclick="viewSubmissions(${origIdx})"><i class="ti ti-users"></i> Submissions</button>
+        ${!t.released && t.resultVis==='manual' ? `<button class="btn btn-sm btn-success" onclick="releaseRes(${origIdx})"><i class="ti ti-send"></i> Publish</button>` : ''}
+        <button class="btn btn-sm btn-danger" onclick="delTest(${origIdx})"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
   
   // 4. Sirf filtered tests ko screen par print karo
   c.innerHTML = myTests.map((t) => {
@@ -265,7 +312,7 @@ function renderTestList(){
       </div>
     </div>`;
   }).join('');
-}
+
 
 function delTest(i){
   if(confirm('Are you sure you want to delete this test permanently from the database?')){
@@ -282,21 +329,17 @@ function releaseRes(i){
 
 function viewSubmissions(testIdx) {
   var t = tests[testIdx];
-  if(t.submissions.length === 0) {
-      showModal('<div style="text-align:center;padding:2rem"><i class="ti ti-users" style="font-size:42px;color:var(--color-text-secondary);display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px">No Submissions Yet.</div></div>');
-      return;
-  }
-  var html = `<div style="margin-bottom:1.5rem"><h3 style="font-size:20px;font-weight:600">${t.title}</h3><p style="font-size:13px;color:var(--color-text-secondary)">Student Submissions</p></div>`;
+  if(!t.submissions || t.submissions.length === 0) { showModal('<div style="text-align:center;padding:2rem"><i class="ti ti-users" style="font-size:42px;color:var(--color-text-secondary);display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px">No Submissions Yet.</div></div>'); return; }
+  
+  var html = `<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem">
+        <div><h3 style="font-size:18px;font-weight:600">${t.title}</h3><p style="font-size:13px;color:var(--color-text-secondary)">Student Submissions</p></div>
+        <button class="btn btn-success btn-sm" onclick="exportToCSV(${t.id})"><i class="ti ti-file-spreadsheet"></i> Export CSV</button>
+    </div>`;
   html += `<div style="max-height:60vh;overflow-y:auto;padding-right:8px">` + t.submissions.map((s, sIdx) => `
       <div style="display:flex;justify-content:space-between;padding:12px;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);margin-bottom:8px;align-items:center;background:var(--color-background-tertiary)">
-          <div>
-            <div style="font-weight:600">${s.name}</div>
-            <div style="font-size:12px;color:var(--color-text-secondary)">Roll: ${s.roll||'N/A'} &bull; Score: ${s.score}</div>
-          </div>
+          <div><div style="font-weight:600">${s.name}</div><div style="font-size:12px;color:var(--color-text-secondary)">Roll: ${s.roll||'N/A'} &bull; Score: ${s.score}</div></div>
           <button class="btn btn-sm btn-primary" onclick="hideModal(); showResultPageAsExaminer(${testIdx}, ${sIdx})"><i class="ti ti-eye"></i> Evaluate</button>
-      </div>
-  `).join('') + `</div>`;
-  html += `<div style="margin-top:1.5rem;text-align:right"><button class="btn" onclick="hideModal()">Close</button></div>`;
+      </div>`).join('') + `</div><div style="margin-top:1.5rem;text-align:right"><button class="btn" onclick="hideModal()">Close</button></div>`;
   showModal(html);
 }
 
@@ -374,30 +417,58 @@ function joinTest(){
   var name=document.getElementById('s-name').value.trim();
   var code=document.getElementById('s-code').value.trim().toUpperCase();
   var roll=document.getElementById('s-roll').value.trim();
-  if(!name){alert('Please enter your full name.');return;}
-  if(!code){alert('Please enter the test code.');return;}
+  if(!name){ showToast('Please enter your full name.', 'error'); return;}
+  if(!code){ showToast('Please enter the test code.', 'error'); return;}
   
   var t=tests.find(x=>x.code===code);
-  if(!t){showModal('<div style="text-align:center;padding:1.5rem"><i class="ti ti-alert-triangle" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px">Invalid Test Code.</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>');return;}
+  if(!t){ showToast('Invalid Test Code. Check and try again.', 'error'); return;}
   
-  // NAYA: Expiry Check Logic
   if(t.expiryDate && new Date() > new Date(t.expiryDate)) {
       showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-clock-off" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px;margin-bottom:0.5rem">Exam Expired!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">The deadline for this exam has passed.</p><button class="btn btn-primary" onclick="hideModal()">Close</button></div>`);
       return;
   }
   
-  // Check if student already submitted
+  if(!t.submissions) t.submissions = [];
   var existingSub = t.submissions.find(s => s.name.toLowerCase() === name.toLowerCase() && s.roll === roll);
   if(existingSub) {
       if(t.resultVis === 'instant' || t.released) {
-          showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-info-circle" style="font-size:42px;color:#185FA5;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">You have already submitted this test.</div><p style="margin-bottom:1.5rem">Opening your evaluated paper.</p><button class="btn btn-primary" onclick="hideModal(); launchExistingResult('${t.id}', '${name}', '${roll}')">View Results</button></div>`);
+          showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-info-circle" style="font-size:42px;color:#185FA5;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Already Submitted.</div><button class="btn btn-primary" onclick="hideModal(); launchExistingResult('${t.id}', '${name}', '${roll}')">View Results</button></div>`);
       } else {
-          showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-clock" style="font-size:42px;color:#854F0B;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Submission Received</div><p style="margin-bottom:1.5rem">You have successfully submitted this test. The examiner has not yet released the results. Please check back later.</p><button class="btn btn-primary" onclick="hideModal()">Understood</button></div>`);
+          showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-clock" style="font-size:42px;color:#854F0B;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Submission Received</div><p>Results pending release.</p><button class="btn btn-primary" onclick="hideModal()">Understood</button></div>`);
       }
       return;
   }
   
-  launchTest(t,name,roll);
+  // NAYA: INSTRUCTIONS SCREEN INSTEAD OF DIRECT LAUNCH
+  document.getElementById('student-home').classList.add('hidden');
+  var el = document.getElementById('student-test');
+  el.classList.remove('hidden');
+  
+  var fsText = t.fullScreenMode ? `<li style="margin-bottom:8px; color:#A32D2D"><strong><i class="ti ti-maximize"></i> Full-Screen Lock:</strong> Exiting full-screen will trigger a warning.</li>` : '';
+  var tabText = t.antiCheat ? `<li style="margin-bottom:8px; color:#A32D2D"><strong><i class="ti ti-shield-lock"></i> Tab-Switch Monitored:</strong> Changing tabs will auto-submit the exam.</li>` : '';
+
+  el.innerHTML = `
+  <div style="max-width:600px; margin: 2rem auto; background: #fff; padding: 2rem; border-radius: 12px; border: 1px solid var(--color-border-secondary); box-shadow: 0 4px 15px rgba(0,0,0,0.05)">
+      <h2 style="margin-bottom:1rem; font-size:24px; color:#185FA5"><i class="ti ti-file-info"></i> Pre-Exam Instructions</h2>
+      <div style="font-size:15px; color:var(--color-text-primary); line-height:1.6; margin-bottom:1.5rem">
+          <p style="margin-bottom:8px"><strong>Test:</strong> ${t.title}</p>
+          <p style="margin-bottom:15px"><strong>Subject:</strong> ${t.subject || 'N/A'}</p>
+          <ul style="margin-left: 20px; color:var(--color-text-secondary)">
+              <li style="margin-bottom:8px"><strong>Duration:</strong> ${t.duration} Minutes</li>
+              <li style="margin-bottom:8px"><strong>Total Marks:</strong> ${t.totalMarks} (Negative Marking: ${t.negMarking ? '-'+t.negMarking : 'None'})</li>
+              ${fsText} ${tabText}
+          </ul>
+      </div>
+      <div style="background:var(--color-background-secondary); padding:1rem; border-radius:8px; margin-bottom:1.5rem;">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:500;">
+              <input type="checkbox" style="width:18px; height:18px; cursor:pointer" onchange="document.getElementById('start-btn-actual').disabled = !this.checked">
+              I have read and understood all instructions.
+          </label>
+      </div>
+      <button id="start-btn-actual" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px; font-size:16px;" disabled onclick="initiateTestStart('${t.id}', '${name}', '${roll}')">
+          <i class="ti ti-player-play"></i> Start Exam Now
+      </button>
+  </div>`;
 }
 
 function launchExistingResult(testId, name, roll) {
@@ -411,36 +482,41 @@ function launchExistingResult(testId, name, roll) {
 function launchAsStudent(i){nav('student');launchTest(tests[i],'Demo Student','');}
 
 // Anti-Cheat global function
-function handleCheat() {
-    if (document.hidden && activeTest && activeTest.antiCheat && !activeState.done) {
+function handleCheat(event) {
+    if (!activeTest || activeState.done) return;
+    
+    let isTabSwitch = document.hidden && activeTest.antiCheat;
+    let isFullScreenExit = event && event.type === 'fullscreenchange' && !document.fullscreenElement && activeTest.fullScreenMode;
+
+    if (isTabSwitch || isFullScreenExit) {
         window.examWarnings = (window.examWarnings || 0) + 1;
         if (window.examWarnings >= 3) {
-            alert("SECURITY ALERT: Exam Blocked! You switched tabs too many times. Auto-submitting paper.");
+            alert("SECURITY ALERT: Exam Blocked! Rules violated 3 times. Auto-submitting paper.");
             doSubmit();
         } else {
-            alert(`WARNING ${window.examWarnings}/2: Tab switching detected! Do not leave this screen or your exam will be cancelled.`);
+            let reason = isTabSwitch ? "Tab switching" : "Exiting full-screen";
+            alert(`WARNING ${window.examWarnings}/2: ${reason} detected! Please do not leave the exam screen.`);
         }
     }
 }
 
+function initiateTestStart(testId, name, roll) {
+    var t = tests.find(x => x.id == testId);
+    if(t.fullScreenMode) {
+        var elem = document.documentElement;
+        if (elem.requestFullscreen) elem.requestFullscreen().catch(err => showToast(`Full-screen blocked by browser`, 'error'));
+    }
+    launchTest(t, name, roll);
+}
+
 function launchTest(dbTest, name, roll){
-  document.getElementById('student-home').classList.add('hidden');
-  document.getElementById('student-result').classList.add('hidden');
-  
-  // NAYA: Database ki copy banayi taaki original data mix na ho
   var test = JSON.parse(JSON.stringify(dbTest));
-
-  // NAYA: Questions Shuffle Logic
-  if (test.randomOrder) {
-      test.questions = test.questions.sort(() => Math.random() - 0.5);
-  }
-
-  // NAYA: Options Shuffle Logic (Correct index ko sath me move karega)
+  if (test.randomOrder) test.questions = test.questions.sort(() => Math.random() - 0.5);
   if (test.shuffleOpts) {
       test.questions.forEach(q => {
           if (q.type === 'mcq' || q.type === 'msq') {
               let optsWithKeys = q.options.map((opt, idx) => ({ text: opt, isCorrect: q.correct.includes(idx) }));
-              optsWithKeys.sort(() => Math.random() - 0.5); // Shuffle
+              optsWithKeys.sort(() => Math.random() - 0.5);
               q.options = optsWithKeys.map(o => o.text);
               q.correct = optsWithKeys.map((o, idx) => o.isCorrect ? idx : -1).filter(idx => idx !== -1);
           }
@@ -450,11 +526,9 @@ function launchTest(dbTest, name, roll){
   activeTest = test;
   activeState={name,roll,answers:Array(test.questions.length).fill(0).map(()=>({val:null,marked:false})),cur:0,start:Date.now(),done:false};
   
-  // NAYA: Anti-Cheat Tracker start
   window.examWarnings = 0;
-  if (activeTest.antiCheat) {
-      document.addEventListener("visibilitychange", handleCheat);
-  }
+  if (activeTest.antiCheat) document.addEventListener("visibilitychange", handleCheat);
+  if (activeTest.fullScreenMode) document.addEventListener("fullscreenchange", handleCheat);
 
   renderTest();
   if(timerIv)clearInterval(timerIv);
@@ -601,6 +675,7 @@ function doSubmit(){
   clearInterval(timerIv);
   activeState.done=true;
   document.removeEventListener("visibilitychange", handleCheat);
+  document.removeEventListener("fullscreenchange", handleCheat);
   var neg=activeTest.negMarking||0;
   var score=0,correct=0,wrong=0,skipped=0;
   var details=activeTest.questions.map((q,i)=>{
