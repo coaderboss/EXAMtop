@@ -171,3 +171,54 @@ textarea { min-height: 80px; resize: vertical; }
 .ftab { padding: 8px 16px; border-radius: var(--border-radius-md); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--color-border-primary); background: var(--color-background-primary); color: var(--color-text-secondary); font-family: var(--font-sans); transition: all 0.2s ease; }
 .ftab:hover { background: var(--color-background-secondary); border-color: #185FA5; }
 .ftab.active { background: #185FA5; color: #fff; border-color: #185FA5; box-shadow: 0 2px 6px rgba(24, 95, 165, 0.2); }
+/* --- MOBILE RESPONSIVE CSS (ADD JUST BEFORE </style>) --- */
+@media (max-width: 768px) {
+  /* Navbar adjustments to prevent overlap */
+  .navbar { flex-direction: column; height: auto; padding: 15px; gap: 12px; position: relative; }
+  .nav-tabs { width: 100%; overflow-x: auto; justify-content: flex-start; padding-bottom: 5px; }
+  .nav-tab { white-space: nowrap; flex-shrink: 0; }
+  
+  /* Reduce outer padding for smaller screens */
+  .page { padding: 1rem 10px; }
+  .card { padding: 1.25rem 1rem; }
+  
+  /* Break down Grids into single column for mobile */
+  .grid2, .grid3 { grid-template-columns: 1fr; gap: 1rem; }
+  .grid4 { grid-template-columns: 1fr 1fr; gap: 10px; } /* Stats look better 2x2 on mobile */
+  
+  /* Test Screen Layout stacking */
+  .test-layout { grid-template-columns: 1fr; }
+  .sidebar-panel { position: static; margin-top: 1rem; border-top: 2px solid var(--color-border-secondary); }
+  
+  /* Topbar stacking and alignment */
+  .test-topbar { flex-direction: column; align-items: flex-start; gap: 15px; padding: 1.25rem 1rem; }
+  .test-topbar > div:last-child { width: 100%; justify-content: space-between; }
+  
+  /* Navigation buttons (Previous/Next) full width */
+  .q-nav-row { flex-direction: column; gap: 10px; }
+  .q-nav-row button { width: 100%; justify-content: center; }
+  
+  /* Make Result Filter tabs scrollable horizontally */
+  .filter-tabs { overflow-x: auto; flex-wrap: nowrap; width: 100%; padding-bottom: 8px; }
+  .ftab { white-space: nowrap; flex-shrink: 0; }
+  
+  /* Question Area padding adjustments */
+  .q-area { padding: 1.25rem 1rem; }
+  
+  /* Prevent large letter spacing from breaking mobile inputs */
+  #s-code { letter-spacing: 3px !important; font-size: 18px !important; }
+  
+  /* Fix options layout if text is too long */
+  .qr-opt { flex-wrap: wrap; }
+  
+  /* Adjust bulk import zone text */
+  .upload-zone { padding: 1.5rem 1rem; }
+}
+
+/* For very small devices (like older smartphones) */
+@media (max-width: 480px) {
+  .palette-grid { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .result-score-ring { width: 100px; height: 100px; }
+  .score-big { font-size: 32px; }
+  .logo { font-size: 20px; }
+}
