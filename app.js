@@ -1,3 +1,32 @@
+const firebaseConfig = {
+  apiKey: "AIzaSyCHW5XDpS16BRH2XgsNJ5YbkIPnyl4i7MI",
+  authDomain: "examtop-e3263.firebaseapp.com",
+  databaseURL: "https://examtop-e3263-default-rtdb.firebaseio.com",
+  projectId: "examtop-e3263",
+  storageBucket: "examtop-e3263.firebasestorage.app",
+  messagingSenderId: "758815189008",
+  appId: "1:758815189008:web:6acc172966158abdd64295",
+  measurementId: "G-G3NRG0VXTV"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// --- YE CODE DATABASE SE DATA REALTIME ME LAYEGA ---
+db.ref('tests').on('value', (snapshot) => {
+  tests = snapshot.val() || [];
+  // Agar examiner Tests ya Results tab par hai toh UI update kar do
+  if(document.getElementById('page-tests').classList.contains('active')) renderTestList();
+  if(document.getElementById('page-results').classList.contains('active')) renderAllResults();
+});
+
+function updateDatabase() {
+    db.ref('tests').set(tests).catch(error => {
+        alert("Error saving data to cloud: " + error.message);
+    });
+}
+
 var tests=[], qList=[], activeTest=null, activeState=null, timerIv=null;
 
 function nav(id){
@@ -96,13 +125,16 @@ function saveTest(){
     submissions:[],released:false,
     createdAt:new Date().toLocaleDateString('en-IN')
   };
+  
   tests.push(test);
+  updateDatabase(); // NAYI LINE: Cloud me save kar dega
+  
   qList=[];renderQs();
   document.getElementById('t-title').value='';
   showModal(`<div style="text-align:center;padding:1rem">
     <div style="width:72px;height:72px;border-radius:50%;background:#EAF3DE;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem"><i class="ti ti-circle-check" style="font-size:40px;color:#3B6D11"></i></div>
-    <div style="font-size:22px;font-weight:600;margin-bottom:0.5rem">Test Saved Successfully!</div>
-    <div style="font-size:15px;color:var(--color-text-secondary);margin-bottom:1.5rem">Share this 6-digit code with your students:</div>
+    <div style="font-size:22px;font-weight:600;margin-bottom:0.5rem">Test Saved to Cloud!</div>
+    <div style="font-size:15px;color:var(--color-text-secondary);margin-bottom:1.5rem">Students can now join using this code from any device:</div>
     <div style="font-size:36px;font-weight:600;letter-spacing:10px;color:#185FA5;background:#E6F1FB;padding:1.5rem;border-radius:var(--border-radius-lg);margin-bottom:2rem; border:1px dashed #b9d7f4;">${code}</div>
     <div style="display:flex;gap:12px;justify-content:center">
       <button class="btn btn-primary" onclick="hideModal();nav('tests')"><i class="ti ti-list-check"></i> View My Tests</button>
@@ -134,11 +166,16 @@ function renderTestList(){
     </div>`).join('');
 }
 
-function delTest(i){if(confirm('Are you sure you want to delete this test permanently?')){tests.splice(i,1);renderTestList();}}
+function delTest(i){
+  if(confirm('Are you sure you want to delete this test permanently from the database?')){
+    tests.splice(i,1);
+    updateDatabase(); // NAYI LINE
+  }
+}
 
 function releaseRes(i){
   tests[i].released=true;
-  renderTestList();
+  updateDatabase(); // NAYI LINE
   showModal('<div style="text-align:center;padding:2rem"><i class="ti ti-send" style="font-size:42px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px;margin-bottom:1rem">Results Published Successfully!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">Students can now enter their details with the test code to view their checked papers.</p><button class="btn btn-primary" onclick="hideModal()">Done</button></div>');
 }
 
@@ -210,13 +247,12 @@ function saveEvaluation(tIdx, sIdx) {
         }
     });
     
-    // Object me fresh data save karna
     sub.score = Math.max(0, newTotal);
     sub.correct = newCorrect;
     sub.wrong = newWrong;
     sub.skipped = newSkipped;
     
-    // UI instantly update karne ke liye dobara render karna
+    updateDatabase(); // NAYI LINE: Evaluation save karega
     _generateResultDOM(sub, test, true, tIdx, sIdx);
     
     showModal('<div style="text-align:center;padding:1.5rem"><i class="ti ti-check" style="font-size:48px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:22px;margin-bottom:0.5rem">Evaluation Overridden & Saved!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">Marks and student statistics have been successfully updated.</p><button class="btn btn-primary" onclick="hideModal(); nav(\'tests\')">Back to Tests</button></div>');
@@ -460,7 +496,11 @@ function doSubmit(){
   var sub={name:activeState.name,roll:activeState.roll,score,correct,wrong,skipped,details,time:new Date().toLocaleString('en-IN'),totalMarks:activeTest.totalMarks};
   
   var t=tests.find(x=>x.id===activeTest.id);
-  if(t && t.id !== 'prev') t.submissions.push(sub);
+  if(t && t.id !== 'prev') {
+      if(!t.submissions) t.submissions = []; // Safe check
+      t.submissions.push(sub);
+      updateDatabase(); // NAYI LINE: Student ka paper save karega
+  }
   
   document.getElementById('student-test').classList.add('hidden');
   
