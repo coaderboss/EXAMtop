@@ -10,14 +10,57 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth(); // Auth setup
+const provider = new firebase.auth.GoogleAuthProvider();
 
-// --- YE CODE DATABASE SE DATA REALTIME ME LAYEGA ---
+var tests=[], qList=[], activeTest=null, activeState=null, timerIv=null;
+var currentUser = null; 
+
+// ==========================================
+// 1. AUTHENTICATION LISTENER (Login Check)
+// ==========================================
+auth.onAuthStateChanged(user => {
+  currentUser = user;
+  const loginBtn = document.getElementById('login-btn');
+  
+  if(user) {
+      // Login hone par
+      loginBtn.innerHTML = `<i class="ti ti-logout"></i> Logout (${user.displayName.split(' ')[0]})`;
+      loginBtn.style.background = "#FCEBEB";
+      loginBtn.style.color = "#A32D2D";
+      loginBtn.style.borderColor = "#F7C1C1";
+  } else {
+      // Logout hone par
+      loginBtn.innerHTML = `<i class="ti ti-brand-google"></i> Examiner Login`;
+      loginBtn.style.background = "#185FA5";
+      loginBtn.style.color = "#fff";
+      loginBtn.style.borderColor = "#185FA5";
+  }
+  
+  // UI refresh karo login state change hone par
+  if(document.getElementById('page-tests').classList.contains('active')) renderTestList();
+  if(document.getElementById('page-results').classList.contains('active')) renderAllResults();
+});
+
+// Login button ka function
+function toggleLogin() {
+    if(currentUser) {
+        auth.signOut();
+    } else {
+        auth.signInWithPopup(provider).catch(error => alert(error.message));
+    }
+}
+
+// ==========================================
+// 2. DATABASE LISTENER (With Array FIX)
+// ==========================================
 db.ref('tests').on('value', (snapshot) => {
   var data = snapshot.val();
   
-  // FIREBASE FIX: Agar Firebase array ko object bana de, toh usey wapas array me badalna
+  // SAFE ARRAY CONVERSION (Purani error wapas nahi aayegi)
   if (!data) {
       tests = [];
   } else if (Array.isArray(data)) {
@@ -26,7 +69,7 @@ db.ref('tests').on('value', (snapshot) => {
       tests = Object.values(data).filter(item => item !== null);
   }
   
-  // Submissions array ko bhi secure karna taaki test start karne me dikkat na aaye
+  // Submissions ko bhi safe array me rakho
   tests.forEach(t => {
       if (t.submissions && !Array.isArray(t.submissions)) {
           t.submissions = Object.values(t.submissions).filter(item => item !== null);
@@ -35,10 +78,16 @@ db.ref('tests').on('value', (snapshot) => {
       }
   });
 
-  // UI Update karo agar user Tests ya Results page par hai
+  // Data aate hi UI refresh karo
   if(document.getElementById('page-tests').classList.contains('active')) renderTestList();
   if(document.getElementById('page-results').classList.contains('active')) renderAllResults();
 });
+
+function updateDatabase() {
+    db.ref('tests').set(tests).catch(error => {
+        alert("Error saving data to cloud: " + error.message);
+    });
+}
 
 function updateDatabase() {
     db.ref('tests').set(tests).catch(error => {
@@ -123,12 +172,17 @@ function tlabel(t){return{mcq:'Single Correct',msq:'Multi Correct',integer:'Inte
 function tbadge(t){return{mcq:'b-blue',msq:'b-green',integer:'b-amber',subjective:'b-purple'}[t]||'b-gray'}
 
 function saveTest(){
+  if(!currentUser) {
+      showModal('<div style="text-align:center;padding:1rem"><i class="ti ti-lock" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Login Required!</div><p>You must login with Google as an Examiner to create and save tests.</p><button class="btn btn-primary" onclick="hideModal()">OK</button></div>');
+      return;
+  }
   var title=document.getElementById('t-title').value.trim();
   if(!title){showModal('<div style="text-align:center;padding:1rem"><i class="ti ti-alert-circle" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Please enter a test title.</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>');return;}
   if(!qList.length){showModal('<div style="text-align:center;padding:1rem"><i class="ti ti-alert-circle" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Add at least one question.</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>');return;}
   var code=Math.random().toString(36).substring(2,8).toUpperCase();
   var test={
     id:Date.now(),code,title,
+    creatorUid: currentUser.uid,
     subject:document.getElementById('t-subject').value,
     duration:+document.getElementById('t-dur').value||60,
     totalMarks:+document.getElementById('t-total').value||100,
@@ -144,6 +198,7 @@ function saveTest(){
     submissions:[],released:false,
     createdAt:new Date().toLocaleDateString('en-IN')
   };
+  
   
   tests.push(test);
   updateDatabase(); // NAYI LINE: Cloud me save kar dega
@@ -163,26 +218,47 @@ function saveTest(){
 }
 
 function renderTestList(){
-  var c=document.getElementById('test-list-area');
-  if(!tests.length){c.innerHTML=`<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-clipboard-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests created yet. Go to the Create tab to make one.</div></div>`;return;}
-  c.innerHTML=tests.map((t,i)=>`
+  var c = document.getElementById('test-list-area');
+  
+  // 1. Agar user login nahi hai, toh lock icon dikhao
+  if(!currentUser) {
+      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view your managed tests.</div></div>`;
+      return;
+  }
+
+  // 2. Database me se sirf wahi test nikalo jo is user ne banaye hain
+  var myTests = tests.filter(t => t.creatorUid === currentUser.uid);
+
+  // 3. Agar is user ka koi test nahi hai, toh khali list dikhao
+  if(!myTests.length){
+      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-clipboard-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests created yet. Go to the Create tab to make one.</div></div>`;
+      return;
+  }
+  
+  // 4. Sirf filtered tests ko screen par print karo
+  c.innerHTML = myTests.map((t) => {
+    // IMPORTANT FIX: Original array me is test ka index kya tha, wo dhundo taaki delete/evaluate sahi test par ho
+    var origIdx = tests.findIndex(x => x.id === t.id);
+    
+    return `
     <div class="test-entry">
       <div class="te-meta">
         <div style="font-weight:600;font-size:16px;color:var(--color-text-primary)">${t.title}</div>
         <div style="font-size:13px;color:var(--color-text-secondary)">${t.subject||'No Subject'} &bull; ${t.questions.length} Questions &bull; ${t.duration} Mins &bull; Created ${t.createdAt}</div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
           <span class="badge b-blue"><i class="ti ti-hash" style="font-size:12px"></i> ${t.code}</span>
-          <span class="badge b-green">${t.submissions.length} Submissions</span>
+          <span class="badge b-green">${t.submissions ? t.submissions.length : 0} Submissions</span>
           ${t.resultVis==='manual' ? (t.released?'<span class="badge b-amber">Results Released</span>':'<span class="badge b-gray">Manual Evaluation Pending</span>') : '<span class="badge b-purple">Instant Results Active</span>'}
         </div>
       </div>
       <div class="te-actions">
-        <button class="btn btn-sm" onclick="launchAsStudent(${i})"><i class="ti ti-player-play"></i> Preview</button>
-        <button class="btn btn-sm btn-blue" onclick="viewSubmissions(${i})"><i class="ti ti-users"></i> Submissions</button>
-        ${!t.released&&t.resultVis==='manual'?`<button class="btn btn-sm btn-success" onclick="releaseRes(${i})"><i class="ti ti-send"></i> Publish Results</button>`:''}
-        <button class="btn btn-sm btn-danger" onclick="delTest(${i})" title="Delete Test"><i class="ti ti-trash"></i></button>
+        <button class="btn btn-sm" onclick="launchAsStudent(${origIdx})"><i class="ti ti-player-play"></i> Preview</button>
+        <button class="btn btn-sm btn-blue" onclick="viewSubmissions(${origIdx})"><i class="ti ti-users"></i> Submissions</button>
+        ${!t.released && t.resultVis==='manual' ? `<button class="btn btn-sm btn-success" onclick="releaseRes(${origIdx})"><i class="ti ti-send"></i> Publish</button>` : ''}
+        <button class="btn btn-sm btn-danger" onclick="delTest(${origIdx})" title="Delete Test"><i class="ti ti-trash"></i></button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function delTest(i){
@@ -715,10 +791,28 @@ function resetStudent(){
 }
 
 function renderAllResults(){
-  var c=document.getElementById('results-area');
-  var all=tests.flatMap(t=>t.submissions.map(s=>({...s,testTitle:t.title,testCode:t.code})));
-  if(!all.length){c.innerHTML=`<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-chart-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No results available yet. Complete a test to see data here.</div></div>`;return;}
-  c.innerHTML=all.map(s=>`
+  var c = document.getElementById('results-area');
+  
+  // 1. Agar login nahi hai, toh data mat dikhao
+  if(!currentUser) {
+      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view results.</div></div>`;
+      return;
+  }
+
+  // 2. Sirf current user ke tests ko filter karo
+  var myTests = tests.filter(t => t.creatorUid === currentUser.uid);
+  
+  // 3. Un filtered tests ke andar se saari submissions nikal kar ek array me daal do
+  var all = myTests.flatMap(t => t.submissions ? t.submissions.map(s => ({...s, testTitle: t.title, testCode: t.code})) : []);
+  
+  // 4. Agar koi bacche ne abhi tak test nahi diya
+  if(!all.length){
+      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-chart-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No results available yet. Complete a test to see data here.</div></div>`;
+      return;
+  }
+  
+  // 5. Result Cards print karo
+  c.innerHTML = all.map(s => `
     <div class="test-entry">
       <div class="te-meta">
         <div style="font-weight:600;font-size:16px">${s.name} ${s.roll?'<span style="font-weight:400;color:var(--color-text-secondary)">· '+s.roll+'</span>':''}</div>
