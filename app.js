@@ -1036,6 +1036,71 @@ function exitToHome(isTestActive = false) {
     }
 }
 
+// ==========================================
+// PLATFORM HELP & INSTRUCTIONS GUIDE
+// ==========================================
+function showHelpGuide() {
+    const helpHtml = `
+    <div style="max-width: 700px; text-align: left; padding: 0.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--color-border-secondary); padding-bottom: 1rem;">
+            <h2 style="font-size: 22px; color: #185FA5; margin: 0;"><i class="ti ti-book"></i> Platform Documentation</h2>
+            <button onclick="hideModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--color-text-secondary)">&times;</button>
+        </div>
+
+        <div style="max-height: 60vh; overflow-y: auto; padding-right: 15px; font-size: 14px; color: var(--color-text-primary); line-height: 1.6;">
+            
+            <h3 style="color: var(--color-text-primary); border-left: 4px solid #185FA5; padding-left: 10px; margin-bottom: 1rem;">👨‍🏫 For Examiners & Creators</h3>
+            
+            <div style="background: var(--color-background-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <h4 style="margin-top:0; color:#A32D2D;"><i class="ti ti-shield-lock"></i> Security & Proctoring Features</h4>
+                <ul style="padding-left: 20px; margin-bottom: 0;">
+                    <li style="margin-bottom: 6px;"><strong>Strict Anti-Cheat (Tab Switch):</strong> If enabled, the system monitors the student's browser. Switching tabs or opening new windows will issue warnings and auto-submit the exam on the 3rd attempt.</li>
+                    <li style="margin-bottom: 6px;"><strong>Enforce Full-Screen:</strong> Forces the student's browser into full-screen mode. Exiting full-screen triggers a security warning.</li>
+                    <li><strong>Test Expiry:</strong> Set a strict deadline. Once the date and time pass, the test code automatically expires and blocks new entries.</li>
+                </ul>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <h4 style="margin-bottom:0.5rem;"><i class="ti ti-settings"></i> Evaluation & Results</h4>
+                <ul style="padding-left: 20px;">
+                    <li style="margin-bottom: 6px;"><strong>Instant Release:</strong> Students see their marks, accuracy, and correct answers immediately after clicking submit.</li>
+                    <li style="margin-bottom: 6px;"><strong>Manual Release:</strong> Results are hidden. The examiner must go to "Submissions", manually evaluate (and override marks if needed), and click "Publish" to release results globally.</li>
+                    <li><strong>Export to CSV:</strong> Click the "Export CSV" button in the submissions panel to download a complete Excel sheet of student performances.</li>
+                </ul>
+            </div>
+
+            <h3 style="color: var(--color-text-primary); border-left: 4px solid #3B6D11; padding-left: 10px; margin-bottom: 1rem;">📝 Bulk Upload (JSON Format)</h3>
+            <p style="margin-bottom: 10px;">To upload multiple questions at once using the "Bulk Import" button, create a <code>.json</code> file following this strict format:</p>
+            <pre style="background: #1e293b; color: #a5b4fc; padding: 1rem; border-radius: 8px; overflow-x: auto; font-family: monospace; font-size: 13px; margin-bottom: 1.5rem;">
+[
+  {
+    "type": "mcq",
+    "text": "What is the capital of France?",
+    "marks": 4,
+    "options": ["London", "Berlin", "Paris", "Madrid"],
+    "correct": [2], 
+    "explanation": "Paris is the capital of France."
+  }
+]</pre>
+            <p style="font-size: 13px; color: var(--color-text-secondary); margin-top: -10px; margin-bottom: 1.5rem;"><em>Note: The "correct" array uses a 0-based index (0 is the 1st option, 1 is the 2nd, etc.).</em></p>
+
+
+            <h3 style="color: var(--color-text-primary); border-left: 4px solid #854F0B; padding-left: 10px; margin-bottom: 1rem;">👨‍🎓 For Students</h3>
+            <ul style="padding-left: 20px; margin-bottom: 1.5rem;">
+                <li style="margin-bottom: 8px;"><strong>Joining a Test:</strong> Navigate to the "Join Test" tab, enter your exact Full Name, Roll Number, and the 6-character Code provided by your instructor.</li>
+                <li style="margin-bottom: 8px;"><strong>During the Exam:</strong> Do not refresh the page or switch browser tabs. A built-in timer will auto-submit your paper when the time runs out.</li>
+                <li><strong>Viewing Results:</strong> If the instructor allows instant results, you can click "View Results" immediately. If it's manual, re-enter your code on the Join page later to check your evaluated paper.</li>
+            </ul>
+
+        </div>
+        <div style="text-align: right; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--color-border-secondary);">
+            <button class="btn btn-primary" onclick="hideModal()">Understood</button>
+        </div>
+    </div>`;
+    
+    showModal(helpHtml);
+}
+
 // Pre-fill some demo questions
 addQ({id:1,type:'mcq',text:'A particle moves with constant acceleration. Its velocity changes from 20 m/s to 60 m/s in 4 seconds. What is the acceleration?',marks:4,options:['5 m/s²','10 m/s²','15 m/s²','20 m/s²'],correct:[1],explanation:'a = (v-u)/t = (60-20)/4 = 10 m/s²'});
 addQ({id:2,type:'integer',text:'If log₂(x) = 5, find the value of x.',marks:4,correctInt:32,explanation:'2⁵ = 32'});
