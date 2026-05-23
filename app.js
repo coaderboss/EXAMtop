@@ -391,7 +391,7 @@ function saveEvaluation(tIdx, sIdx) {
         }
     });
     
-    sub.score = Math.max(0, newTotal);
+    sub.score = Number(newTotal.toFixed(2));
     sub.correct = newCorrect;
     sub.wrong = newWrong;
     sub.skipped = newSkipped;
@@ -716,7 +716,8 @@ function doSubmit(){
     }else{skipped++;status='submitted';}
     return{q,ans,status,earned};
   });
-  score=Math.max(0,score);
+  // Negative marks allow karne ke liye aur decimals ko 2 digit tak lock karne ke liye
+  score = Number(score.toFixed(2));
   var sub={name:activeState.name,roll:activeState.roll,score,correct,wrong,skipped,details,time:new Date().toLocaleString('en-IN'),totalMarks:activeTest.totalMarks};
   
   var t=tests.find(x=>x.id===activeTest.id);
