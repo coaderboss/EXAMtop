@@ -161,7 +161,8 @@ function renderTestList(){
         </div>
       </div>
       <div class="te-actions">
-        <button class="btn btn-sm" onclick="launchAsStudent(${origIdx})"><i class="ti ti-player-play"></i> Preview</button>
+        <div class="te-actions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
+        <button class="btn btn-sm" onclick="launchAsStudent(${origIdx})"><i class="ti ti-player-play"></i> Preview</button>      
         <button class="btn btn-sm btn-blue" onclick="viewSubmissions(${origIdx})"><i class="ti ti-users"></i> Submissions</button>
         ${!t.released && t.resultVis==='manual' ? `<button class="btn btn-sm btn-success" onclick="releaseRes(${origIdx})"><i class="ti ti-send"></i> Publish</button>` : ''}
         <button class="btn btn-sm btn-danger" onclick="delTest(${origIdx})" title="Delete Test"><i class="ti ti-trash"></i></button>

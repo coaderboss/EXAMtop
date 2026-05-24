@@ -34,7 +34,7 @@ auth.onAuthStateChanged(user => {
   if(user) {
       // Login hone par UI update
       if(loginBtn) {
-          loginBtn.innerHTML = `<i class="ti ti-logout"></i> Logout (${user.displayName.split(' ')[0]})`;
+          loginBtn.innerHTML = `<i class="ti ti-logout"></i> Logout <span class="hide-on-mobile">(${user.displayName.split(' ')[0]})</span>`;
           loginBtn.style.background = "#FCEBEB";
           loginBtn.style.color = "#A32D2D";
           loginBtn.style.borderColor = "#F7C1C1";
@@ -42,7 +42,7 @@ auth.onAuthStateChanged(user => {
   } else {
       // Logout hone par UI update
       if(loginBtn) {
-          loginBtn.innerHTML = `<i class="ti ti-brand-google"></i> Examiner Login`;
+          loginBtn.innerHTML = `<i class="ti ti-brand-google"></i> <span class="hide-on-mobile">Examiner </span>Login`;   
           loginBtn.style.background = "#185FA5";
           loginBtn.style.color = "#fff";
           loginBtn.style.borderColor = "#185FA5";
