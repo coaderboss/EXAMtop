@@ -164,6 +164,9 @@ function renderTestList(){
         <div class="te-actions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
         <button class="btn btn-sm" onclick="launchAsStudent(${origIdx})"><i class="ti ti-player-play"></i> Preview</button>      
         <button class="btn btn-sm btn-blue" onclick="viewSubmissions(${origIdx})"><i class="ti ti-users"></i> Submissions</button>
+        
+        <button class="btn btn-sm" style="background:#FAEEDA; color:#854F0B; border-color:#FAC775;" onclick="openEditKeyModal(${origIdx})"><i class="ti ti-key"></i> Edit Key</button>
+        
         ${!t.released && t.resultVis==='manual' ? `<button class="btn btn-sm btn-success" onclick="releaseRes(${origIdx})"><i class="ti ti-send"></i> Publish</button>` : ''}
         <button class="btn btn-sm btn-danger" onclick="delTest(${origIdx})" title="Delete Test"><i class="ti ti-trash"></i></button>
       </div>
@@ -212,6 +215,137 @@ function showResultPageAsExaminer(testIdx, sIdx) {
 }
 
 // ==========================================
+// NAYA: SMART ANSWER KEY & RE-EVALUATION ENGINE
+// ==========================================
+
+function openEditKeyModal(idx) {
+    var t = tests[idx];
+    var html = `<div style="padding:1.5rem; text-align:left;">
+        <h3 style="margin-bottom: 1rem; color: #185FA5; display:flex; align-items:center; gap:8px;"><i class="ti ti-key"></i> Smart Key Update</h3>
+        <p style="font-size:13px; color:var(--color-text-secondary); margin-bottom:1.5rem; line-height:1.6;">Fix any wrong answers in your key below. When you save, all <strong>${t.submissions ? t.submissions.length : 0}</strong> existing student submissions will be automatically re-graded instantly.</p>
+        <div style="max-height: 50vh; overflow-y: auto; padding-right:10px; margin-bottom:1.5rem;">`;
+
+    t.questions.forEach((q, i) => {
+        html += `<div style="margin-bottom:1.25rem; padding:12px; border:1px solid var(--color-border-secondary); border-radius:8px; background:var(--color-background-secondary);">
+            <div style="font-weight:600; font-size:14px; margin-bottom:8px; color:#0f172a;">Q${i+1}: ${q.text.substring(0, 70)}...</div>`;
+        
+        if (q.type === 'mcq') {
+            html += `<div style="display:flex; gap:12px; flex-wrap:wrap;">`;
+            q.options.forEach((opt, j) => {
+                let isChecked = q.correct.includes(j) ? 'checked' : '';
+                html += `<label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="radio" name="rekey_${i}" value="${j}" ${isChecked} class="rekey-input-${i}" style="width:16px;height:16px;"> Opt ${String.fromCharCode(65+j)}</label>`;
+            });
+            html += `</div>`;
+        } else if (q.type === 'msq') {
+            html += `<div style="display:flex; gap:12px; flex-wrap:wrap;">`;
+            q.options.forEach((opt, j) => {
+                let isChecked = q.correct.includes(j) ? 'checked' : '';
+                html += `<label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;"><input type="checkbox" value="${j}" ${isChecked} class="rekey-input-${i}" style="width:16px;height:16px;"> Opt ${String.fromCharCode(65+j)}</label>`;
+            });
+            html += `</div>`;
+        } else if (q.type === 'integer') {
+            html += `<label style="font-size:13px; font-weight:500;">Correct Integer Key: <input type="number" value="${q.correctInt}" class="rekey-input-${i}" style="width:100px; padding:6px; font-size:14px; border:1px solid #cbd5e1; border-radius:4px; margin-left:8px;"></label>`;
+        } else if (q.type === 'subjective') {
+            html += `<div style="font-size:12px; color:#854F0B; font-weight:500;"><i class="ti ti-info-circle"></i> Subjective question (Requires manual evaluation. Key update will not affect auto-scores).</div>`;
+        }
+        
+        html += `</div>`;
+    });
+
+    html += `</div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn" style="flex:1; padding:12px; font-weight:600;" onclick="hideModal()">Cancel</button>
+            <button class="btn btn-primary" style="flex:2; background:#854F0B; border-color:#854F0B; padding:12px; font-weight:600;" onclick="saveNewKeyAndReevaluate(${idx})"><i class="ti ti-refresh"></i> Update & Auto-Grade All</button>
+        </div>
+    </div>`;
+    
+    showModal(html);
+}
+
+function saveNewKeyAndReevaluate(idx) {
+    var t = tests[idx];
+    
+    // STEP 1: Naya Answer Key Save Karo
+    t.questions.forEach((q, i) => {
+        if (q.type === 'mcq') {
+            let selected = document.querySelector(`.rekey-input-${i}:checked`);
+            if(selected) q.correct = [parseInt(selected.value)];
+        } else if (q.type === 'msq') {
+            let selected = document.querySelectorAll(`.rekey-input-${i}:checked`);
+            q.correct = Array.from(selected).map(cb => parseInt(cb.value));
+        } else if (q.type === 'integer') {
+            let input = document.querySelector(`.rekey-input-${i}`);
+            if(input && input.value !== '') q.correctInt = parseFloat(input.value);
+        }
+    });
+
+    // STEP 2: Background Auto-Re-evaluation Loop (Sab bacho ka result dubara check karo)
+    if (t.submissions && t.submissions.length > 0) {
+        var neg = t.negMarking || 0;
+        
+        t.submissions.forEach(sub => {
+            let newScore = 0, newCorrect = 0, newWrong = 0, newSkipped = 0;
+            
+            sub.details.forEach((d, i) => {
+                let q = t.questions[i]; 
+                d.q = q; // Update test snapshot reference in student's paper
+                let ans = d.ans;
+                let hasVal = ans.val !== null && (!Array.isArray(ans.val) || ans.val.length > 0);
+                
+                if (!hasVal) {
+                    if(d.status === 'evaluated') { newScore += (d.earned || 0); newSkipped++; } 
+                    else { d.status = 'skipped'; d.earned = 0; newSkipped++; }
+                } else if (q.type === 'mcq') {
+                    if (ans.val === q.correct[0]) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; }
+                    else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; }
+                } else if (q.type === 'msq') {
+                    var userSel = Array.isArray(ans.val) ? ans.val : [];
+                    var corrSel = q.correct;
+                    var hasWrongOption = userSel.some(x => !corrSel.includes(x));
+                    var correctlySelected = userSel.filter(x => corrSel.includes(x)).length;
+                    
+                    if (hasWrongOption) { 
+                        newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; 
+                    } else if (correctlySelected === corrSel.length) { 
+                        newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; 
+                    } else if (correctlySelected > 0) {
+                        var partialMarks = (q.marks / corrSel.length) * correctlySelected;
+                        d.earned = Math.round(partialMarks * 100) / 100;
+                        newScore += d.earned; newCorrect++; d.status = 'partial';
+                    } else { 
+                        newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; 
+                    }
+                } else if (q.type === 'integer') {
+                    if (ans.val === q.correctInt) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; }
+                    else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; }
+                } else {
+                    // Subjective Manual Evaluations Safe rahengi
+                    if(d.status === 'evaluated') {
+                        newScore += (d.earned || 0);
+                        if(d.earned > 0) newCorrect++; else newSkipped++;
+                    } else {
+                        d.status = 'submitted'; d.earned = 0; newSkipped++;
+                    }
+                }
+            });
+            
+            // Re-assign Final Re-calculated marks
+            sub.score = Number(newScore.toFixed(2));
+            sub.correct = newCorrect;
+            sub.wrong = newWrong;
+            sub.skipped = newSkipped;
+        });
+    }
+
+    // Database update maro aur interface refresh kar do
+    updateDatabase();
+    hideModal();
+    showToast(`Answer Key Updated! Successfully re-graded ${t.submissions ? t.submissions.length : 0} student(s).`, 'success');
+    renderTestList();
+}
+
+
+// ==========================================
 // ADVANCED EVALUATION (WITH STRICT VALIDATION & AUDIT)
 // ==========================================
 
@@ -223,43 +357,36 @@ function saveEvaluation(tIdx, sIdx) {
 
     var inputs = document.querySelectorAll('.eval-input');
     
-    // 1. STRICT VALIDATION CHECK (Using standard for-loop to break execution)
     for (var i = 0; i < inputs.length; i++) {
         var inp = inputs[i];
         var qIdx = parseInt(inp.id.replace('mark_input_', ''));
         var awardedMarks = parseFloat(inp.value) || 0;
         
-        // Exact max marks directly question array se nikale
         var maxMarks = Number(sub.details[qIdx].q.marks); 
         
-        // Agar teacher ne limit se zyada marks daale hain
         if (awardedMarks > maxMarks) {
             showToast(`Error: Marks for Q${qIdx + 1} cannot exceed ${maxMarks}!`, 'error');
-            inp.style.borderColor = '#A32D2D'; // Box lal ho jayega
+            inp.style.borderColor = '#A32D2D'; 
             inp.style.background = '#FCEBEB';
             hasError = true;
-            break; // Loop ko turant yahi rok do
+            break; 
         } else {
-            inp.style.borderColor = '#185FA5'; // Wapas normal color
+            inp.style.borderColor = '#185FA5'; 
             inp.style.background = '#fff';
             
-            // Check karo ki marks original se change hue hain kya?
             if(sub.details[qIdx].q.type === 'subjective' || sub.details[qIdx].earned !== awardedMarks) {
                 overrides.push({ qIdx: qIdx, awarded: awardedMarks });
             }
         }
     }
 
-    // Agar error hai toh modal dikhane mat do, wahi se return kardo
     if (hasError) return; 
 
-    // Agar sab marks same hain toh wapas bhej do
     if (overrides.length === 0) {
         showToast('No changes made to marks.', 'normal');
         return;
     }
 
-    // 2. ACCOUNTABILITY MODAL (Audit Trail)
     window.tempEvalData = { tIdx, sIdx, overrides }; 
 
     showModal(`
@@ -399,7 +526,7 @@ function previewAsStudent(){
   launchTest(t,'Demo Student','');
 }
 
-// Pre-fill some demo questions for UIET & Engineering Context
+// Pre-fill some demo questions for Context
 addQ({id:1,type:'mcq',text:'A particle moves with constant acceleration. Its velocity changes from 20 m/s to 60 m/s in 4 seconds. What is the acceleration?',marks:4,options:['5 m/s²','10 m/s²','15 m/s²','20 m/s²'],correct:[1],explanation:'a = (v-u)/t = (60-20)/4 = 10 m/s²'});
 addQ({id:2,type:'integer',text:'If log₂(x) = 5, find the value of x.',marks:4,correctInt:32,explanation:'2⁵ = 32'});
 addQ({id:3,type:'msq',text:'Which of the following are fundamental forces of nature?',marks:4,options:['Gravitational force','Tension','Electromagnetic force','Strong nuclear force'],correct:[0,2,3],explanation:'Tension is a contact force, not fundamental. The four fundamental forces are gravity, electromagnetic, strong nuclear, and weak nuclear.'});

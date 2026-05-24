@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Examitop</title>
+<title>ExamiTop</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <link rel="stylesheet" href="exam.css">
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -12,11 +12,9 @@
 </head>
 <body>
 
-
 <div class="app-header" style="position: sticky; top: 0; z-index: 100; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
-  
   <div class="app-header-inner" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-secondary);">
-  <div class="logo" onclick="nav('home')" style="cursor: pointer;" title="Go to Home">  
+    <div class="logo" onclick="nav('home')" style="cursor: pointer;" title="Go to Home">  
       <div class="logo-icon">E</div>
       <div class="logo-text">Exami<span>top</span></div>
     </div>
@@ -24,44 +22,50 @@
       <button class="btn btn-sm" onclick="showHelpGuide()" style="border-radius: 50%; width: 35px; height: 35px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: #185FA5; display: flex; align-items: center; justify-content: center;" title="Platform Guide & Instructions">
         <i class="ti ti-info-circle" style="font-size: 22px;"></i>
       </button>
+      
+      <button class="btn btn-sm hidden" id="profile-btn" onclick="openProfileSettings()" style="border-radius: 50%; width: 35px; height: 35px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: #185FA5; display: flex; align-items: center; justify-content: center; margin-left: 8px; margin-right: 8px;" title="My Profile & Settings">
+        <i class="ti ti-user-circle" style="font-size: 24px;"></i>
+      </button>
+
       <button class="btn btn-primary btn-sm" id="login-btn" onclick="toggleLogin()" style="border-radius: 20px; white-space: nowrap; font-weight: 600; padding: 8px 16px;">
         <i class="ti ti-brand-google"></i> <span class="hide-on-mobile">Examiner </span>Login
       </button>
     </div>
   </div>
 
-  <div style="background: #f8fafc; overflow-x: auto; border-bottom: 1px solid var(--color-border-secondary); scrollbar-width: none;">
+  <div id="dynamic-nav-wrapper" class="hidden" style="background: #f8fafc; overflow-x: auto; border-bottom: 1px solid var(--color-border-secondary); scrollbar-width: none;">
     <style> .app-header ::-webkit-scrollbar { display: none; } </style>
-    <div class="nav-tabs" style="display: flex; gap: 8px; padding: 10px 16px; width: max-content; margin: 0 auto;">
-      <button class="nav-tab active" onclick="nav('create')"><i class="ti ti-pencil"></i> Create Test</button>
-      <button class="nav-tab" onclick="nav('tests')"><i class="ti ti-list-check"></i> My Tests</button>
-      <button class="nav-tab" onclick="nav('student')"><i class="ti ti-school"></i> Join Test</button>
-      <button class="nav-tab" onclick="nav('results')"><i class="ti ti-chart-bar"></i> Global Results</button>
-    </div>
+    <div class="nav-tabs" id="dynamic-nav-tabs" style="display: flex; gap: 8px; padding: 10px 16px; width: max-content; margin: 0 auto;">
+      </div>
   </div>
-
 </div>
 
-<div class="page" id="page-home">
-  <div style="text-align:center; padding: 4rem 1rem; max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh;">
-    
-    <div class="logo-icon" style="width: 80px; height: 80px; font-size: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(24,95,165,0.3); margin-bottom: 1.5rem;">E</div>
-    
-    <h1 style="font-size: 2.8rem; color: #1e293b; margin-bottom: 1rem; line-height: 1.2;">Next-Gen Assessment & <br><span style="color: #185FA5;">Proctoring Platform</span></h1>
-    
-    <p style="font-size: 1.1rem; color: var(--color-text-secondary); margin-bottom: 2.5rem; max-width: 600px; line-height: 1.6;">
-      Secure, advanced, and seamless test creation. Join thousands of students and educators in experiencing the future of online technical assessments.
-    </p>
-    
-    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-       <button class="btn btn-primary" onclick="nav('student')" style="padding: 14px 28px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 15px rgba(24,95,165,0.3);">
-         <i class="ti ti-school"></i> Join as Student
-       </button>
-       <button class="btn" onclick="nav('create')" style="padding: 14px 28px; font-size: 16px; font-weight: 600; border: 2px solid #185FA5; color: #185FA5; background: transparent;">
-         <i class="ti ti-pencil"></i> Create a Test
-       </button>
+<div class="page active" id="page-home" style="max-width: 900px; margin: 3rem auto; padding: 0 20px;">
+  <div style="text-align: center; margin-bottom: 4rem;">
+    <h1 style="font-size: 3.5rem; color: #0f172a; margin-bottom: 10px; font-weight: 700; letter-spacing: -1px;">Exami<span style="color: #185FA5;">Top</span></h1>
+    <p style="font-size: 1.2rem; color: var(--color-text-secondary); font-weight: 500;">Secure & Seamless Proctoring Platform.</p>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem;">
+    <div style="background: linear-gradient(to bottom right, #ffffff, #E6F1FB); border: 1px solid #b9d7f4; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(24, 95, 165, 0.08); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+      <div style="width: 70px; height: 70px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 4px 15px rgba(24, 95, 165, 0.1);">
+        <i class="ti ti-school" style="font-size: 36px; color: #185FA5;"></i>
+      </div>
+      <h2 style="font-size: 1.6rem; color: #0f172a; margin-bottom: 10px; font-weight: 600;">Student Portal</h2>
+      <p style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Join live tests, track your analytics, and view your past performance.</p>
+      <button onclick="showStudentLoginChoice()" style="width: 100%; background: #185FA5; color: #fff; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(24, 95, 165, 0.2); transition: all 0.2s;" onmouseover="this.style.background='#0C447C'" onmouseout="this.style.background='#185FA5'">
+        Continue as Student <i class="ti ti-arrow-right"></i>
+      </button>
     </div>
-
+    <div style="background: linear-gradient(to bottom right, #ffffff, #EAF3DE); border: 1px solid #C0DD97; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(59, 109, 17, 0.08); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+      <div style="width: 70px; height: 70px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 4px 15px rgba(59, 109, 17, 0.1);">
+        <i class="ti ti-pencil" style="font-size: 36px; color: #3B6D11;"></i>
+      </div>
+      <h2 style="font-size: 1.6rem; color: #0f172a; margin-bottom: 10px; font-weight: 600;">Examiner Portal</h2>
+      <p style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Create assessments, manage strict proctoring, and evaluate submissions.</p>
+      <button onclick="toggleLogin()" style="width: 100%; background: #3B6D11; color: #fff; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(59, 109, 17, 0.2); transition: all 0.2s;" onmouseover="this.style.background='#27500A'" onmouseout="this.style.background='#3B6D11'">
+        <i class="ti ti-brand-google" style="font-size: 20px;"></i> Login as Examiner
+      </button>
+    </div>
   </div>
 </div>
 
@@ -70,7 +74,6 @@
     <div class="page-title">Create a New Test</div>
     <div class="page-sub">Configure settings, add questions, and generate a shareable test code.</div>
   </div>
-
   <div class="card">
     <div class="card-title"><i class="ti ti-settings"></i> Test Settings</div>
     <div class="grid2" style="margin-bottom:1.25rem">
@@ -129,7 +132,6 @@
   </div>
 
   <div id="q-container"></div>
-
   <div style="display:flex;gap:12px;margin-top:2rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border-secondary);">
     <button class="btn btn-primary" style="padding: 10px 24px; font-size:15px" onclick="saveTest()"><i class="ti ti-device-floppy"></i> Save Complete Test</button>
     <button class="btn" style="padding: 10px 24px; font-size:15px" onclick="previewAsStudent()"><i class="ti ti-eye"></i> Preview as Student</button>
@@ -156,14 +158,42 @@
         <div style="margin-bottom:1rem"><label>Full Name</label><input type="text" id="s-name" placeholder="e.g. Rahul Kumar"></div>
         <div style="margin-bottom:1rem"><label>Roll Number (Optional)</label><input type="text" id="s-roll" placeholder="e.g. 2024CS001"></div>
         <div style="margin-bottom:2rem"><label>Test Code</label><input type="text" id="s-code" placeholder="ENTER CODE" style="text-transform:uppercase;letter-spacing:6px;font-size:20px;font-weight:600;text-align:center; height: 50px;" maxlength="6"></div>
+        
         <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-size:16px;font-weight:600" onclick="joinTest()">
           Start Test <i class="ti ti-arrow-right"></i>
         </button>
+        
+        <div id="demo-test-container" style="margin-top: 15px; text-align: center;">
+            <div style="position: relative; text-align: center; margin: 15px 0;">
+                <span style="background: #fff; padding: 0 10px; color: var(--color-text-secondary); font-size: 13px; position: relative; z-index: 1;">OR</span>
+                <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--color-border-secondary); z-index: 0;"></div>
+            </div>
+            <button class="btn" style="width:100%; justify-content:center; padding:12px; font-weight:600; color:#185FA5; border-color:#185FA5; background:#E6F1FB;" onclick="launchDemoTest()">
+                <i class="ti ti-device-gamepad"></i> Try a Demo Test
+            </button>
+        </div>
+
       </div>
     </div>
   </div>
   <div id="student-test" class="hidden"></div>
   <div id="student-result" class="hidden"></div>
+</div>
+
+<div class="page" id="page-student-dashboard">
+  <div class="page-header">
+    <div class="page-title">My Analytics Dashboard</div>
+    <div class="page-sub">Track your performance, overall accuracy, and past exam history.</div>
+  </div>
+  <div id="student-analytics-area"></div>
+</div>
+
+<div class="page" id="page-student-results">
+  <div class="page-header">
+    <div class="page-title">My Past Results</div>
+    <div class="page-sub">Review your evaluated papers, correct answers, and examiner remarks.</div>
+  </div>
+  <div id="student-results-area"></div>
 </div>
 
 <div class="page" id="page-results">
@@ -172,6 +202,20 @@
     <div class="page-sub">All student submissions across your active tests.</div>
   </div>
   <div id="results-area"></div>
+</div>
+<div class="page" id="page-admin">
+  <div class="page-header">
+    <div class="page-title" style="color: #A32D2D;"><i class="ti ti-shield-lock"></i> Admin Command Center</div>
+    <div class="page-sub">Global platform overview, user management, and security controls.</div>
+  </div>
+  
+  <div class="filter-tabs" style="margin-bottom:1.5rem">
+    <button class="ftab active" onclick="switchAdminTab('stats', this)"><i class="ti ti-chart-bar"></i> Platform Stats</button>
+    <button class="ftab" onclick="switchAdminTab('users', this)"><i class="ti ti-users"></i> User Management</button>
+    <button class="ftab" onclick="switchAdminTab('tests', this)"><i class="ti ti-database"></i> Global Test Vault</button>
+  </div>
+
+  <div id="admin-content-area"></div>
 </div>
 
 <div id="modal-area" class="hidden">
@@ -184,5 +228,6 @@
 <script src="auth.js"></script>
 <script src="examinor.js"></script>
 <script src="student.js"></script>
+<script src="admin.js"></script> </body>
 </body>
 </html>

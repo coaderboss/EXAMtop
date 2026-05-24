@@ -19,7 +19,20 @@ function joinTest(){
   
   if(!t.submissions) t.submissions = [];
   var existingSub = t.submissions.find(s => s.name.toLowerCase() === name.toLowerCase() && s.roll === roll);
+  
   if(existingSub) {
+      // ---> STRICT SECURITY LOCK <---
+      if (existingSub.uid !== 'anonymous' && (!currentUser || currentUser.uid !== existingSub.uid)) {
+          showModal(`<div style="text-align:center;padding:2rem">
+              <i class="ti ti-shield-lock" style="font-size:56px;color:#A32D2D;display:block;margin-bottom:1rem"></i>
+              <h3 style="font-size:22px;color:#A32D2D;margin-bottom:0.5rem;font-weight:600">Access Denied</h3>
+              <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;font-size:15px">This result belongs to a registered student. You must <strong>Login with Google</strong> using the exact account to view this paper.</p>
+              <button class="btn btn-danger" style="padding:10px 24px;font-size:15px" onclick="hideModal()">Understood</button>
+          </div>`);
+          return;
+      }
+      // -------------------------------
+
       if(t.resultVis === 'instant' || t.released) {
           showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-info-circle" style="font-size:42px;color:#185FA5;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Already Submitted.</div><button class="btn btn-primary" onclick="hideModal(); launchExistingResult('${t.id}', '${name}', '${roll}')">View Results</button></div>`);
       } else {
@@ -60,7 +73,6 @@ function joinTest(){
       <button class="btn" style="width:100%; justify-content:center; padding:12px; font-size:16px; margin-top:12px; background:var(--color-background-secondary); border:1px solid var(--color-border-secondary); color:var(--color-text-primary);" onclick="exitToHome()">
           <i class="ti ti-arrow-left"></i> Go Back
       </button>
-
   </div>`;
 }
 
@@ -306,7 +318,16 @@ function doSubmit(){
   });
   
   score = Number(score.toFixed(2));
-  var sub={name:activeState.name,roll:activeState.roll,score,correct,wrong,skipped,details,time:new Date().toLocaleString('en-IN'),totalMarks:activeTest.totalMarks};
+  
+  var sub = {
+      uid: currentUser ? currentUser.uid : 'anonymous',
+      email: currentUser ? currentUser.email : '',
+      name: activeState.name,
+      roll: activeState.roll,
+      score, correct, wrong, skipped, details,
+      time: new Date().toLocaleString('en-IN'),
+      totalMarks: activeTest.totalMarks
+  };
   
   var t=tests.find(x=>x.id===activeTest.id);
   if(t && t.id !== 'prev') {
@@ -322,7 +343,7 @@ function doSubmit(){
           <i class="ti ti-check" style="font-size:56px;color:#3B6D11;margin-bottom:1rem;display:block"></i>
           <h3 style="font-size:24px;margin-bottom:0.5rem;font-weight:600">Test Submitted Successfully!</h3>
           <p style="color:var(--color-text-secondary);margin-bottom:2rem;font-size:15px">Your answers have been securely saved. The examiner will review the paper and declare the results manually.</p>
-          <button class="btn btn-primary" style="font-size:16px;padding:10px 24px" onclick="resetStudent(); hideModal()">Return to Home</button>
+          <button class="btn btn-primary" style="font-size:16px;padding:10px 24px" onclick="resetStudent(); hideModal()">Return to Dashboard</button>
       </div>`);
   } else {
       _generateResultDOM(sub, activeTest, false);
@@ -391,10 +412,10 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
         ${q.modelAnswer?`<div class="qr-opt correct" style="align-items:flex-start;padding:1rem"><i class="ti ti-bulb" style="flex-shrink:0;margin-top:2px;font-size:18px"></i><span style="font-size:15px;line-height:1.6"><strong>Model Answer:</strong><br>${q.modelAnswer}</span></div>`:''}`;
       }
       var expHTML=q.explanation?`<div style="margin-top:1.25rem;padding:1rem;background:var(--color-background-tertiary);border-radius:var(--border-radius-md);font-size:14px;display:flex;gap:10px;align-items:flex-start;border:1px solid var(--color-border-secondary)"><i class="ti ti-info-circle" style="flex-shrink:0;color:#185FA5;font-size:18px;margin-top:2px"></i><span style="line-height:1.6"><strong>Explanation:</strong> ${q.explanation}</span></div>`:'';
-      // --- NAYA: AUDIT LOG DISPLAY ---
+      
       var auditHTML = '';
       if (d.auditLogs && d.auditLogs.length > 0) {
-          let lastLog = d.auditLogs[d.auditLogs.length - 1]; // Sabse latest reason
+          let lastLog = d.auditLogs[d.auditLogs.length - 1]; 
           auditHTML = `<div style="margin-top:12px; padding:10px; background:#FEF5E5; border:1px solid #FAC775; border-radius:6px; font-size:13px; color:#633806;">
               <div style="font-weight:600; margin-bottom:4px;"><i class="ti ti-shield-check"></i> Audit Log (Manual Evaluation)</div>
               Marks overridden to <strong>${lastLog.awarded}</strong>. <br>
@@ -402,7 +423,7 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
               <span style="font-size:11px; opacity:0.7;">By: ${lastLog.examiner} | Date: ${lastLog.date}</span>
           </div>`;
       }
-      // -------------------------------
+      
       var examinerInputHTML = '';
       if(isExaminerView) {
           examinerInputHTML = `<div style="margin-top:15px; padding-top:12px; border-top:1px dashed var(--color-border-secondary); display:flex; align-items:center; justify-content:space-between; gap:10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
@@ -435,8 +456,7 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
   var actionButtons = isExaminerView 
       ? `<button class="btn btn-success" style="font-size:15px;padding:10px 24px;font-weight:600" onclick="saveEvaluation(${tIdx}, ${sIdx})"><i class="ti ti-device-floppy"></i> Save Manual Evaluation</button>
          <button class="btn btn-primary" style="font-size:15px;padding:10px 24px" onclick="nav('tests')"><i class="ti ti-arrow-left"></i> Back to Dashboard</button>`
-      : `<button class="btn btn-primary" style="font-size:15px;padding:10px 24px" onclick="resetStudent()"><i class="ti ti-home"></i> Home</button>
-         <button class="btn" style="font-size:15px;padding:10px 24px" onclick="nav('results')"><i class="ti ti-chart-bar"></i> View Global Results</button>`;
+      : `<button class="btn btn-primary" style="font-size:15px;padding:10px 24px" onclick="resetStudent()"><i class="ti ti-arrow-left"></i> Go Back</button>`;
 
   el.innerHTML=`
     <div class="result-hero">
@@ -512,9 +532,212 @@ function setFilter(f,btn){
   document.getElementById('q-review-area').innerHTML=window.__renderCards(f);
 }
 
+function renderStudentDashboard() {
+    var c = document.getElementById('student-analytics-area');
+    if(!currentUser) {
+        c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login to view your analytics.</div></div>`;
+        return;
+    }
+
+    var myHistory = [];
+    tests.forEach(t => {
+        if(t.submissions) {
+            t.submissions.forEach((s, idx) => {
+                if(s.uid === currentUser.uid || (s.name && currentUser.displayName && s.name.toLowerCase() === currentUser.displayName.toLowerCase())) {
+                    myHistory.push({
+                        testId: t.id,
+                        testTitle: t.title,
+                        testCode: t.code,
+                        score: s.score,
+                        totalMarks: s.totalMarks,
+                        correct: s.correct,
+                        wrong: s.wrong,
+                        skipped: s.skipped,
+                        time: s.time,
+                        sIdx: idx
+                    });
+                }
+            });
+        }
+    });
+
+    if(myHistory.length === 0) {
+        c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-chart-line" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests attempted yet. Join a test to see your analytics!</div></div>`;
+        return;
+    }
+
+    var totalTests = myHistory.length;
+    var totalCorrect = 0, totalWrong = 0, totalEarned = 0, totalMax = 0;
+
+    myHistory.forEach(h => {
+        totalCorrect += h.correct;
+        totalWrong += h.wrong;
+        totalEarned += h.score;
+        totalMax += h.totalMarks;
+    });
+
+    var overallAccuracy = (totalCorrect + totalWrong) > 0 ? Math.round((totalCorrect / (totalCorrect + totalWrong)) * 100) : 0;
+    var overallPercentage = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
+
+    var html = `
+    <div class="grid4" style="margin-bottom:2rem">
+      <div class="stat-card"><div class="stat-val" style="color:#185FA5">${totalTests}</div><div class="stat-lbl">Tests Attempted</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#3B6D11">${overallAccuracy}%</div><div class="stat-lbl">Overall Accuracy</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#A32D2D">${totalWrong}</div><div class="stat-lbl">Total Mistakes</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#854F0B">${overallPercentage}%</div><div class="stat-lbl">Avg Percentage</div></div>
+    </div>
+    
+    <h3 style="margin-bottom:1rem; font-size:18px; display:flex; align-items:center; gap:8px;"><i class="ti ti-history" style="color:#185FA5;"></i> Recent Test History</h3>
+    <div style="display:flex; flex-direction:column; gap:12px;">
+    `;
+
+    myHistory.reverse().forEach(h => {
+        var pct = Math.round((h.score / h.totalMarks) * 100);
+        html += `
+        <div class="test-entry" style="align-items:center; padding:1rem 1.5rem;">
+            <div class="te-meta">
+                <div style="font-weight:600;font-size:16px; color:#0f172a;">${h.testTitle} <span class="badge b-gray" style="font-size:11px; margin-left:8px;">Code: ${h.testCode}</span></div>
+                <div style="font-size:13px;color:var(--color-text-secondary); margin-top:4px;">Attempted on: ${h.time}</div>
+            </div>
+            <div style="display:flex; gap:16px; align-items:center;">
+                <div style="text-align:right;">
+                    <div style="font-weight:600; color:#185FA5; font-size:16px;">${h.score} <span style="font-size:12px; font-weight:normal; color:var(--color-text-secondary);">/ ${h.totalMarks}</span></div>
+                    <div style="font-size:12px; color:var(--color-text-secondary); margin-top:2px;">Accuracy: ${h.correct+h.wrong > 0 ? Math.round((h.correct/(h.correct+h.wrong))*100) : 0}%</div>
+                </div>
+                <div style="width:46px; height:46px; border-radius:50%; background:${pct>=75?'#EAF3DE':pct>=40?'#FAEEDA':'#FCEBEB'}; color:${pct>=75?'#27500A':pct>=40?'#633806':'#791F1F'}; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px; border:2px solid ${pct>=75?'#C0DD97':pct>=40?'#FAC775':'#F7C1C1'};">
+                    ${pct}%
+                </div>
+            </div>
+        </div>`;
+    });
+
+    html += `</div>`;
+    c.innerHTML = html;
+}
+
+function renderStudentResults() {
+    var c = document.getElementById('student-results-area');
+    if(!currentUser) {
+        c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login to view your results.</div></div>`;
+        return;
+    }
+
+    var myHistory = [];
+    tests.forEach(t => {
+        if(t.submissions) {
+            t.submissions.forEach((s, idx) => {
+                if(s.uid === currentUser.uid || (s.name && currentUser.displayName && s.name.toLowerCase() === currentUser.displayName.toLowerCase())) {
+                    let canView = (t.resultVis === 'instant') || (t.released === true);
+                    myHistory.push({
+                        testId: t.id, 
+                        testTitle: t.title, 
+                        testCode: t.code,
+                        name: s.name, 
+                        roll: s.roll, 
+                        score: s.score, 
+                        totalMarks: s.totalMarks,
+                        time: s.time, 
+                        canView: canView
+                    });
+                }
+            });
+        }
+    });
+
+    if(myHistory.length === 0) {
+        c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-file-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No results found.</div></div>`;
+        return;
+    }
+
+    var html = `<div style="display:flex; flex-direction:column; gap:12px;">`;
+    
+    myHistory.reverse().forEach(h => {
+        var btnHtml = h.canView 
+            ? `<button class="btn btn-primary btn-sm" onclick="nav('student'); launchExistingResult('${h.testId}', '${h.name}', '${h.roll}')"><i class="ti ti-eye"></i> Review Paper</button>`
+            : `<span class="badge b-amber" style="font-size:13px; padding:6px 12px"><i class="ti ti-lock"></i> Pending Release</span>`;
+
+        html += `
+        <div class="test-entry" style="align-items:center; padding:1.25rem 1.5rem;">
+            <div class="te-meta">
+                <div style="font-weight:600;font-size:16px;">${h.testTitle} <span class="badge b-gray" style="font-size:11px; margin-left:8px;">Code: ${h.testCode}</span></div>
+                <div style="font-size:13px;color:var(--color-text-secondary); margin-top:6px;">Submitted: ${h.time}</div>
+                <div style="font-size:14px; font-weight:600; color:#185FA5; margin-top:6px;">Score: ${h.score}/${h.totalMarks}</div>
+            </div>
+            <div>${btnHtml}</div>
+        </div>`;
+    });
+    
+    html += `</div>`;
+    c.innerHTML = html;
+}
+
+function launchDemoTest() {
+    var demoTest = {
+        id: 'demo_' + Date.now(),
+        code: 'DEMO',
+        title: 'Platform UI Demo Test',
+        subject: 'Familiarization',
+        duration: 5,
+        totalMarks: 8,
+        negMarking: 0,
+        allowChange: true,
+        showPalette: true,
+        allowNav: true,
+        fullScreenMode: false,
+        antiCheat: false,
+        resultVis: 'instant',
+        questions: [
+            {
+                type: 'mcq',
+                text: 'How does the question palette work?',
+                marks: 4,
+                options: ['Clicking a number jumps to that question', 'It changes color when answered', 'It helps track pending questions', 'All of the above'],
+                correct: [3],
+                explanation: 'The palette is a navigation map. It turns blue when answered, and yellow when marked for review.'
+            },
+            {
+                type: 'msq',
+                text: 'Which of the following are features of ExamiTop? (Select multiple)',
+                marks: 4,
+                options: ['Anti-Cheat Tab Lock', 'Live Video Streaming', 'Instant Auto-Evaluation', 'Detailed Analytics'],
+                correct: [0, 2, 3],
+                explanation: 'ExamiTop focuses on secure proctoring and analytics. Live video streaming is not part of this platform.'
+            }
+        ],
+        submissions: []
+    };
+    
+    var demoName = currentUser ? (currentUser.displayName || 'Demo Student') : 'Guest Explorer';
+    nav('student');
+    launchTest(demoTest, demoName, 'DEMO-01');
+}
+
+function updateStudentUIForRole() {
+    var demoContainer = document.getElementById('demo-test-container');
+    if (demoContainer) {
+        if (userRole === 'guest') {
+            demoContainer.classList.add('hidden');
+        } else {
+            demoContainer.classList.remove('hidden');
+        }
+    }
+}
+
 function resetStudent(){
   activeTest=null;activeState=null;
   document.getElementById('student-home').classList.remove('hidden');
   document.getElementById('student-test').classList.add('hidden');
   document.getElementById('student-result').classList.add('hidden');
+  
+  if(currentUser && document.getElementById('s-name')) {
+      document.getElementById('s-name').value = currentUser.displayName || '';
+  }
+  
+  if (userRole === 'student') {
+      nav('student-dashboard');
+  } else if (userRole === 'guest') {
+      nav('student'); 
+  }
+  
+  if (typeof updateStudentUIForRole === 'function') updateStudentUIForRole();
 }

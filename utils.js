@@ -86,17 +86,22 @@ function switchPageUI(pageId) {
     
     if(pageId === 'tests') renderTestList();
     if(pageId === 'results') renderAllResults(); 
+    
+    if(pageId === 'student-dashboard') {
+        if(typeof renderStudentDashboard === 'function') renderStudentDashboard();
+    }
+    // NAYA: Results tab click hone par list load karega
+    if(pageId === 'student-results') {
+        if(typeof renderStudentResults === 'function') renderStudentResults();
+    }
+    if(pageId === 'admin') {
+        if(typeof renderAdminDashboard === 'function') renderAdminDashboard();
+    }
 }
 
-// Is advance event listener se page guarantee ke sath load hoga
 document.addEventListener('DOMContentLoaded', function() {
     let initialHash = window.location.hash.replace('#', '') || 'home';
-    
-    // Agar URL me pehli baar koi hash nahi hai, toh automatically laga do
-    if(!window.location.hash) {
-        window.location.hash = 'home';
-    }
-    
+    if(!window.location.hash) window.location.hash = 'home';
     switchPageUI(initialHash);
 });
 
@@ -147,21 +152,7 @@ function showHelpGuide() {
                     <li><strong>Export to CSV:</strong> Click the "Export CSV" button in the submissions panel to download a complete Excel sheet of student performances.</li>
                 </ul>
             </div>
-            <h3 style="color: var(--color-text-primary); border-left: 4px solid #3B6D11; padding-left: 10px; margin-bottom: 1rem;">📝 Bulk Upload (JSON Format)</h3>
-            <p style="margin-bottom: 10px;">To upload multiple questions at once using the "Bulk Import" button, create a <code>.json</code> file following this strict format:</p>
-            <pre style="background: #1e293b; color: #a5b4fc; padding: 1rem; border-radius: 8px; overflow-x: auto; font-family: monospace; font-size: 13px; margin-bottom: 1.5rem;">
-[
-  {
-    "type": "mcq",
-    "text": "What is the capital of France?",
-    "marks": 4,
-    "options": ["London", "Berlin", "Paris", "Madrid"],
-    "correct": [2], 
-    "explanation": "Paris is the capital of France."
-  }
-]</pre>
-            <p style="font-size: 13px; color: var(--color-text-secondary); margin-top: -10px; margin-bottom: 1.5rem;"><em>Note: The "correct" array uses a 0-based index (0 is the 1st option, 1 is the 2nd, etc.).</em></p>
-            <h3 style="color: var(--color-text-primary); border-left: 4px solid #854F0B; padding-left: 10px; margin-bottom: 1rem;">👨‍🎓 For Students</h3>
+            <h3 style="color: var(--color-text-primary); border-left: 4px solid #854F0B; padding-left: 10px; margin-bottom: 1rem;">🎓 For Students</h3>
             <ul style="padding-left: 20px; margin-bottom: 1.5rem;">
                 <li style="margin-bottom: 8px;"><strong>Joining a Test:</strong> Navigate to the "Join Test" tab, enter your exact Full Name, Roll Number, and the 6-character Code provided by your instructor.</li>
                 <li style="margin-bottom: 8px;"><strong>During the Exam:</strong> Do not refresh the page or switch browser tabs. A built-in timer will auto-submit your paper when the time runs out.</li>
