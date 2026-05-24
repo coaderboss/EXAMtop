@@ -211,45 +211,114 @@ function showResultPageAsExaminer(testIdx, sIdx) {
   _generateResultDOM(sub, t, true, testIdx, sIdx);
 }
 
+// ==========================================
+// ADVANCED EVALUATION (WITH VALIDATION & AUDIT)
+// ==========================================
+
 function saveEvaluation(tIdx, sIdx) {
     var sub = tests[tIdx].submissions[sIdx];
     var test = tests[tIdx];
-    
+    var overrides = []; 
+    var hasError = false;
+
+    // 1. STRICT VALIDATION CHECK
     document.querySelectorAll('.eval-input').forEach(inp => {
         var qIdx = parseInt(inp.id.replace('mark_input_', ''));
         var awardedMarks = parseFloat(inp.value) || 0;
+        var maxMarks = test.questions[qIdx].marks; 
         
-        if(sub.details[qIdx].q.type === 'subjective' || sub.details[qIdx].earned !== awardedMarks) {
-            sub.details[qIdx].earned = awardedMarks;
-            sub.details[qIdx].status = 'evaluated';
+        if (awardedMarks > maxMarks) {
+            showToast(`Error: Marks for Q${qIdx + 1} cannot exceed ${maxMarks}!`, 'error');
+            inp.style.borderColor = '#A32D2D'; // Box lal ho jayega error par
+            inp.style.background = '#FCEBEB';
+            hasError = true;
+            return;
+        } else {
+            inp.style.borderColor = '#185FA5'; // Wapas normal color
+            inp.style.background = '#fff';
+            
+            if(sub.details[qIdx].type === 'subjective' || sub.details[qIdx].earned !== awardedMarks) {
+                overrides.push({ qIdx: qIdx, awarded: awardedMarks });
+            }
         }
     });
-    
+
+    if (hasError) return; 
+
+    if (overrides.length === 0) {
+        showToast('No changes made to marks.', 'normal');
+        return;
+    }
+
+    // 2. ACCOUNTABILITY MODAL (Audit Trail)
+    window.tempEvalData = { tIdx, sIdx, overrides }; 
+
+    showModal(`
+        <div style="padding:1.5rem; text-align:left;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem; color:#854F0B;">
+                <i class="ti ti-shield-check" style="font-size:28px;"></i>
+                <h3 style="margin:0; font-size:20px;">Evaluation Audit required</h3>
+            </div>
+            <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:1rem; line-height:1.5;">
+                You are modifying the marks for <strong>${overrides.length} question(s)</strong>. To ensure transparency, please provide a justification. This will be recorded securely.
+            </p>
+            <label style="font-size:13px; font-weight:600; margin-bottom:5px; display:block;">Reason for changing marks: <span style="color:#A32D2D">*</span></label>
+            <textarea id="audit-reason" class="input-block" placeholder="e.g., 'Partial marks for correct formula'" style="min-height:80px; margin-bottom:1.5rem; font-size:14px;"></textarea>
+            
+            <div style="display:flex; gap:12px;">
+                <button class="btn" style="flex:1" onclick="hideModal()">Cancel</button>
+                <button class="btn btn-primary" style="flex:1" onclick="confirmAndSaveEval()"><i class="ti ti-lock"></i> Confirm & Save</button>
+            </div>
+        </div>
+    `);
+}
+
+function confirmAndSaveEval() {
+    var reason = document.getElementById('audit-reason').value.trim();
+    if (!reason) {
+        showToast("You must provide a reason for the audit log!", "error");
+        return;
+    }
+
+    var { tIdx, sIdx, overrides } = window.tempEvalData;
+    var sub = tests[tIdx].submissions[sIdx];
+    var test = tests[tIdx];
+
+    overrides.forEach(ov => {
+        sub.details[ov.qIdx].earned = ov.awarded;
+        sub.details[ov.qIdx].status = 'evaluated';
+        
+        if(!sub.details[ov.qIdx].auditLogs) sub.details[ov.qIdx].auditLogs = [];
+        
+        sub.details[ov.qIdx].auditLogs.push({
+            date: new Date().toLocaleString('en-IN'),
+            examiner: currentUser ? (currentUser.displayName || currentUser.email || 'Examiner') : 'Examiner',
+            reason: reason,
+            awarded: ov.awarded
+        });
+    });
+
     var newTotal = 0, newCorrect = 0, newWrong = 0, newSkipped = 0;
-    
     sub.details.forEach(d => {
         newTotal += (d.earned || 0);
-        if (d.status === 'skipped') {
-            newSkipped++;
-        } else if (d.earned > 0) {
-            newCorrect++;
-        } else if (d.earned < 0) {
-            newWrong++;
-        } else {
-            if (d.q.type === 'subjective') newSkipped++; 
-            else newWrong++;
+        if (d.status === 'skipped') newSkipped++;
+        else if (d.earned > 0) newCorrect++;
+        else if (d.earned < 0) newWrong++;
+        else {
+            if (d.q.type === 'subjective') newSkipped++; else newWrong++;
         }
     });
-    
+
     sub.score = Number(newTotal.toFixed(2));
     sub.correct = newCorrect;
     sub.wrong = newWrong;
     sub.skipped = newSkipped;
-    
+
     updateDatabase(); 
-    _generateResultDOM(sub, test, true, tIdx, sIdx);
-    
-    showModal('<div style="text-align:center;padding:1.5rem"><i class="ti ti-check" style="font-size:48px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:22px;margin-bottom:0.5rem">Evaluation Overridden & Saved!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">Marks and student statistics have been successfully updated.</p><button class="btn btn-primary" onclick="hideModal(); nav(\'tests\')">Back to Tests</button></div>');
+    hideModal();
+    _generateResultDOM(sub, test, true, tIdx, sIdx); 
+    showToast('Marks Saved! Audit log securely recorded.', 'success');
+    window.tempEvalData = null; 
 }
 
 function renderAllResults(){

@@ -29,6 +29,9 @@
     .header-actions { gap: 6px !important; }
     .hide-on-mobile { display: none !important; } /* Lamba text hide karne ke liye */
     .logo-text { font-size: 1.25rem !important; }
+    .test-entry { flex-direction: column !important; align-items: flex-start !important; }
+    .te-actions { display: grid !important; grid-template-columns: 1fr 1fr; width: 100%; margin-top: 15px; gap: 8px; }
+    .te-actions .btn { width: 100%; justify-content: center; }
   }   
 
 .toast { background: #1e293b; color: #fff; padding: 12px 24px;

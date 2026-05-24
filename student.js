@@ -346,6 +346,7 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
     var filtered=sub.details.filter(d=>filter==='all'||d.status===filter||(filter==='skipped'&&(d.status==='submitted'||d.status==='evaluated')));
     return filtered.map((d)=>{
       var originalQIdx = sub.details.indexOf(d);
+      
       var q=d.q,ans=d.ans;
       var headerBg=d.status==='correct'?'#EAF3DE':d.status==='wrong'?'#FCEBEB':d.status==='partial'?'#FAEEDA':(d.status==='submitted'||d.status==='evaluated')?'#EEEDFE':'var(--color-background-secondary)';
       var headerColor=d.status==='correct'?'#27500A':d.status==='wrong'?'#791F1F':d.status==='partial'?'#633806':(d.status==='submitted'||d.status==='evaluated')?'#3C3489':'var(--color-text-secondary)';
@@ -390,7 +391,18 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
         ${q.modelAnswer?`<div class="qr-opt correct" style="align-items:flex-start;padding:1rem"><i class="ti ti-bulb" style="flex-shrink:0;margin-top:2px;font-size:18px"></i><span style="font-size:15px;line-height:1.6"><strong>Model Answer:</strong><br>${q.modelAnswer}</span></div>`:''}`;
       }
       var expHTML=q.explanation?`<div style="margin-top:1.25rem;padding:1rem;background:var(--color-background-tertiary);border-radius:var(--border-radius-md);font-size:14px;display:flex;gap:10px;align-items:flex-start;border:1px solid var(--color-border-secondary)"><i class="ti ti-info-circle" style="flex-shrink:0;color:#185FA5;font-size:18px;margin-top:2px"></i><span style="line-height:1.6"><strong>Explanation:</strong> ${q.explanation}</span></div>`:'';
-      
+      // --- NAYA: AUDIT LOG DISPLAY ---
+      var auditHTML = '';
+      if (d.auditLogs && d.auditLogs.length > 0) {
+          let lastLog = d.auditLogs[d.auditLogs.length - 1]; // Sabse latest reason
+          auditHTML = `<div style="margin-top:12px; padding:10px; background:#FEF5E5; border:1px solid #FAC775; border-radius:6px; font-size:13px; color:#633806;">
+              <div style="font-weight:600; margin-bottom:4px;"><i class="ti ti-shield-check"></i> Audit Log (Manual Evaluation)</div>
+              Marks overridden to <strong>${lastLog.awarded}</strong>. <br>
+              <strong>Reason:</strong> "${lastLog.reason}" <br>
+              <span style="font-size:11px; opacity:0.7;">By: ${lastLog.examiner} | Date: ${lastLog.date}</span>
+          </div>`;
+      }
+      // -------------------------------
       var examinerInputHTML = '';
       if(isExaminerView) {
           examinerInputHTML = `<div style="margin-top:15px; padding-top:12px; border-top:1px dashed var(--color-border-secondary); display:flex; align-items:center; justify-content:space-between; gap:10px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
@@ -410,6 +422,7 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
           ${q.imgUrl ? `<div style="margin-bottom:1.5rem;"><img src="${q.imgUrl}" style="max-width:100%; max-height:250px; border-radius:8px; border:1px solid var(--color-border-secondary);"></div>` : ''}
           ${optHTML}
           ${expHTML}
+          ${auditHTML}
           ${examinerInputHTML}
         </div>
       </div>`;
