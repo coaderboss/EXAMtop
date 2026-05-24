@@ -41,7 +41,30 @@
 
 </div>
 
-<div class="page active" id="page-create">
+<div class="page" id="page-home">
+  <div style="text-align:center; padding: 4rem 1rem; max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh;">
+    
+    <div class="logo-icon" style="width: 80px; height: 80px; font-size: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(24,95,165,0.3); margin-bottom: 1.5rem;">E</div>
+    
+    <h1 style="font-size: 2.8rem; color: #1e293b; margin-bottom: 1rem; line-height: 1.2;">Next-Gen Assessment & <br><span style="color: #185FA5;">Proctoring Platform</span></h1>
+    
+    <p style="font-size: 1.1rem; color: var(--color-text-secondary); margin-bottom: 2.5rem; max-width: 600px; line-height: 1.6;">
+      Secure, advanced, and seamless test creation. Join thousands of students and educators in experiencing the future of online technical assessments.
+    </p>
+    
+    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+       <button class="btn btn-primary" onclick="nav('student')" style="padding: 14px 28px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 15px rgba(24,95,165,0.3);">
+         <i class="ti ti-school"></i> Join as Student
+       </button>
+       <button class="btn" onclick="nav('create')" style="padding: 14px 28px; font-size: 16px; font-weight: 600; border: 2px solid #185FA5; color: #185FA5; background: transparent;">
+         <i class="ti ti-pencil"></i> Create a Test
+       </button>
+    </div>
+
+  </div>
+</div>
+
+<div class="page" id="page-create">
   <div class="page-header">
     <div class="page-title">Create a New Test</div>
     <div class="page-sub">Configure settings, add questions, and generate a shareable test code.</div>
@@ -156,6 +179,9 @@
   </div>
 </div>
 
-<script src="app.js"></script>
+<script src="utils.js"></script>
+<script src="auth.js"></script>
+<script src="examinor.js"></script>
+<script src="student.js"></script>
 </body>
 </html>

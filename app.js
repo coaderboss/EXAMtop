@@ -142,18 +142,55 @@ function updateDatabase() {
 
 var tests=[], qList=[], activeTest=null, activeState=null, timerIv=null;
 
-function nav(id){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
-  ['create','tests','student','results'].forEach((n,i)=>{document.querySelectorAll('.nav-tab')[i].classList[n===id?'add':'remove']('active')});
-  if(id==='tests') renderTestList();
-  if(id==='results') renderAllResults();
-  if(id==='student'){
-    document.getElementById('student-home').classList.remove('hidden');
-    document.getElementById('student-test').classList.add('hidden');
-    document.getElementById('student-result').classList.add('hidden');
-  }
+// ==========================================
+// SPA ROUTER & HISTORY MANAGEMENT
+// ==========================================
+
+// 1. Jab bhi phone ka Back Button dabega, ye chalega
+window.addEventListener('popstate', function(event) {
+    let hash = window.location.hash.replace('#', '') || 'home';
+    
+    // Agar bacha test de raha hai aur back daba diya, toh warn karo
+    if (activeState && !activeState.done && hash !== 'student') {
+        if (!confirm("WARNING: You are in an active exam! Going back will cancel your test. Are you sure?")) {
+            // Action cancel karo aur URL wapas set karo
+            window.history.pushState(null, null, '#student');
+            return;
+        } else {
+            exitToHome(); // Hamara purana exit function
+        }
+    }
+    
+    switchPageUI(hash);
+});
+
+// 2. Button dabane par URL change karne wala naya nav function
+function nav(pageId) {
+    window.location.hash = pageId; // Browser history me naya panna jod dega
+    switchPageUI(pageId);
+}
+
+// 3. UI switch karne ka main engine (Purana nav logic)
+function switchPageUI(pageId) {
+    // Sab page chupao, target dikhao
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    var target = document.getElementById('page-' + pageId);
+    if(target) target.classList.add('active');
+    
+    // Navbar ki blue line set karo
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    var tab = document.querySelector(`.nav-tab[onclick="nav('${pageId}')"]`);
+    if(tab) tab.classList.add('active');
+    
+    // Tab load hone par data manga lo
+    if(pageId === 'tests') renderTestList();
+    if(pageId === 'results') renderGlobalResults(); // Agar ye function hai toh chalega
+}
+
+// 4. Jab website pehli baar khulegi
+window.onload = function() {
+    let initialHash = window.location.hash.replace('#', '') || 'home';
+    switchPageUI(initialHash);
 }
 
 function addQ(data){
@@ -232,8 +269,18 @@ function tbadge(t){return{mcq:'b-blue',msq:'b-green',integer:'b-amber',subjectiv
 // SAVE TEST FUNCTION (WITH SMART MARKS & COPY CODE)
 // ==========================================
 function saveTest(){
-  if(!currentUser) { showModal('<div style="text-align:center;padding:1rem"><i class="ti ti-lock" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Login Required!</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>'); return; }
-  
+if(!currentUser) { 
+      showModal(`<div style="text-align:center;padding:1.5rem">
+        <i class="ti ti-lock" style="font-size:46px;color:#A32D2D;display:block;margin-bottom:1rem"></i>
+        <div style="font-weight:600;font-size:22px;margin-bottom:0.5rem">Login Required!</div>
+        <p style="font-size:14px;color:var(--color-text-secondary);margin-bottom:1.5rem">You need to log in as an examiner to save this test securely to the cloud.</p>
+        <div style="display:flex;gap:12px;justify-content:center">
+            <button class="btn" style="background:var(--color-background-secondary); border:1px solid var(--color-border-secondary); color:var(--color-text-primary);" onclick="hideModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="hideModal(); toggleLogin()"><i class="ti ti-brand-google"></i> Login Now</button>
+        </div>
+      </div>`); 
+      return; 
+  }  
   var title=document.getElementById('t-title').value.trim();
   if(!title){ showToast('Please enter a test title.', 'error'); return;}
   if(!qList.length){ showToast('Add at least one question.', 'error'); return;}
