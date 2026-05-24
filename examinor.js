@@ -212,7 +212,7 @@ function showResultPageAsExaminer(testIdx, sIdx) {
 }
 
 // ==========================================
-// ADVANCED EVALUATION (WITH VALIDATION & AUDIT)
+// ADVANCED EVALUATION (WITH STRICT VALIDATION & AUDIT)
 // ==========================================
 
 function saveEvaluation(tIdx, sIdx) {
@@ -221,30 +221,39 @@ function saveEvaluation(tIdx, sIdx) {
     var overrides = []; 
     var hasError = false;
 
-    // 1. STRICT VALIDATION CHECK
-    document.querySelectorAll('.eval-input').forEach(inp => {
+    var inputs = document.querySelectorAll('.eval-input');
+    
+    // 1. STRICT VALIDATION CHECK (Using standard for-loop to break execution)
+    for (var i = 0; i < inputs.length; i++) {
+        var inp = inputs[i];
         var qIdx = parseInt(inp.id.replace('mark_input_', ''));
         var awardedMarks = parseFloat(inp.value) || 0;
-        var maxMarks = test.questions[qIdx].marks; 
         
+        // Exact max marks directly question array se nikale
+        var maxMarks = Number(sub.details[qIdx].q.marks); 
+        
+        // Agar teacher ne limit se zyada marks daale hain
         if (awardedMarks > maxMarks) {
             showToast(`Error: Marks for Q${qIdx + 1} cannot exceed ${maxMarks}!`, 'error');
-            inp.style.borderColor = '#A32D2D'; // Box lal ho jayega error par
+            inp.style.borderColor = '#A32D2D'; // Box lal ho jayega
             inp.style.background = '#FCEBEB';
             hasError = true;
-            return;
+            break; // Loop ko turant yahi rok do
         } else {
             inp.style.borderColor = '#185FA5'; // Wapas normal color
             inp.style.background = '#fff';
             
-            if(sub.details[qIdx].type === 'subjective' || sub.details[qIdx].earned !== awardedMarks) {
+            // Check karo ki marks original se change hue hain kya?
+            if(sub.details[qIdx].q.type === 'subjective' || sub.details[qIdx].earned !== awardedMarks) {
                 overrides.push({ qIdx: qIdx, awarded: awardedMarks });
             }
         }
-    });
+    }
 
+    // Agar error hai toh modal dikhane mat do, wahi se return kardo
     if (hasError) return; 
 
+    // Agar sab marks same hain toh wapas bhej do
     if (overrides.length === 0) {
         showToast('No changes made to marks.', 'normal');
         return;
