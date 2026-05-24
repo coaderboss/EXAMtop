@@ -179,8 +179,20 @@ function renderQs(){
       </div>
       <div style="margin-bottom:1rem">
         <label>Question Text</label>
-        <textarea placeholder="Type your question here..." onchange="qList[${i}].text=this.value">${q.text}</textarea>
-      </div>
+        <textarea placeholder="Type your question here..." onchange="qList[${i}].text=this.value" class="input-block">${q.text || ''}</textarea>
+        
+        <div style="margin-top:10px; padding:10px; background:var(--color-background-secondary); border:1px dashed var(--color-border-secondary); border-radius:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:13px; font-weight:500; color:var(--color-text-secondary); margin:0;">
+                    <i class="ti ti-photo-plus"></i> Add/Change Image
+                </label>
+                ${q.imgUrl ? `<span style="font-size:12px; color:#3B6D11; font-weight:bold;"><i class="ti ti-check"></i> Uploaded</span>` : ''}
+            </div>
+            <input type="file" accept="image/*" style="font-size:13px; width:100%; margin-top:8px;" onchange="uploadQuestionImage(this, ${i})">
+            
+            ${q.imgUrl ? `<div style="margin-top:10px;"><img src="${q.imgUrl}" style="max-height:150px; border-radius:6px; border:1px solid var(--color-border-secondary);"></div>` : ''}
+        </div>
+    </div>
       ${renderQEdit(q,i)}
       <div style="margin-top:1rem"><label>Explanation (Shown in result)</label><input type="text" placeholder="Brief explanation or formula..." value="${q.explanation||''}" onchange="qList[${i}].explanation=this.value"></div>
     </div>`).join('');
@@ -216,18 +228,40 @@ function togMSQ(qi,j,v){if(v){qList[qi].correct.push(j)}else{qList[qi].correct=q
 function tlabel(t){return{mcq:'Single Correct',msq:'Multi Correct',integer:'Integer Type',subjective:'Subjective'}[t]||t}
 function tbadge(t){return{mcq:'b-blue',msq:'b-green',integer:'b-amber',subjective:'b-purple'}[t]||'b-gray'}
 
+// ==========================================
+// SAVE TEST FUNCTION (WITH SMART MARKS & COPY CODE)
+// ==========================================
 function saveTest(){
   if(!currentUser) { showModal('<div style="text-align:center;padding:1rem"><i class="ti ti-lock" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Login Required!</div><button class="btn btn-primary" onclick="hideModal()">OK</button></div>'); return; }
+  
   var title=document.getElementById('t-title').value.trim();
   if(!title){ showToast('Please enter a test title.', 'error'); return;}
   if(!qList.length){ showToast('Add at least one question.', 'error'); return;}
   
+  // --- NAYA: SMART MARKS VALIDATION ---
+  var totalMarksInput = +document.getElementById('t-total').value || 0;
+  var calculatedSum = qList.reduce((sum, q) => sum + Number(q.marks), 0);
+  
+  if (calculatedSum !== totalMarksInput) {
+      var confirmUpdate = confirm(`⚠️ MARKS MISMATCH DETECTED!\n\nYou entered Total Marks: ${totalMarksInput}\nBut the sum of your individual questions is: ${calculatedSum}\n\nDo you want to automatically update the Total Marks to ${calculatedSum} and save?`);
+      
+      if (confirmUpdate) {
+          document.getElementById('t-total').value = calculatedSum;
+          totalMarksInput = calculatedSum; 
+          showToast('Total Marks automatically updated!', 'success');
+      } else {
+          showToast('Test saving cancelled. Please fix the marks.', 'error');
+          return; 
+      }
+  }
+  // ------------------------------------
+
   var code=Math.random().toString(36).substring(2,8).toUpperCase();
   var test={
     id:Date.now(),code,title,creatorUid: currentUser.uid,
     subject:document.getElementById('t-subject').value,
     duration:+document.getElementById('t-dur').value||60,
-    totalMarks:+document.getElementById('t-total').value||100,
+    totalMarks: totalMarksInput, 
     negMarking:+document.getElementById('t-neg').value||0,
     access:document.getElementById('t-access').value,
     resultVis:document.getElementById('t-resultvis').value,
@@ -239,18 +273,15 @@ function saveTest(){
     expiryDate: document.getElementById('t-expiry').value || null,
     shuffleOpts: document.getElementById('t-shuffle-opts').checked,
     antiCheat: document.getElementById('t-anticheat').checked,
-    fullScreenMode: document.getElementById('t-fullscreen').checked, // NAYA
+    fullScreenMode: document.getElementById('t-fullscreen').checked,
     questions:JSON.parse(JSON.stringify(qList)),
     submissions:[],released:false,
     createdAt:new Date().toLocaleDateString('en-IN')
   };
   
-  tests.push(test);
-  updateDatabase(); // NAYI LINE: Cloud me save kar dega
+  tests.push(test); updateDatabase(); qList=[]; renderQs(); document.getElementById('t-title').value='';
   
-  qList=[];renderQs();
-  document.getElementById('t-title').value='';
-  // NAYA: Copy to Clipboard Button in Modal
+  // --- TEST SAVED MODAL WITH COPY BUTTON ---
   showModal(`<div style="text-align:center;padding:1rem">
     <div style="width:72px;height:72px;border-radius:50%;background:#EAF3DE;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem"><i class="ti ti-circle-check" style="font-size:40px;color:#3B6D11"></i></div>
     <div style="font-size:22px;font-weight:600;margin-bottom:0.5rem">Test Saved to Cloud!</div>
@@ -1099,6 +1130,40 @@ function showHelpGuide() {
     </div>`;
     
     showModal(helpHtml);
+}
+
+// --- NAYA: QUESTION IMAGE UPLOADER ---
+// DHYAN RAHE: Yahan apni ImgBB ki API Key zarur dalna!
+const IMGBB_API_KEY = "89d6a61d757a3728bc75a31828160563"; 
+
+async function uploadQuestionImage(inputElement, qIndex) {
+    if (!inputElement.files || inputElement.files.length === 0) return;
+    
+    showToast('Uploading image, please wait...', 'normal');
+    inputElement.disabled = true; // Jab tak upload na ho, block kardo
+    
+    try {
+        const formData = new FormData();
+        formData.append('image', inputElement.files[0]);
+        
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        
+        if(data.success) {
+            qList[qIndex].imgUrl = data.data.url; // Database me save hone ke liye URL set kar diya
+            showToast('Image uploaded successfully!', 'success');
+            renderQs(); // Screen refresh kardo taaki photo dikh jaye
+        } else {
+            throw new Error("Upload failed");
+        }
+    } catch(e) {
+        console.error(e);
+        showToast('Failed to upload image. Try again.', 'error');
+        inputElement.disabled = false;
+    }
 }
 
 // Pre-fill some demo questions

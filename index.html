@@ -12,24 +12,33 @@
 </head>
 <body>
 
-<div class="navbar">
-  <div class="logo">
-    <div class="logo-icon">E</div>
-    <div class="logo-text">Exami<span>top</span></div>
+<div class="app-header" style="position: sticky; top: 0; z-index: 100; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+  
+  <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--color-border-secondary);">
+    <div class="logo">
+      <div class="logo-icon">E</div>
+      <div class="logo-text">Exami<span>top</span></div>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <button class="btn btn-sm" onclick="showHelpGuide()" style="border-radius: 50%; width: 36px; height: 36px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: #185FA5; display: flex; align-items: center; justify-content: center;" title="Platform Guide & Instructions">
+        <i class="ti ti-info-circle" style="font-size: 22px;"></i>
+      </button>
+      <button class="btn btn-primary btn-sm" id="login-btn" onclick="toggleLogin()" style="border-radius: 20px; white-space: nowrap; font-weight: 600; padding: 8px 16px;">
+        <i class="ti ti-brand-google"></i> Examiner Login
+      </button>
+    </div>
   </div>
-  <div class="nav-tabs" style="display:flex; align-items:center;">
-    <button class="nav-tab active" onclick="nav('create')"><i class="ti ti-pencil"></i> Create Test</button>
-    <button class="nav-tab" onclick="nav('tests')"><i class="ti ti-list-check"></i> My Tests</button>
-    <button class="nav-tab" onclick="nav('student')"><i class="ti ti-school"></i> Join Test</button>
-    <button class="nav-tab" onclick="nav('results')"><i class="ti ti-chart-bar"></i> Global Results</button>
-    <div style="width: 1px; height: 24px; background: var(--color-border-primary); margin: 0 8px;"></div>
-    <button class="btn btn-sm" onclick="showHelpGuide()" style="border-radius: 50%; width: 35px; height: 35px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: #185FA5; margin-right: 8px;" title="Platform Guide & Instructions">
-      <i class="ti ti-info-circle" style="font-size: 20px;"></i>
-    </button>
-    <button class="btn btn-primary btn-sm" id="login-btn" onclick="toggleLogin()" style="border-radius: 20px;">
-      <i class="ti ti-brand-google"></i> Examiner Login
-    </button>
+
+  <div style="background: #f8fafc; overflow-x: auto; border-bottom: 1px solid var(--color-border-secondary); scrollbar-width: none;">
+    <style> .app-header ::-webkit-scrollbar { display: none; } </style>
+    <div class="nav-tabs" style="display: flex; gap: 8px; padding: 10px 16px; width: max-content; margin: 0 auto;">
+      <button class="nav-tab active" onclick="nav('create')"><i class="ti ti-pencil"></i> Create Test</button>
+      <button class="nav-tab" onclick="nav('tests')"><i class="ti ti-list-check"></i> My Tests</button>
+      <button class="nav-tab" onclick="nav('student')"><i class="ti ti-school"></i> Join Test</button>
+      <button class="nav-tab" onclick="nav('results')"><i class="ti ti-chart-bar"></i> Global Results</button>
+    </div>
   </div>
+
 </div>
 
 <div class="page active" id="page-create">
