@@ -2,45 +2,65 @@
 // EXAMINER DASHBOARD & TEST CREATION LOGIC
 // ==========================================
 
-function addQ(data){
+function addQ(data, insertAfterIdx = null){
   var type = data ? data.type : document.getElementById('add-type').value;
-  var q = data || {id:Date.now()+Math.random(), type, text:'', marks:4, options:['','','',''], correct:[], correctInt:null, explanation:''};
+  var q = data || {id:Date.now()+Math.random(), type, text:'', marks:4, options:['','','',''], correct:[], correctInt:null, explanation:'', section:''};
   if(!data) q.id = Date.now()+Math.random();
-  qList.push(q);
+  
+  if (insertAfterIdx !== null) {
+      qList.splice(insertAfterIdx + 1, 0, q); // Specific jagah par insert
+  } else {
+      qList.push(q); // Normal top button se array ke last me insert
+  }
   renderQs();
 }
 
 function renderQs(){
   document.getElementById('qcount-badge').textContent = qList.length+' added';
-  document.getElementById('q-container').innerHTML = qList.map((q,i)=>`
+  
+  // Fetch sections array dynamically from the input
+  var secInput = document.getElementById('t-sections');
+  var sections = secInput && secInput.value.trim() ? secInput.value.split(',').map(s=>s.trim()).filter(s=>s) : [];
+
+  document.getElementById('q-container').innerHTML = qList.map((q,i)=>{
+    // Section Dropdown HTML
+    var secHTML = sections.length > 0 ? `<select onchange="qList[${i}].section=this.value" style="margin-left:10px; padding:4px 8px; font-size:12px; font-weight:600; border-radius:6px; border:1px solid #185FA5; color:#185FA5; outline:none;">
+        <option value="">-- Assign Section --</option>
+        ${sections.map(s => `<option value="${s}" ${q.section===s?'selected':''}>${s}</option>`).join('')}
+    </select>` : '';
+
+    return `
     <div class="q-block">
       <div class="q-block-header">
         <div class="q-num-badge">${i+1}</div>
         <span class="badge ${tbadge(q.type)}">${tlabel(q.type)}</span>
+        ${secHTML}
         <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
           <span style="font-size:13px;color:var(--color-text-secondary);font-weight:600">Marks</span>
           <input type="number" value="${q.marks}" min="0" style="width:70px;font-size:14px;text-align:center" onchange="qList[${i}].marks=+this.value">
-          <button class="btn btn-sm btn-danger" onclick="rmQ(${i})"><i class="ti ti-trash"></i> Remove</button>
+          <button class="btn btn-sm btn-danger" onclick="rmQ(${i})"><i class="ti ti-trash"></i></button>
         </div>
       </div>
       <div style="margin-bottom:1rem">
         <label>Question Text</label>
         <textarea placeholder="Type your question here..." onchange="qList[${i}].text=this.value" class="input-block">${q.text || ''}</textarea>
-        
         <div style="margin-top:10px; padding:10px; background:var(--color-background-secondary); border:1px dashed var(--color-border-secondary); border-radius:8px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <label style="font-size:13px; font-weight:500; color:var(--color-text-secondary); margin:0;">
-                    <i class="ti ti-photo-plus"></i> Add/Change Image
-                </label>
+                <label style="font-size:13px; font-weight:500; color:var(--color-text-secondary); margin:0;"><i class="ti ti-photo-plus"></i> Add Image</label>
                 ${q.imgUrl ? `<span style="font-size:12px; color:#3B6D11; font-weight:bold;"><i class="ti ti-check"></i> Uploaded</span>` : ''}
             </div>
             <input type="file" accept="image/*" style="font-size:13px; width:100%; margin-top:8px;" onchange="uploadQuestionImage(this, ${i})">
             ${q.imgUrl ? `<div style="margin-top:10px;"><img src="${q.imgUrl}" style="max-height:150px; border-radius:6px; border:1px solid var(--color-border-secondary);"></div>` : ''}
         </div>
-    </div>
+      </div>
       ${renderQEdit(q,i)}
-      <div style="margin-top:1rem"><label>Explanation (Shown in result)</label><input type="text" placeholder="Brief explanation or formula..." value="${q.explanation||''}" onchange="qList[${i}].explanation=this.value"></div>
-    </div>`).join('');
+      <div style="margin-top:1rem"><label>Explanation</label><input type="text" placeholder="Formula or logic..." value="${q.explanation||''}" onchange="qList[${i}].explanation=this.value"></div>
+      
+      <button class="btn btn-sm btn-ghost" style="width:100%; margin-top:1.5rem; border:1px dashed #cbd5e1; color:#185FA5; justify-content:center;" onclick="addQ(null, ${i})">
+          <i class="ti ti-row-insert-bottom"></i> Add New Question Below
+      </button>
+    </div>`
+  }).join('');
 }
 
 function renderQEdit(q,i){
@@ -103,6 +123,7 @@ function saveTest(){
     id:Date.now(),code,title,
     creatorUid: isOfflineMode ? 'offline_creator' : currentUser.uid,
     subject:document.getElementById('t-subject').value,
+    sections: document.getElementById('t-sections') ? document.getElementById('t-sections').value.split(',').map(s=>s.trim()).filter(s=>s) : [],
     duration:+document.getElementById('t-dur').value||60,
     totalMarks: totalMarksInput, 
     negMarking:+document.getElementById('t-neg').value||0,

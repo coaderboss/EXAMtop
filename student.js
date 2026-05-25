@@ -189,8 +189,20 @@ function renderTest(){
   
   var el=document.getElementById('student-test');
   el.classList.remove('hidden');
-  document.getElementById('student-home').classList.add('hidden'); // Double security
+  document.getElementById('student-home').classList.add('hidden'); 
   
+  // NAYA: Section Tabs Generator
+  var sectionTabsHTML = '';
+  if (t.sections && t.sections.length > 0) {
+      sectionTabsHTML = `<div style="display:flex; gap:8px; background:var(--color-background-secondary); padding:8px 16px; border-bottom:1px solid var(--color-border-secondary); overflow-x:auto;">
+          ${t.sections.map(sec => {
+              var firstQIdx = t.questions.findIndex(qq => qq.section === sec);
+              var isCurrentSec = (q.section === sec) || (!q.section && sec === t.sections[0]);
+              return `<button class="btn btn-sm" style="${isCurrentSec ? 'background:#185FA5; color:#fff; border-color:#185FA5;' : 'background:#fff; color:var(--color-text-secondary); border-color:#cbd5e1;'} font-weight:600; white-space:nowrap;" onclick="if(${firstQIdx}>-1) goQ(${firstQIdx})">${sec}</button>`;
+          }).join('')}
+      </div>`;
+  }
+
   el.innerHTML=`
     <div class="test-topbar">
       <div>
@@ -199,16 +211,17 @@ function renderTest(){
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="timer-pill"><i class="ti ti-clock" style="font-size:18px"></i><span id="timerEl">--:--</span></div>
-        <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-weight:600" onclick="confirmSubmit()"><i class="ti ti-send"></i> Finish Test</button>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-weight:600" onclick="confirmSubmit()"><i class="ti ti-send"></i> Finish</button>
       </div>
     </div>
-    <div class="test-layout">
+    
+    ${sectionTabsHTML} <div class="test-layout">
       <div class="q-area">
         <div class="q-block-header" style="margin-bottom:1.5rem; border-bottom:1px solid var(--color-border-secondary); padding-bottom:1rem;">
           <div class="q-num-badge" style="width:36px;height:36px;font-size:16px;">${qi+1}</div>
           <span class="badge ${tbadge(q.type)}">${tlabel(q.type)}</span>
-          <span class="badge b-blue" style="font-size:13px">${q.marks} Marks</span>
-          ${ans.marked?'<span class="badge b-amber"><i class="ti ti-bookmark" style="font-size:12px"></i> Marked for Review</span>':''}
+          ${q.section ? `<span class="badge b-gray"><i class="ti ti-layout-distribute-vertical"></i> ${q.section}</span>` : ''} <span class="badge b-blue" style="font-size:13px">${q.marks} Marks</span>
+          ${ans.marked?'<span class="badge b-amber"><i class="ti ti-bookmark" style="font-size:12px"></i> Marked</span>':''}
           ${locked?'<span class="badge b-red"><i class="ti ti-lock" style="font-size:12px"></i> Locked</span>':''}
         </div>
         <div style="font-size:16px;line-height:1.7;margin-bottom:2rem;color:var(--color-text-primary);font-weight:500;">${q.text||'<em style="color:var(--color-text-secondary)">No question text set.</em>'}</div>
