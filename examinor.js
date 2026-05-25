@@ -144,6 +144,7 @@ function saveTest(){
 
 function renderTestList(){
   var c = document.getElementById('test-list-area');
+  
   if(!isOfflineMode && !currentUser) { 
       c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view your managed tests.</div></div>`; 
       return; 
@@ -151,9 +152,15 @@ function renderTestList(){
   
   var myTests = isOfflineMode ? tests : tests.filter(t => t.creatorUid === currentUser.uid);
   
-  if(!myTests.length){ c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-clipboard-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests created yet.</div></div>`; return; }
+  if(!myTests.length){ 
+      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-clipboard-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests created yet.</div></div>`; 
+      return; 
+  }
   
-  c.innerHTML = myTests.map((t) => {
+  // NAYA: The Missing Wrapper & Missing Closing Tag Fix!
+  var html = `<div style="display:flex; flex-direction:column; gap:16px; width:100%;">`;
+  
+  html += myTests.map((t) => {
     var origIdx = tests.findIndex(x => x.id === t.id);
     var isTestActive = t.isActive !== false; 
     var statusColor = isTestActive ? '#3B6D11' : '#A32D2D';
@@ -163,8 +170,9 @@ function renderTestList(){
     var statusBadge = isTestActive ? '<span class="badge b-green"><i class="ti ti-activity"></i> Accepting</span>' : '<span class="badge b-red"><i class="ti ti-lock"></i> Intake Closed</span>';
 
     return `
-    <div class="test-entry" style="${!isTestActive ? 'opacity:0.85; border-left:4px solid #A32D2D;' : 'border-left:4px solid #3B6D11;'} width: 100%; box-sizing: border-box;">
-      <div class="te-meta">
+    <div class="test-entry" style="${!isTestActive ? 'opacity:0.85; border-left:4px solid #A32D2D;' : 'border-left:4px solid #3B6D11;'} display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; padding:1.25rem 1.5rem; background:#fff; border-radius:12px; border:1px solid var(--color-border-secondary); box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+      
+      <div class="te-meta" style="flex:1; min-width:250px;">
         <div style="font-weight:600;font-size:16px;color:var(--color-text-primary)">${t.title}</div>
         <div style="font-size:13px;color:var(--color-text-secondary)">${t.subject||'No Subject'} &bull; ${t.questions.length} Questions &bull; ${t.duration} Mins</div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap; align-items:center;">
@@ -174,8 +182,8 @@ function renderTestList(){
           ${statusBadge}
         </div>
       </div>
-      <div class="te-actions">
-        <div class="te-actions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
+      
+      <div class="te-actions" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
         <button class="btn btn-sm" onclick="autoJoinLocalTest('${t.code}')"><i class="ti ti-player-play"></i> Self-Test</button>      
         <button class="btn btn-sm btn-blue" onclick="viewSubmissions(${origIdx})"><i class="ti ti-users"></i> Submissions</button>
         <button class="btn btn-sm" style="background:#FAEEDA; color:#854F0B; border-color:#FAC775;" onclick="openEditKeyModal(${origIdx})"><i class="ti ti-key"></i> Edit Key</button>
@@ -187,8 +195,11 @@ function renderTestList(){
         ${!t.released && t.resultVis==='manual' ? `<button class="btn btn-sm btn-success" onclick="releaseRes(${origIdx})"><i class="ti ti-send"></i> Publish</button>` : ''}
         <button class="btn btn-sm btn-danger" onclick="delTest(${origIdx})" title="Delete Test"><i class="ti ti-trash"></i></button>
       </div>
-    </div>`;
+    </div>`; // <-- YAHAN GAYAB THA PURANA DIV! Ab properly laga diya hai.
   }).join('');
+  
+  html += `</div>`;
+  c.innerHTML = html;
 }
 
 function autoJoinLocalTest(code) {
@@ -279,7 +290,7 @@ function saveNewKeyAndReevaluate(idx) {
             sub.details.forEach((d, i) => {
                 let q = t.questions[i]; d.q = q; let ans = d.ans;
                 let hasVal = ans.val !== null && (!Array.isArray(ans.val) || ans.val.length > 0);
-                if (!hasVal) { if(d.status === 'evaluated') { newScore += (d.earned || 0); newSkipped++; } else { d.status = 'skipped'; d.earned = 0; newSkipped++; } } else if (q.type === 'mcq') { if (ans.val === q.correct[0]) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; } else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; } } else if (q.type === 'msq') { var userSel = Array.isArray(ans.val) ? ans.val : []; var corrSel = q.correct; var hasWrongOption = userSel.some(x => !corrSel.includes(x)); var correctlySelected = userSel.filter(x => corrSel.includes(x)).length; if (hasWrongOption) { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; } else if (correctlySelected === corrSel.length) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; } else if (correctlySelected > 0) { var partialMarks = (q.marks / corrSel.length) * correctlySelected; d.earned = Math.round(partialMarks * 100) / 100; newScore += d.earned; newCorrect++; d.status = 'partial'; } else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; } } else if (q.type === 'integer') { if (ans.val === q.correctInt) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; } else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; } } else { if(d.status === 'evaluated') { newScore += (d.earned || 0); if(d.earned > 0) newCorrect++; else newSkipped++; } else { d.status = 'submitted'; d.earned = 0; newSkipped++; } }
+                if (!hasVal) { if(d.status === 'evaluated') { newScore += (d.earned || 0); newSkipped++; } else { d.status = 'skipped'; d.earned = 0; newSkipped++; } } else if (q.type === 'mcq') { if (ans.val === q.correct[0]) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; } else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; } } else if (q.type === 'msq') { var userSel = Array.isArray(ans.val) ? ans.val : []; var corrSel = q.correct; var hasWrongOption = userSel.some(x => !corrSel.includes(x)); var correctlySelected = userSel.filter(x => corrSel.includes(x)).length; if (hasWrongOption) { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; } else if (correctlySelected === corrSel.length) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; } else if (correctlySelected > 0) { var partialMarks = (q.marks / corrSel.length) * correctlySelected; earned = Math.round(partialMarks * 100) / 100; score += earned; correct++; status = 'partial'; } else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; } } else if (q.type === 'integer') { if (ans.val === q.correctInt) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; } else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; } } else { if(d.status === 'evaluated') { newScore += (d.earned || 0); if(d.earned > 0) newCorrect++; else newSkipped++; } else { d.status = 'submitted'; d.earned = 0; newSkipped++; } }
             });
             sub.score = Number(newScore.toFixed(2)); sub.correct = newCorrect; sub.wrong = newWrong; sub.skipped = newSkipped;
         });
