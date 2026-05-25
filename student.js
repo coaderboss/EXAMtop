@@ -2,7 +2,7 @@
 // STUDENT EXAM ENGINE & ANTI-CHEAT LOGIC
 // ==========================================
 
-// NAYA FIX: Smart Navigation Interceptor (To prevent stuck Result pages)
+// SPA Navigation Interceptor: Jab bhi user navbar se 'student' dabaye, views clean reset honge
 if (typeof window.originalNav === 'undefined' && typeof nav === 'function') {
     window.originalNav = nav;
     window.nav = function(pageId) {
@@ -13,6 +13,7 @@ if (typeof window.originalNav === 'undefined' && typeof nav === 'function') {
             if(h) h.classList.remove('hidden');
             if(t) t.classList.add('hidden');
             if(r) r.classList.add('hidden');
+            closeMobilePalette(); // Ensure palette is closed on fresh nav
         }
         window.originalNav(pageId);
     };
@@ -22,6 +23,34 @@ function cancelJoin() {
     document.getElementById('student-home').classList.remove('hidden');
     document.getElementById('student-test').classList.add('hidden');
     document.getElementById('student-result').classList.add('hidden');
+    closeMobilePalette();
+}
+
+// Mobile Palette Controls: Stuck hone se bachane ke liye strict element controls
+function openMobilePalette() {
+    var p = document.getElementById('mobile-palette-sheet');
+    var o = document.getElementById('palette-overlay');
+    if(p && o) {
+        p.style.display = 'block';
+        o.style.display = 'block';
+        setTimeout(() => {
+            p.classList.add('active');
+            o.classList.add('active');
+        }, 10);
+    }
+}
+
+function closeMobilePalette() {
+    var p = document.getElementById('mobile-palette-sheet');
+    var o = document.getElementById('palette-overlay');
+    if(p && o) {
+        p.classList.remove('active');
+        o.classList.remove('active');
+        setTimeout(() => {
+            if(!p.classList.contains('active')) p.style.display = 'none';
+            if(!o.classList.contains('active')) o.style.display = 'none';
+        }, 300);
+    }
 }
 
 function joinTest(){
@@ -33,9 +62,9 @@ function joinTest(){
   
   var t=tests.find(x=>x.code===code);
   if(!t){ showToast('Invalid Test Code. Check and try again.', 'error'); return;}
-  
   if(!t.submissions) t.submissions = [];
   
+  // GUEST RETAKE BUG FIX: Exact String Matching to prevent illicit entries
   var rollToMatch = roll ? roll.toLowerCase() : '';
   var existingSub = t.submissions.find(s => 
       s.name.trim().toLowerCase() === name.toLowerCase() && 
@@ -93,7 +122,6 @@ function joinTest(){
       <button id="start-btn-actual" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px; font-size:16px;" disabled onclick="initiateTestStart('${t.id}', '${name}', '${roll}')">
           <i class="ti ti-player-play"></i> Start Exam Now
       </button>
-      
       <button class="btn" style="width:100%; justify-content:center; padding:12px; font-size:16px; margin-top:12px; background:var(--color-background-secondary); border:1px solid var(--color-border-secondary); color:var(--color-text-primary);" onclick="cancelJoin()">
           <i class="ti ti-arrow-left"></i> Go Back
       </button>
@@ -168,36 +196,37 @@ function launchTest(dbTest, name, roll){
   if (activeTest.fullScreenMode) document.addEventListener("fullscreenchange", handleCheat);
 
   renderTest();
-  if(timerIv)clearInterval(timerIv);
+  if(timerIv) clearInterval(timerIv);
   var secs=test.duration*60;
   timerIv=setInterval(()=>{
     secs--;
     var el=document.getElementById('timerEl');
     if(el){
-      var h=Math.floor(secs/3600),m=Math.floor((secs%3600)/60),s=secs%60;
+      var h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60), s=secs%60;
       el.textContent=(h?h+':':'')+(String(m).padStart(2,'0'))+':'+(String(s).padStart(2,'0'));
-      if(secs<=300)el.closest('.timer-pill').classList.add('timer-warn');
+      if(secs<=300) el.closest('.timer-pill').classList.add('timer-warn');
     }
-    if(secs<=0){clearInterval(timerIv);doSubmit();}
+    if(secs<=0){ clearInterval(timerIv); doSubmit(); }
   },1000);
 }
 
 function renderTest(){
-  var t=activeTest,st=activeState,qi=st.cur,q=t.questions[qi],ans=st.answers[qi];
+  var t=activeTest, st=activeState, qi=st.cur, q=t.questions[qi], ans=st.answers[qi];
   var answered=st.answers.filter(a=>a.val!==null&&(!Array.isArray(a.val)||a.val.length>0)).length;
   var locked=!t.allowChange&&ans.val!==null&&(!Array.isArray(ans.val)||ans.val.length>0);
   
   var el=document.getElementById('student-test');
   el.classList.remove('hidden');
-  document.getElementById('student-home').classList.add('hidden'); 
+  document.getElementById('student-home').classList.add('hidden');
   
+  // PARTITIONING LOGIC: Generate Section Tabs on top if sections exist
   var sectionTabsHTML = '';
   if (t.sections && t.sections.length > 0) {
-      sectionTabsHTML = `<div style="display:flex; gap:8px; background:var(--color-background-secondary); padding:8px 16px; border-bottom:1px solid var(--color-border-secondary); overflow-x:auto;">
+      sectionTabsHTML = `<div style="display:flex; gap:8px; background:var(--color-background-secondary); padding:8px 16px; border-bottom:1px solid var(--color-border-secondary); overflow-x:auto; scrollbar-width:none;">
           ${t.sections.map(sec => {
               var firstQIdx = t.questions.findIndex(qq => qq.section === sec);
               var isCurrentSec = (q.section === sec) || (!q.section && sec === t.sections[0]);
-              return `<button class="btn btn-sm" style="${isCurrentSec ? 'background:#185FA5; color:#fff; border-color:#185FA5;' : 'background:#fff; color:var(--color-text-secondary); border-color:#cbd5e1;'} font-weight:600; white-space:nowrap;" onclick="if(${firstQIdx}>-1) goQ(${firstQIdx})">${sec}</button>`;
+              return `<button class="btn btn-sm" style="${isCurrentSec ? 'background:#185FA5; color:#fff; border-color:#185FA5;' : 'background:#fff; color:var(--color-text-secondary); border-color:#cbd5e1;'} font-weight:600; white-space:nowrap;" onclick="if(${firstQIdx}>-1) { closeMobilePalette(); goQ(${firstQIdx}); }">${sec}</button>`;
           }).join('')}
       </div>`;
   }
@@ -216,20 +245,20 @@ function renderTest(){
     
     ${sectionTabsHTML}
     
-    <div id="palette-overlay" class="palette-overlay" onclick="togglePalette()"></div>
+    <div id="palette-overlay" class="palette-overlay" style="display:none;" onclick="closeMobilePalette()"></div>
     
     <div class="test-layout">
       <div class="q-area">
         <div class="q-block-header" style="margin-bottom:1.5rem; border-bottom:1px solid var(--color-border-secondary); padding-bottom:1rem;">
           <div class="q-num-badge" style="width:36px;height:36px;font-size:16px;">${qi+1}</div>
           <span class="badge ${tbadge(q.type)}">${tlabel(q.type)}</span>
-          ${q.section ? `<span class="badge b-gray"><i class="ti ti-layout-distribute-vertical"></i> ${q.section}</span>` : ''} 
+          ${q.section ? `<span class="badge b-purple" style="font-weight:600;"><i class="ti ti-layout-grid-add"></i> ${q.section}</span>` : ''} 
           <span class="badge b-blue" style="font-size:13px">${q.marks} Marks</span>
           ${ans.marked?'<span class="badge b-amber"><i class="ti ti-bookmark" style="font-size:12px"></i> Marked</span>':''}
           ${locked?'<span class="badge b-red"><i class="ti ti-lock" style="font-size:12px"></i> Locked</span>':''}
         </div>
         
-        <div style="font-size:16px;line-height:1.7;margin-bottom:2rem;color:var(--color-text-primary);font-weight:500;">${q.text||'<em style="color:var(--color-text-secondary)">No question text set.</em>'}</div>
+        <div style="font-size:16px;line-height:1.7;margin-bottom:2rem;color:var(--color-text-primary);font-weight:500;">${q.text||'<em style="color:var(--color-text-secondary)">No question text.</em>'}</div>
         ${q.imgUrl ? `<div style="margin-bottom:1.5rem;"><img src="${q.imgUrl}" style="max-width:100%; max-height:250px; border-radius:8px; border:1px solid var(--color-border-secondary);"></div>` : ''}
         ${renderStudentOpts(q,qi,ans,locked)}
         
@@ -237,23 +266,20 @@ function renderTest(){
           <button class="btn btn-sm" onclick="togMark(${qi})" style="${ans.marked?'color:#633806;border-color:#FAC775;background:#FAEEDA;font-weight:600':''}">
             <i class="ti ti-bookmark"></i> ${ans.marked?'Unmark':'Mark for Review'}
           </button>
-          ${!locked&&ans.val!==null?`<button class="btn btn-sm btn-danger" onclick="clearAns(${qi})"><i class="ti ti-eraser"></i> Clear</button>`:''}
+          ${!locked&&ans.val!==null?`<button class="btn btn-sm btn-danger" onclick="clearAns(${qi})"><i class="ti ti-eraser"></i> Clear Selection</button>`:''}
         </div>
         
         <div class="q-nav-row" id="mobile-nav-bar">
-          <button class="btn" onclick="goQ(${qi-1})" ${qi===0||!t.allowNav?'disabled':''}><i class="ti ti-arrow-left"></i> <span class="hide-mobile">Prev</span></button>
-          
-          ${t.showPalette ? `<button class="btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#0f172a; font-weight:600;" onclick="togglePalette()"><i class="ti ti-layout-grid"></i> <span class="hide-mobile">Palette</span></button>` : ''}
-          
-          ${qi<t.questions.length-1?`<button class="btn btn-primary" onclick="goQ(${qi+1})" ${!t.allowNav&&qi<t.questions.length-1?'':''}>Next <i class="ti ti-arrow-right"></i></button>`:`<button class="btn btn-success" style="font-weight:600" onclick="confirmSubmit()"><i class="ti ti-check"></i> Submit</button>`}
+          <button class="btn" onclick="closeMobilePalette(); goQ(${qi-1})" ${qi===0||!t.allowNav?'disabled':''}><i class="ti ti-arrow-left"></i> <span class="hide-mobile">Previous</span></button>
+          ${t.showPalette ? `<button class="btn hide-desktop" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#0f172a; font-weight:700;" onclick="openMobilePalette()"><i class="ti ti-layout-grid"></i> Palette</button>` : ''}
+          ${qi<t.questions.length-1?`<button class="btn btn-primary" onclick="closeMobilePalette(); goQ(${qi+1})" ${!t.allowNav&&qi<t.questions.length-1?'':''}>Next <i class="ti ti-arrow-right"></i></button>`:`<button class="btn btn-success" style="font-weight:600" onclick="confirmSubmit()"><i class="ti ti-check"></i> Submit</button>`}
         </div>
-
       </div>
       
       ${t.showPalette?`<div class="sidebar-panel" id="mobile-palette-sheet">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <div style="font-size:16px;font-weight:600;color:var(--color-text-primary)">Question Palette</div>
-            <i class="ti ti-x hide-desktop" style="font-size:24px; cursor:pointer;" onclick="togglePalette()"></i>
+            <i class="ti ti-x hide-desktop" style="font-size:24px; cursor:pointer; color:var(--color-text-secondary);" onclick="closeMobilePalette()"></i>
         </div>
         
         <div class="legend-row">
@@ -264,11 +290,10 @@ function renderTest(){
         
         <div class="palette-grid">
           ${t.questions.map((qq,i)=>{
-            var a=st.answers[i]; var done=a.val!==null&&(!Array.isArray(a.val)||a.val.length>0); var cls=a.marked&&done?'p-both':a.marked?'p-marked':done?'p-answered':'p-unanswered';
-            return `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="goQ(${i})">${i+1}</button>`;
+            var a=st.answers[i]; var done=a.val!==null&&(!Array.isArray(a.val)||a.val.length > 0); var cls=a.marked&&done?'p-both':a.marked?'p-marked':done?'p-answered':'p-unanswered';
+            return `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="closeMobilePalette(); goQ(${i})">${i+1}</button>`;
           }).join('')}
         </div>
-        
         <div class="divider"></div>
         <button class="btn btn-primary" style="width:100%;justify-content:center;font-weight:600; padding:12px;" onclick="confirmSubmit()"><i class="ti ti-send"></i> Submit Final Test</button>
       </div>`:''}
@@ -278,39 +303,29 @@ function renderTest(){
 function renderStudentOpts(q,qi,ans,locked){
   if(q.type==='mcq'){ return q.options.map((o,j)=>`<button class="opt-btn${ans.val===j?' sel':''}" onclick="${locked?'':`pickMCQ(${qi},${j})`}"><div class="olabel">${ans.val===j?'<i class="ti ti-check" style="font-size:14px"></i>':String.fromCharCode(65+j)}</div><span style="font-size:15px">${o||'Option '+String.fromCharCode(65+j)}</span></button>`).join(''); }
   else if(q.type==='msq'){ var arr=Array.isArray(ans.val)?ans.val:[]; return q.options.map((o,j)=>`<button class="opt-btn${arr.includes(j)?' sel':''}" onclick="${locked?'':`pickMSQ(${qi},${j})`}"><div class="olabel" style="border-radius:4px">${arr.includes(j)?'<i class="ti ti-check" style="font-size:14px"></i>':String.fromCharCode(65+j)}</div><span style="font-size:15px">${o||'Option '+String.fromCharCode(65+j)}</span></button>`).join(''); }
-  else if(q.type==='integer'){ return `<div style="margin-bottom:1rem"><label style="font-size:15px">Enter your integer answer below:</label><input type="number" value="${ans.val!==null?ans.val:''}" ${locked?'disabled':''} onchange="pickInt(${qi},this.value)" style="max-width:250px;font-size:20px;font-weight:600;text-align:center;padding:12px" placeholder="e.g. 0"></div>`; }
+  else if(q.type==='integer'){ return `<div style="margin-bottom:1rem"><label style="font-size:15px">Enter your integer answer below:</label><input type="number" value="${ans.val!==null?ans.val:''}" ${locked?'disabled':''} onchange="pickInt(${qi},this.value)" style="max-width:250px;font-size:20px;font-weight:600;text-align:center;padding:12px" placeholder="0"></div>`; }
   else{ return `<div style="margin-bottom:1rem"><label style="font-size:15px">Type your descriptive answer below:</label><textarea style="min-height:160px;font-size:15px" ${locked?'disabled':''} onchange="pickSubj(${qi},this.value)" placeholder="Write your detailed answer here...">${ans.val||''}</textarea></div>`; }
 }
 
-function pickMCQ(qi,j){activeState.answers[qi].val=j;renderTest();}
-function pickMSQ(qi,j){ if(!Array.isArray(activeState.answers[qi].val))activeState.answers[qi].val=[]; var a=activeState.answers[qi].val,idx=a.indexOf(j); idx>-1?a.splice(idx,1):a.push(j); renderTest(); }
+function pickMCQ(qi,j){activeState.answers[qi].val=j; renderTest();}
+function pickMSQ(qi,j){ if(!Array.isArray(activeState.answers[qi].val)) activeState.answers[qi].val=[]; var a=activeState.answers[qi].val, idx=a.indexOf(j); idx>-1?a.splice(idx,1):a.push(j); renderTest(); }
 function pickInt(qi,v){activeState.answers[qi].val=v===''?null:+v;}
 function pickSubj(qi,v){activeState.answers[qi].val=v||null;}
-function clearAns(qi){activeState.answers[qi].val=null;renderTest();}
-function togMark(qi){activeState.answers[qi].marked=!activeState.answers[qi].marked;renderTest();}
-function goQ(i){if(i<0||i>=activeTest.questions.length)return;activeState.cur=i;renderTest();}
-// NAYA: Slide-up Palette ko open/close karne ka function
-function togglePalette() {
-    var p = document.getElementById('mobile-palette-sheet');
-    var o = document.getElementById('palette-overlay');
-    if(p && o) {
-        p.classList.toggle('active');
-        o.classList.toggle('active');
-    }
-}
+function clearAns(qi){activeState.answers[qi].val=null; renderTest();}
+function togMark(qi){activeState.answers[qi].marked=!activeState.answers[qi].marked; renderTest();}
+function goQ(i){if(i<0||i>=activeTest.questions.length)return; activeState.cur=i; renderTest();}
 
 function confirmSubmit(){
   var answered=activeState.answers.filter(a=>a.val!==null&&(!Array.isArray(a.val)||a.val.length>0)).length;
   var total=activeTest.questions.length;
-  showModal(`<div style="padding:1rem"><div style="font-size:22px;font-weight:600;margin-bottom:1rem;color:var(--color-text-primary)">Are you sure you want to submit?</div><div style="font-size:15px;color:var(--color-text-secondary);margin-bottom:1.5rem;line-height:1.6">You have answered <strong style="color:var(--color-text-primary)">${answered}</strong> out of <strong style="color:var(--color-text-primary)">${total}</strong> questions.${answered<total?`<br><span style="color:#A32D2D;font-weight:500;display:inline-block;margin-top:5px"><i class="ti ti-alert-circle"></i> Warning: ${total-answered} question${total-answered>1?'s':''} left unanswered.</span>`:''}</div><div style="display:flex;gap:12px"><button class="btn btn-primary" style="flex:1;font-weight:600;font-size:15px" onclick="hideModal();doSubmit()"><i class="ti ti-check"></i> Yes, Submit Now</button><button class="btn" style="flex:1;font-weight:600" onclick="hideModal()">No, Review Paper</button></div></div>`);
+  showModal(`<div style="padding:1rem"><div style="font-size:22px;font-weight:600;margin-bottom:1rem;color:var(--color-text-primary)">Are you sure you want to submit?</div><div style="font-size:15px;color:var(--color-text-secondary);margin-bottom:1.5rem;line-height:1.6">You have answered <strong style="color:var(--color-text-primary)">${answered}</strong> out of <strong style="color:var(--color-text-primary)">${total}</strong> questions.${answered<total?`<br><span style="color:#A32D2D;font-weight:500;display:inline-block;margin-top:5px"><i class="ti ti-alert-circle"></i> Warning: ${total-answered} question(s) left unanswered.</span>`:''}</div><div style="display:flex;gap:12px"><button class="btn btn-primary" style="flex:1;font-weight:600;font-size:15px" onclick="hideModal();doSubmit()"><i class="ti ti-check"></i> Yes, Submit Now</button><button class="btn" style="flex:1;font-weight:600" onclick="hideModal()">No, Review Paper</button></div></div>`);
 }
 
 function doSubmit(){
   if(!activeTest||activeState.done)return;
   clearInterval(timerIv); activeState.done=true;
   document.removeEventListener("visibilitychange", handleCheat); document.removeEventListener("fullscreenchange", handleCheat);
-  var neg=activeTest.negMarking||0;
-  var score=0,correct=0,wrong=0,skipped=0;
+  var neg=activeTest.negMarking||0; var score=0,correct=0,wrong=0,skipped=0;
   
   var details=activeTest.questions.map((q,i)=>{
     var ans=activeState.answers[i]; var status,earned=0;
@@ -333,7 +348,8 @@ function doSubmit(){
   if(t && t.id !== 'prev') { if(!t.submissions) t.submissions = []; t.submissions.push(sub); updateDatabase(); }
   
   document.getElementById('student-test').classList.add('hidden');
-  
+  closeMobilePalette();
+
   if(activeTest.id !== 'prev' && activeTest.resultVis === 'manual') {
       showModal(`<div style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:56px;color:#3B6D11;margin-bottom:1rem;display:block"></i><h3 style="font-size:24px;margin-bottom:0.5rem;font-weight:600">Test Submitted Successfully!</h3><p style="color:var(--color-text-secondary);margin-bottom:2rem;font-size:15px">Your answers have been securely saved. The examiner will review the paper and declare the results manually.</p><button class="btn btn-primary" style="font-size:16px;padding:10px 24px" onclick="resetStudent(); hideModal()">Return to Dashboard</button></div>`);
   } else {
@@ -344,7 +360,6 @@ function doSubmit(){
   }
 }
 
-// NAYA: GAMIFICATION - CERTIFICATE GENERATOR
 function claimCertificate(name, course, date) {
     showModal(`
         <div id="printable-certificate" class="cert-container" style="background:#fff;">
@@ -386,7 +401,7 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
   
   sub.details.forEach(d=>{
     var t=d.q.type;
-    if(!typeStats[t])typeStats[t]={correct:0,wrong:0,skipped:0,total:0};
+    if(!typeStats[t]) typeStats[t]={correct:0,wrong:0,skipped:0,total:0};
     typeStats[t].total++;
     typeStats[t][d.status==='submitted'||d.status==='evaluated'?'skipped':d.status]++;
   });
@@ -397,7 +412,7 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
     var filtered=sub.details.filter(d=>filter==='all'||d.status===filter||(filter==='skipped'&&(d.status==='submitted'||d.status==='evaluated')));
     return filtered.map((d)=>{
       var originalQIdx = sub.details.indexOf(d);
-      var q=d.q,ans=d.ans;
+      var q=d.q, ans=d.ans;
       var headerBg=d.status==='correct'?'#EAF3DE':d.status==='wrong'?'#FCEBEB':d.status==='partial'?'#FAEEDA':(d.status==='submitted'||d.status==='evaluated')?'#EEEDFE':'var(--color-background-secondary)';
       var headerColor=d.status==='correct'?'#27500A':d.status==='wrong'?'#791F1F':d.status==='partial'?'#633806':(d.status==='submitted'||d.status==='evaluated')?'#3C3489':'var(--color-text-secondary)';
       var icon=d.status==='correct'?'ti-circle-check':d.status==='wrong'?'ti-circle-x':d.status==='partial'?'ti-adjustments-alt':(d.status==='submitted'||d.status==='evaluated')?'ti-pencil':'ti-minus';
@@ -409,7 +424,7 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
         var userSel=Array.isArray(ans.val)?ans.val:(ans.val!==null?[ans.val]:[]);
         var corrSel=q.correct;
         optHTML=q.options.map((o,j)=>{
-          var isUser=userSel.includes(j),isCorr=corrSel.includes(j);
+          var isUser=userSel.includes(j), isCorr=corrSel.includes(j);
           var cls='neutral', borderStyle = '';
           if(isCorr && isUser) { cls='correct'; borderStyle='border-color:#3B6D11; background:#EAF3DE;'; }
           else if(isCorr && !isUser) { cls='neutral'; borderStyle='border-color:#C0DD97; background:#f4f9ed;'; }
@@ -437,8 +452,8 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
     }).join('');
   }
 
-  var maxH=Math.max(sub.correct,sub.wrong,sub.skipped,1);
-  var bH=c=>Math.max(16,Math.round((c/maxH)*80));
+  var maxH=Math.max(sub.correct, sub.wrong, sub.skipped, 1);
+  var bH=c=>Math.max(16, Math.round((c/maxH)*80));
   var actionButtons = isExaminerView 
       ? `<button class="btn btn-success" style="font-size:15px;padding:10px 24px;font-weight:600" onclick="saveEvaluation(${tIdx}, ${sIdx})"><i class="ti ti-device-floppy"></i> Save Manual Evaluation</button><button class="btn btn-primary" style="font-size:15px;padding:10px 24px" onclick="nav('tests')"><i class="ti ti-arrow-left"></i> Back to Dashboard</button>`
       : `<button class="btn btn-primary" style="font-size:15px;padding:10px 24px" onclick="resetStudent()"><i class="ti ti-arrow-left"></i> Go Back</button>`;
@@ -530,7 +545,7 @@ function renderStudentResults() {
 }
 
 function launchDemoTest() {
-    var demoTest = { id: 'demo_' + Date.now(), code: 'DEMO', title: 'Platform UI Demo Test', subject: 'Familiarization', duration: 5, totalMarks: 8, negMarking: 0, allowChange: true, showPalette: true, allowNav: true, fullScreenMode: false, antiCheat: false, resultVis: 'instant', questions: [ { type: 'mcq', text: 'How does the question palette work?', marks: 4, options: ['Clicking a number jumps to that question', 'It changes color when answered', 'It helps track pending questions', 'All of the above'], correct: [3], explanation: 'The palette is a navigation map. It turns blue when answered, and yellow when marked for review.' }, { type: 'msq', text: 'Which of the following are features of ExamiTop? (Select multiple)', marks: 4, options: ['Anti-Cheat Tab Lock', 'Live Video Streaming', 'Instant Auto-Evaluation', 'Detailed Analytics'], correct: [0, 2, 3], explanation: 'ExamiTop focuses on secure proctoring and analytics. Live video streaming is not part of this platform.' } ], submissions: [] };
+    var demoTest = { id: 'demo_' + Date.now(), code: 'DEMO', title: 'Platform UI Demo Test', subject: 'Familiarization', duration: 5, totalMarks: 8, negMarking: 0, allowChange: true, showPalette: true, allowNav: true, fullScreenMode: false, antiCheat: false, resultVis: 'instant', questions: [ { type: 'mcq', text: 'How does the question palette work?', marks: 4, options: ['Clicking a number jumps to that question', 'It changes color when answered', 'It helps track pending questions', 'All of the above'], correct: [3], explanation: 'The palette is a navigation map. It turns blue when answered, and yellow when marked for review.' }, { type: 'msq', text: 'Which of the following are features of ExamiTop? (Select multiple)', marks: 4, options: ['Anti-Cheat Tab Lock', 'Live Video Streaming', 'Instant Auto-Evaluation', 'Detailed Analytics'], correct: [0, 2, 3], explanation: 'ExamiTop focuses on secure proctoring and analytics.' } ], submissions: [] };
     var demoName = currentUser ? (currentUser.displayName || 'Demo Student') : 'Guest Explorer';
     nav('student'); 
     document.getElementById('student-home').classList.add('hidden');
@@ -543,16 +558,15 @@ function updateStudentUIForRole() {
 }
 
 function resetStudent(){
-  activeTest=null;activeState=null;
+  activeTest=null; activeState=null;
   document.getElementById('student-home').classList.remove('hidden');
   document.getElementById('student-test').classList.add('hidden');
   document.getElementById('student-result').classList.add('hidden');
+  closeMobilePalette();
   
   if(currentUser && document.getElementById('s-name')) { document.getElementById('s-name').value = currentUser.displayName || ''; }
-  
   if (userRole === 'student') nav('student-dashboard');
   else if (userRole === 'guest') nav('student'); 
   else if (typeof isOfflineMode !== 'undefined' && isOfflineMode) nav('student');
-  
   if (typeof updateStudentUIForRole === 'function') updateStudentUIForRole();
 }
