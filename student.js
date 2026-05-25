@@ -191,7 +191,6 @@ function renderTest(){
   el.classList.remove('hidden');
   document.getElementById('student-home').classList.add('hidden'); 
   
-  // NAYA: Section Tabs Generator
   var sectionTabsHTML = '';
   if (t.sections && t.sections.length > 0) {
       sectionTabsHTML = `<div style="display:flex; gap:8px; background:var(--color-background-secondary); padding:8px 16px; border-bottom:1px solid var(--color-border-secondary); overflow-x:auto;">
@@ -211,48 +210,67 @@ function renderTest(){
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="timer-pill"><i class="ti ti-clock" style="font-size:18px"></i><span id="timerEl">--:--</span></div>
-        <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-weight:600" onclick="confirmSubmit()"><i class="ti ti-send"></i> Finish</button>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-weight:600" onclick="confirmSubmit()"><i class="ti ti-send"></i> <span class="hide-mobile">Finish</span></button>
       </div>
     </div>
     
-    ${sectionTabsHTML} <div class="test-layout">
+    ${sectionTabsHTML}
+    
+    <div id="palette-overlay" class="palette-overlay" onclick="togglePalette()"></div>
+    
+    <div class="test-layout">
       <div class="q-area">
         <div class="q-block-header" style="margin-bottom:1.5rem; border-bottom:1px solid var(--color-border-secondary); padding-bottom:1rem;">
           <div class="q-num-badge" style="width:36px;height:36px;font-size:16px;">${qi+1}</div>
           <span class="badge ${tbadge(q.type)}">${tlabel(q.type)}</span>
-          ${q.section ? `<span class="badge b-gray"><i class="ti ti-layout-distribute-vertical"></i> ${q.section}</span>` : ''} <span class="badge b-blue" style="font-size:13px">${q.marks} Marks</span>
+          ${q.section ? `<span class="badge b-gray"><i class="ti ti-layout-distribute-vertical"></i> ${q.section}</span>` : ''} 
+          <span class="badge b-blue" style="font-size:13px">${q.marks} Marks</span>
           ${ans.marked?'<span class="badge b-amber"><i class="ti ti-bookmark" style="font-size:12px"></i> Marked</span>':''}
           ${locked?'<span class="badge b-red"><i class="ti ti-lock" style="font-size:12px"></i> Locked</span>':''}
         </div>
+        
         <div style="font-size:16px;line-height:1.7;margin-bottom:2rem;color:var(--color-text-primary);font-weight:500;">${q.text||'<em style="color:var(--color-text-secondary)">No question text set.</em>'}</div>
         ${q.imgUrl ? `<div style="margin-bottom:1.5rem;"><img src="${q.imgUrl}" style="max-width:100%; max-height:250px; border-radius:8px; border:1px solid var(--color-border-secondary);"></div>` : ''}
         ${renderStudentOpts(q,qi,ans,locked)}
+        
         <div style="display:flex;gap:10px;margin-top:1.5rem;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="togMark(${qi})" style="${ans.marked?'color:#633806;border-color:#FAC775;background:#FAEEDA;font-weight:600':''}">
             <i class="ti ti-bookmark"></i> ${ans.marked?'Unmark':'Mark for Review'}
           </button>
-          ${!locked&&ans.val!==null?`<button class="btn btn-sm btn-danger" onclick="clearAns(${qi})"><i class="ti ti-eraser"></i> Clear Selection</button>`:''}
+          ${!locked&&ans.val!==null?`<button class="btn btn-sm btn-danger" onclick="clearAns(${qi})"><i class="ti ti-eraser"></i> Clear</button>`:''}
         </div>
-        <div class="q-nav-row">
-          <button class="btn" onclick="goQ(${qi-1})" ${qi===0||!t.allowNav?'disabled':''}><i class="ti ti-arrow-left"></i> Previous</button>
-          ${qi<t.questions.length-1?`<button class="btn btn-primary" onclick="goQ(${qi+1})" ${!t.allowNav&&qi<t.questions.length-1?'':''}>Save & Next <i class="ti ti-arrow-right"></i></button>`:`<button class="btn btn-success" style="font-weight:600" onclick="confirmSubmit()"><i class="ti ti-check"></i> Submit Final Test</button>`}
+        
+        <div class="q-nav-row" id="mobile-nav-bar">
+          <button class="btn" onclick="goQ(${qi-1})" ${qi===0||!t.allowNav?'disabled':''}><i class="ti ti-arrow-left"></i> <span class="hide-mobile">Prev</span></button>
+          
+          ${t.showPalette ? `<button class="btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#0f172a; font-weight:600;" onclick="togglePalette()"><i class="ti ti-layout-grid"></i> <span class="hide-mobile">Palette</span></button>` : ''}
+          
+          ${qi<t.questions.length-1?`<button class="btn btn-primary" onclick="goQ(${qi+1})" ${!t.allowNav&&qi<t.questions.length-1?'':''}>Next <i class="ti ti-arrow-right"></i></button>`:`<button class="btn btn-success" style="font-weight:600" onclick="confirmSubmit()"><i class="ti ti-check"></i> Submit</button>`}
         </div>
+
       </div>
-      ${t.showPalette?`<div class="sidebar-panel">
-        <div style="font-size:15px;font-weight:600;margin-bottom:1rem;color:var(--color-text-primary)">Question Palette</div>
+      
+      ${t.showPalette?`<div class="sidebar-panel" id="mobile-palette-sheet">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <div style="font-size:16px;font-weight:600;color:var(--color-text-primary)">Question Palette</div>
+            <i class="ti ti-x hide-desktop" style="font-size:24px; cursor:pointer;" onclick="togglePalette()"></i>
+        </div>
+        
         <div class="legend-row">
-          <div class="leg"><div class="leg-dot" style="background:var(--color-background-primary);border:1px solid var(--color-border-primary)"></div>Not Visited</div>
+          <div class="leg"><div class="leg-dot" style="background:var(--color-background-primary);border:1px solid var(--color-border-primary)"></div>Unvisited</div>
           <div class="leg"><div class="leg-dot" style="background:#185FA5"></div>Answered</div>
           <div class="leg"><div class="leg-dot" style="background:#FAC775"></div>Marked</div>
         </div>
+        
         <div class="palette-grid">
           ${t.questions.map((qq,i)=>{
             var a=st.answers[i]; var done=a.val!==null&&(!Array.isArray(a.val)||a.val.length>0); var cls=a.marked&&done?'p-both':a.marked?'p-marked':done?'p-answered':'p-unanswered';
             return `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="goQ(${i})">${i+1}</button>`;
           }).join('')}
         </div>
+        
         <div class="divider"></div>
-        <button class="btn btn-primary" style="width:100%;justify-content:center;font-weight:600" onclick="confirmSubmit()"><i class="ti ti-send"></i> Submit Test</button>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;font-weight:600; padding:12px;" onclick="confirmSubmit()"><i class="ti ti-send"></i> Submit Final Test</button>
       </div>`:''}
     </div>`;
 }
@@ -271,6 +289,15 @@ function pickSubj(qi,v){activeState.answers[qi].val=v||null;}
 function clearAns(qi){activeState.answers[qi].val=null;renderTest();}
 function togMark(qi){activeState.answers[qi].marked=!activeState.answers[qi].marked;renderTest();}
 function goQ(i){if(i<0||i>=activeTest.questions.length)return;activeState.cur=i;renderTest();}
+// NAYA: Slide-up Palette ko open/close karne ka function
+function togglePalette() {
+    var p = document.getElementById('mobile-palette-sheet');
+    var o = document.getElementById('palette-overlay');
+    if(p && o) {
+        p.classList.toggle('active');
+        o.classList.toggle('active');
+    }
+}
 
 function confirmSubmit(){
   var answered=activeState.answers.filter(a=>a.val!==null&&(!Array.isArray(a.val)||a.val.length>0)).length;
