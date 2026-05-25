@@ -180,10 +180,30 @@ textarea { min-height: 80px; resize: vertical; }
 .toggle input:checked + .tog-slider { background: #185FA5; }
 .toggle input:checked + .tog-slider:before { transform: translateX(20px); }
 
-.test-entry { background: var(--color-background-primary);
+/* .test-entry { background: var(--color-background-primary);
    border: 1px solid var(--color-border-secondary); border-radius: var(--border-radius-md); 
    padding: 1.25rem 1.5rem; margin-bottom: 0.75rem; display: flex; align-items: center; 
-   justify-content: space-between; gap: 1rem; transition: all 0.2s ease; }
+   justify-content: space-between; gap: 1rem; transition: all 0.2s ease; } */
+
+   /* Fix for vertical stacking of test cards */
+.test-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    background: #fff;
+    border-radius: 12px;
+    margin-bottom: 15px; /* Ye niche space dega */
+    border: 1px solid var(--color-border-secondary);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+/* Ye rule ensure karega ki cards ek ke niche ek aayein */
+#test-list-area {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
 
 .test-entry:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.04); transform: translateX(2px); border-color: var(--color-border-primary); }
 .te-meta { display: flex; flex-direction: column; gap: 6px; }
