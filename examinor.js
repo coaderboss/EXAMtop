@@ -74,7 +74,8 @@ function tlabel(t){return{mcq:'Single Correct',msq:'Multi Correct',integer:'Inte
 function tbadge(t){return{mcq:'b-blue',msq:'b-green',integer:'b-amber',subjective:'b-purple'}[t]||'b-gray'}
 
 function saveTest(){
-  if(!currentUser) { 
+  // NAYA: Clean Separation - Agar cloud par hai aur login nahi, tab roko. Offline hai toh chalne do.
+  if(!isOfflineMode && !currentUser) { 
         showModal(`<div style="text-align:center;padding:1.5rem">
           <i class="ti ti-lock" style="font-size:46px;color:#A32D2D;display:block;margin-bottom:1rem"></i>
           <div style="font-weight:600;font-size:22px;margin-bottom:0.5rem">Login Required!</div>
@@ -86,6 +87,7 @@ function saveTest(){
         </div>`); 
         return; 
   }  
+  
   var title=document.getElementById('t-title').value.trim();
   if(!title){ showToast('Please enter a test title.', 'error'); return;}
   if(!qList.length){ showToast('Add at least one question.', 'error'); return;}
@@ -95,7 +97,6 @@ function saveTest(){
   
   if (calculatedSum !== totalMarksInput) {
       var confirmUpdate = confirm(`⚠️ MARKS MISMATCH DETECTED!\n\nYou entered Total Marks: ${totalMarksInput}\nBut the sum of your individual questions is: ${calculatedSum}\n\nDo you want to automatically update the Total Marks to ${calculatedSum} and save?`);
-      
       if (confirmUpdate) {
           document.getElementById('t-total').value = calculatedSum;
           totalMarksInput = calculatedSum; 
@@ -108,7 +109,8 @@ function saveTest(){
 
   var code=Math.random().toString(36).substring(2,8).toUpperCase();
   var test={
-    id:Date.now(),code,title,creatorUid: currentUser.uid,
+    id:Date.now(),code,title,
+    creatorUid: isOfflineMode ? 'offline_creator' : currentUser.uid,
     subject:document.getElementById('t-subject').value,
     duration:+document.getElementById('t-dur').value||60,
     totalMarks: totalMarksInput, 
@@ -125,48 +127,75 @@ function saveTest(){
     antiCheat: document.getElementById('t-anticheat').checked,
     fullScreenMode: document.getElementById('t-fullscreen').checked,
     questions:JSON.parse(JSON.stringify(qList)),
-    submissions:[],released:false,
+    submissions:[],
+    released:false,
+    isActive: true, 
     createdAt:new Date().toLocaleDateString('en-IN')
   };
   
-  tests.push(test); updateDatabase(); qList=[]; renderQs(); document.getElementById('t-title').value='';
+  tests.push(test); 
+  updateDatabase(); // Ab auth.js wala updateDatabase smart ho gaya hai
+  qList=[]; renderQs(); document.getElementById('t-title').value='';
   
+  var modalMsg = isOfflineMode ? "Saved Locally!" : "Saved to Cloud!";
+  var iconCol = isOfflineMode ? "#854F0B" : "#3B6D11";
+  var bgCol = isOfflineMode ? "#FAEEDA" : "#EAF3DE";
+
   showModal(`<div style="text-align:center;padding:1rem">
-    <div style="width:72px;height:72px;border-radius:50%;background:#EAF3DE;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem"><i class="ti ti-circle-check" style="font-size:40px;color:#3B6D11"></i></div>
-    <div style="font-size:22px;font-weight:600;margin-bottom:0.5rem">Test Saved to Cloud!</div>
+    <div style="width:72px;height:72px;border-radius:50%;background:${bgCol};display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem"><i class="ti ti-circle-check" style="font-size:40px;color:${iconCol}"></i></div>
+    <div style="font-size:22px;font-weight:600;margin-bottom:0.5rem">Test ${modalMsg}</div>
     <div style="font-size:15px;color:var(--color-text-secondary);margin-bottom:1.5rem">Students can now join using this code:</div>
     <div style="font-size:36px;font-weight:600;letter-spacing:10px;color:#185FA5;background:#E6F1FB;padding:1.5rem;border-radius:var(--border-radius-lg);margin-bottom:1rem; border:1px dashed #b9d7f4;">${code}</div>
     <button class="btn btn-sm btn-blue" style="margin-bottom:2rem; font-weight:600" onclick="copyToClip('${code}')"><i class="ti ti-copy"></i> Copy Code</button>
-    <div style="display:flex;gap:12px;justify-content:center"><button class="btn btn-primary" onclick="hideModal();nav('tests')"><i class="ti ti-list-check"></i> View My Tests</button></div>
+    <div style="display:flex;gap:12px;justify-content:center"><button class="btn btn-primary" onclick="hideModal();nav('tests')"><i class="ti ti-list-check"></i> Manage Tests</button></div>
   </div>`);
 }
 
 function renderTestList(){
   var c = document.getElementById('test-list-area');
-  if(!currentUser) { c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view your managed tests.</div></div>`; return; }
-  var myTests = tests.filter(t => t.creatorUid === currentUser.uid);
+  
+  // NAYA: Clean separation for render logic
+  if(!isOfflineMode && !currentUser) { 
+      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view your managed tests.</div></div>`; 
+      return; 
+  }
+  
+  var myTests = isOfflineMode ? tests : tests.filter(t => t.creatorUid === currentUser.uid);
+  
   if(!myTests.length){ c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-clipboard-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests created yet.</div></div>`; return; }
   
   c.innerHTML = myTests.map((t) => {
     var origIdx = tests.findIndex(x => x.id === t.id);
+    
+    var isTestActive = t.isActive !== false; 
+    var statusColor = isTestActive ? '#3B6D11' : '#A32D2D';
+    var statusBg = isTestActive ? '#EAF3DE' : '#FCEBEB';
+    var statusIcon = isTestActive ? 'ti-door-enter' : 'ti-door-exit';
+    var statusText = isTestActive ? 'Close Intake' : 'Open Intake';
+    var statusBadge = isTestActive ? '<span class="badge b-green"><i class="ti ti-activity"></i> Accepting</span>' : '<span class="badge b-red"><i class="ti ti-lock"></i> Intake Closed</span>';
+
     return `
-    <div class="test-entry">
+    <div class="test-entry" style="${!isTestActive ? 'opacity:0.85; border-left:4px solid #A32D2D;' : 'border-left:4px solid #3B6D11;'}">
       <div class="te-meta">
         <div style="font-weight:600;font-size:16px;color:var(--color-text-primary)">${t.title}</div>
-        <div style="font-size:13px;color:var(--color-text-secondary)">${t.subject||'No Subject'} &bull; ${t.questions.length} Questions &bull; ${t.duration} Mins &bull; Created ${t.createdAt}</div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <div style="font-size:13px;color:var(--color-text-secondary)">${t.subject||'No Subject'} &bull; ${t.questions.length} Questions &bull; ${t.duration} Mins</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap; align-items:center;">
           <span class="badge b-blue" style="cursor:pointer" onclick="copyToClip('${t.code}')" title="Click to copy code"><i class="ti ti-hash" style="font-size:12px"></i> ${t.code}</span>
-          <span class="badge b-green">${t.submissions ? t.submissions.length : 0} Submissions</span>
-          ${t.resultVis==='manual' ? (t.released?'<span class="badge b-amber">Results Released</span>':'<span class="badge b-gray">Manual Evaluation Pending</span>') : '<span class="badge b-purple">Instant Results Active</span>'}
+          <span class="badge b-gray">${t.submissions ? t.submissions.length : 0} Submissions</span>
+          ${t.resultVis==='manual' ? (t.released?'<span class="badge b-amber">Results Released</span>':'<span class="badge b-gray">Evaluation Pending</span>') : '<span class="badge b-purple">Instant Results</span>'}
+          ${statusBadge}
         </div>
       </div>
       <div class="te-actions">
         <div class="te-actions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
-        <button class="btn btn-sm" onclick="launchAsStudent(${origIdx})"><i class="ti ti-player-play"></i> Preview</button>      
+        <button class="btn btn-sm" onclick="autoJoinLocalTest('${t.code}')"><i class="ti ti-player-play"></i> Self-Test</button>      
         <button class="btn btn-sm btn-blue" onclick="viewSubmissions(${origIdx})"><i class="ti ti-users"></i> Submissions</button>
-        
         <button class="btn btn-sm" style="background:#FAEEDA; color:#854F0B; border-color:#FAC775;" onclick="openEditKeyModal(${origIdx})"><i class="ti ti-key"></i> Edit Key</button>
         
+        <button class="btn btn-sm" style="background:${statusBg}; color:${statusColor}; border-color:${statusColor}; font-weight:600;" onclick="toggleTestStatus(${origIdx})">
+            <i class="ti ${statusIcon}"></i> ${statusText}
+        </button>
+
         ${!t.released && t.resultVis==='manual' ? `<button class="btn btn-sm btn-success" onclick="releaseRes(${origIdx})"><i class="ti ti-send"></i> Publish</button>` : ''}
         <button class="btn btn-sm btn-danger" onclick="delTest(${origIdx})" title="Delete Test"><i class="ti ti-trash"></i></button>
       </div>
@@ -174,8 +203,22 @@ function renderTestList(){
   }).join('');
 }
 
+function autoJoinLocalTest(code) {
+    nav('student');
+    document.getElementById('s-code').value = code;
+    setTimeout(() => { joinTest(); }, 500);
+}
+
+function toggleTestStatus(idx) {
+    if (tests[idx].isActive === undefined) tests[idx].isActive = true;
+    tests[idx].isActive = !tests[idx].isActive;
+    updateDatabase();
+    var msg = tests[idx].isActive ? 'Test is now OPEN for new submissions.' : 'Test intake CLOSED. No new students can enter.';
+    showToast(msg, tests[idx].isActive ? 'success' : 'error');
+}
+
 function delTest(i){
-  if(confirm('Are you sure you want to delete this test permanently from the database?')){
+  if(confirm('Are you sure you want to delete this test permanently?')){
     tests.splice(i,1);
     updateDatabase();
   }
@@ -184,7 +227,7 @@ function delTest(i){
 function releaseRes(i){
   tests[i].released=true;
   updateDatabase(); 
-  showModal('<div style="text-align:center;padding:2rem"><i class="ti ti-send" style="font-size:42px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px;margin-bottom:1rem">Results Published Successfully!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">Students can now enter their details with the test code to view their checked papers.</p><button class="btn btn-primary" onclick="hideModal()">Done</button></div>');
+  showModal('<div style="text-align:center;padding:2rem"><i class="ti ti-send" style="font-size:42px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px;margin-bottom:1rem">Results Published Successfully!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">Students can now view their checked papers.</p><button class="btn btn-primary" onclick="hideModal()">Done</button></div>');
 }
 
 function viewSubmissions(testIdx) {
@@ -198,7 +241,7 @@ function viewSubmissions(testIdx) {
   html += `<div style="max-height:60vh;overflow-y:auto;padding-right:8px">` + t.submissions.map((s, sIdx) => `
       <div style="display:flex;justify-content:space-between;padding:12px;border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);margin-bottom:8px;align-items:center;background:var(--color-background-tertiary)">
           <div><div style="font-weight:600">${s.name}</div><div style="font-size:12px;color:var(--color-text-secondary)">Roll: ${s.roll||'N/A'} &bull; Score: ${s.score}</div></div>
-          <button class="btn btn-sm btn-primary" onclick="hideModal(); showResultPageAsExaminer(${testIdx}, ${sIdx})"><i class="ti ti-eye"></i> Evaluate</button>
+          <button class="btn btn-sm btn-primary" onclick="hideModal(); showResultPageAsExaminer(${testIdx}, sIdx)"><i class="ti ti-eye"></i> Evaluate</button>
       </div>`).join('') + `</div><div style="margin-top:1.5rem;text-align:right"><button class="btn" onclick="hideModal()">Close</button></div>`;
   showModal(html);
 }
@@ -213,10 +256,6 @@ function showResultPageAsExaminer(testIdx, sIdx) {
   
   _generateResultDOM(sub, t, true, testIdx, sIdx);
 }
-
-// ==========================================
-// NAYA: SMART ANSWER KEY & RE-EVALUATION ENGINE
-// ==========================================
 
 function openEditKeyModal(idx) {
     var t = tests[idx];
@@ -264,8 +303,6 @@ function openEditKeyModal(idx) {
 
 function saveNewKeyAndReevaluate(idx) {
     var t = tests[idx];
-    
-    // STEP 1: Naya Answer Key Save Karo
     t.questions.forEach((q, i) => {
         if (q.type === 'mcq') {
             let selected = document.querySelector(`.rekey-input-${i}:checked`);
@@ -279,16 +316,13 @@ function saveNewKeyAndReevaluate(idx) {
         }
     });
 
-    // STEP 2: Background Auto-Re-evaluation Loop (Sab bacho ka result dubara check karo)
     if (t.submissions && t.submissions.length > 0) {
         var neg = t.negMarking || 0;
-        
         t.submissions.forEach(sub => {
             let newScore = 0, newCorrect = 0, newWrong = 0, newSkipped = 0;
-            
             sub.details.forEach((d, i) => {
                 let q = t.questions[i]; 
-                d.q = q; // Update test snapshot reference in student's paper
+                d.q = q; 
                 let ans = d.ans;
                 let hasVal = ans.val !== null && (!Array.isArray(ans.val) || ans.val.length > 0);
                 
@@ -304,117 +338,56 @@ function saveNewKeyAndReevaluate(idx) {
                     var hasWrongOption = userSel.some(x => !corrSel.includes(x));
                     var correctlySelected = userSel.filter(x => corrSel.includes(x)).length;
                     
-                    if (hasWrongOption) { 
-                        newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; 
-                    } else if (correctlySelected === corrSel.length) { 
-                        newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; 
-                    } else if (correctlySelected > 0) {
-                        var partialMarks = (q.marks / corrSel.length) * correctlySelected;
-                        d.earned = Math.round(partialMarks * 100) / 100;
-                        newScore += d.earned; newCorrect++; d.status = 'partial';
-                    } else { 
-                        newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; 
-                    }
+                    if (hasWrongOption) { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; } 
+                    else if (correctlySelected === corrSel.length) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; } 
+                    else if (correctlySelected > 0) { var partialMarks = (q.marks / corrSel.length) * correctlySelected; d.earned = Math.round(partialMarks * 100) / 100; newScore += d.earned; newCorrect++; d.status = 'partial'; } 
+                    else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; }
                 } else if (q.type === 'integer') {
                     if (ans.val === q.correctInt) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; }
                     else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; }
                 } else {
-                    // Subjective Manual Evaluations Safe rahengi
-                    if(d.status === 'evaluated') {
-                        newScore += (d.earned || 0);
-                        if(d.earned > 0) newCorrect++; else newSkipped++;
-                    } else {
-                        d.status = 'submitted'; d.earned = 0; newSkipped++;
-                    }
+                    if(d.status === 'evaluated') { newScore += (d.earned || 0); if(d.earned > 0) newCorrect++; else newSkipped++; } 
+                    else { d.status = 'submitted'; d.earned = 0; newSkipped++; }
                 }
             });
-            
-            // Re-assign Final Re-calculated marks
-            sub.score = Number(newScore.toFixed(2));
-            sub.correct = newCorrect;
-            sub.wrong = newWrong;
-            sub.skipped = newSkipped;
+            sub.score = Number(newScore.toFixed(2)); sub.correct = newCorrect; sub.wrong = newWrong; sub.skipped = newSkipped;
         });
     }
 
-    // Database update maro aur interface refresh kar do
     updateDatabase();
     hideModal();
     showToast(`Answer Key Updated! Successfully re-graded ${t.submissions ? t.submissions.length : 0} student(s).`, 'success');
     renderTestList();
 }
 
-
-// ==========================================
-// ADVANCED EVALUATION (WITH STRICT VALIDATION & AUDIT)
-// ==========================================
-
 function saveEvaluation(tIdx, sIdx) {
     var sub = tests[tIdx].submissions[sIdx];
     var test = tests[tIdx];
     var overrides = []; 
     var hasError = false;
-
     var inputs = document.querySelectorAll('.eval-input');
     
     for (var i = 0; i < inputs.length; i++) {
         var inp = inputs[i];
         var qIdx = parseInt(inp.id.replace('mark_input_', ''));
         var awardedMarks = parseFloat(inp.value) || 0;
-        
         var maxMarks = Number(sub.details[qIdx].q.marks); 
         
-        if (awardedMarks > maxMarks) {
-            showToast(`Error: Marks for Q${qIdx + 1} cannot exceed ${maxMarks}!`, 'error');
-            inp.style.borderColor = '#A32D2D'; 
-            inp.style.background = '#FCEBEB';
-            hasError = true;
-            break; 
-        } else {
-            inp.style.borderColor = '#185FA5'; 
-            inp.style.background = '#fff';
-            
-            if(sub.details[qIdx].q.type === 'subjective' || sub.details[qIdx].earned !== awardedMarks) {
-                overrides.push({ qIdx: qIdx, awarded: awardedMarks });
-            }
-        }
+        if (awardedMarks > maxMarks) { showToast(`Error: Marks for Q${qIdx + 1} cannot exceed ${maxMarks}!`, 'error'); inp.style.borderColor = '#A32D2D'; inp.style.background = '#FCEBEB'; hasError = true; break; } 
+        else { inp.style.borderColor = '#185FA5'; inp.style.background = '#fff'; if(sub.details[qIdx].q.type === 'subjective' || sub.details[qIdx].earned !== awardedMarks) { overrides.push({ qIdx: qIdx, awarded: awardedMarks }); } }
     }
 
     if (hasError) return; 
-
-    if (overrides.length === 0) {
-        showToast('No changes made to marks.', 'normal');
-        return;
-    }
+    if (overrides.length === 0) { showToast('No changes made to marks.', 'normal'); return; }
 
     window.tempEvalData = { tIdx, sIdx, overrides }; 
 
-    showModal(`
-        <div style="padding:1.5rem; text-align:left;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem; color:#854F0B;">
-                <i class="ti ti-shield-check" style="font-size:28px;"></i>
-                <h3 style="margin:0; font-size:20px;">Evaluation Audit required</h3>
-            </div>
-            <p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:1rem; line-height:1.5;">
-                You are modifying the marks for <strong>${overrides.length} question(s)</strong>. To ensure transparency, please provide a justification. This will be recorded securely.
-            </p>
-            <label style="font-size:13px; font-weight:600; margin-bottom:5px; display:block;">Reason for changing marks: <span style="color:#A32D2D">*</span></label>
-            <textarea id="audit-reason" class="input-block" placeholder="e.g., 'Partial marks for correct formula'" style="min-height:80px; margin-bottom:1.5rem; font-size:14px;"></textarea>
-            
-            <div style="display:flex; gap:12px;">
-                <button class="btn" style="flex:1" onclick="hideModal()">Cancel</button>
-                <button class="btn btn-primary" style="flex:1" onclick="confirmAndSaveEval()"><i class="ti ti-lock"></i> Confirm & Save</button>
-            </div>
-        </div>
-    `);
+    showModal(`<div style="padding:1.5rem; text-align:left;"><div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem; color:#854F0B;"><i class="ti ti-shield-check" style="font-size:28px;"></i><h3 style="margin:0; font-size:20px;">Evaluation Audit required</h3></div><p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:1rem; line-height:1.5;">You are modifying the marks for <strong>${overrides.length} question(s)</strong>. To ensure transparency, please provide a justification. This will be recorded securely.</p><label style="font-size:13px; font-weight:600; margin-bottom:5px; display:block;">Reason for changing marks: <span style="color:#A32D2D">*</span></label><textarea id="audit-reason" class="input-block" placeholder="e.g., 'Partial marks for correct formula'" style="min-height:80px; margin-bottom:1.5rem; font-size:14px;"></textarea><div style="display:flex; gap:12px;"><button class="btn" style="flex:1" onclick="hideModal()">Cancel</button><button class="btn btn-primary" style="flex:1" onclick="confirmAndSaveEval()"><i class="ti ti-lock"></i> Confirm & Save</button></div></div>`);
 }
 
 function confirmAndSaveEval() {
     var reason = document.getElementById('audit-reason').value.trim();
-    if (!reason) {
-        showToast("You must provide a reason for the audit log!", "error");
-        return;
-    }
+    if (!reason) { showToast("You must provide a reason for the audit log!", "error"); return; }
 
     var { tIdx, sIdx, overrides } = window.tempEvalData;
     var sub = tests[tIdx].submissions[sIdx];
@@ -423,15 +396,8 @@ function confirmAndSaveEval() {
     overrides.forEach(ov => {
         sub.details[ov.qIdx].earned = ov.awarded;
         sub.details[ov.qIdx].status = 'evaluated';
-        
         if(!sub.details[ov.qIdx].auditLogs) sub.details[ov.qIdx].auditLogs = [];
-        
-        sub.details[ov.qIdx].auditLogs.push({
-            date: new Date().toLocaleString('en-IN'),
-            examiner: currentUser ? (currentUser.displayName || currentUser.email || 'Examiner') : 'Examiner',
-            reason: reason,
-            awarded: ov.awarded
-        });
+        sub.details[ov.qIdx].auditLogs.push({ date: new Date().toLocaleString('en-IN'), examiner: currentUser ? (currentUser.displayName || currentUser.email || 'Examiner') : 'Examiner', reason: reason, awarded: ov.awarded });
     });
 
     var newTotal = 0, newCorrect = 0, newWrong = 0, newSkipped = 0;
@@ -440,31 +406,22 @@ function confirmAndSaveEval() {
         if (d.status === 'skipped') newSkipped++;
         else if (d.earned > 0) newCorrect++;
         else if (d.earned < 0) newWrong++;
-        else {
-            if (d.q.type === 'subjective') newSkipped++; else newWrong++;
-        }
+        else { if (d.q.type === 'subjective') newSkipped++; else newWrong++; }
     });
 
-    sub.score = Number(newTotal.toFixed(2));
-    sub.correct = newCorrect;
-    sub.wrong = newWrong;
-    sub.skipped = newSkipped;
-
-    updateDatabase(); 
-    hideModal();
-    _generateResultDOM(sub, test, true, tIdx, sIdx); 
-    showToast('Marks Saved! Audit log securely recorded.', 'success');
-    window.tempEvalData = null; 
+    sub.score = Number(newTotal.toFixed(2)); sub.correct = newCorrect; sub.wrong = newWrong; sub.skipped = newSkipped;
+    updateDatabase(); hideModal(); _generateResultDOM(sub, test, true, tIdx, sIdx); showToast('Marks Saved! Audit log securely recorded.', 'success'); window.tempEvalData = null; 
 }
 
 function renderAllResults(){
   var c = document.getElementById('results-area');
-  if(!currentUser) {
+  // NAYA: Offline Mode Support
+  if(!isOfflineMode && !currentUser) {
       c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view results.</div></div>`;
       return;
   }
 
-  var myTests = tests.filter(t => t.creatorUid === currentUser.uid);
+  var myTests = isOfflineMode ? tests : tests.filter(t => t.creatorUid === currentUser.uid);
   var all = myTests.flatMap(t => t.submissions ? t.submissions.map(s => ({...s, testTitle: t.title, testCode: t.code})) : []);
   
   if(!all.length){
@@ -511,8 +468,7 @@ function importQ(inp){
       showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-check" style="font-size:42px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-size:20px;font-weight:600;margin-bottom:0.5rem">Import Successful!</div><div style="font-size:15px;color:var(--color-text-secondary);margin-bottom:1.5rem">${data.length} questions have been added to your test.</div><button class="btn btn-primary" onclick="hideModal()">Awesome</button></div>`);
     }catch(ex){alert('Invalid JSON file. Please ensure it follows the correct structure.');}
   };
-  r.readAsText(f);
-  inp.value = ''; 
+  r.readAsText(f); inp.value = ''; 
 }
 
 function previewAsStudent(){
@@ -522,11 +478,9 @@ function previewAsStudent(){
     allowChange:document.getElementById('t-change').checked,showPalette:document.getElementById('t-palette').checked,
     allowNav:document.getElementById('t-nav').checked,questions:JSON.parse(JSON.stringify(qList)),
     submissions:[],resultVis:'instant',scoreVis:'show'};
-  nav('student');
-  launchTest(t,'Demo Student','');
+  nav('student'); launchTest(t,'Demo Student','');
 }
 
-// Pre-fill some demo questions for Context
 addQ({id:1,type:'mcq',text:'A particle moves with constant acceleration. Its velocity changes from 20 m/s to 60 m/s in 4 seconds. What is the acceleration?',marks:4,options:['5 m/s²','10 m/s²','15 m/s²','20 m/s²'],correct:[1],explanation:'a = (v-u)/t = (60-20)/4 = 10 m/s²'});
 addQ({id:2,type:'integer',text:'If log₂(x) = 5, find the value of x.',marks:4,correctInt:32,explanation:'2⁵ = 32'});
 addQ({id:3,type:'msq',text:'Which of the following are fundamental forces of nature?',marks:4,options:['Gravitational force','Tension','Electromagnetic force','Strong nuclear force'],correct:[0,2,3],explanation:'Tension is a contact force, not fundamental. The four fundamental forces are gravity, electromagnetic, strong nuclear, and weak nuclear.'});

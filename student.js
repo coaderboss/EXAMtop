@@ -12,26 +12,21 @@ function joinTest(){
   var t=tests.find(x=>x.code===code);
   if(!t){ showToast('Invalid Test Code. Check and try again.', 'error'); return;}
   
-  if(t.expiryDate && new Date() > new Date(t.expiryDate)) {
-      showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-clock-off" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px;margin-bottom:0.5rem">Exam Expired!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">The deadline for this exam has passed.</p><button class="btn btn-primary" onclick="hideModal()">Close</button></div>`);
-      return;
-  }
-  
   if(!t.submissions) t.submissions = [];
   var existingSub = t.submissions.find(s => s.name.toLowerCase() === name.toLowerCase() && s.roll === roll);
   
+  // 1. PURANE BACHO KO PEHLE CHECK KARO (Bypass Locks)
   if(existingSub) {
-      // ---> STRICT SECURITY LOCK <---
-      if (existingSub.uid !== 'anonymous' && (!currentUser || currentUser.uid !== existingSub.uid)) {
+      // SECURITY LOCK: Offline mode me login check bypass hoga
+      if (typeof isOfflineMode !== 'undefined' && !isOfflineMode && existingSub.uid !== 'anonymous' && existingSub.uid !== 'offline_user' && (!currentUser || currentUser.uid !== existingSub.uid)) {
           showModal(`<div style="text-align:center;padding:2rem">
               <i class="ti ti-shield-lock" style="font-size:56px;color:#A32D2D;display:block;margin-bottom:1rem"></i>
               <h3 style="font-size:22px;color:#A32D2D;margin-bottom:0.5rem;font-weight:600">Access Denied</h3>
-              <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;font-size:15px">This result belongs to a registered student. You must <strong>Login with Google</strong> using the exact account to view this paper.</p>
+              <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;font-size:15px">This result belongs to a registered student. You must <strong>Login with Google</strong> to view this paper.</p>
               <button class="btn btn-danger" style="padding:10px 24px;font-size:15px" onclick="hideModal()">Understood</button>
           </div>`);
           return;
       }
-      // -------------------------------
 
       if(t.resultVis === 'instant' || t.released) {
           showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-info-circle" style="font-size:42px;color:#185FA5;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:18px;margin-bottom:1rem">Already Submitted.</div><button class="btn btn-primary" onclick="hideModal(); launchExistingResult('${t.id}', '${name}', '${roll}')">View Results</button></div>`);
@@ -41,6 +36,18 @@ function joinTest(){
       return;
   }
   
+  // 2. NAYE BACHO KE LIYE LOCKS (Intake & Expiry)
+  if (t.isActive === false) {
+      showModal(`<div style="text-align:center;padding:2rem"><i class="ti ti-door-exit" style="font-size:56px;color:#A32D2D;display:block;margin-bottom:1rem"></i><h3 style="font-size:22px;color:#A32D2D;margin-bottom:0.5rem;font-weight:600">Intake Closed</h3><p style="color:var(--color-text-secondary);margin-bottom:1.5rem;font-size:15px">The examiner is no longer accepting new submissions for this test.</p><button class="btn btn-danger" style="padding:10px 24px;font-size:15px" onclick="hideModal()">Understood</button></div>`);
+      return;
+  }
+
+  if(t.expiryDate && new Date() > new Date(t.expiryDate)) {
+      showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-clock-off" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px;margin-bottom:0.5rem">Exam Expired!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">The deadline for this exam has passed.</p><button class="btn btn-primary" onclick="hideModal()">Close</button></div>`);
+      return;
+  }
+  
+  // 3. UI SETUP
   document.getElementById('student-home').classList.add('hidden');
   var el = document.getElementById('student-test');
   el.classList.remove('hidden');
@@ -283,6 +290,7 @@ function doSubmit(){
   document.removeEventListener("fullscreenchange", handleCheat);
   var neg=activeTest.negMarking||0;
   var score=0,correct=0,wrong=0,skipped=0;
+  
   var details=activeTest.questions.map((q,i)=>{
     var ans=activeState.answers[i];
     var status,earned=0;
@@ -296,21 +304,11 @@ function doSubmit(){
       var corrSel = q.correct;
       var hasWrongOption = userSel.some(x => !corrSel.includes(x));
       var correctlySelected = userSel.filter(x => corrSel.includes(x)).length;
-      if (hasWrongOption) {
-        wrong++; earned = -neg; score -= neg; status = 'wrong';
-      } else if (correctlySelected === corrSel.length) {
-        correct++; earned = q.marks; score += q.marks; status = 'correct';
-      } else if (correctlySelected > 0) {
-        var partialMarks = (q.marks / corrSel.length) * correctlySelected;
-        earned = Math.round(partialMarks * 100) / 100; 
-        score += earned;
-        correct++; 
-        status = 'partial';
-      } else {
-        wrong++; status = 'wrong';
-      }
-    }
-     else if(q.type==='integer'){
+      if (hasWrongOption) { wrong++; earned = -neg; score -= neg; status = 'wrong'; } 
+      else if (correctlySelected === corrSel.length) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } 
+      else if (correctlySelected > 0) { var partialMarks = (q.marks / corrSel.length) * correctlySelected; earned = Math.round(partialMarks * 100) / 100; score += earned; correct++; status = 'partial'; } 
+      else { wrong++; status = 'wrong'; }
+    } else if(q.type==='integer'){
       if(ans.val===q.correctInt){correct++;earned=q.marks;score+=q.marks;status='correct';}
       else{wrong++;earned=-neg;score-=neg;status='wrong';}
     }else{skipped++;status='submitted';}
@@ -319,8 +317,16 @@ function doSubmit(){
   
   score = Number(score.toFixed(2));
   
+  // NAYA: UID assignment jo offline vs cloud mode handle karega
+  var userIdent = 'anonymous';
+  if (typeof isOfflineMode !== 'undefined' && isOfflineMode) {
+      userIdent = 'offline_user';
+  } else if (currentUser) {
+      userIdent = currentUser.uid;
+  }
+
   var sub = {
-      uid: currentUser ? currentUser.uid : 'anonymous',
+      uid: userIdent,
       email: currentUser ? currentUser.email : '',
       name: activeState.name,
       roll: activeState.roll,
@@ -544,18 +550,7 @@ function renderStudentDashboard() {
         if(t.submissions) {
             t.submissions.forEach((s, idx) => {
                 if(s.uid === currentUser.uid || (s.name && currentUser.displayName && s.name.toLowerCase() === currentUser.displayName.toLowerCase())) {
-                    myHistory.push({
-                        testId: t.id,
-                        testTitle: t.title,
-                        testCode: t.code,
-                        score: s.score,
-                        totalMarks: s.totalMarks,
-                        correct: s.correct,
-                        wrong: s.wrong,
-                        skipped: s.skipped,
-                        time: s.time,
-                        sIdx: idx
-                    });
+                    myHistory.push({ testId: t.id, testTitle: t.title, testCode: t.code, score: s.score, totalMarks: s.totalMarks, correct: s.correct, wrong: s.wrong, skipped: s.skipped, time: s.time, sIdx: idx });
                 }
             });
         }
@@ -569,12 +564,7 @@ function renderStudentDashboard() {
     var totalTests = myHistory.length;
     var totalCorrect = 0, totalWrong = 0, totalEarned = 0, totalMax = 0;
 
-    myHistory.forEach(h => {
-        totalCorrect += h.correct;
-        totalWrong += h.wrong;
-        totalEarned += h.score;
-        totalMax += h.totalMarks;
-    });
+    myHistory.forEach(h => { totalCorrect += h.correct; totalWrong += h.wrong; totalEarned += h.score; totalMax += h.totalMarks; });
 
     var overallAccuracy = (totalCorrect + totalWrong) > 0 ? Math.round((totalCorrect / (totalCorrect + totalWrong)) * 100) : 0;
     var overallPercentage = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
@@ -628,17 +618,7 @@ function renderStudentResults() {
             t.submissions.forEach((s, idx) => {
                 if(s.uid === currentUser.uid || (s.name && currentUser.displayName && s.name.toLowerCase() === currentUser.displayName.toLowerCase())) {
                     let canView = (t.resultVis === 'instant') || (t.released === true);
-                    myHistory.push({
-                        testId: t.id, 
-                        testTitle: t.title, 
-                        testCode: t.code,
-                        name: s.name, 
-                        roll: s.roll, 
-                        score: s.score, 
-                        totalMarks: s.totalMarks,
-                        time: s.time, 
-                        canView: canView
-                    });
+                    myHistory.push({ testId: t.id, testTitle: t.title, testCode: t.code, name: s.name, roll: s.roll, score: s.score, totalMarks: s.totalMarks, time: s.time, canView: canView });
                 }
             });
         }
@@ -687,22 +667,8 @@ function launchDemoTest() {
         antiCheat: false,
         resultVis: 'instant',
         questions: [
-            {
-                type: 'mcq',
-                text: 'How does the question palette work?',
-                marks: 4,
-                options: ['Clicking a number jumps to that question', 'It changes color when answered', 'It helps track pending questions', 'All of the above'],
-                correct: [3],
-                explanation: 'The palette is a navigation map. It turns blue when answered, and yellow when marked for review.'
-            },
-            {
-                type: 'msq',
-                text: 'Which of the following are features of ExamiTop? (Select multiple)',
-                marks: 4,
-                options: ['Anti-Cheat Tab Lock', 'Live Video Streaming', 'Instant Auto-Evaluation', 'Detailed Analytics'],
-                correct: [0, 2, 3],
-                explanation: 'ExamiTop focuses on secure proctoring and analytics. Live video streaming is not part of this platform.'
-            }
+            { type: 'mcq', text: 'How does the question palette work?', marks: 4, options: ['Clicking a number jumps to that question', 'It changes color when answered', 'It helps track pending questions', 'All of the above'], correct: [3], explanation: 'The palette is a navigation map. It turns blue when answered, and yellow when marked for review.' },
+            { type: 'msq', text: 'Which of the following are features of ExamiTop? (Select multiple)', marks: 4, options: ['Anti-Cheat Tab Lock', 'Live Video Streaming', 'Instant Auto-Evaluation', 'Detailed Analytics'], correct: [0, 2, 3], explanation: 'ExamiTop focuses on secure proctoring and analytics. Live video streaming is not part of this platform.' }
         ],
         submissions: []
     };
@@ -715,11 +681,8 @@ function launchDemoTest() {
 function updateStudentUIForRole() {
     var demoContainer = document.getElementById('demo-test-container');
     if (demoContainer) {
-        if (userRole === 'guest') {
-            demoContainer.classList.add('hidden');
-        } else {
-            demoContainer.classList.remove('hidden');
-        }
+        if (userRole === 'guest') demoContainer.classList.add('hidden');
+        else demoContainer.classList.remove('hidden');
     }
 }
 
@@ -733,11 +696,9 @@ function resetStudent(){
       document.getElementById('s-name').value = currentUser.displayName || '';
   }
   
-  if (userRole === 'student') {
-      nav('student-dashboard');
-  } else if (userRole === 'guest') {
-      nav('student'); 
-  }
+  if (userRole === 'student') nav('student-dashboard');
+  else if (userRole === 'guest') nav('student'); 
+  else if (typeof isOfflineMode !== 'undefined' && isOfflineMode) nav('student');
   
   if (typeof updateStudentUIForRole === 'function') updateStudentUIForRole();
 }

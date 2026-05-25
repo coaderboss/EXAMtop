@@ -14,7 +14,7 @@
 
 <div class="app-header" style="position: sticky; top: 0; z-index: 100; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
   <div class="app-header-inner" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border-secondary);">
-    <div class="logo" onclick="nav('home')" style="cursor: pointer;" title="Go to Home">  
+    <div class="logo" onclick="nav('home')" style="cursor: pointer;" title="Go to Smart Hub">  
       <div class="logo-icon">E</div>
       <div class="logo-text">Exami<span>top</span></div>
     </div>
@@ -43,30 +43,46 @@
 <div class="page active" id="page-home" style="max-width: 900px; margin: 3rem auto; padding: 0 20px;">
   <div style="text-align: center; margin-bottom: 4rem;">
     <h1 style="font-size: 3.5rem; color: #0f172a; margin-bottom: 10px; font-weight: 700; letter-spacing: -1px;">Exami<span style="color: #185FA5;">Top</span></h1>
-    <p style="font-size: 1.2rem; color: var(--color-text-secondary); font-weight: 500;">Secure & Seamless Proctoring Platform.</p>
+    <p style="font-size: 1.2rem; color: var(--color-text-secondary); font-weight: 500;" id="hub-subtitle">Secure & Seamless Proctoring Platform.</p>
   </div>
+  
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem;">
-    <div style="background: linear-gradient(to bottom right, #ffffff, #E6F1FB); border: 1px solid #b9d7f4; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(24, 95, 165, 0.08); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+    <div id="card-student" style="background: linear-gradient(to bottom right, #ffffff, #E6F1FB); border: 1px solid #b9d7f4; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(24, 95, 165, 0.08); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
       <div style="width: 70px; height: 70px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 4px 15px rgba(24, 95, 165, 0.1);">
         <i class="ti ti-school" style="font-size: 36px; color: #185FA5;"></i>
       </div>
       <h2 style="font-size: 1.6rem; color: #0f172a; margin-bottom: 10px; font-weight: 600;">Student Portal</h2>
-      <p style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Join live tests, track your analytics, and view your past performance.</p>
-      <button onclick="showStudentLoginChoice()" style="width: 100%; background: #185FA5; color: #fff; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(24, 95, 165, 0.2); transition: all 0.2s;" onmouseover="this.style.background='#0C447C'" onmouseout="this.style.background='#185FA5'">
+      <p id="desc-student" style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Join live tests, track your analytics, and view your past performance.</p>
+      <button id="btn-student" onclick="showStudentLoginChoice()" style="width: 100%; background: #185FA5; color: #fff; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(24, 95, 165, 0.2); transition: all 0.2s;">
         Continue as Student <i class="ti ti-arrow-right"></i>
       </button>
     </div>
-    <div style="background: linear-gradient(to bottom right, #ffffff, #EAF3DE); border: 1px solid #C0DD97; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(59, 109, 17, 0.08); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+    
+    <div id="card-examiner" style="background: linear-gradient(to bottom right, #ffffff, #EAF3DE); border: 1px solid #C0DD97; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(59, 109, 17, 0.08); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
       <div style="width: 70px; height: 70px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 4px 15px rgba(59, 109, 17, 0.1);">
         <i class="ti ti-pencil" style="font-size: 36px; color: #3B6D11;"></i>
       </div>
       <h2 style="font-size: 1.6rem; color: #0f172a; margin-bottom: 10px; font-weight: 600;">Examiner Portal</h2>
-      <p style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Create assessments, manage strict proctoring, and evaluate submissions.</p>
-      <button onclick="toggleLogin()" style="width: 100%; background: #3B6D11; color: #fff; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(59, 109, 17, 0.2); transition: all 0.2s;" onmouseover="this.style.background='#27500A'" onmouseout="this.style.background='#3B6D11'">
+      <p id="desc-examiner" style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Create assessments, manage strict proctoring, and evaluate submissions.</p>
+      <button id="btn-examiner" onclick="toggleLogin()" style="width: 100%; background: #3B6D11; color: #fff; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(59, 109, 17, 0.2); transition: all 0.2s;">
         <i class="ti ti-brand-google" style="font-size: 20px;"></i> Login as Examiner
       </button>
     </div>
   </div>
+
+  <div id="card-offline" style="margin-top: 2rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 20px; padding: 1.5rem 2.5rem; display: flex; align-items: center; justify-content: space-between; gap: 20px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f1f5f9'; this.style.borderColor='#94a3b8';" onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#cbd5e1';" onclick="showOfflineGateway()">
+      <div style="display:flex; align-items:center; gap:15px;">
+          <div style="width: 50px; height: 50px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+              <i class="ti ti-device-desktop" style="font-size: 28px; color: #854F0B;"></i>
+          </div>
+          <div style="text-align: left;">
+              <h3 style="color: #0f172a; margin: 0 0 4px 0; font-size: 18px;">Offline / Device-Only Mode</h3>
+              <p style="color: var(--color-text-secondary); font-size: 14px; margin: 0;">Create and test quizzes locally. No cloud sync, no login required.</p>
+          </div>
+      </div>
+      <i class="ti ti-chevron-right" style="font-size: 24px; color: #cbd5e1;"></i>
+  </div>
+
 </div>
 
 <div class="page" id="page-create">
@@ -162,17 +178,6 @@
         <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-size:16px;font-weight:600" onclick="joinTest()">
           Start Test <i class="ti ti-arrow-right"></i>
         </button>
-        
-        <div id="demo-test-container" style="margin-top: 15px; text-align: center;">
-            <div style="position: relative; text-align: center; margin: 15px 0;">
-                <span style="background: #fff; padding: 0 10px; color: var(--color-text-secondary); font-size: 13px; position: relative; z-index: 1;">OR</span>
-                <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--color-border-secondary); z-index: 0;"></div>
-            </div>
-            <button class="btn" style="width:100%; justify-content:center; padding:12px; font-weight:600; color:#185FA5; border-color:#185FA5; background:#E6F1FB;" onclick="launchDemoTest()">
-                <i class="ti ti-device-gamepad"></i> Try a Demo Test
-            </button>
-        </div>
-
       </div>
     </div>
   </div>
@@ -203,18 +208,17 @@
   </div>
   <div id="results-area"></div>
 </div>
+
 <div class="page" id="page-admin">
   <div class="page-header">
     <div class="page-title" style="color: #A32D2D;"><i class="ti ti-shield-lock"></i> Admin Command Center</div>
     <div class="page-sub">Global platform overview, user management, and security controls.</div>
   </div>
-  
   <div class="filter-tabs" style="margin-bottom:1.5rem">
     <button class="ftab active" onclick="switchAdminTab('stats', this)"><i class="ti ti-chart-bar"></i> Platform Stats</button>
     <button class="ftab" onclick="switchAdminTab('users', this)"><i class="ti ti-users"></i> User Management</button>
     <button class="ftab" onclick="switchAdminTab('tests', this)"><i class="ti ti-database"></i> Global Test Vault</button>
   </div>
-
   <div id="admin-content-area"></div>
 </div>
 
@@ -228,6 +232,6 @@
 <script src="auth.js"></script>
 <script src="examinor.js"></script>
 <script src="student.js"></script>
-<script src="admin.js"></script> </body>
+<script src="admin.js"></script>
 </body>
 </html>
