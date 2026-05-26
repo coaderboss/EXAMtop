@@ -319,8 +319,44 @@ function adminDeleteTest(idx) {
 }
 
 // ==========================================
-// ADMIN GOD MODE POWERS (FIXED REFRESH)
+// ADMIN GOD MODE POWERS (BULLETPROOF DIRECT SYNC)
 // ==========================================
+
+// Helper function to force sync data directly to Firebase with error logging
+function forceFirebaseSync() {
+    // Agar tumhaara Firebase instance 'database' naam se hai
+    if (typeof database !== 'undefined') {
+        database.ref('tests').set(tests)
+        .then(() => {
+            showToast("Database Synced Successfully!", "success");
+            renderAdminDashboard();
+        })
+        .catch(err => {
+            // Agar Firebase rules block karenge toh ye alert aayega
+            alert("FIREBASE REJECTED WRITE:\n" + err.message + "\n\nCheck your Firebase Security Rules or Console!");
+        });
+    } 
+    // Agar tumhaara Firebase instance 'firebase.database()' use karta hai
+    else if (typeof firebase !== 'undefined' && firebase.database) {
+        firebase.database().ref('tests').set(tests)
+        .then(() => {
+            showToast("Database Synced Successfully!", "success");
+            renderAdminDashboard();
+        })
+        .catch(err => {
+            alert("FIREBASE REJECTED WRITE:\n" + err.message);
+        });
+    } 
+    // Fallback agar koi aur method ho
+    else {
+        if(typeof updateDatabase === 'function') {
+            updateDatabase();
+            renderAdminDashboard();
+        } else {
+            alert("Error: Database sync function not found globally.");
+        }
+    }
+}
 
 // Power 1: Delete a specific student's result
 function adminDeleteSubmission(testId, subIdx) {
@@ -328,12 +364,8 @@ function adminDeleteSubmission(testId, subIdx) {
     
     var t = tests.find(x => x.id === testId);
     if(t && t.submissions && t.submissions.length > subIdx) {
-        t.submissions.splice(subIdx, 1); // Array se uda diya
-        if(typeof updateDatabase === 'function') updateDatabase(); // DB me save
-        if(typeof showToast === 'function') showToast("Result Deleted Successfully!", "success");
-        
-        // BUG FIX: Sahi function ko bula ke screen instantly refresh ki
-        renderAdminDashboard(); 
+        t.submissions.splice(subIdx, 1); // Local delete
+        forceFirebaseSync(); // Direct Firebase sync
     }
 }
 
@@ -343,12 +375,8 @@ function adminDeleteTest(testId) {
     
     var tIndex = tests.findIndex(x => x.id === testId);
     if(tIndex > -1) {
-        tests.splice(tIndex, 1); // Array se pura test uda diya
-        if(typeof updateDatabase === 'function') updateDatabase(); // DB me save
-        if(typeof showToast === 'function') showToast("Test completely nuked from database!", "success");
-        
-        // BUG FIX: Sahi function ko bula ke screen instantly refresh ki
-        renderAdminDashboard(); 
+        tests.splice(tIndex, 1); // Local delete
+        forceFirebaseSync(); // Direct Firebase sync
     }
 }
 
@@ -356,16 +384,8 @@ function adminDeleteTest(testId) {
 function adminToggleTestStatus(testId) {
     var t = tests.find(x => x.id === testId);
     if(t) {
-        // BUG FIX: Agar pehle se status set nahi hai, toh explicitly set karo
         if (typeof t.isActive === 'undefined') t.isActive = true; 
-        
-        t.isActive = !t.isActive; // Toggle
-        if(typeof updateDatabase === 'function') updateDatabase(); // DB me save
-        
-        let statusText = t.isActive ? "OPEN" : "CLOSED";
-        if(typeof showToast === 'function') showToast(`Test intake is now ${statusText}`, t.isActive ? "success" : "error");
-        
-        // BUG FIX: Sahi function ko bula ke screen instantly refresh ki
-        renderAdminDashboard(); 
+        t.isActive = !t.isActive; // Local toggle
+        forceFirebaseSync(); // Direct Firebase sync
     }
 }
