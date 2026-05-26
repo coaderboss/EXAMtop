@@ -259,6 +259,32 @@ function renderTest(){
       </div>`;
   }
 
+  // NAYA: Section-Wise Palette Logic
+  var paletteHTML = '';
+  if (t.sections && t.sections.length > 0) {
+      paletteHTML = t.sections.map(sec => {
+          let secQsHtml = '';
+          let localQNum = 1;
+          t.questions.forEach((qq, i) => {
+              if (qq.section === sec || (!qq.section && sec === t.sections[0])) {
+                  var a=st.answers[i]; var done=a.val!==null&&(!Array.isArray(a.val)||a.val.length > 0); var cls=a.marked&&done?'p-both':a.marked?'p-marked':done?'p-answered':'p-unanswered';
+                  secQsHtml += `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="closeMobilePalette(); goQ(${i})">${localQNum}</button>`;
+                  localQNum++;
+              }
+          });
+          if (!secQsHtml) return '';
+          return `<div style="font-size:13px; font-weight:700; color:var(--color-text-secondary); margin:15px 0 8px 0; text-transform:uppercase; letter-spacing:0.5px;"><i class="ti ti-folder"></i> ${sec}</div>
+                  <div class="palette-grid">${secQsHtml}</div>`;
+      }).join('');
+  } else {
+      paletteHTML = `<div class="palette-grid">
+        ${t.questions.map((qq,i)=>{
+          var a=st.answers[i]; var done=a.val!==null&&(!Array.isArray(a.val)||a.val.length > 0); var cls=a.marked&&done?'p-both':a.marked?'p-marked':done?'p-answered':'p-unanswered';
+          return `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="closeMobilePalette(); goQ(${i})">${i+1}</button>`;
+        }).join('')}
+      </div>`;
+  }
+
   el.innerHTML=`
     <div class="test-topbar">
       <div>
@@ -318,12 +344,8 @@ function renderTest(){
           <div class="leg"><div class="leg-dot" style="background:#FAC775"></div>Marked</div>
         </div>
         
-        <div class="palette-grid">
-          ${t.questions.map((qq,i)=>{
-            var a=st.answers[i]; var done=a.val!==null&&(!Array.isArray(a.val)||a.val.length > 0); var cls=a.marked&&done?'p-both':a.marked?'p-marked':done?'p-answered':'p-unanswered';
-            return `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="goQ(${i})">${i+1}</button>`;
-          }).join('')}
-        </div>
+        ${paletteHTML}
+        
         <div class="divider"></div>
         <button class="btn btn-primary" style="width:100%;justify-content:center;font-weight:600; padding:12px;" onclick="confirmSubmit()"><i class="ti ti-send"></i> Submit Final Test</button>
       </div>`:''}
