@@ -319,7 +319,7 @@ function adminDeleteTest(idx) {
 }
 
 // ==========================================
-// ADMIN GOD MODE POWERS
+// ADMIN GOD MODE POWERS (FIXED REFRESH)
 // ==========================================
 
 // Power 1: Delete a specific student's result
@@ -328,13 +328,12 @@ function adminDeleteSubmission(testId, subIdx) {
     
     var t = tests.find(x => x.id === testId);
     if(t && t.submissions && t.submissions.length > subIdx) {
-        t.submissions.splice(subIdx, 1); // Delete the specific submission
-        updateDatabase(); // Save to Firebase/Local
-        showToast("Result Deleted Successfully!", "success");
+        t.submissions.splice(subIdx, 1); // Array se uda diya
+        if(typeof updateDatabase === 'function') updateDatabase(); // DB me save
+        if(typeof showToast === 'function') showToast("Result Deleted Successfully!", "success");
         
-        // Refresh the current admin view (replace with your actual render function if name is different)
-        if(typeof renderAdminVault === 'function') renderAdminVault(); 
-        else nav('admin'); // Fallback refresh
+        // BUG FIX: Sahi function ko bula ke screen instantly refresh ki
+        renderAdminDashboard(); 
     }
 }
 
@@ -344,12 +343,12 @@ function adminDeleteTest(testId) {
     
     var tIndex = tests.findIndex(x => x.id === testId);
     if(tIndex > -1) {
-        tests.splice(tIndex, 1); // Remove the test from the global array
-        updateDatabase(); // Save to Firebase/Local
-        showToast("Test completely nuked from database!", "success");
+        tests.splice(tIndex, 1); // Array se pura test uda diya
+        if(typeof updateDatabase === 'function') updateDatabase(); // DB me save
+        if(typeof showToast === 'function') showToast("Test completely nuked from database!", "success");
         
-        // Refresh admin dashboard
-        nav('admin'); 
+        // BUG FIX: Sahi function ko bula ke screen instantly refresh ki
+        renderAdminDashboard(); 
     }
 }
 
@@ -357,11 +356,16 @@ function adminDeleteTest(testId) {
 function adminToggleTestStatus(testId) {
     var t = tests.find(x => x.id === testId);
     if(t) {
-        t.isActive = !t.isActive; // Toggle boolean
-        updateDatabase();
-        let statusText = t.isActive ? "OPEN" : "CLOSED";
-        showToast(`Test intake is now ${statusText}`, t.isActive ? "success" : "error");
+        // BUG FIX: Agar pehle se status set nahi hai, toh explicitly set karo
+        if (typeof t.isActive === 'undefined') t.isActive = true; 
         
-        if(typeof renderAdminVault === 'function') renderAdminVault();
+        t.isActive = !t.isActive; // Toggle
+        if(typeof updateDatabase === 'function') updateDatabase(); // DB me save
+        
+        let statusText = t.isActive ? "OPEN" : "CLOSED";
+        if(typeof showToast === 'function') showToast(`Test intake is now ${statusText}`, t.isActive ? "success" : "error");
+        
+        // BUG FIX: Sahi function ko bula ke screen instantly refresh ki
+        renderAdminDashboard(); 
     }
 }
