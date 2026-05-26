@@ -2,7 +2,7 @@
 // STUDENT EXAM ENGINE & ANTI-CHEAT LOGIC
 // ==========================================
 
-// SPA Navigation Interceptor: Jab bhi user navbar se 'student' dabaye, views clean reset honge
+// SPA Navigation Interceptor
 if (typeof window.originalNav === 'undefined' && typeof nav === 'function') {
     window.originalNav = nav;
     window.nav = function(pageId) {
@@ -13,7 +13,7 @@ if (typeof window.originalNav === 'undefined' && typeof nav === 'function') {
             if(h) h.classList.remove('hidden');
             if(t) t.classList.add('hidden');
             if(r) r.classList.add('hidden');
-            closeMobilePalette(); // Ensure palette is closed on fresh nav
+            closeMobilePalette(); 
         }
         window.originalNav(pageId);
     };
@@ -26,17 +26,13 @@ function cancelJoin() {
     closeMobilePalette();
 }
 
-// Mobile Palette Controls: Stuck hone se bachane ke liye strict element controls
+// NAYA BUG FIX: Smooth CSS toggling without timeouts
 function openMobilePalette() {
     var p = document.getElementById('mobile-palette-sheet');
     var o = document.getElementById('palette-overlay');
     if(p && o) {
-        p.style.display = 'block';
-        o.style.display = 'block';
-        setTimeout(() => {
-            p.classList.add('active');
-            o.classList.add('active');
-        }, 10);
+        p.classList.add('active');
+        o.classList.add('active');
     }
 }
 
@@ -46,10 +42,6 @@ function closeMobilePalette() {
     if(p && o) {
         p.classList.remove('active');
         o.classList.remove('active');
-        setTimeout(() => {
-            if(!p.classList.contains('active')) p.style.display = 'none';
-            if(!o.classList.contains('active')) o.style.display = 'none';
-        }, 300);
     }
 }
 
@@ -64,12 +56,8 @@ function joinTest(){
   if(!t){ showToast('Invalid Test Code. Check and try again.', 'error'); return;}
   if(!t.submissions) t.submissions = [];
   
-  // GUEST RETAKE BUG FIX: Exact String Matching to prevent illicit entries
   var rollToMatch = roll ? roll.toLowerCase() : '';
-  var existingSub = t.submissions.find(s => 
-      s.name.trim().toLowerCase() === name.toLowerCase() && 
-      (s.roll || '').trim().toLowerCase() === rollToMatch
-  );
+  var existingSub = t.submissions.find(s => s.name.trim().toLowerCase() === name.toLowerCase() && (s.roll || '').trim().toLowerCase() === rollToMatch);
   
   if(existingSub) {
       if (typeof isOfflineMode !== 'undefined' && !isOfflineMode && existingSub.uid !== 'anonymous' && existingSub.uid !== 'offline_user' && (!currentUser || currentUser.uid !== existingSub.uid)) {
@@ -219,14 +207,13 @@ function renderTest(){
   el.classList.remove('hidden');
   document.getElementById('student-home').classList.add('hidden');
   
-  // PARTITIONING LOGIC: Generate Section Tabs on top if sections exist
   var sectionTabsHTML = '';
   if (t.sections && t.sections.length > 0) {
       sectionTabsHTML = `<div style="display:flex; gap:8px; background:var(--color-background-secondary); padding:8px 16px; border-bottom:1px solid var(--color-border-secondary); overflow-x:auto; scrollbar-width:none;">
           ${t.sections.map(sec => {
               var firstQIdx = t.questions.findIndex(qq => qq.section === sec);
               var isCurrentSec = (q.section === sec) || (!q.section && sec === t.sections[0]);
-              return `<button class="btn btn-sm" style="${isCurrentSec ? 'background:#185FA5; color:#fff; border-color:#185FA5;' : 'background:#fff; color:var(--color-text-secondary); border-color:#cbd5e1;'} font-weight:600; white-space:nowrap;" onclick="if(${firstQIdx}>-1) { closeMobilePalette(); goQ(${firstQIdx}); }">${sec}</button>`;
+              return `<button class="btn btn-sm" style="${isCurrentSec ? 'background:#185FA5; color:#fff; border-color:#185FA5;' : 'background:#fff; color:var(--color-text-secondary); border-color:#cbd5e1;'} font-weight:600; white-space:nowrap;" onclick="if(${firstQIdx}>-1) { goQ(${firstQIdx}); }">${sec}</button>`;
           }).join('')}
       </div>`;
   }
@@ -235,17 +222,17 @@ function renderTest(){
     <div class="test-topbar">
       <div>
         <div style="font-size:18px;font-weight:600;margin-bottom:2px">${t.title}</div>
-        <div style="font-size:13px;opacity:0.85">${st.name}${st.roll?' · '+st.roll:''} &nbsp;&bull;&nbsp; Question ${qi+1} of ${t.questions.length}</div>
+        <div style="font-size:13px;opacity:0.85">${st.name}${st.roll?' · '+st.roll:''} &nbsp;&bull;&nbsp; Q ${qi+1} / ${t.questions.length}</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="timer-pill"><i class="ti ti-clock" style="font-size:18px"></i><span id="timerEl">--:--</span></div>
-        <button class="btn btn-sm" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-weight:600" onclick="confirmSubmit()"><i class="ti ti-send"></i> <span class="hide-mobile">Finish</span></button>
+        <button class="btn btn-sm hide-mobile" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-weight:600" onclick="confirmSubmit()"><i class="ti ti-send"></i> Finish</button>
       </div>
     </div>
     
     ${sectionTabsHTML}
     
-    <div id="palette-overlay" class="palette-overlay" style="display:none;" onclick="closeMobilePalette()"></div>
+    <div id="palette-overlay" class="palette-overlay" onclick="closeMobilePalette()"></div>
     
     <div class="test-layout">
       <div class="q-area">
@@ -270,9 +257,11 @@ function renderTest(){
         </div>
         
         <div class="q-nav-row" id="mobile-nav-bar">
-          <button class="btn" onclick="closeMobilePalette(); goQ(${qi-1})" ${qi===0||!t.allowNav?'disabled':''}><i class="ti ti-arrow-left"></i> <span class="hide-mobile">Previous</span></button>
-          ${t.showPalette ? `<button class="btn hide-desktop" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#0f172a; font-weight:700;" onclick="openMobilePalette()"><i class="ti ti-layout-grid"></i> Palette</button>` : ''}
-          ${qi<t.questions.length-1?`<button class="btn btn-primary" onclick="closeMobilePalette(); goQ(${qi+1})" ${!t.allowNav&&qi<t.questions.length-1?'':''}>Next <i class="ti ti-arrow-right"></i></button>`:`<button class="btn btn-success" style="font-weight:600" onclick="confirmSubmit()"><i class="ti ti-check"></i> Submit</button>`}
+          <button class="btn" onclick="goQ(${qi-1})" ${qi===0||!t.allowNav?'disabled':''}><i class="ti ti-arrow-left"></i> <span class="hide-mobile">Prev</span></button>
+          
+          ${t.showPalette ? `<button class="btn hide-desktop" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#0f172a; flex:0.4;" onclick="openMobilePalette()"><i class="ti ti-layout-grid" style="margin:0; font-size:22px;"></i></button>` : ''}
+          
+          ${qi<t.questions.length-1?`<button class="btn btn-primary" onclick="goQ(${qi+1})" ${!t.allowNav&&qi<t.questions.length-1?'':''}>Next <i class="ti ti-arrow-right"></i></button>`:`<button class="btn btn-success" style="font-weight:600" onclick="confirmSubmit()"><i class="ti ti-check"></i> Submit</button>`}
         </div>
       </div>
       
@@ -291,7 +280,7 @@ function renderTest(){
         <div class="palette-grid">
           ${t.questions.map((qq,i)=>{
             var a=st.answers[i]; var done=a.val!==null&&(!Array.isArray(a.val)||a.val.length > 0); var cls=a.marked&&done?'p-both':a.marked?'p-marked':done?'p-answered':'p-unanswered';
-            return `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="closeMobilePalette(); goQ(${i})">${i+1}</button>`;
+            return `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="goQ(${i})">${i+1}</button>`;
           }).join('')}
         </div>
         <div class="divider"></div>
