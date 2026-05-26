@@ -138,23 +138,37 @@ function launchAsStudent(i){
 
 function handleCheat(event) {
     if (!activeTest || activeState.done) return;
-    
+
+    // NAYA FIX: 3-Second Cooldown Timer (Event Spam Protection)
+    // Agar pichli warning 3 second ke andar aayi thi, toh naye event ko ignore karo
+    if (window.lastWarningTime && (Date.now() - window.lastWarningTime < 3000)) {
+        return; 
+    }
+
     let isTabSwitch = document.hidden && activeTest.antiCheat;
     let isFullScreenExit = event && event.type === 'fullscreenchange' && !document.fullscreenElement && activeTest.fullScreenMode;
-    let isWindowBlur = event && event.type === 'blur' && activeTest.antiCheat; // NAYA: Floating window / Focus loss catch karega
+    let isWindowBlur = event && event.type === 'blur' && activeTest.antiCheat;
 
     if (isTabSwitch || isFullScreenExit || isWindowBlur) {
+        
+        // Warning ka time record kar lo taaki timer start ho jaye
+        window.lastWarningTime = Date.now(); 
+        
         window.examWarnings = (window.examWarnings || 0) + 1;
+        
         if (window.examWarnings >= 3) {
             alert("SECURITY ALERT: Exam Blocked! Rules violated 3 times. Auto-submitting paper.");
             doSubmit();
         } else {
             let reason = isTabSwitch ? "Tab switching" : isWindowBlur ? "Opening another app/window" : "Exiting full-screen";
             alert(`WARNING ${window.examWarnings}/2: ${reason} detected! Please do not leave the exam screen.`);
-            // Wapas full screen karne ka try
-            if (activeTest.fullScreenMode && document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(e=>console.log(e));
-            }
+            
+            // Wapas full screen karne ka try (thoda delay ke sath taaki browser block na kare)
+            setTimeout(() => {
+                if (activeTest.fullScreenMode && document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(e => console.log("Auto-fullscreen blocked by browser"));
+                }
+            }, 500);
         }
     }
 }
