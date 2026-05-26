@@ -364,13 +364,67 @@ function renderAllResults(){
 }
 
 function dlTemplate(){
-  var t=JSON.stringify([ {type:'mcq',text:'What is the capital of France?',marks:4,options:['London','Berlin','Paris','Madrid'],correct:[2],explanation:'Paris is the capital of France.'} ],null,2);
+  var t=JSON.stringify([ 
+      {
+          section: 'Physics', // NAYA: Sample Section
+          type:'mcq',
+          text:'What is the capital of France?',
+          marks:4,
+          options:['London','Berlin','Paris','Madrid'],
+          correct:[2],
+          explanation:'Paris is the capital of France.'
+      } 
+  ],null,2);
   var b=new Blob([t],{type:'application/json'}),a=document.createElement('a'); a.href=URL.createObjectURL(b);a.download='examitop_template.json';a.click();
 }
 
 function importQ(inp){
   var f=inp.files[0];if(!f)return; var r=new FileReader();
-  r.onload=e=>{ try{ var data=JSON.parse(e.target.result); if(!Array.isArray(data)){alert('Must be a JSON array.');return;} data.forEach(d=>addQ({id:Date.now()+Math.random(),type:d.type||'mcq',text:d.text||'',marks:d.marks||4,options:d.options||['','','',''],correct:d.correct||[],correctInt:d.correctInt||null,modelAnswer:d.modelAnswer||'',explanation:d.explanation||''})); showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-check" style="font-size:42px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-size:20px;font-weight:600;margin-bottom:0.5rem">Import Successful!</div></div>`); }catch(ex){alert('Invalid JSON file.');} }; r.readAsText(f); inp.value = ''; 
+  r.onload=e=>{ 
+      try{ 
+          var data=JSON.parse(e.target.result); 
+          if(!Array.isArray(data)){alert('Must be a JSON array.');return;} 
+          
+          // NAYA: Smart Section Collector
+          var importedSections = new Set();
+
+          data.forEach(d=>{
+              if(d.section) importedSections.add(d.section); // JSON se section ka naam uthao
+              
+              addQ({
+                  id:Date.now()+Math.random(),
+                  type:d.type||'mcq',
+                  text:d.text||'',
+                  marks:d.marks||4,
+                  options:d.options||['','','',''],
+                  correct:d.correct||[],
+                  correctInt:d.correctInt||null,
+                  modelAnswer:d.modelAnswer||'',
+                  explanation:d.explanation||'',
+                  section: d.section || '' // JSON wala section object me save karo
+              });
+          }); 
+
+          // NAYA: Exam Sections wale dabbe me automatically naam likh do
+          if(importedSections.size > 0) {
+              var secInput = document.getElementById('t-sections');
+              if(secInput) {
+                  var existing = secInput.value.split(',').map(s=>s.trim()).filter(s=>s);
+                  importedSections.forEach(s => {
+                      if(!existing.includes(s)) existing.push(s);
+                  });
+                  secInput.value = existing.join(', ');
+              }
+          }
+
+          showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-check" style="font-size:42px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-size:20px;font-weight:600;margin-bottom:0.5rem">Import Successful!</div><div style="font-size:14px;color:var(--color-text-secondary);">${data.length} questions and their sections have been mapped.</div></div>`); 
+          
+          renderQs(); // UI ko refresh kar do taaki naye sections dropdown me dikhne lagein
+      }catch(ex){
+          alert('Invalid JSON file.');
+      } 
+  }; 
+  r.readAsText(f); inp.value = ''; 
 }
 
 function previewAsStudent(){
