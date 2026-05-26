@@ -512,7 +512,22 @@ function renderStudentDashboard() {
             if(t.submissions) { t.submissions.forEach((s, idx) => { if(s.uid === currentUser.uid || (s.name && currentUser.displayName && s.name.toLowerCase() === currentUser.displayName.toLowerCase())) { myHistory.push({ testId: t.id, testTitle: t.title, testCode: t.code, score: s.score, totalMarks: s.totalMarks, correct: s.correct, wrong: s.wrong, skipped: s.skipped, time: s.time, sIdx: idx }); } }); }
         });
 
-        if(myHistory.length === 0) { c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-chart-line" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests attempted yet. Join a test to see your analytics!</div></div>`; return; }
+        // Banner HTML string defined here so it can be reused
+        var practiceBannerHTML = `
+            <div style="background: linear-gradient(135deg, #185FA5 0%, #3C3489 100%); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; color: #fff; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; box-shadow: 0 4px 15px rgba(24,95,165,0.2);">
+                <div>
+                    <h3 style="font-size:18px; margin-bottom:4px; display:flex; align-items:center; gap:8px;"><i class="ti ti-flame" style="color:#FAC775; font-size:24px;"></i> Practice Arena</h3>
+                    <p style="font-size:13px; opacity:0.9; margin:0;">Test your knowledge with endless random questions from Global GK, Science, and Tech.</p>
+                </div>
+                <button class="btn" style="background: #fff; color: #185FA5; border: none; font-weight: 600; padding: 10px 20px;" onclick="startPracticeArena()">Enter Arena <i class="ti ti-arrow-right"></i></button>
+            </div>
+        `;
+
+        if(myHistory.length === 0) { 
+            // Agar history zero hai, tab bhi practice banner dikhao
+            c.innerHTML = practiceBannerHTML + `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-chart-line" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests attempted yet. Join a test to see your analytics!</div></div>`; 
+            return; 
+        }
 
         var totalTests = myHistory.length; var totalCorrect = 0, totalWrong = 0, totalEarned = 0, totalMax = 0;
         myHistory.forEach(h => { totalCorrect += h.correct; totalWrong += h.wrong; totalEarned += h.score; totalMax += h.totalMarks; });
@@ -520,7 +535,14 @@ function renderStudentDashboard() {
         var overallAccuracy = (totalCorrect + totalWrong) > 0 ? Math.round((totalCorrect / (totalCorrect + totalWrong)) * 100) : 0;
         var overallPercentage = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
 
-        var html = `<div class="grid4" style="margin-bottom:2rem"><div class="stat-card"><div class="stat-val" style="color:#185FA5">${totalTests}</div><div class="stat-lbl">Tests Attempted</div></div><div class="stat-card"><div class="stat-val" style="color:#3B6D11">${overallAccuracy}%</div><div class="stat-lbl">Overall Accuracy</div></div><div class="stat-card"><div class="stat-val" style="color:#A32D2D">${totalWrong}</div><div class="stat-lbl">Total Mistakes</div></div><div class="stat-card"><div class="stat-val" style="color:#854F0B">${overallPercentage}%</div><div class="stat-lbl">Avg Percentage</div></div></div><h3 style="margin-bottom:1rem; font-size:18px; display:flex; align-items:center; gap:8px;"><i class="ti ti-history" style="color:#185FA5;"></i> Recent Test History</h3><div style="display:flex; flex-direction:column; gap:12px;">`;
+        // 1. Pehle Top 4 Stats Grid banega
+        var html = `<div class="grid4" style="margin-bottom:2rem"><div class="stat-card"><div class="stat-val" style="color:#185FA5">${totalTests}</div><div class="stat-lbl">Tests Attempted</div></div><div class="stat-card"><div class="stat-val" style="color:#3B6D11">${overallAccuracy}%</div><div class="stat-lbl">Overall Accuracy</div></div><div class="stat-card"><div class="stat-val" style="color:#A32D2D">${totalWrong}</div><div class="stat-lbl">Total Mistakes</div></div><div class="stat-card"><div class="stat-val" style="color:#854F0B">${overallPercentage}%</div><div class="stat-lbl">Avg Percentage</div></div></div>`;
+
+        // 2. Uske theek baad Practice Banner aayega
+        html += practiceBannerHTML;
+
+        // 3. Phir neeche History aayegi
+        html += `<h3 style="margin-bottom:1rem; font-size:18px; display:flex; align-items:center; gap:8px;"><i class="ti ti-history" style="color:#185FA5;"></i> Recent Test History</h3><div style="display:flex; flex-direction:column; gap:12px;">`;
 
         myHistory.reverse().forEach(h => {
             var pct = Math.round((h.score / h.totalMarks) * 100);
@@ -529,6 +551,7 @@ function renderStudentDashboard() {
             html += `<div class="test-entry" style="align-items:center; padding:1rem 1.5rem;"><div class="te-meta"><div style="font-weight:600;font-size:16px; color:#0f172a;">${h.testTitle} <span class="badge b-gray" style="font-size:11px; margin-left:8px;">Code: ${h.testCode}</span></div><div style="font-size:13px;color:var(--color-text-secondary); margin-top:4px;">Attempted on: ${h.time}</div>${certBtn}</div><div style="display:flex; gap:16px; align-items:center;"><div style="text-align:right;"><div style="font-weight:600; color:#185FA5; font-size:16px;">${h.score} <span style="font-size:12px; font-weight:normal; color:var(--color-text-secondary);">/ ${h.totalMarks}</span></div><div style="font-size:12px; color:var(--color-text-secondary); margin-top:2px;">Accuracy: ${h.correct+h.wrong > 0 ? Math.round((h.correct/(h.correct+h.wrong))*100) : 0}%</div></div><div style="width:46px; height:46px; border-radius:50%; background:${pct>=75?'#EAF3DE':pct>=40?'#FAEEDA':'#FCEBEB'}; color:${pct>=75?'#27500A':pct>=40?'#633806':'#791F1F'}; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px; border:2px solid ${pct>=75?'#C0DD97':pct>=40?'#FAC775':'#F7C1C1'};">${pct}%</div></div></div>`;
         });
         html += `</div>`;
+        
         c.innerHTML = html;
     }, 600);
 }
@@ -584,4 +607,127 @@ function resetStudent(){
   else if (userRole === 'guest') nav('student'); 
   else if (typeof isOfflineMode !== 'undefined' && isOfflineMode) nav('student');
   if (typeof updateStudentUIForRole === 'function') updateStudentUIForRole();
+}
+
+// ==========================================
+// ENDLESS PRACTICE ARENA (FREE API LOGIC)
+// ==========================================
+
+let currentPracticeQ = null;
+
+function startPracticeArena() {
+    nav('practice');
+    fetchNewPracticeQ();
+}
+
+async function fetchNewPracticeQ() {
+    var area = document.getElementById('practice-area');
+    // Badiya sa loading spinner
+    area.innerHTML = `<div class="spinner-container" style="padding:3rem 0;"><div class="spinner"></div><div style="margin-top:10px; color:var(--color-text-secondary);">Fetching next challenge...</div></div>`;
+    
+    try {
+        // OpenTDB Free API (Mix of Science, GK, Computers etc.)
+        let res = await fetch('https://opentdb.com/api.php?amount=1&type=multiple');
+        let data = await res.json();
+        
+        if(data.results && data.results.length > 0) {
+            currentPracticeQ = data.results[0];
+            renderPracticeQ();
+        } else {
+            throw new Error("No data");
+        }
+    } catch (e) {
+        area.innerHTML = `<div style="padding:2rem; color:#A32D2D;"><i class="ti ti-wifi-off" style="font-size:40px; margin-bottom:10px;"></i><br>Network Error. Could not fetch question.</div>
+        <button class="btn btn-primary" onclick="fetchNewPracticeQ()">Try Again</button>`;
+    }
+}
+
+// HTML text ko theek karne ke liye (API se kbhi kbhi &quot; aata hai)
+function decodeHTML(html) {
+    var txt = document.createElement("textarea");
+    txt.innerHTML = html;
+    return txt.value;
+}
+
+function renderPracticeQ() {
+    var area = document.getElementById('practice-area');
+    var q = currentPracticeQ;
+    
+    // Options ko mix (shuffle) karna
+    var options = [...q.incorrect_answers, q.correct_answer];
+    options.sort(() => Math.random() - 0.5);
+    
+    var diffColor = q.difficulty === 'hard' ? '#A32D2D' : (q.difficulty === 'medium' ? '#854F0B' : '#3B6D11');
+    var diffBg = q.difficulty === 'hard' ? '#FCEBEB' : (q.difficulty === 'medium' ? '#FAEEDA' : '#EAF3DE');
+
+    var html = `
+        <div style="display:flex; justify-content:space-between; margin-bottom:1.5rem; align-items:center;">
+            <span class="badge" style="background:var(--color-background-secondary); color:var(--color-text-secondary);"><i class="ti ti-category"></i> ${decodeHTML(q.category)}</span>
+            <span class="badge" style="background:${diffBg}; color:${diffColor}; text-transform:capitalize;">${q.difficulty}</span>
+        </div>
+        
+        <h3 style="font-size:18px; line-height:1.6; margin-bottom:2rem; color:var(--color-text-primary); text-align:left;">
+            ${decodeHTML(q.question)}
+        </h3>
+        
+        <div style="display:flex; flex-direction:column; gap:10px; text-align:left;" id="practice-opts">
+            ${options.map((opt, i) => `
+                <button class="opt-btn p-opt" style="justify-content:flex-start; padding:12px 15px;" onclick="checkPracticeAnswer(this, '${btoa(encodeURIComponent(opt))}', '${btoa(encodeURIComponent(q.correct_answer))}')">
+                    <div class="olabel">${String.fromCharCode(65+i)}</div> 
+                    <span style="font-size:15px;">${decodeHTML(opt)}</span>
+                </button>
+            `).join('')}
+        </div>
+        
+        <div style="display:flex; gap:12px; margin-top:2rem; border-top:1px solid var(--color-border-secondary); padding-top:1.5rem;">
+            <button class="btn" style="flex:1; background:#f8fafc; border:1px solid #e2e8f0; color:#64748b;" onclick="fetchNewPracticeQ()">
+                <i class="ti ti-player-skip-forward"></i> Skip
+            </button>
+            <button id="p-next-btn" class="btn btn-primary" style="flex:1; display:none;" onclick="fetchNewPracticeQ()">
+                Next Question <i class="ti ti-arrow-right"></i>
+            </button>
+        </div>
+        
+        <div style="margin-top:15px;">
+            <button class="btn btn-sm btn-ghost" style="color:var(--color-text-secondary);" onclick="nav('student-dashboard')"><i class="ti ti-arrow-left"></i> Exit Arena</button>
+        </div>
+    `;
+    area.innerHTML = html;
+}
+
+function checkPracticeAnswer(btnElem, selectedBase64, correctBase64) {
+    var selected = decodeURIComponent(atob(selectedBase64));
+    var correct = decodeURIComponent(atob(correctBase64));
+    
+    // Disable all options so user can't click twice
+    var allBtns = document.querySelectorAll('.p-opt');
+    allBtns.forEach(b => {
+        b.disabled = true;
+        b.style.cursor = 'not-allowed';
+        b.style.opacity = '0.7';
+    });
+    
+    // Check Result and Apply Colors
+    if (selected === correct) {
+        btnElem.style.background = '#EAF3DE';
+        btnElem.style.borderColor = '#3B6D11';
+        btnElem.style.color = '#27500A';
+        btnElem.innerHTML = `<div class="olabel" style="background:#3B6D11; color:#fff; border-color:#3B6D11;"><i class="ti ti-check"></i></div> <span style="font-size:15px; font-weight:600;">${decodeHTML(selected)}</span> <span style="margin-left:auto; color:#3B6D11; font-weight:bold;">Correct!</span>`;
+    } else {
+        btnElem.style.background = '#FCEBEB';
+        btnElem.style.borderColor = '#A32D2D';
+        btnElem.style.color = '#791F1F';
+        btnElem.innerHTML = `<div class="olabel" style="background:#A32D2D; color:#fff; border-color:#A32D2D;"><i class="ti ti-x"></i></div> <span style="font-size:15px; font-weight:600;">${decodeHTML(selected)}</span> <span style="margin-left:auto; color:#A32D2D; font-weight:bold;">Wrong</span>`;
+        
+        // Find and highlight the correct one
+        allBtns.forEach(b => {
+            if(b.innerText.includes(decodeHTML(correct))) {
+                b.style.borderColor = '#3B6D11';
+                b.style.borderWidth = '2px';
+            }
+        });
+    }
+    
+    // Show Next Button
+    document.getElementById('p-next-btn').style.display = 'flex';
 }
