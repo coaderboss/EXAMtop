@@ -170,7 +170,34 @@ function initiateTestStart(testId, name, roll) {
 
 function launchTest(dbTest, name, roll){
   var test = JSON.parse(JSON.stringify(dbTest));
-  if (test.randomOrder) test.questions = test.questions.sort(() => Math.random() - 0.5);
+  
+  // NAYA: Smart Section-Wise Shuffling Logic
+  if (test.randomOrder) {
+      if (test.sections && test.sections.length > 0) {
+          let groupedQs = [];
+          
+          // Har section ke questions filter karke unhe aapas me shuffle karenge
+          test.sections.forEach(sec => {
+              let secQs = test.questions.filter(q => q.section === sec);
+              secQs.sort(() => Math.random() - 0.5); // Section ke andar shuffle
+              groupedQs = groupedQs.concat(secQs); // Final list me append
+          });
+          
+          // Agar kisi question me section assign nahi hai, unhe last me dal denge
+          let noSecQs = test.questions.filter(q => !q.section || !test.sections.includes(q.section));
+          if (noSecQs.length > 0) {
+              noSecQs.sort(() => Math.random() - 0.5);
+              groupedQs = groupedQs.concat(noSecQs);
+          }
+          
+          test.questions = groupedQs; // Array ko properly grouped list se replace karo
+      } else {
+          // Agar test me sections nahi hain, toh purana normal global shuffle
+          test.questions = test.questions.sort(() => Math.random() - 0.5);
+      }
+  }
+
+  // Options ko shuffle karne ka logic
   if (test.shuffleOpts) {
       test.questions.forEach(q => {
           if (q.type === 'mcq' || q.type === 'msq') {
@@ -186,17 +213,18 @@ function launchTest(dbTest, name, roll){
   activeState={name,roll,answers:Array(test.questions.length).fill(0).map(()=>({val:null,marked:false})),cur:0,start:Date.now(),done:false};
   window.examWarnings = 0;
   
-  // NAYA: Hide Main Header during Exam
+  // Hide Main Header during Exam (Anti-Cheat & UX)
   var mainHeader = document.querySelector('.app-header');
   if(mainHeader) mainHeader.style.display = 'none';
   
   if (activeTest.antiCheat) {
       document.addEventListener("visibilitychange", handleCheat);
-      window.addEventListener("blur", handleCheat); // NAYA: Focus loss catch
+      window.addEventListener("blur", handleCheat); // Focus loss catch
   }
   if (activeTest.fullScreenMode) document.addEventListener("fullscreenchange", handleCheat);
 
   renderTest();
+  
   if(timerIv) clearInterval(timerIv);
   var secs=test.duration*60;
   timerIv=setInterval(()=>{
