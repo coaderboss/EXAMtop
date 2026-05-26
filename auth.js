@@ -330,4 +330,4 @@ function showHelpGuide() {
     }
 
     showModal(`<div style="padding:1.5rem; text-align:left;"><div style="display:flex; align-items:center; gap:12px; margin-bottom:1.5rem; padding-bottom:15px; border-bottom:1px solid var(--color-border-secondary);"><div style="width:48px; height:48px; border-radius:12px; background:${bgCol}; display:flex; align-items:center; justify-content:center;"><i class="ti ${icon}" style="font-size:28px; color:var(--color-text-primary);"></i></div><div><h2 style="margin:0; font-size:20px; font-weight:700; color:#0f172a;">${title}</h2><div style="font-size:13px; font-weight:500; color:var(--color-text-secondary);">Platform Operations Overview</div></div></div><div style="font-size:14px; color:var(--color-text-primary); line-height:1.6; margin-bottom:1.5rem;">${content}</div><button class="btn btn-primary" style="width:100%; padding:12px; font-weight:600; font-size:15px; justify-content:center;" onclick="hideModal()"><i class="ti ti-check"></i> Got it</button></div>`);
-}}
+}
