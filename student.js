@@ -138,17 +138,23 @@ function launchAsStudent(i){
 
 function handleCheat(event) {
     if (!activeTest || activeState.done) return;
+    
     let isTabSwitch = document.hidden && activeTest.antiCheat;
     let isFullScreenExit = event && event.type === 'fullscreenchange' && !document.fullscreenElement && activeTest.fullScreenMode;
+    let isWindowBlur = event && event.type === 'blur' && activeTest.antiCheat; // NAYA: Floating window / Focus loss catch karega
 
-    if (isTabSwitch || isFullScreenExit) {
+    if (isTabSwitch || isFullScreenExit || isWindowBlur) {
         window.examWarnings = (window.examWarnings || 0) + 1;
         if (window.examWarnings >= 3) {
             alert("SECURITY ALERT: Exam Blocked! Rules violated 3 times. Auto-submitting paper.");
             doSubmit();
         } else {
-            let reason = isTabSwitch ? "Tab switching" : "Exiting full-screen";
+            let reason = isTabSwitch ? "Tab switching" : isWindowBlur ? "Opening another app/window" : "Exiting full-screen";
             alert(`WARNING ${window.examWarnings}/2: ${reason} detected! Please do not leave the exam screen.`);
+            // Wapas full screen karne ka try
+            if (activeTest.fullScreenMode && document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(e=>console.log(e));
+            }
         }
     }
 }
@@ -180,7 +186,14 @@ function launchTest(dbTest, name, roll){
   activeState={name,roll,answers:Array(test.questions.length).fill(0).map(()=>({val:null,marked:false})),cur:0,start:Date.now(),done:false};
   window.examWarnings = 0;
   
-  if (activeTest.antiCheat) document.addEventListener("visibilitychange", handleCheat);
+  // NAYA: Hide Main Header during Exam
+  var mainHeader = document.querySelector('.app-header');
+  if(mainHeader) mainHeader.style.display = 'none';
+  
+  if (activeTest.antiCheat) {
+      document.addEventListener("visibilitychange", handleCheat);
+      window.addEventListener("blur", handleCheat); // NAYA: Focus loss catch
+  }
   if (activeTest.fullScreenMode) document.addEventListener("fullscreenchange", handleCheat);
 
   renderTest();
@@ -313,7 +326,10 @@ function confirmSubmit(){
 function doSubmit(){
   if(!activeTest||activeState.done)return;
   clearInterval(timerIv); activeState.done=true;
-  document.removeEventListener("visibilitychange", handleCheat); document.removeEventListener("fullscreenchange", handleCheat);
+  document.removeEventListener("visibilitychange", handleCheat); 
+  document.removeEventListener("fullscreenchange", handleCheat);
+  window.removeEventListener("blur", handleCheat); // NAYA
+  
   var neg=activeTest.negMarking||0; var score=0,correct=0,wrong=0,skipped=0;
   
   var details=activeTest.questions.map((q,i)=>{
@@ -340,6 +356,10 @@ function doSubmit(){
   closeMobilePalette();
 
   if(activeTest.id !== 'prev' && activeTest.resultVis === 'manual') {
+      // NAYA: Restore Header manually
+      var mainHeader = document.querySelector('.app-header');
+      if(mainHeader) mainHeader.style.display = ''; 
+      
       showModal(`<div style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:56px;color:#3B6D11;margin-bottom:1rem;display:block"></i><h3 style="font-size:24px;margin-bottom:0.5rem;font-weight:600">Test Submitted Successfully!</h3><p style="color:var(--color-text-secondary);margin-bottom:2rem;font-size:15px">Your answers have been securely saved. The examiner will review the paper and declare the results manually.</p><button class="btn btn-primary" style="font-size:16px;padding:10px 24px" onclick="resetStudent(); hideModal()">Return to Dashboard</button></div>`);
   } else {
       var el = document.getElementById('student-result');
@@ -382,6 +402,8 @@ function claimCertificate(name, course, date) {
 }
 
 function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null) {
+  var mainHeader = document.querySelector('.app-header');
+  if(mainHeader) mainHeader.style.display = '';
   var el=document.getElementById('student-result');
   el.classList.remove('hidden');
   var pct=Math.round((sub.score/test.totalMarks)*100);
@@ -552,6 +574,10 @@ function resetStudent(){
   document.getElementById('student-test').classList.add('hidden');
   document.getElementById('student-result').classList.add('hidden');
   closeMobilePalette();
+  
+  // NAYA: Restore header if canceled
+  var mainHeader = document.querySelector('.app-header');
+  if(mainHeader) mainHeader.style.display = '';
   
   if(currentUser && document.getElementById('s-name')) { document.getElementById('s-name').value = currentUser.displayName || ''; }
   if (userRole === 'student') nav('student-dashboard');
