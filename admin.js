@@ -3,15 +3,81 @@
 // ==========================================
 
 function renderAdminDashboard() {
-    var c = document.getElementById('admin-content-area');
-    // Double Security Check
-    if(!currentUser || userRole !== 'admin') {
-        c.innerHTML = `<div style="text-align:center;padding:4rem;color:#A32D2D"><i class="ti ti-shield-x" style="font-size:48px;display:block;margin-bottom:1rem"></i><div style="font-size:16px;font-weight:500">UNAUTHORIZED ACCESS. SEVERITY LEVEL 1.</div></div>`;
+    // Admin ka main div jahan data dikhega (apne div ka ID check kar lena, mostly yahi hota hai)
+    var container = document.getElementById('admin-content-area') || document.getElementById('admin-vault-area'); 
+    if(!container) return;
+
+    let html = `
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem;">
+            <h2 style="color:#A32D2D; margin:0;"><i class="ti ti-crown"></i> Global Test Vault (God Mode)</h2>
+            <div class="badge b-red" style="font-size:14px;">Admin Access</div>
+        </div>
+    `;
+
+    if(tests.length === 0) {
+        container.innerHTML = html + `<div style="text-align:center; padding:3rem; color:var(--color-text-secondary);"><i class="ti ti-database-off" style="font-size:48px; margin-bottom:10px;"></i><br>Database is currently empty. No tests found.</div>`;
         return;
     }
+
+    html += `<div style="display:flex; flex-direction:column; gap:20px;">`;
     
-    // Default load stats
-    loadAdminStats();
+    // Har test ke liye ek card banega
+    tests.forEach((t, tIndex) => {
+        let statusBadge = t.isActive ? `<span class="badge b-green"><i class="ti ti-door-enter"></i> INTAKE OPEN</span>` : `<span class="badge b-red"><i class="ti ti-door-exit"></i> INTAKE CLOSED</span>`;
+        let subCount = t.submissions ? t.submissions.length : 0;
+
+        html += `
+        <div class="card" style="border: 2px solid #e2e8f0; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+            
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:15px; border-bottom:1px solid #e2e8f0; padding-bottom:15px;">
+                <div>
+                    <h3 style="margin:0 0 5px 0; font-size:18px; color:#185FA5;">${t.title} <span class="badge b-gray" style="font-size:12px; margin-left:8px;">Code: ${t.code}</span></h3>
+                    <div style="font-size:13px; color:var(--color-text-secondary);">
+                        ${statusBadge} &bull; Total Submissions: <strong>${subCount}</strong> &bull; Total Marks: ${t.totalMarks}
+                    </div>
+                </div>
+                
+                <div style="display:flex; gap:10px;">
+                    <button class="btn btn-sm" style="background:#f8fafc; border:1px solid #cbd5e1; color:#0f172a; font-weight:600;" onclick="adminToggleTestStatus('${t.id}')">
+                        <i class="ti ti-power"></i> Toggle Status
+                    </button>
+                    <button class="btn btn-danger btn-sm" style="font-weight:600;" onclick="adminDeleteTest('${t.id}')">
+                        <i class="ti ti-trash"></i> Nuke Test
+                    </button>
+                </div>
+            </div>`;
+
+        // STUDENT SUBMISSIONS LIST & STUDENT LEVEL BUTTONS
+        if(subCount > 0) {
+            html += `
+            <div style="background:#f1f5f9; padding:15px; border-radius:8px; border:1px solid #cbd5e1;">
+                <h4 style="margin:0 0 10px 0; font-size:14px; color:#475569;"><i class="ti ti-users"></i> Student Submissions Data:</h4>
+                <div style="display:flex; flex-direction:column; gap:8px;">`;
+            
+            t.submissions.forEach((sub, sIdx) => {
+                let pct = Math.round((sub.score / t.totalMarks) * 100);
+                html += `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#fff; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="font-size:14px; line-height:1.4;">
+                        <strong style="color:#0f172a;">${sub.name}</strong> <span style="color:#64748b; font-size:12px;">(${sub.roll || 'No Roll'})</span><br>
+                        <span style="color:#185FA5; font-weight:600;">Score: ${sub.score} / ${t.totalMarks}</span> <span style="font-size:12px; color:gray;">(${pct}%)</span> &bull; <span style="font-size:11px; color:#94a3b8;">${sub.time}</span>
+                    </div>
+                    
+                    <button class="btn btn-sm" style="background:#FCEBEB; color:#A32D2D; border:1px solid #F7C1C1; padding:6px 10px;" onclick="adminDeleteSubmission('${t.id}', ${sIdx})">
+                        <i class="ti ti-trash-x"></i> Delete Entry
+                    </button>
+                </div>`;
+            });
+            html += `</div></div>`;
+        } else {
+            html += `<div style="font-size:13px; color:#94a3b8; font-style:italic;">No students have taken this test yet.</div>`;
+        }
+        
+        html += `</div>`; // Close Card
+    });
+    
+    html += `</div>`; // Close Wrapper
+    container.innerHTML = html;
 }
 
 function switchAdminTab(tab, btnElement) {
@@ -249,5 +315,53 @@ function adminDeleteTest(idx) {
         loadAdminTests();
     } else if (conf !== null) {
         showToast('Incorrect code. Deletion cancelled.', 'error');
+    }
+}
+
+// ==========================================
+// ADMIN GOD MODE POWERS
+// ==========================================
+
+// Power 1: Delete a specific student's result
+function adminDeleteSubmission(testId, subIdx) {
+    if(!confirm("⚠️ WARNING: Are you sure you want to delete this student's result permanently? This cannot be undone.")) return;
+    
+    var t = tests.find(x => x.id === testId);
+    if(t && t.submissions && t.submissions.length > subIdx) {
+        t.submissions.splice(subIdx, 1); // Delete the specific submission
+        updateDatabase(); // Save to Firebase/Local
+        showToast("Result Deleted Successfully!", "success");
+        
+        // Refresh the current admin view (replace with your actual render function if name is different)
+        if(typeof renderAdminVault === 'function') renderAdminVault(); 
+        else nav('admin'); // Fallback refresh
+    }
+}
+
+// Power 2: Nuke Entire Test (Complete Wipeout)
+function adminDeleteTest(testId) {
+    if(!confirm("☢️ NUCLEAR WARNING: This will delete the ENTIRE TEST and ALL its submissions. Are you absolutely sure?")) return;
+    
+    var tIndex = tests.findIndex(x => x.id === testId);
+    if(tIndex > -1) {
+        tests.splice(tIndex, 1); // Remove the test from the global array
+        updateDatabase(); // Save to Firebase/Local
+        showToast("Test completely nuked from database!", "success");
+        
+        // Refresh admin dashboard
+        nav('admin'); 
+    }
+}
+
+// Power 3: Emergency Test Toggle (Open/Close Intake)
+function adminToggleTestStatus(testId) {
+    var t = tests.find(x => x.id === testId);
+    if(t) {
+        t.isActive = !t.isActive; // Toggle boolean
+        updateDatabase();
+        let statusText = t.isActive ? "OPEN" : "CLOSED";
+        showToast(`Test intake is now ${statusText}`, t.isActive ? "success" : "error");
+        
+        if(typeof renderAdminVault === 'function') renderAdminVault();
     }
 }
