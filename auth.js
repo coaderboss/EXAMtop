@@ -296,7 +296,28 @@ function showHelpGuide() {
         content = `<div style="margin-bottom:15px"><strong><i class="ti ti-wifi-off"></i> 1. Pure Isolation:</strong> Data created here never touches the internet. It lives securely in your browser's local memory.</div><div style="margin-bottom:15px"><strong><i class="ti ti-test-pipe"></i> 2. Self-Testing:</strong> Use this mode to draft questions, check formatting, or conduct local classroom quizzes.</div><div style="margin-bottom:15px; color:#A32D2D;"><strong><i class="ti ti-door-exit"></i> Exit:</strong> Click 'Exit Offline Mode' in the navbar to reconnect to the global cloud platform.</div>`;
     } else if (userRole === 'examiner') {
         title = "Examiner Portal Guide"; icon = "ti-pencil"; bgCol = "#EAF3DE"; 
-        content = `<div style="max-height: 55vh; overflow-y: auto; padding-right: 10px;"><div style="margin-bottom:15px"><strong><i class="ti ti-list-details"></i> 1. Question Types:</strong> Choose from 4 varieties: MCQ, MSQ, Integer, and Subjective.</div><div style="margin-bottom:15px"><strong><i class="ti ti-file-upload"></i> 2. JSON Bulk Import:</strong> Create a bulk JSON file. Click <em>'download sample template'</em> to see the exact structure.</div><div style="margin-bottom:15px"><strong><i class="ti ti-hash"></i> 3. The 6-Digit Test Code:</strong> This is your master key. Share this code with your students.</div><div style="margin-bottom:15px"><strong><i class="ti ti-dashboard"></i> 4. Test Management:</strong> Open/Close Intake, Edit Key for Smart Auto-Grade, and manually Evaluate papers.</div></div>`;
+        // NAYA: Added JSON Template directly inside the Examiner's guide
+        content = `<div style="max-height: 60vh; overflow-y: auto; padding-right: 10px;">
+            <div style="margin-bottom:15px"><strong><i class="ti ti-list-details"></i> 1. Question Types:</strong> Choose from 4 varieties: MCQ, MSQ, Integer, and Subjective.</div>
+            <div style="margin-bottom:15px">
+                <strong><i class="ti ti-file-upload"></i> 2. JSON Bulk Import:</strong> Use this strict JSON format to bulk import questions. Adding a "section" is optional.
+                <div style="background:#0f172a; color:#e2e8f0; padding:15px; border-radius:8px; font-family: 'Courier New', Courier, monospace; font-size:13px; overflow-x:auto; margin-top:10px; line-height:1.5; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">
+[
+  {
+    <span style="color:#a78bfa;">"section"</span>: <span style="color:#34d399;">"Physics"</span>,
+    <span style="color:#a78bfa;">"type"</span>: <span style="color:#34d399;">"mcq"</span>,
+    <span style="color:#a78bfa;">"text"</span>: <span style="color:#34d399;">"What is the capital of France?"</span>,
+    <span style="color:#a78bfa;">"marks"</span>: <span style="color:#f472b6;">4</span>,
+    <span style="color:#a78bfa;">"options"</span>: [<span style="color:#34d399;">"London"</span>, <span style="color:#34d399;">"Paris"</span>, <span style="color:#34d399;">"Berlin"</span>, <span style="color:#34d399;">"Madrid"</span>],
+    <span style="color:#a78bfa;">"correct"</span>: [<span style="color:#f472b6;">1</span>],
+    <span style="color:#a78bfa;">"explanation"</span>: <span style="color:#34d399;">"Paris is the correct answer."</span>
+  }
+]
+                </div>
+            </div>
+            <div style="margin-bottom:15px"><strong><i class="ti ti-hash"></i> 3. The 6-Digit Test Code:</strong> This is your master key. Share this code with your students.</div>
+            <div style="margin-bottom:15px"><strong><i class="ti ti-dashboard"></i> 4. Test Management:</strong> Open/Close Intake, Edit Key for Smart Auto-Grade, and manually Evaluate papers.</div>
+        </div>`;
     } else if (userRole === 'student' || userRole === 'guest') {
         title = "Student Portal Guide"; icon = "ti-school"; bgCol = "#E6F1FB"; 
         content = `<div style="margin-bottom:15px"><strong><i class="ti ti-login"></i> 1. Guest vs Login:</strong> Login saves your analytics permanently.</div><div style="margin-bottom:15px"><strong><i class="ti ti-shield-lock"></i> 2. Anti-Cheat Rules:</strong> Changing tabs or exiting full-screen will auto-submit your exam!</div><div style="margin-bottom:15px"><strong><i class="ti ti-layout-grid"></i> 3. Exam Palette:</strong> Track answered, skipped, and 'marked for review' questions.</div>`;
@@ -309,4 +330,4 @@ function showHelpGuide() {
     }
 
     showModal(`<div style="padding:1.5rem; text-align:left;"><div style="display:flex; align-items:center; gap:12px; margin-bottom:1.5rem; padding-bottom:15px; border-bottom:1px solid var(--color-border-secondary);"><div style="width:48px; height:48px; border-radius:12px; background:${bgCol}; display:flex; align-items:center; justify-content:center;"><i class="ti ${icon}" style="font-size:28px; color:var(--color-text-primary);"></i></div><div><h2 style="margin:0; font-size:20px; font-weight:700; color:#0f172a;">${title}</h2><div style="font-size:13px; font-weight:500; color:var(--color-text-secondary);">Platform Operations Overview</div></div></div><div style="font-size:14px; color:var(--color-text-primary); line-height:1.6; margin-bottom:1.5rem;">${content}</div><button class="btn btn-primary" style="width:100%; padding:12px; font-weight:600; font-size:15px; justify-content:center;" onclick="hideModal()"><i class="ti ti-check"></i> Got it</button></div>`);
-}
+}}
