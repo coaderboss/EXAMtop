@@ -480,7 +480,7 @@ textarea { min-height: 80px; resize: vertical; }
 .palette-overlay { display: none; }
 
 @media (max-width: 768px) {
-    /* NAYA: Single Line Sleek Bottom Bar */
+    /* 1-Line Clean Nav Bar */
     #mobile-nav-bar {
         position: fixed !important;
         bottom: 0; left: 0; width: 100%;
@@ -488,7 +488,7 @@ textarea { min-height: 80px; resize: vertical; }
         box-shadow: 0 -4px 15px rgba(0,0,0,0.1);
         z-index: 1000;
         display: flex !important;
-        flex-direction: row !important; /* Forces 1 single line */
+        flex-direction: row !important;
         justify-content: space-between !important;
         align-items: center !important;
         padding: 10px 15px !important;
@@ -498,7 +498,7 @@ textarea { min-height: 80px; resize: vertical; }
     }
     
     #mobile-nav-bar .btn {
-        flex: 1; /* Teeno buttons barabar jagah lenge */
+        flex: 1;
         padding: 12px 0 !important;
         display: flex;
         justify-content: center;
@@ -508,40 +508,45 @@ textarea { min-height: 80px; resize: vertical; }
 
     .q-area { padding-bottom: 85px !important; }
 
-    /* NAYA: CSS Transform based ultra-smooth sliding palette */
+    /* NAYA: Bulletproof Invisible Palette */
     #mobile-palette-sheet {
         position: fixed;
-        bottom: 0; left: 0; width: 100%;
+        bottom: -1000px; /* Screen se bilkul bahar phek diya */
+        left: 0; width: 100%;
         background: #fff;
         border-radius: 24px 24px 0 0;
         z-index: 1002;
         box-shadow: 0 -10px 25px rgba(0,0,0,0.15);
-        transform: translateY(100%); /* Screen ke niche chhupa rahega */
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: bottom 0.4s ease-in-out, visibility 0.4s;
         max-height: 80vh;
         overflow-y: auto;
         padding: 24px;
         margin: 0;
         display: block !important;
         box-sizing: border-box;
+        visibility: hidden; /* Button dabne tak completely invisible */
     }
     
+    /* Jab button click hoga tab aayega */
     #mobile-palette-sheet.active {
-        transform: translateY(0); /* Upar slide hokar aayega */
+        bottom: 0;
+        visibility: visible; 
     }
 
+    /* Dark Overlay Fix */
     #palette-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.6);
         z-index: 1001;
         opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.3s ease;
+        visibility: hidden; /* Background atakne ka bug fix */
+        transition: opacity 0.3s ease, visibility 0.3s;
         display: block !important;
     }
     
     #palette-overlay.active {
         opacity: 1;
+        visibility: visible;
         pointer-events: all;
     }
     
