@@ -153,9 +153,17 @@ window.renderAdminDashboard = function() {
     if(!container) return;
 
     let html = `
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; flex-wrap:wrap; gap:10px;">
             <h2 style="color:#A32D2D; margin:0;"><i class="ti ti-crown"></i> Global Test Vault (God Mode)</h2>
-            <div class="badge b-red" style="font-size:14px;">Admin Access</div>
+            
+            <div style="display:flex; gap:10px;">
+                <button class="btn" style="background:#185FA5; color:#fff; font-weight:600; padding:8px 16px; border:none;" onclick="window.adminExportCSV()">
+                    <i class="ti ti-file-spreadsheet"></i> Export Excel
+                </button>
+                <button class="btn btn-danger" style="font-weight:600; padding:8px 16px;" onclick="window.adminSmartPurge()">
+                    <i class="ti ti-flame"></i> Smart Purge
+                </button>
+            </div>
         </div>
     `;
 
@@ -295,4 +303,96 @@ window.adminToggleTestStatus = function(testCode) {
     } else {
         alert("Error: Test not found! (Code: " + testCode + ")");
     }
+};
+
+// ==========================================
+// REAL GOD MODE POWERS (SMART PURGE & EXPORT)
+// ==========================================
+
+// Power 1: Smart Time-Aware Purge
+window.adminSmartPurge = function() {
+    let days = prompt("⏳ SMART PURGE\n\nEnter number of days (e.g., 7):\nSystem will ONLY delete tests that are OLDER than this AND have 0 submissions.", "7");
+    
+    if(!days || isNaN(days)) {
+        showToast("Purge Cancelled.", "error");
+        return;
+    }
+
+    // Calculate cutoff time in milliseconds
+    let cutoffTime = Date.now() - (parseInt(days) * 24 * 60 * 60 * 1000);
+    let originalLength = tests.length;
+
+    // Filter logic: Keep tests IF they have submissions OR they are newer than the cutoff
+    let healthyTests = tests.filter(t => {
+        let hasSubmissions = t.submissions && t.submissions.length > 0;
+        
+        // Assume t.id is a timestamp. If your ID is string, we check its numeric value.
+        let isRecent = true;
+        if (t.id && !isNaN(t.id)) {
+            isRecent = Number(t.id) > cutoffTime;
+        }
+
+        return hasSubmissions || isRecent;
+    });
+
+    let deletedCount = originalLength - healthyTests.length;
+
+    if(deletedCount > 0) {
+        if(confirm(`🚨 System found ${deletedCount} junk tests older than ${days} days.\nAre you sure you want to permanently delete them?`)) {
+            tests = healthyTests; // Update global array
+            window.forceFirebaseSync(); // Sync to DB
+            alert(`✅ Purge Complete! ${deletedCount} ghost tests wiped out.`);
+        }
+    } else {
+        alert(`No empty tests older than ${days} days were found. Database is clean!`);
+    }
+};
+
+
+// Power 2: Download Entire Database as Excel (CSV)
+window.adminExportCSV = function() {
+    if(!tests || tests.length === 0) {
+        alert("Database is empty. Nothing to export!");
+        return;
+    }
+
+    // Create CSV Headers
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Test Title,Test Code,Creator UID,Total Marks,Student Name,Roll Number,Score,Percentage,Attempt Time\n";
+
+    // Loop through all tests and submissions to create rows
+    tests.forEach(t => {
+        let tTitle = t.title ? t.title.replace(/,/g, "") : "Untitled"; // Remove commas to prevent CSV breakage
+        let tCode = t.code || "N/A";
+        let tCreator = t.creatorUid || "Unknown";
+        let tMarks = t.totalMarks || 0;
+
+        if (t.submissions && t.submissions.length > 0) {
+            t.submissions.forEach(sub => {
+                let sName = sub.name ? sub.name.replace(/,/g, "") : "Guest";
+                let sRoll = sub.roll || "N/A";
+                let sScore = sub.score || 0;
+                let sPct = tMarks > 0 ? Math.round((sScore / tMarks) * 100) + "%" : "0%";
+                let sTime = sub.time || "N/A";
+
+                // Add row
+                csvContent += `${tTitle},${tCode},${tCreator},${tMarks},${sName},${sRoll},${sScore},${sPct},${sTime}\n`;
+            });
+        } else {
+            // Include tests even if they have no submissions
+            csvContent += `${tTitle},${tCode},${tCreator},${tMarks},No Submissions,-,-,-,-\n`;
+        }
+    });
+
+    // Magic code to force browser to download the file
+    var encodedUri = encodeURI(csvContent);
+    var link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `ExamiTop_Global_Report_${new Date().toLocaleDateString()}.csv`);
+    document.body.appendChild(link); // Required for FF
+    
+    link.click(); 
+    document.body.removeChild(link); // Clean up
+    
+    showToast("Excel Export Generated!", "success");
 };
