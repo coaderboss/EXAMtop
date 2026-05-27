@@ -206,10 +206,23 @@ function toggleLogin() {
 auth.onAuthStateChanged(user => {
   currentUser = user;
   if(isOfflineMode) return;
-  if(user) checkAndRouteUser(user);
-  else {
+  
+  if(user) { // <--- Yahan bracket OPEN karna tha
+      checkAndRouteUser(user);
+      
+      setTimeout(() => {
+          let hash = window.location.hash.replace('#', '');
+          if(hash === 'tests' && typeof renderTestList === 'function') renderTestList();
+      }, 400);
+      
+  } else { // <--- Yahan bracket CLOSE karke else start karna tha
       const loginBtn = document.getElementById('login-btn');
-      if(loginBtn) { loginBtn.innerHTML = `<i class="ti ti-brand-google"></i> Login`; loginBtn.style.background = "#185FA5"; loginBtn.style.color = "#fff"; loginBtn.style.borderColor = "#185FA5"; }
+      if(loginBtn) { 
+          loginBtn.innerHTML = `<i class="ti ti-brand-google"></i> Login`; 
+          loginBtn.style.background = "#185FA5"; 
+          loginBtn.style.color = "#fff"; 
+          loginBtn.style.borderColor = "#185FA5"; 
+      }
       renderNavbar(null); 
       updateSmartHubCards(null);
       if(window.location.hash !== '#home') nav('home');
@@ -218,6 +231,9 @@ auth.onAuthStateChanged(user => {
 
 // ==========================================
 // DATABASE LISTENER (Isolated for Cloud Only)
+// ==========================================
+// ==========================================
+// DATABASE LISTENER (SPA UPGRADED)
 // ==========================================
 db.ref('tests').on('value', (snapshot) => {
   var data = snapshot.val();
@@ -235,12 +251,14 @@ db.ref('tests').on('value', (snapshot) => {
       var localTests = tests.filter(t => t.isLocal === true);
       tests = [...cloudTestsBackup, ...localTests];
       
-      if(document.getElementById('page-tests') && document.getElementById('page-tests').classList.contains('active')) {
-          if(typeof renderTestList === 'function') renderTestList();
-      }
-      if(document.getElementById('page-results') && document.getElementById('page-results').classList.contains('active')) {
-          if(typeof renderAllResults === 'function') renderAllResults();
-      }
+      // NAYA FIX: ID ki jagah ab hum URL check karke render karenge
+      let currentHash = window.location.hash.replace('#', '');
+      
+      if(currentHash === 'tests' && typeof renderTestList === 'function') renderTestList();
+      if(currentHash === 'results' && typeof renderAllResults === 'function') renderAllResults();
+      if(currentHash === 'student-dashboard' && typeof renderStudentDashboard === 'function') renderStudentDashboard();
+      if(currentHash === 'student-results' && typeof renderStudentResults === 'function') renderStudentResults();
+      if(currentHash === 'admin' && typeof renderAdminDashboard === 'function') renderAdminDashboard();
   }
 });
 

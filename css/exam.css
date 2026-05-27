@@ -552,3 +552,55 @@ textarea { min-height: 80px; resize: vertical; }
     
     .hide-mobile { display: none !important; }
 }
+
+/* ==========================================
+   SEAMLESS DARK MODE (UPGRADED FOR VISIBILITY)
+   ========================================== */
+:root[data-theme="dark"] {
+  --color-background-primary: #0f172a; /* Smooth Dark Slate */
+  --color-background-secondary: #1e293b; /* Lighter Slate for Cards */
+  --color-background-tertiary: #020617; /* Deepest Dark for App Background */
+  --color-text-primary: #f8fafc; /* Crisp White for Reading */
+  --color-text-secondary: #cbd5e1; /* Soft Gray for Subtitles */
+  --color-border-primary: #334155;
+  --color-border-secondary: #1e293b;
+  --color-border-tertiary: #0f172a;
+}
+
+/* Force Base Colors */
+[data-theme="dark"] body { background-color: var(--color-background-tertiary); color: var(--color-text-primary); }
+[data-theme="dark"] .app-header { background: #0f172a !important; border-bottom-color: #334155 !important; }
+[data-theme="dark"] .card, [data-theme="dark"] .q-block, [data-theme="dark"] .q-review-card, [data-theme="dark"] .test-entry { background: #0f172a !important; border-color: #334155 !important; }
+
+/* Bruteforce Override Inline JS Colors (Ye black text ko white karega) */
+[data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, [data-theme="dark"] h4, 
+[data-theme="dark"] div[style*="color: #0f172a"], [data-theme="dark"] div[style*="color:#0f172a"],
+[data-theme="dark"] strong, [data-theme="dark"] p { color: #f8fafc !important; }
+
+/* Fix secondary text */
+[data-theme="dark"] div[style*="color: var(--color-text-secondary)"], 
+[data-theme="dark"] span[style*="color: var(--color-text-secondary)"] { color: #cbd5e1 !important; }
+
+/* Form Controls (Inputs, Textareas, Selects) */
+[data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea { background: #1e293b !important; color: #fff !important; border-color: #334155 !important; }
+[data-theme="dark"] input::placeholder, [data-theme="dark"] textarea::placeholder { color: #64748b !important; }
+
+/* Buttons */
+[data-theme="dark"] .btn:not(.btn-primary):not(.btn-danger):not(.btn-success):not(.btn-blue) { background: #1e293b !important; color: #f8fafc !important; border-color: #334155 !important; }
+[data-theme="dark"] .btn:hover:not(:disabled) { background: #334155 !important; }
+[data-theme="dark"] .btn-primary { background: #185FA5 !important; color: #fff !important; border-color: #185FA5 !important; }
+
+/* Exam Question Options & Palette */
+[data-theme="dark"] .opt-btn { background: #1e293b !important; color: #f8fafc !important; border-color: #334155 !important; }
+[data-theme="dark"] .opt-btn:hover:not([disabled]) { background: #334155 !important; }
+[data-theme="dark"] .olabel { background: #0f172a !important; color: #cbd5e1 !important; border-color: #334155 !important; }
+[data-theme="dark"] .opt-btn.sel { background: #185FA5 !important; color: #fff !important; border-color: #185FA5 !important; }
+[data-theme="dark"] .opt-btn.sel .olabel { background: #fff !important; color: #185FA5 !important; }
+
+/* Modals */
+[data-theme="dark"] .modal-box { background: #0f172a !important; border-color: #334155 !important; }
+[data-theme="dark"] .modal-box div, [data-theme="dark"] .modal-box p, [data-theme="dark"] .modal-box h3 { color: #f8fafc !important; } /* Hard reset inside modals */
+
+/* Navbar Tabs */
+[data-theme="dark"] .nav-tab { color: #94a3b8 !important; }
+[data-theme="dark"] .nav-tab.active { background: #1e293b !important; color: #fff !important; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }

@@ -165,3 +165,20 @@ function showHelpGuide() {
     </div>`;
     showModal(helpHtml);
 }
+
+// --- DARK MODE TOGGLE ---
+function toggleDarkMode() {
+    let body = document.documentElement;
+    if (body.getAttribute('data-theme') === 'dark') {
+        body.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+    } else {
+        body.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+    }
+}
+
+// Auto-apply theme on load
+if(localStorage.getItem('theme') === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+}
