@@ -7,39 +7,48 @@ function launchExistingResult(testId, name, roll) {
     var rollToMatch = roll ? roll.toLowerCase() : '';
     var sub = t.submissions.find(s => s.name.toLowerCase() === name.toLowerCase() && (s.roll || '').toLowerCase() === rollToMatch);
 
-    // 1. Result ko seedha Full-Screen Modal me kholo
-    showModal(`
-        <div style="width:100%; padding: 2rem; box-sizing: border-box;">
-            <div id="student-result">
-                <div class="spinner-container"><div class="spinner"></div><div style="margin-top:10px; color:var(--color-text-primary);">Loading Checked Paper...</div></div>
-            </div>
-        </div>
-    `);
+    // 1. SCREEN KO TURANT HIDE KARO (Transition Loader lagao)
+    let loader = document.createElement('div');
+    loader.id = 'flash-blocker';
+    loader.innerHTML = `<div class="spinner" style="width: 40px; height: 40px; border-width: 4px;"></div><div style="margin-top:15px; font-weight:600; font-size:16px; color:var(--color-text-primary);">Opening Secure Paper...</div>`;
+    loader.style = `position:fixed; top:0; left:0; width:100vw; height:100vh; background:var(--color-background-primary, #ffffff); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: opacity 0.3s ease;`;
+    document.body.appendChild(loader);
 
-    // 2. MAGIC: JS se jabardasti !important laga kar modal ko bada karo
-    var mBox = document.getElementById('modal-box');
-    if(mBox) {
-    mBox.style.width = '100vw';         // Screen ki puri width
-    mBox.style.maxWidth = '100vw'; 
-    mBox.style.height = '100vh';        // Screen ki puri height
-    mBox.style.maxHeight = '100vh';
-    mBox.style.margin = '0';            // Aas-paas ka space khatam
-    mBox.style.borderRadius = '0';      // Gol kinare khatam
-    mBox.style.overflowY = 'auto';
-    mBox.style.padding = '0';
-    }
+    // 2. Ab safely Native Route par jao
+    nav('student'); 
 
-    // 3. Result Generate karo
-    setTimeout(() => {
-        _generateResultDOM(sub, t, false);
+    // 3. SMART DOM WATCHER (Ye tab tak wait karega jab tak page background me load nahi ho jata)
+    let domWatcher = setInterval(function() {
+        var homeEl = document.getElementById('student-home');
+        var testEl = document.getElementById('student-test');
+        var resultEl = document.getElementById('student-result');
         
-        // Modal band karne ke liye 'Go Back' button ko 'Close' me theek karna
-        var backBtn = document.querySelector('#student-result .btn-primary');
-        if(backBtn && backBtn.innerText.includes('Go Back')) {
-            backBtn.setAttribute('onclick', 'hideModal();');
-            backBtn.innerHTML = '<i class="ti ti-x"></i> Close Paper';
+        // Jaise hi HTML background me aa jaye
+        if (homeEl && resultEl) {
+            clearInterval(domWatcher); // Watcher band karo
+            
+            // Faltu sections ko Hamesha ke liye display none kar do (taki flash na ho)
+            homeEl.style.display = 'none';
+            if (testEl) testEl.style.display = 'none';
+            
+            // Result Screen show karo
+            resultEl.classList.remove('hidden');
+            resultEl.style.display = 'block';
+            
+            // Engine se Result Generate karo
+            if (typeof _generateResultDOM === 'function') {
+                _generateResultDOM(sub, t, false);
+            } else {
+                resultEl.innerHTML = `<div style="color:#A32D2D; padding:2rem; text-align:center;">Result engine not found.</div>`;
+            }
+            
+            // 4. Sab set hone ke baad Loader ko makkhan ki tarah hata do
+            setTimeout(() => {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 300);
+            }, 200); // 200ms extra buffer for smooth render
         }
-    }, 600);
+    }, 50); // Har 50 millisecond me check karega
 }
 
 function claimCertificate(name, course, date) {
@@ -193,6 +202,7 @@ function setFilter(f,btn){
 
 function renderStudentDashboard() {
     var c = document.getElementById('student-analytics-area');
+    if (!c) return;
     if(!currentUser) { c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login to view your analytics.</div></div>`; return; }
 
     c.innerHTML = `<div class="spinner-container"><div class="spinner"></div><div>Loading Dashboard...</div></div>`;
@@ -240,6 +250,7 @@ function renderStudentDashboard() {
 
 function renderStudentResults() {
     var c = document.getElementById('student-results-area');
+    if (!c) return;
     if(!currentUser) { c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login to view your results.</div></div>`; return; }
 
     c.innerHTML = `<div class="spinner-container"><div class="spinner"></div><div>Fetching Results...</div></div>`;

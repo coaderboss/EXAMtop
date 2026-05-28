@@ -214,44 +214,62 @@ async function showResultPageAsExaminer(testIdx, sIdx) {
     var sub = tests[testIdx].submissions[sIdx];
     var t = tests[testIdx];
 
-    // 1. Loading Modal kholo
-    showModal(`
-        <div style="width:100%; padding: 1rem; box-sizing: border-box;">
-            <div id="student-result">
-                <div class="spinner-container"><div class="spinner"></div><div style="margin-top:10px; color:var(--color-text-primary);">Loading Checked Paper...</div></div>
-            </div>
-        </div>
-    `);
+    // 1. SCREEN KO TURANT HIDE KARO (Transition Loader lagao)
+    let loader = document.createElement('div');
+    loader.id = 'flash-blocker-examiner';
+    loader.innerHTML = `<div class="spinner" style="width: 40px; height: 40px; border-width: 4px;"></div><div style="margin-top:15px; font-weight:600; font-size:16px; color:var(--color-text-primary);">Opening Evaluation Mode...</div>`;
+    loader.style = `position:fixed; top:0; left:0; width:100vw; height:100vh; background:var(--color-background-primary, #ffffff); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: opacity 0.3s ease;`;
+    document.body.appendChild(loader);
 
-    // 2. MAGIC: Modal ko jabardasti Full Screen banao (Tumhara pasandeeda method)
-    var mBox = document.getElementById('modal-box');
-    mBox.style.width = '100vw';         // Screen ki puri width
-    mBox.style.maxWidth = '100vw'; 
-    mBox.style.height = '100vh';        // Screen ki puri height
-    mBox.style.maxHeight = '100vh';
-    mBox.style.margin = '0';            // Aas-paas ka space khatam
-    mBox.style.borderRadius = '0';      // Gol kinare khatam
-    mBox.style.overflowY = 'auto';
-    mBox.style.padding = '0';
-    
-    try {
-        if (typeof _generateResultDOM !== 'function') {
-            await loadScript('scripts/student-dash.js');
-        }
+    // 2. Ab safely Native Route par jao
+    nav('student');
 
-        setTimeout(() => {
-            _generateResultDOM(sub, t, true, testIdx, sIdx);
+    // 3. SMART DOM WATCHER (Wait for HTML)
+    let domWatcher = setInterval(async function() {
+        var homeEl = document.getElementById('student-home');
+        var testEl = document.getElementById('student-test');
+        var resultEl = document.getElementById('student-result');
+        
+        // Jaise hi HTML background me aa jaye
+        if (homeEl && resultEl) {
+            clearInterval(domWatcher); // Watcher band karo
             
-            var backBtn = document.querySelector('#student-result .btn-primary');
-            if(backBtn && backBtn.innerText.includes('Back')) {
-                backBtn.setAttribute('onclick', 'hideModal(); renderTestList();');
-                backBtn.innerHTML = '<i class="ti ti-x"></i> Close Paper';
-            }
-        }, 100);
+            // Faltu sections ko Hamesha ke liye chupao (No Flashing!)
+            homeEl.style.display = 'none';
+            if (testEl) testEl.style.display = 'none';
+            
+            // Result Screen show karo
+            resultEl.classList.remove('hidden');
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = `<div class="spinner-container"><div class="spinner"></div><div style="margin-top:10px; color:var(--color-text-primary);">Loading Checked Paper...</div></div>`;
 
-    } catch(err) {
-        document.getElementById('student-result').innerHTML = `<div style="color:#A32D2D; padding:2rem; text-align:center;"><i class="ti ti-alert-triangle" style="font-size:48px;"></i><br><br>Error loading result engine. Please try again.<br><small>${err.message}</small></div>`;
-    }
+            try {
+                // Agar result engine nahi hai, toh chupke se load karo
+                if (typeof _generateResultDOM !== 'function') {
+                    await loadScript('scripts/student-dash.js');
+                }
+
+                // Engine aate hi Evaluate mode print karo
+                setTimeout(() => {
+                    _generateResultDOM(sub, t, true, testIdx, sIdx); // true = Examiner Mode
+                    
+                    // Navbar theek karo
+                    var mainHeader = document.querySelector('.app-header');
+                    if(mainHeader) mainHeader.style.display = '';
+
+                    // 4. Sab set hone ke baad Loader makkhan ki tarah hata do
+                    loader.style.opacity = '0';
+                    setTimeout(() => loader.remove(), 300);
+                    
+                }, 150);
+
+            } catch(err) {
+                resultEl.innerHTML = `<div style="color:#A32D2D; padding:2rem; text-align:center;"><i class="ti ti-alert-triangle" style="font-size:48px;"></i><br><br>Error loading result engine.<br><small>${err.message}</small></div>`;
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 300);
+            }
+        }
+    }, 50); // Har 50ms me scan karega
 }
 
 function openEditKeyModal(idx) {
