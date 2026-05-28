@@ -4,9 +4,9 @@
 const loadedScripts = new Set();
 
 // 2. Dynamic Script Loader Function
+// 2. Dynamic Script Loader Function (With Cache-Busting)
 function loadScript(src) {
     return new Promise((resolve, reject) => {
-        // Agar pehle se load ho chuki hai, toh wapas resolve kardo (Memory Save)
         if (loadedScripts.has(src)) {
             resolve();
             return;
@@ -14,13 +14,16 @@ function loadScript(src) {
         
         console.log(`Lazy Loading: ${src}...`);
         const script = document.createElement('script');
-        script.src = src;
+        // NAYA FIX: Har baar naya version number lagayenge taaki browser purani file na chalaye
+        const cacheBuster = Date.now(); 
+        script.src = `${src}?v=${cacheBuster}`; 
+        
         script.onload = () => {
             loadedScripts.add(src);
             resolve();
         };
         script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-        document.body.appendChild(script); // HTML me script tag inject karo
+        document.body.appendChild(script); 
     });
 }
 

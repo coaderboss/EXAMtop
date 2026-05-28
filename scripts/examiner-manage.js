@@ -225,14 +225,7 @@ async function showResultPageAsExaminer(testIdx, sIdx) {
 
     // 2. MAGIC: Modal ko 100% Full Screen App jaisa banao
     var mBox = document.getElementById('modal-box');
-    mBox.style.width = '100vw';         // Screen ki puri width
-    mBox.style.maxWidth = '100vw'; 
-    mBox.style.height = '100vh';        // Screen ki puri height
-    mBox.style.maxHeight = '100vh';
-    mBox.style.margin = '0';            // Aas-paas ka space khatam
-    mBox.style.borderRadius = '0';      // Gol kinare khatam
-    mBox.style.overflowY = 'auto';
-    mBox.style.padding = '0';           // Andar ka extra space khatam
+    mBox.classList.add('modal-fullscreen'); // CSS class apply karo           // Andar ka extra space khatam
 
     try {
         // 2. MAGIC: Agar script nahi hai, toh on-demand download karo!
