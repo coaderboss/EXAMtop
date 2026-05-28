@@ -2,27 +2,68 @@
 // EXAMITOP: ADMIN PORTAL FULL CODE (GOD MODE)
 // ==========================================
 
-function switchAdminTab(tab, btnElement) {
-    document.querySelectorAll('#page-admin .ftab').forEach(b => b.classList.remove('active'));
-    if(btnElement) btnElement.classList.add('active');
+// ==========================================
+// EXAMITOP: ADMIN PORTAL FULL CODE (GOD MODE)
+// ==========================================
+
+// NAYA FIX: Ye variable yaad rakhega ki kaunsa tab khula hai
+window.currentAdminTab = window.currentAdminTab || 'stats';
+
+// NAYA FIX: Globally accessible Tab Switcher
+window.switchAdminTab = function(tab, btnElement) {
+    window.currentAdminTab = tab;
     
-    if(tab === 'stats') loadAdminStats();
-    else if(tab === 'users') loadAdminUsers();
-    else if(tab === 'tests') window.renderAdminDashboard(); 
-}
+    // Tab ka color (Active state) badlo
+    document.querySelectorAll('.filter-tabs .ftab').forEach(b => b.classList.remove('active'));
+    if(btnElement) {
+        btnElement.classList.add('active');
+    } else {
+        // Agar bina click kiye auto-load ho raha hai
+        document.querySelectorAll('.filter-tabs .ftab').forEach(b => {
+            if(b.getAttribute('onclick') && b.getAttribute('onclick').includes(`'${tab}'`)) {
+                b.classList.add('active');
+            }
+        });
+    }
+    
+    // Tab switch hone par master render function bulao
+    window.renderAdminDashboard();
+};
+
+// NAYA FIX: Master Engine - Ye decide karega screen par kya dikhega
+window.renderAdminDashboard = function() {
+    // Agar pehli baar khula hai aur UI me color nahi aaya hai, toh color set karo
+    let activeTab = document.querySelector('.filter-tabs .ftab.active');
+    if(!activeTab) window.switchAdminTab(window.currentAdminTab, null);
+
+    if (window.currentAdminTab === 'stats') {
+        loadAdminStats();
+    } else if (window.currentAdminTab === 'users') {
+        loadAdminUsers();
+    } else if (window.currentAdminTab === 'tests') {
+        window.loadAdminVault(); // Naya naam (Step 2 me update karenge)
+    }
+};
 
 function loadAdminStats() {
     var c = document.getElementById('admin-content-area');
     if(!c) return;
     
+    // 1. Pehle ek mast Loading Spinner dikhao taaki screen blank na lage
+    c.innerHTML = `
+        <div style="text-align:center; padding:3rem;">
+            <div class="spinner" style="margin: 0 auto;"></div>
+            <div style="margin-top:15px; color:var(--color-text-secondary); font-weight:500;">Syncing Platform Data...</div>
+        </div>`;
+    
     if(typeof db !== 'undefined') {
-        // MAGIC: Ab hum Users aur Platform Stats (Downloads) dono eksath database se mangwayenge
-        Promise.all([
-            db.ref('users').once('value'),
-            db.ref('platform_stats/total_downloads').once('value')
-        ]).then((snapshots) => {
+        // 2. Safely Fetch (Catch ke saath): Agar Firebase block kare toh crash nahi hoga
+        let usersPromise = db.ref('users').once('value').catch(e => { console.warn(e); return { val: () => ({}) }; });
+        let downloadsPromise = db.ref('platform_stats/total_downloads').once('value').catch(e => { console.warn(e); return { val: () => 0 }; });
+
+        Promise.all([usersPromise, downloadsPromise]).then((snapshots) => {
             var usersData = snapshots[0].val() || {};
-            var downloadsCount = snapshots[1].val() || 0; // Tumhara Live App Download Count
+            var downloadsCount = snapshots[1].val() || 0; // Download count safely aa gaya
             
             var totalAuthUsers = Object.keys(usersData).length; 
             var totalStudents = 0, totalExaminers = 0;
@@ -32,11 +73,13 @@ function loadAdminStats() {
                 if(u.role === 'examiner') totalExaminers++;
             });
             
-            var totalTests = tests.length;
+            var totalTests = typeof tests !== 'undefined' ? tests.length : 0;
             var totalSubmissions = 0;
-            tests.forEach(t => {
-                if(t.submissions) totalSubmissions += t.submissions.length;
-            });
+            if(typeof tests !== 'undefined') {
+                tests.forEach(t => {
+                    if(t.submissions) totalSubmissions += t.submissions.length;
+                });
+            }
 
             var ownerName = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.displayName : "System Administrator";
             var ownerEmail = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.email : "admin@system.io";
@@ -59,19 +102,19 @@ function loadAdminStats() {
             </div>
 
             <div class="grid4" style="margin-bottom:2rem">
-                <div class="stat-card" style="border-color:#185FA5; background: #fff;">
+                <div class="stat-card" style="border-color:#185FA5; background: var(--color-background-primary);">
                     <div class="stat-val" style="color:#185FA5">${totalAuthUsers}</div>
                     <div class="stat-lbl"><i class="ti ti-brand-google" style="font-size:11px;"></i> Google Auth</div>
                 </div>
-                <div class="stat-card" style="border-color:#3B6D11; background: #fff;">
+                <div class="stat-card" style="border-color:#3B6D11; background: var(--color-background-primary);">
                     <div class="stat-val" style="color:#3B6D11">${totalStudents}</div>
                     <div class="stat-lbl">Active Students</div>
                 </div>
-                <div class="stat-card" style="border-color:#854F0B; background: #fff;">
+                <div class="stat-card" style="border-color:#854F0B; background: var(--color-background-primary);">
                     <div class="stat-val" style="color:#854F0B">${totalExaminers}</div>
                     <div class="stat-lbl">Active Examiners</div>
                 </div>
-                <div class="stat-card" style="border-color:#534AB7; background: #fff;">
+                <div class="stat-card" style="border-color:#534AB7; background: var(--color-background-primary);">
                     <div class="stat-val" style="color:#534AB7">${totalTests}</div>
                     <div class="stat-lbl">Total Tests Vault</div>
                 </div>
@@ -79,10 +122,8 @@ function loadAdminStats() {
 
             <div class="card">
                 <div class="card-title"><i class="ti ti-server"></i> System Health & Infrastructure</div>
-                <p style="color:var(--color-text-secondary); margin-bottom:10px; font-size:15px;">Total Exam Submissions Processed: <strong style="color:#0f172a">${totalSubmissions}</strong></p>
-                
+                <p style="color:var(--color-text-secondary); margin-bottom:10px; font-size:15px;">Total Exam Submissions Processed: <strong style="color:var(--color-text-primary)">${totalSubmissions}</strong></p>
                 <p style="color:var(--color-text-secondary); margin-bottom:10px; font-size:15px;">App Installed on Devices (PWA): <strong style="color:#185FA5"><i class="ti ti-download"></i> ${downloadsCount} Installs</strong></p>
-                
                 <p style="color:var(--color-text-secondary); font-size:15px;">Real-time Database Status: <strong style="color:#3B6D11"><i class="ti ti-circle-check"></i> Online & Synced</strong></p>
             </div>
             `;
@@ -157,7 +198,7 @@ function changeUserRole(uid, newRole) {
 // ==========================================
 // ADMIN DASHBOARD RENDER ENGINE
 // ==========================================
-window.renderAdminDashboard = function() {
+window.loadAdminVault = function() {
     var container = document.getElementById('admin-content-area') || document.getElementById('admin-vault-area'); 
     if(!container) return;
 
