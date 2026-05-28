@@ -208,12 +208,11 @@ if(localStorage.getItem('theme') === 'dark') {
 if(localStorage.getItem('theme') === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
 }
-// --- SMART PWA INSTALLER ---
+// --- SMART PWA INSTALLER & TRACKER ---
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    // PWA banner detect hote hi header me button dikha do
     let installBtn = document.getElementById('install-app-btn');
     if(installBtn) installBtn.style.display = 'flex';
 });
@@ -228,6 +227,20 @@ window.installApp = async function() {
         deferredPrompt = null;
     }
 };
+
+// 🔥 NAYA: LIVE INSTALL TRACKER
+window.addEventListener('appinstalled', () => {
+    // Install hote hi button hata do
+    let installBtn = document.getElementById('install-app-btn');
+    if(installBtn) installBtn.style.display = 'none';
+    
+    // Firebase me "App Downloads" ka counter +1 kar do
+    if(typeof db !== 'undefined') {
+        db.ref('platform_stats/total_downloads').set(firebase.database.ServerValue.increment(1))
+        .then(() => console.log("App Install securely logged in DB!"))
+        .catch((err) => console.error("Could not log install: ", err));
+    }
+});
 
 // --- PREMIUM SETTINGS DROPDOWN LOGIC ---
 function toggleSettings() {

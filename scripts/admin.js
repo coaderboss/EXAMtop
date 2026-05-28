@@ -16,8 +16,14 @@ function loadAdminStats() {
     if(!c) return;
     
     if(typeof db !== 'undefined') {
-        db.ref('users').once('value').then(snapshot => {
-            var usersData = snapshot.val() || {};
+        // MAGIC: Ab hum Users aur Platform Stats (Downloads) dono eksath database se mangwayenge
+        Promise.all([
+            db.ref('users').once('value'),
+            db.ref('platform_stats/total_downloads').once('value')
+        ]).then((snapshots) => {
+            var usersData = snapshots[0].val() || {};
+            var downloadsCount = snapshots[1].val() || 0; // Tumhara Live App Download Count
+            
             var totalAuthUsers = Object.keys(usersData).length; 
             var totalStudents = 0, totalExaminers = 0;
             
@@ -74,6 +80,9 @@ function loadAdminStats() {
             <div class="card">
                 <div class="card-title"><i class="ti ti-server"></i> System Health & Infrastructure</div>
                 <p style="color:var(--color-text-secondary); margin-bottom:10px; font-size:15px;">Total Exam Submissions Processed: <strong style="color:#0f172a">${totalSubmissions}</strong></p>
+                
+                <p style="color:var(--color-text-secondary); margin-bottom:10px; font-size:15px;">App Installed on Devices (PWA): <strong style="color:#185FA5"><i class="ti ti-download"></i> ${downloadsCount} Installs</strong></p>
+                
                 <p style="color:var(--color-text-secondary); font-size:15px;">Real-time Database Status: <strong style="color:#3B6D11"><i class="ti ti-circle-check"></i> Online & Synced</strong></p>
             </div>
             `;
