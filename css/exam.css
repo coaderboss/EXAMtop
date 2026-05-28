@@ -674,3 +674,38 @@ textarea { min-height: 80px; resize: vertical; }
 [data-theme="dark"] .student-card, [data-theme="dark"] .examiner-card, [data-theme="dark"] .offline-card { background: #1e293b !important; border-color: #334155 !important; }
 [data-theme="dark"] .hub-icon-wrap { background: #0f172a !important; }
 [data-theme="dark"] .hero-title, [data-theme="dark"] .hub-card-title { color: #f8fafc !important; }
+
+/* ==========================================
+   HOME PAGE SMART HUB CARDS (LIGHT & DARK)
+   ========================================== */
+
+/* --- 1. LIGHT MODE (Primary/Attractive) --- */
+.hero-title { color: #0f172a; }
+.hero-subtitle { color: var(--color-text-secondary); }
+
+.hub-card { border-radius: 20px; padding: 2.5rem; text-align: center; transition: transform 0.3s ease; cursor: pointer; border: 1px solid transparent; }
+.hub-card:hover { transform: translateY(-5px); }
+
+/* Ye rahe tumhare mast Light Mode Gradients */
+.student-card { background: linear-gradient(to bottom right, #ffffff, #E6F1FB); border-color: #b9d7f4; box-shadow: 0 10px 30px rgba(24, 95, 165, 0.08); }
+.examiner-card { background: linear-gradient(to bottom right, #ffffff, #EAF3DE); border-color: #C0DD97; box-shadow: 0 10px 30px rgba(59, 109, 17, 0.08); }
+.offline-card { background: #f8fafc; border-color: #cbd5e1; border-style: dashed; padding: 1.5rem 2.5rem; display: flex; align-items: center; justify-content: space-between; margin-top: 2rem; box-shadow: none; }
+.offline-card:hover { background: #f1f5f9; border-color: #94a3b8; }
+
+.hub-icon-wrap { width: 70px; height: 70px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+.hub-card-title { font-size: 1.6rem; color: #0f172a; margin-bottom: 10px; font-weight: 600; }
+.hub-card-desc { color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px; }
+.hub-btn { width: 100%; justify-content: center; padding: 14px; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+
+/* --- 2. DARK MODE OVERRIDES (Secondary) --- */
+[data-theme="dark"] .hero-title { color: #f8fafc !important; }
+[data-theme="dark"] .hero-subtitle { color: #cbd5e1 !important; }
+
+/* Dark mode aate hi gradients override ho jayenge aur premium dark slate lag jayega */
+[data-theme="dark"] .hub-card { background: #1e293b !important; border-color: #334155 !important; box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important; }
+[data-theme="dark"] .offline-card { background: #0f172a !important; border-style: dashed !important; }
+[data-theme="dark"] .offline-card:hover { background: #1e293b !important; }
+
+[data-theme="dark"] .hub-icon-wrap { background: #0f172a !important; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3) !important; }
+[data-theme="dark"] .hub-card-title { color: #f8fafc !important; }
+[data-theme="dark"] .hub-card-desc { color: #cbd5e1 !important; }
