@@ -173,16 +173,35 @@ function showHelpGuide() {
     showModal(helpHtml);
 }
 
-// --- DARK MODE TOGGLE ---
+// --- SMART DARK MODE TOGGLE ---
 function toggleDarkMode() {
     let body = document.documentElement;
+    let icon = document.getElementById('dark-mode-icon');
+    let text = document.getElementById('dark-mode-text');
+
     if (body.getAttribute('data-theme') === 'dark') {
         body.removeAttribute('data-theme');
         localStorage.setItem('theme', 'light');
+        if(icon) icon.className = 'ti ti-moon';
+        if(text) text.innerText = 'Dark Mode';
     } else {
         body.setAttribute('data-theme', 'dark');
         localStorage.setItem('theme', 'dark');
+        if(icon) icon.className = 'ti ti-sun';
+        if(text) text.innerText = 'Light Mode';
     }
+}
+
+// Auto-apply theme on load
+if(localStorage.getItem('theme') === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    // Page load hone par agar dark mode on hai toh button update karo
+    window.addEventListener('DOMContentLoaded', () => {
+        let icon = document.getElementById('dark-mode-icon');
+        let text = document.getElementById('dark-mode-text');
+        if(icon) icon.className = 'ti ti-sun';
+        if(text) text.innerText = 'Light Mode';
+    });
 }
 
 // Auto-apply theme on load
