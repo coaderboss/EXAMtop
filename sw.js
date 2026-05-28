@@ -1,6 +1,15 @@
 self.addEventListener('install', (e) => {
-    console.log('[Service Worker] Install');
+    e.waitUntil(
+        caches.open('examitop-store').then((cache) => cache.addAll([
+            '/',
+            '/index.html',
+            '/css/exam.css'
+        ]))
+    );
 });
+
 self.addEventListener('fetch', (e) => {
-    // Basic fetch for now, can add caching later
+    e.respondWith(
+        caches.match(e.request).then((response) => response || fetch(e.request))
+    );
 });

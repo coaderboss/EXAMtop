@@ -90,11 +90,15 @@ function openAnalytics(testIdx) {
             <div class="stat-card" style="border-color:#A32D2D; padding:1rem;"><div class="stat-val" style="color:#A32D2D; font-size:24px;">${minScore}</div><div class="stat-lbl">Lowest Score</div></div>
             <div class="stat-card" style="border-color:#854F0B; padding:1rem;"><div class="stat-val" style="color:#854F0B; font-size:24px;">${passPercentage}%</div><div class="stat-lbl">Class Pass Rate</div></div>
         </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
-            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:1.5rem;">
-                <h4 style="margin-top:0; margin-bottom:10px; color:#0f172a;"><i class="ti ti-trending-up"></i> Score Distribution (Bell Curve)</h4>
-                <canvas id="scoreChart" width="400" height="250"></canvas>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:1.5rem; margin-bottom:1.5rem;">
+            
+            <div style="background:var(--color-background-primary); border:1px solid var(--color-border-secondary); border-radius:12px; padding:1.5rem; display:flex; flex-direction:column;">
+                <h4 style="margin-top:0; margin-bottom:15px; color:var(--color-text-primary);"><i class="ti ti-trending-up"></i> Score Distribution (Bell Curve)</h4>
+                <div style="position:relative; width:100%; height:250px; min-height:250px; max-height:250px;">
+                    <canvas id="scoreChart" style="max-height:250px;"></canvas>
+                </div>
             </div>
+
             <div style="display:flex; flex-direction:column; gap:1rem;">
                 <div style="background:#FCEBEB; border:1px solid #F7C1C1; border-radius:12px; padding:1rem;">
                     <h4 style="margin-top:0; color:#A32D2D; font-size:14px; margin-bottom:8px;"><i class="ti ti-alert-triangle"></i> The Weakest Links (Max Mistakes)</h4>
@@ -102,6 +106,7 @@ function openAnalytics(testIdx) {
                         ${toughestQs.map(q => `<li style="margin-bottom:6px;"><strong>Q${q.qIndex + 1}:</strong> ${q.text.substring(0, 45)}... <br><span class="badge b-red" style="font-size:10px; margin-top:4px;">Failed by ${q.wrongCount} students</span></li>`).join('')}
                     </ul>
                 </div>
+                
                 <div style="background:#EAF3DE; border:1px solid #C0DD97; border-radius:12px; padding:1rem;">
                     <h4 style="margin-top:0; color:#27500A; font-size:14px; margin-bottom:8px;"><i class="ti ti-award"></i> Strong Zones (Most Correct)</h4>
                     <ul style="margin:0; padding-left:20px; font-size:13px; color:#27500A;">
@@ -109,6 +114,7 @@ function openAnalytics(testIdx) {
                     </ul>
                 </div>
             </div>
+            
         </div>
     </div>`;
     
@@ -132,7 +138,7 @@ function openAnalytics(testIdx) {
                 labels: ['0-25% (Poor)', '26-50% (Avg)', '51-75% (Good)', '76-100% (Excellent)'],
                 datasets: [{ label: 'Number of Students', data: brackets, backgroundColor: ['#FCEBEB', '#FAEEDA', '#E6F1FB', '#EAF3DE'], borderColor: ['#A32D2D', '#854F0B', '#185FA5', '#3B6D11'], borderWidth: 2, borderRadius: 6 }]
             },
-            options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } }
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } }
         });
     }, 150);
 }
@@ -206,20 +212,32 @@ function showResultPageAsExaminer(testIdx, sIdx) {
   var sub = tests[testIdx].submissions[sIdx];
   var t = tests[testIdx];
   
-  // 1. Navigation call karo
+  // 1. Route to student component
   nav('student'); 
   
-  // 2. Navigation hone ke baad turant 'home' ko hide kar do aur result show karo
-  setTimeout(() => {
-      var homeDiv = document.getElementById('student-home');
-      var testDiv = document.getElementById('student-test');
+  // 2. Smart Polling (Har 50ms me check karega ki page load hua ya nahi)
+  var attempts = 0;
+  var checker = setInterval(() => {
+      attempts++;
+      var resultEl = document.getElementById('student-result');
+      var homeEl = document.getElementById('student-home');
+      var testEl = document.getElementById('student-test');
       
-      if(homeDiv) homeDiv.classList.add('hidden');
-      if(testDiv) testDiv.classList.add('hidden');
-      
-      // Result DOM render karo
-      _generateResultDOM(sub, t, true, testIdx, sIdx);
-  }, 200); // 200ms ka gap sufficient hai DOM load hone ke liye
+      // Jaise hi result box aur function mil jaye...
+      if (resultEl && typeof _generateResultDOM === 'function') {
+          clearInterval(checker); // Checking band karo
+          
+          // Forcefully dono dusre boxes hide karo
+          if(homeEl) homeEl.classList.add('hidden');
+          if(testEl) testEl.classList.add('hidden');
+          
+          // Result render karo
+          _generateResultDOM(sub, t, true, testIdx, sIdx);
+      } else if (attempts > 100) { // 5 seconds timeout
+          clearInterval(checker);
+          showToast("Network slow. Please try again.", "error");
+      }
+  }, 50);
 }
 
 function openEditKeyModal(idx) {

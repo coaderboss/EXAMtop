@@ -396,3 +396,32 @@ window.adminExportCSV = function() {
     
     showToast("Excel Export Generated!", "success");
 };
+// ==========================================
+// ADMIN TAB BUTTONS COLOR FIX (UNIVERSAL)
+// ==========================================
+document.addEventListener('click', function(e) {
+    // Check karte hain ki kya click hone wali cheez button hai aur uske andar koi tab open karne ka text/icon hai
+    let clickedBtn = e.target.closest('button');
+    
+    // Agar click admin page ke andar wale buttons par hua hai
+    if (clickedBtn && window.location.hash.includes('admin') && clickedBtn.closest('.page-header, .filter-tabs, .admin-controls')) {
+        
+        // Agar us button par pehle se 'btn-primary' nahi hai (yani wo active nahi hai)
+        if (!clickedBtn.classList.contains('btn-primary')) {
+            
+            // 1. Uske aas-paas ke (siblings) saare buttons dhoondho
+            let allSiblingButtons = clickedBtn.parentElement.querySelectorAll('button');
+            
+            // 2. Sabme se 'btn-primary' (Blue color) hata kar normal ('btn' ya 'btn-ghost') kar do
+            allSiblingButtons.forEach(btn => {
+                btn.classList.remove('btn-primary');
+                // Agar button outline wala tha, toh uski default class add kar do
+                btn.classList.add('btn-ghost'); 
+            });
+            
+            // 3. Ab SIRF us button par Blue color lagao jispar abhi click hua hai
+            clickedBtn.classList.remove('btn-ghost');
+            clickedBtn.classList.add('btn-primary');
+        }
+    }
+});
