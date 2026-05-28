@@ -209,3 +209,22 @@ window.installApp = async function() {
         deferredPrompt = null;
     }
 };
+
+// --- PREMIUM SETTINGS DROPDOWN LOGIC ---
+function toggleSettings() {
+    const menu = document.getElementById('settings-dropdown');
+    if (menu.classList.contains('hidden')) {
+        menu.classList.remove('hidden');
+    } else {
+        menu.classList.add('hidden');
+    }
+}
+
+// Bahar click karne par menu auto-close ho jayega
+document.addEventListener('click', function(event) {
+    const wrapper = document.getElementById('settings-wrapper');
+    const menu = document.getElementById('settings-dropdown');
+    if (wrapper && menu && !wrapper.contains(event.target)) {
+        menu.classList.add('hidden');
+    }
+});

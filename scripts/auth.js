@@ -184,8 +184,8 @@ function applyRolePermissions(role) {
         loginBtn.style.color = "#A32D2D";
         loginBtn.style.borderColor = "#F7C1C1";
     }
-    if(document.getElementById('profile-btn')) document.getElementById('profile-btn').classList.remove('hidden');
-    
+if(document.getElementById('profile-menu-btn')) document.getElementById('profile-menu-btn').classList.remove('hidden');  
+
     renderNavbar(role);
     updateSmartHubCards(role); // SMART HUB UPDATE
 
@@ -206,7 +206,7 @@ function logoutUser() {
             loginBtn.style.color = "#fff";
             loginBtn.style.borderColor = "#185FA5";
         }
-        if(document.getElementById('profile-btn')) document.getElementById('profile-btn').classList.add('hidden');
+        if(document.getElementById('profile-menu-btn')) document.getElementById('profile-menu-btn').classList.add('hidden');
         renderNavbar(null);
         updateSmartHubCards(null); // RESET SMART HUB
         nav('home'); 
@@ -240,6 +240,7 @@ auth.onAuthStateChanged(user => {
       renderNavbar(null); 
       updateSmartHubCards(null);
       if(window.location.hash !== '#home') nav('home');
+      if(document.getElementById('profile-menu-btn')) document.getElementById('profile-menu-btn').classList.add('hidden');
   }
 });
 
