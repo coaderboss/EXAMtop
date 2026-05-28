@@ -50,8 +50,15 @@ function showModal(html){
     document.getElementById('modal-area').classList.remove('hidden');
 }
 
-function hideModal(){
-    document.getElementById('modal-area').classList.add('hidden');
+function hideModal() {
+    var modalArea = document.getElementById('modal-area');
+    var mBox = document.getElementById('modal-box');
+    if(modalArea) modalArea.classList.add('hidden');
+    if(mBox) {
+        mBox.innerHTML = '';
+        // NAYA FIX: Modal band hone par uske styles wapas default/reset kar do
+        mBox.style = ''; 
+    }
 }
 
 // ==========================================
@@ -182,3 +189,23 @@ function toggleDarkMode() {
 if(localStorage.getItem('theme') === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
 }
+// --- SMART PWA INSTALLER ---
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // PWA banner detect hote hi header me button dikha do
+    let installBtn = document.getElementById('install-app-btn');
+    if(installBtn) installBtn.style.display = 'flex';
+});
+
+window.installApp = async function() {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            document.getElementById('install-app-btn').style.display = 'none';
+        }
+        deferredPrompt = null;
+    }
+};

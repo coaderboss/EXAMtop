@@ -80,11 +80,12 @@ function openAnalytics(testIdx) {
 
     var html = `
     <div style="padding:1.5rem; text-align:left;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-            <h3 style="color:#185FA5; margin:0; display:flex; align-items:center; gap:8px;"><i class="ti ti-chart-bar" style="font-size:24px;"></i> Class Performance Analytics</h3>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:1.5rem;">
+            <h3 style="color:#185FA5; margin:0; display:flex; align-items:center; gap:8px;"><i class="ti ti-chart-bar" style="font-size:24px;"></i> Class Analytics</h3>
             <button class="btn btn-sm" onclick="hideModal()">Close</button>
         </div>
-        <div class="grid4" style="margin-bottom:2rem;">
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:1rem; margin-bottom:2rem;">
             <div class="stat-card" style="border-color:#185FA5; padding:1rem;"><div class="stat-val" style="color:#185FA5; font-size:24px;">${avgScore} <span style="font-size:14px;color:gray">/ ${totalMarks}</span></div><div class="stat-lbl">Average Score</div></div>
             <div class="stat-card" style="border-color:#3B6D11; padding:1rem;"><div class="stat-val" style="color:#3B6D11; font-size:24px;">${maxScore}</div><div class="stat-lbl">Highest Score</div></div>
             <div class="stat-card" style="border-color:#A32D2D; padding:1rem;"><div class="stat-val" style="color:#A32D2D; font-size:24px;">${minScore}</div><div class="stat-lbl">Lowest Score</div></div>
@@ -208,36 +209,52 @@ function viewSubmissions(testIdx) {
   showModal(html);
 }
 
-function showResultPageAsExaminer(testIdx, sIdx) {
-  var sub = tests[testIdx].submissions[sIdx];
-  var t = tests[testIdx];
-  
-  // 1. Route to student component
-  nav('student'); 
-  
-  // 2. Smart Polling (Har 50ms me check karega ki page load hua ya nahi)
-  var attempts = 0;
-  var checker = setInterval(() => {
-      attempts++;
-      var resultEl = document.getElementById('student-result');
-      var homeEl = document.getElementById('student-home');
-      var testEl = document.getElementById('student-test');
-      
-      // Jaise hi result box aur function mil jaye...
-      if (resultEl && typeof _generateResultDOM === 'function') {
-          clearInterval(checker); // Checking band karo
-          
-          // Forcefully dono dusre boxes hide karo
-          if(homeEl) homeEl.classList.add('hidden');
-          if(testEl) testEl.classList.add('hidden');
-          
-          // Result render karo
-          _generateResultDOM(sub, t, true, testIdx, sIdx);
-      } else if (attempts > 100) { // 5 seconds timeout
-          clearInterval(checker);
-          showToast("Network slow. Please try again.", "error");
-      }
-  }, 50);
+// NAYA FIX: Async laga diya taaki script download hone ka wait kare
+async function showResultPageAsExaminer(testIdx, sIdx) {
+    var sub = tests[testIdx].submissions[sIdx];
+    var t = tests[testIdx];
+
+    // 1. Loading Modal kholo
+    showModal(`
+        <div style="width:100%; padding: 1rem; text-align:left;">
+            <div id="student-result">
+                <div class="spinner-container"><div class="spinner"></div><div style="margin-top:10px; color:var(--color-text-primary);">Loading Checked Paper...</div></div>
+            </div>
+        </div>
+    `);
+
+    // 2. MAGIC: Modal ko 100% Full Screen App jaisa banao
+    var mBox = document.getElementById('modal-box');
+    mBox.style.width = '100vw';         // Screen ki puri width
+    mBox.style.maxWidth = '100vw'; 
+    mBox.style.height = '100vh';        // Screen ki puri height
+    mBox.style.maxHeight = '100vh';
+    mBox.style.margin = '0';            // Aas-paas ka space khatam
+    mBox.style.borderRadius = '0';      // Gol kinare khatam
+    mBox.style.overflowY = 'auto';
+    mBox.style.padding = '0';           // Andar ka extra space khatam
+
+    try {
+        // 2. MAGIC: Agar script nahi hai, toh on-demand download karo!
+        if (typeof _generateResultDOM !== 'function') {
+            await loadScript('scripts/student-dash.js');
+        }
+
+        // 3. Result Generate karo
+        setTimeout(() => {
+            _generateResultDOM(sub, t, true, testIdx, sIdx);
+            
+            // Close button fix
+            var backBtn = document.querySelector('#student-result .btn-primary');
+            if(backBtn && backBtn.innerText.includes('Back')) {
+                backBtn.setAttribute('onclick', 'hideModal(); renderTestList();');
+                backBtn.innerHTML = '<i class="ti ti-x"></i> Close Paper';
+            }
+        }, 100);
+
+    } catch(err) {
+        document.getElementById('student-result').innerHTML = `<div style="color:#A32D2D; padding:2rem; text-align:center;"><i class="ti ti-alert-triangle" style="font-size:48px;"></i><br><br>Error loading result engine. Please try again.<br><small>${err.message}</small></div>`;
+    }
 }
 
 function openEditKeyModal(idx) {

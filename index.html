@@ -26,20 +26,26 @@
                 <div class="logo-icon">E</div>
                 <div class="logo-text">Exami<span>top</span></div>
             </div>
-            <div class="header-actions" style="display: flex; align-items: center;">
-                <button class="btn btn-sm" onclick="toggleDarkMode()" style="border-radius: 50%; width: 35px; height: 35px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center; margin-right: 8px;" title="Toggle Dark Mode">
-                <i class="ti ti-moon" style="font-size: 22px;"></i>
-                </button>
-                <button class="btn btn-sm" onclick="showHelpGuide()" style="border-radius: 50%; width: 35px; height: 35px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: #185FA5; display: flex; align-items: center; justify-content: center;" title="Platform Guide & Instructions">
-                    <i class="ti ti-info-circle" style="font-size: 22px;"></i>
-                </button>
-                <button class="btn btn-sm hidden" id="profile-btn" onclick="openProfileSettings()" style="border-radius: 50%; width: 35px; height: 35px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: #185FA5; display: flex; align-items: center; justify-content: center; margin-left: 8px; margin-right: 8px;">
-                    <i class="ti ti-user-circle" style="font-size: 24px;"></i>
-                </button>
-                <button class="btn btn-primary btn-sm" id="login-btn" onclick="toggleLogin()" style="border-radius: 20px; white-space: nowrap; font-weight: 600; padding: 8px 16px;">
-                    <i class="ti ti-brand-google"></i> <span class="hide-on-mobile">Examiner </span>Login
-                </button>
-            </div>
+            <div class="header-actions" style="display: flex; align-items: center; gap: 8px;">
+        
+        <button id="install-app-btn" class="btn btn-sm btn-success" onclick="installApp()" style="display:none; padding: 6px 12px; font-weight:600;">
+            <i class="ti ti-download" style="font-size: 18px; margin:0;"></i> 
+            <span class="hide-mobile" style="margin-left:6px;">Install App</span>
+        </button>
+
+        <button class="btn btn-sm" onclick="toggleDarkMode()" style="border-radius: 50%; width: 36px; height: 36px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: var(--color-text-primary); display: flex; align-items: center; justify-content: center;" title="Toggle Dark Mode">
+            <i class="ti ti-moon" style="font-size: 20px; margin:0;"></i>
+        </button>
+
+        <button class="btn btn-sm btn-ghost hide-mobile" onclick="nav('home')" style="padding: 6px 10px;">
+            <i class="ti ti-help" style="font-size: 18px; margin:0;"></i>
+        </button>
+        
+        <button id="login-btn" class="btn btn-sm btn-primary" onclick="toggleLogin()" style="padding: 6px 14px; font-weight:600;">
+            <i class="ti ti-brand-google" style="font-size: 18px; margin:0;"></i> 
+            <span class="hide-mobile" style="margin-left:6px;">Login</span>
+        </button>
+        </div>
         </div>
         <div id="dynamic-nav-wrapper" class="hidden" style="background: #f8fafc; overflow-x: auto; border-bottom: 1px solid var(--color-border-secondary); scrollbar-width: none;">
             <div class="nav-tabs" id="dynamic-nav-tabs" style="display: flex; gap: 8px; padding: 10px 16px; width: max-content; margin: 0 auto;"></div>

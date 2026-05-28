@@ -604,3 +604,54 @@ textarea { min-height: 80px; resize: vertical; }
 /* Navbar Tabs */
 [data-theme="dark"] .nav-tab { color: #94a3b8 !important; }
 [data-theme="dark"] .nav-tab.active { background: #1e293b !important; color: #fff !important; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+/* Home Page & Hero Section Dark Mode Override */
+[data-theme="dark"] #home-page-content, 
+[data-theme="dark"] .hero-title, 
+[data-theme="dark"] .hero-subtitle,
+[data-theme="dark"] .feature-title,
+[data-theme="dark"] .feature-desc {
+    color: #f8fafc !important;
+}
+[data-theme="dark"] .feature-card {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+}
+[data-theme="dark"] .hero-section {
+    background: #0f172a !important; /* Agar hero section ka apna koi background color hai toh hat jayega */
+}
+/* ==========================================
+   BRUTE-FORCE DARK MODE (FORCES INLINE STYLES)
+   ========================================== */
+
+/* 1. Navbar ko zabardasti Dark karo */
+[data-theme="dark"] .app-header, 
+[data-theme="dark"] header {
+    background-color: #0f172a !important;
+    border-bottom: 1px solid #334155 !important;
+}
+
+/* 2. Home Page ke Student/Examiner cards ko dark karo */
+[data-theme="dark"] div[style*="background: #fff"],
+[data-theme="dark"] div[style*="background:#fff"],
+[data-theme="dark"] div[style*="background-color: #fff"],
+[data-theme="dark"] div[style*="background-color:#fff"] {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+}
+
+/* 3. Cards ke andar ka text chamkeela White karo */
+[data-theme="dark"] .app-header *,
+[data-theme="dark"] div[style*="background: #fff"] *,
+[data-theme="dark"] div[style*="background-color: #fff"] * {
+    color: #f8fafc !important;
+}
+
+/* 4. But Buttons ka color mat bigado! (Exceptions) */
+[data-theme="dark"] .btn-primary, [data-theme="dark"] .btn-primary * {
+    background-color: #185FA5 !important;
+    color: #ffffff !important;
+}
+[data-theme="dark"] .btn-success, [data-theme="dark"] .btn-success * {
+    background-color: #3B6D11 !important;
+    color: #ffffff !important;
+}
