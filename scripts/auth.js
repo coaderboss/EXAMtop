@@ -218,30 +218,56 @@ function toggleLogin() {
 }
 
 auth.onAuthStateChanged(user => {
-  currentUser = user;
-  if(isOfflineMode) return;
-  
-  if(user) { // <--- Yahan bracket OPEN karna tha
-      checkAndRouteUser(user);
-      
-      setTimeout(() => {
-          let hash = window.location.hash.replace('#', '');
-          if(hash === 'tests' && typeof renderTestList === 'function') renderTestList();
-      }, 400);
-      
-  } else { // <--- Yahan bracket CLOSE karke else start karna tha
-      const loginBtn = document.getElementById('login-btn');
-      if(loginBtn) { 
-          loginBtn.innerHTML = `<i class="ti ti-brand-google"></i> Login`; 
-          loginBtn.style.background = "#185FA5"; 
-          loginBtn.style.color = "#fff"; 
-          loginBtn.style.borderColor = "#185FA5"; 
-      }
-      renderNavbar(null); 
-      updateSmartHubCards(null);
-      if(window.location.hash !== '#home') nav('home');
-      if(document.getElementById('profile-menu-btn')) document.getElementById('profile-menu-btn').classList.add('hidden');
-  }
+    currentUser = user;
+    if(isOfflineMode) return;
+    
+    if(user) {
+        // 🔥 NAYA LOGIC: Check karo ki ye Google User hai ya Anonymous Guest
+        if (user.isAnonymous) {
+            userRole = 'guest';
+            
+            // Profile button chhupao
+            if(document.getElementById('profile-menu-btn')) {
+                document.getElementById('profile-menu-btn').classList.add('hidden');
+            }
+            
+            // Login button ko "Exit Guest" me badlo
+            const loginBtn = document.getElementById('login-btn');
+            if(loginBtn) {
+                loginBtn.innerHTML = `<i class="ti ti-logout"></i> Exit Guest`;
+                loginBtn.style.background = "#FCEBEB";
+                loginBtn.style.color = "#A32D2D";
+                loginBtn.style.borderColor = "#F7C1C1";
+            }
+            
+            renderNavbar('guest');
+            nav('student'); 
+            showToast('Secure Guest Session Active', 'success');
+            
+        } else {
+            // Standard Google Auth User
+            checkAndRouteUser(user);
+            
+            setTimeout(() => {
+                let hash = window.location.hash.replace('#', '');
+                if(hash === 'tests' && typeof renderTestList === 'function') renderTestList();
+            }, 400);
+        }
+        
+    } else { 
+        // LOGOUT STATE
+        const loginBtn = document.getElementById('login-btn');
+        if(loginBtn) { 
+            loginBtn.innerHTML = `<i class="ti ti-brand-google"></i> Login`; 
+            loginBtn.style.background = "#185FA5"; 
+            loginBtn.style.color = "#fff"; 
+            loginBtn.style.borderColor = "#185FA5"; 
+        }
+        if(document.getElementById('profile-menu-btn')) document.getElementById('profile-menu-btn').classList.add('hidden');
+        renderNavbar(null); 
+        updateSmartHubCards(null);
+        if(window.location.hash !== '#home') nav('home');
+    }
 });
 
 // ==========================================
@@ -295,7 +321,13 @@ function showGuestWarning() {
     showModal(`<div style="padding:1.5rem; text-align:left;"><h3 style="font-size:20px; font-weight:600; margin-bottom:1rem; color:#854F0B; display:flex; align-items:center; gap:8px;"><i class="ti ti-alert-triangle"></i> Guest Mode Limitations</h3><p style="color:var(--color-text-secondary); font-size:14px; margin-bottom:1rem;">You are choosing to proceed without an account. Please note:</p><div style="background:#FCEBEB; border:1px solid #F7C1C1; padding:12px; border-radius:8px; margin-bottom:1.25rem;"><div style="color:#A32D2D; font-size:14px; font-weight:600; margin-bottom:4px;"><i class="ti ti-chart-off"></i> No Analytics Dashboard</div><div style="color:#791F1F; font-size:13px;">You will not get a centralized dashboard to track your overall performance and history.</div></div><div style="background:#FCEBEB; border:1px solid #F7C1C1; padding:12px; border-radius:8px; margin-bottom:1.5rem;"><div style="color:#A32D2D; font-size:14px; font-weight:600; margin-bottom:4px;"><i class="ti ti-file-search"></i> Manual Result Tracking</div><div style="color:#791F1F; font-size:13px;">To view your result again in the future, you MUST remember your exact Test Code, Name, and Roll Number.</div></div><div style="display:flex; gap:10px;"><button class="btn" style="flex:1; padding:12px; font-weight:600;" onclick="hideModal(); proceedAsGuest()">Proceed as Guest</button><button class="btn btn-primary" style="flex:1; padding:12px; font-weight:600;" onclick="hideModal(); loginWithRole('student')">Login Now</button></div></div>`);
 }
 function proceedAsGuest() {
-    userRole = 'guest'; renderNavbar('guest'); nav('student'); showToast('Entered as Guest', 'normal');
+    // NAYA: Firebase se ek invisible secure token (Anonymous Auth) maango
+    auth.signInAnonymously().then(() => {
+        // Successful hone par baki kaam onAuthStateChanged khud sambhal lega
+        console.log("Secure Guest Session Generated");
+    }).catch((error) => {
+        showToast("Secure connection failed: " + error.message, 'error');
+    });
 }
 
 // ==========================================
