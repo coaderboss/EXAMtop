@@ -3,18 +3,43 @@
 // ==========================================
 
 function launchExistingResult(testId, name, roll) {
-    var t = tests.find(x => x.id == testId);
+    var t = tests.find(x => x.id == testId || x.code == testId);
     var rollToMatch = roll ? roll.toLowerCase() : '';
     var sub = t.submissions.find(s => s.name.toLowerCase() === name.toLowerCase() && (s.roll || '').toLowerCase() === rollToMatch);
-    
-    var el = document.getElementById('student-result');
-    if(el) {
-        document.getElementById('student-home').classList.add('hidden');
-        document.getElementById('student-test').classList.add('hidden');
-        el.classList.remove('hidden');
-        el.innerHTML = `<div class="spinner-container"><div class="spinner"></div><div>Loading Result...</div></div>`;
-        setTimeout(() => { _generateResultDOM(sub, t, false); }, 600);
+
+    // 1. Result ko seedha Full-Screen Modal me kholo
+    showModal(`
+        <div style="width:100%; padding: 2rem; box-sizing: border-box;">
+            <div id="student-result">
+                <div class="spinner-container"><div class="spinner"></div><div style="margin-top:10px; color:var(--color-text-primary);">Loading Checked Paper...</div></div>
+            </div>
+        </div>
+    `);
+
+    // 2. MAGIC: JS se jabardasti !important laga kar modal ko bada karo
+    var mBox = document.getElementById('modal-box');
+    if(mBox) {
+    mBox.style.width = '100vw';         // Screen ki puri width
+    mBox.style.maxWidth = '100vw'; 
+    mBox.style.height = '100vh';        // Screen ki puri height
+    mBox.style.maxHeight = '100vh';
+    mBox.style.margin = '0';            // Aas-paas ka space khatam
+    mBox.style.borderRadius = '0';      // Gol kinare khatam
+    mBox.style.overflowY = 'auto';
+    mBox.style.padding = '0';
     }
+
+    // 3. Result Generate karo
+    setTimeout(() => {
+        _generateResultDOM(sub, t, false);
+        
+        // Modal band karne ke liye 'Go Back' button ko 'Close' me theek karna
+        var backBtn = document.querySelector('#student-result .btn-primary');
+        if(backBtn && backBtn.innerText.includes('Go Back')) {
+            backBtn.setAttribute('onclick', 'hideModal();');
+            backBtn.innerHTML = '<i class="ti ti-x"></i> Close Paper';
+        }
+    }, 600);
 }
 
 function claimCertificate(name, course, date) {
@@ -227,7 +252,10 @@ function renderStudentResults() {
 
         var html = `<div style="display:flex; flex-direction:column; gap:12px;">`;
         myHistory.reverse().forEach(h => {
-            var btnHtml = h.canView ? `<button class="btn btn-primary btn-sm" onclick="nav('student'); launchExistingResult('${h.testId}', '${h.name}', '${h.roll}')"><i class="ti ti-eye"></i> Review Paper</button>` : `<span class="badge b-amber" style="font-size:13px; padding:6px 12px"><i class="ti ti-lock"></i> Pending Release</span>`;
+            
+            // 🔥 NAYA FIX: onclick me se "nav('student');" hata diya hai
+            var btnHtml = h.canView ? `<button class="btn btn-primary btn-sm" onclick="launchExistingResult('${h.testId}', '${h.name}', '${h.roll}')"><i class="ti ti-eye"></i> Review Paper</button>` : `<span class="badge b-amber" style="font-size:13px; padding:6px 12px"><i class="ti ti-lock"></i> Pending Release</span>`;
+            
             html += `<div class="test-entry" style="align-items:center; padding:1.25rem 1.5rem;"><div class="te-meta"><div style="font-weight:600;font-size:16px;">${h.testTitle} <span class="badge b-gray" style="font-size:11px; margin-left:8px;">Code: ${h.testCode}</span></div><div style="font-size:13px;color:var(--color-text-secondary); margin-top:6px;">Submitted: ${h.time}</div><div style="font-size:14px; font-weight:600; color:#185FA5; margin-top:6px;">Score: ${h.score}/${h.totalMarks}</div></div><div>${btnHtml}</div></div>`;
         });
         html += `</div>`;
