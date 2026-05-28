@@ -73,8 +73,11 @@ async function loadComponent(pageName) {
         viewport.innerHTML = htmlContent;
 
         // E. POST-LOAD TRIGGERS: Data fetch karo
-        // E. POST-LOAD TRIGGERS: Data fetch karo
         setTimeout(() => {
+            if(pageName === 'home' && typeof updateSmartHubCards === 'function') {
+                updateSmartHubCards(window.userRole);
+            }
+
             if(pageName === 'tests' && typeof renderTestList === 'function') renderTestList();
             if(pageName === 'results' && typeof renderAllResults === 'function') renderAllResults();
             if(pageName === 'student-dashboard' && typeof renderStudentDashboard === 'function') renderStudentDashboard();

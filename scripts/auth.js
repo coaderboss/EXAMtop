@@ -56,10 +56,10 @@ function renderNavbar(role) {
 }
 
 // NAYA: SMART HUB (HOME PAGE) UPDATER
+// NAYA: SMART HUB (HOME PAGE) UPDATER WITH CLICK EVENT FIX
 function updateSmartHubCards(role) {
     const stuCard = document.getElementById('card-student');
     const exmCard = document.getElementById('card-examiner');
-    const offCard = document.getElementById('card-offline');
     const subtitle = document.getElementById('hub-subtitle');
     
     if(!stuCard || !exmCard) return;
@@ -70,7 +70,11 @@ function updateSmartHubCards(role) {
         subtitle.innerHTML = "Welcome back, <b>" + (currentUser.displayName || "Student") + "</b>!";
         document.getElementById('desc-student').innerHTML = "<b>Active Session.</b> Check your latest analytics, history, and results.";
         document.getElementById('btn-student').innerHTML = `<i class="ti ti-layout-dashboard"></i> Go to Dashboard`;
-        document.getElementById('btn-student').onclick = () => nav('student-dashboard');
+        
+        // FIX: Card ka click badal do taaki logout na ho
+        stuCard.onclick = () => nav('student-dashboard');
+        exmCard.onclick = null; 
+
         document.getElementById('btn-examiner').innerHTML = `<i class="ti ti-lock"></i> Examiner Locked`;
     } else if (role === 'examiner') {
         exmCard.classList.remove('card-disabled');
@@ -78,19 +82,29 @@ function updateSmartHubCards(role) {
         subtitle.innerHTML = "Welcome back, <b>" + (currentUser.displayName || "Examiner") + "</b>!";
         document.getElementById('desc-examiner').innerHTML = "<b>Active Session.</b> Manage your exams, evaluate papers, and track results.";
         document.getElementById('btn-examiner').innerHTML = `<i class="ti ti-layout-dashboard"></i> Go to Dashboard`;
-        document.getElementById('btn-examiner').onclick = () => nav('tests');
+        
+        // FIX: Card ka click badal do taaki logout na ho, seedha dashboard jaye
+        exmCard.onclick = () => nav('tests');
+        stuCard.onclick = null;
+
         document.getElementById('btn-student').innerHTML = `<i class="ti ti-lock"></i> Student Locked`;
     } else {
-        // Reset to Public
+        // Reset to Public (Logout ke baad)
         stuCard.classList.remove('card-disabled');
         exmCard.classList.remove('card-disabled');
         subtitle.innerHTML = "Secure & Seamless Proctoring Platform.";
+        
         document.getElementById('desc-student').innerHTML = "Join live tests, track your analytics, and view your past performance.";
         document.getElementById('btn-student').innerHTML = `Continue as Student <i class="ti ti-arrow-right"></i>`;
-        document.getElementById('btn-student').onclick = () => showStudentLoginChoice();
+        
+        // Wapas default click events laga do
+        stuCard.onclick = () => showStudentLoginChoice();
+
         document.getElementById('desc-examiner').innerHTML = "Create assessments, manage strict proctoring, and evaluate submissions.";
         document.getElementById('btn-examiner').innerHTML = `<i class="ti ti-brand-google" style="font-size: 20px;"></i> Login as Examiner`;
-        document.getElementById('btn-examiner').onclick = () => toggleLogin();
+        
+        // Wapas login wala click laga do
+        exmCard.onclick = () => toggleLogin();
     }
 }
 

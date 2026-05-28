@@ -27,25 +27,24 @@
                 <div class="logo-text">Exami<span>top</span></div>
             </div>
             <div class="header-actions" style="display: flex; align-items: center; gap: 8px;">
-        
-        <button id="install-app-btn" class="btn btn-sm btn-success" onclick="installApp()" style="display:none; padding: 6px 12px; font-weight:600;">
-            <i class="ti ti-download" style="font-size: 18px; margin:0;"></i> 
-            <span class="hide-mobile" style="margin-left:6px;">Install App</span>
-        </button>
+                <button id="install-app-btn" class="btn btn-sm btn-success" onclick="installApp()" style="display:none; padding: 6px 12px; font-weight:600;">
+                    <i class="ti ti-download" style="font-size: 18px; margin:0;"></i> 
+                    <span class="hide-mobile" style="margin-left:6px;">Install App</span>
+                </button>
 
-        <button class="btn btn-sm" onclick="toggleDarkMode()" style="border-radius: 50%; width: 36px; height: 36px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: var(--color-text-primary); display: flex; align-items: center; justify-content: center;" title="Toggle Dark Mode">
-            <i class="ti ti-moon" style="font-size: 20px; margin:0;"></i>
-        </button>
+                <button class="btn btn-sm" onclick="toggleDarkMode()" style="border-radius: 50%; width: 36px; height: 36px; padding: 0; background: var(--color-background-secondary); border: 1px solid var(--color-border-secondary); color: var(--color-text-primary); display: flex; align-items: center; justify-content: center;" title="Toggle Dark Mode">
+                    <i class="ti ti-moon" style="font-size: 20px; margin:0;"></i>
+                </button>
 
-        <button class="btn btn-sm btn-ghost hide-mobile" onclick="nav('home')" style="padding: 6px 10px;">
-            <i class="ti ti-help" style="font-size: 18px; margin:0;"></i>
-        </button>
-        
-        <button id="login-btn" class="btn btn-sm btn-primary" onclick="toggleLogin()" style="padding: 6px 14px; font-weight:600;">
-            <i class="ti ti-brand-google" style="font-size: 18px; margin:0;"></i> 
-            <span class="hide-mobile" style="margin-left:6px;">Login</span>
-        </button>
-        </div>
+                <button class="btn btn-sm btn-ghost hide-mobile" onclick="nav('home')" style="padding: 6px 10px;">
+                    <i class="ti ti-help" style="font-size: 18px; margin:0;"></i>
+                </button>
+                
+                <button id="login-btn" class="btn btn-sm btn-primary" onclick="toggleLogin()" style="padding: 6px 14px; font-weight:600;">
+                    <i class="ti ti-brand-google" style="font-size: 18px; margin:0;"></i> 
+                    <span class="hide-mobile" style="margin-left:6px;">Login</span>
+                </button>
+            </div>
         </div>
         <div id="dynamic-nav-wrapper" class="hidden" style="background: #f8fafc; overflow-x: auto; border-bottom: 1px solid var(--color-border-secondary); scrollbar-width: none;">
             <div class="nav-tabs" id="dynamic-nav-tabs" style="display: flex; gap: 8px; padding: 10px 16px; width: max-content; margin: 0 auto;"></div>
@@ -66,19 +65,9 @@
         </div>
     </div>
 
-    <script src="scripts/app.js"></script>
-    <div id="toast-container"></div>
-    <div id="modal-area" class="hidden">
-        <div class="modal-bg" onclick="if(event.target===this)hideModal()">
-            <div class="modal-box" id="modal-box"></div>
-        </div>
-    </div>
-    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="scripts/utils.js"></script>
     <script src="scripts/auth.js"></script>
     <script src="scripts/app.js"></script>
-</body>
-</html>
 </body>
 </html>

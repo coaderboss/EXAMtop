@@ -216,28 +216,32 @@ async function showResultPageAsExaminer(testIdx, sIdx) {
 
     // 1. Loading Modal kholo
     showModal(`
-        <div style="width:100%; padding: 1rem; text-align:left;">
+        <div style="width:100%; padding: 1rem; box-sizing: border-box;">
             <div id="student-result">
                 <div class="spinner-container"><div class="spinner"></div><div style="margin-top:10px; color:var(--color-text-primary);">Loading Checked Paper...</div></div>
             </div>
         </div>
     `);
 
-    // 2. MAGIC: Modal ko 100% Full Screen App jaisa banao
+    // 2. MAGIC: Modal ko jabardasti Full Screen banao (Tumhara pasandeeda method)
     var mBox = document.getElementById('modal-box');
-    mBox.classList.add('modal-fullscreen'); // CSS class apply karo           // Andar ka extra space khatam
-
+    mBox.style.width = '100vw';         // Screen ki puri width
+    mBox.style.maxWidth = '100vw'; 
+    mBox.style.height = '100vh';        // Screen ki puri height
+    mBox.style.maxHeight = '100vh';
+    mBox.style.margin = '0';            // Aas-paas ka space khatam
+    mBox.style.borderRadius = '0';      // Gol kinare khatam
+    mBox.style.overflowY = 'auto';
+    mBox.style.padding = '0';
+    
     try {
-        // 2. MAGIC: Agar script nahi hai, toh on-demand download karo!
         if (typeof _generateResultDOM !== 'function') {
             await loadScript('scripts/student-dash.js');
         }
 
-        // 3. Result Generate karo
         setTimeout(() => {
             _generateResultDOM(sub, t, true, testIdx, sIdx);
             
-            // Close button fix
             var backBtn = document.querySelector('#student-result .btn-primary');
             if(backBtn && backBtn.innerText.includes('Back')) {
                 backBtn.setAttribute('onclick', 'hideModal(); renderTestList();');

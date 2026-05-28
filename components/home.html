@@ -1,41 +1,41 @@
 <div style="max-width: 900px; margin: 3rem auto; padding: 0 20px; animation: fadeIn 0.3s ease;">
   <div style="text-align: center; margin-bottom: 4rem;">
-    <h1 style="font-size: 3.5rem; color: #0f172a; margin-bottom: 10px; font-weight: 700; letter-spacing: -1px;">Exami<span style="color: #185FA5;">Top</span></h1>
-    <p style="font-size: 1.2rem; color: var(--color-text-secondary); font-weight: 500;" id="hub-subtitle">Secure & Seamless Proctoring Platform.</p>
+    <h1 class="hero-title" style="font-size: 3.5rem; margin-bottom: 10px; font-weight: 700; letter-spacing: -1px; color:#0f172a;">Exami<span style="color: #185FA5;">Top</span></h1>
+    <p class="hero-subtitle" style="font-size: 1.2rem; font-weight: 500; color:var(--color-text-secondary);" id="hub-subtitle">Secure & Seamless Proctoring Platform.</p>
   </div>
-  
+
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem;">
-    <div id="card-student" style="background: linear-gradient(to bottom right, #ffffff, #E6F1FB); border: 1px solid #b9d7f4; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(24, 95, 165, 0.08); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-      <div style="width: 70px; height: 70px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 4px 15px rgba(24, 95, 165, 0.1);">
+    <div id="card-student" class="feature-card" style="background: linear-gradient(to bottom right, #ffffff, #E6F1FB); border: 1px solid #b9d7f4; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(24, 95, 165, 0.08); transition: transform 0.3s ease; cursor: pointer;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'" onclick="showStudentLoginChoice()">
+      <div class="hub-icon-wrap" style="width: 70px; height: 70px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 4px 15px rgba(24, 95, 165, 0.1);">
         <i class="ti ti-school" style="font-size: 36px; color: #185FA5;"></i>
       </div>
-      <h2 style="font-size: 1.6rem; color: #0f172a; margin-bottom: 10px; font-weight: 600;">Student Portal</h2>
-      <p id="desc-student" style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Join live tests, track your analytics, and view your past performance.</p>
-      <button id="btn-student" onclick="showStudentLoginChoice()" style="width: 100%; background: #185FA5; color: #fff; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(24, 95, 165, 0.2); transition: all 0.2s;">
+      <h2 class="feature-title" style="font-size: 1.6rem; color: #0f172a; margin-bottom: 10px; font-weight: 600;">Student Portal</h2>
+      <p id="desc-student" class="feature-desc" style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Join live tests, track your analytics, and view your past performance.</p>
+      <button id="btn-student" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px; font-size: 16px;">
         Continue as Student <i class="ti ti-arrow-right"></i>
       </button>
     </div>
-    
-    <div id="card-examiner" style="background: linear-gradient(to bottom right, #ffffff, #EAF3DE); border: 1px solid #C0DD97; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(59, 109, 17, 0.08); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-      <div style="width: 70px; height: 70px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 4px 15px rgba(59, 109, 17, 0.1);">
+
+    <div id="card-examiner" class="feature-card" style="background: linear-gradient(to bottom right, #ffffff, #EAF3DE); border: 1px solid #C0DD97; border-radius: 20px; padding: 2.5rem; text-align: center; box-shadow: 0 10px 30px rgba(59, 109, 17, 0.08); transition: transform 0.3s ease; cursor: pointer;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'" onclick="toggleLogin()">
+      <div class="hub-icon-wrap" style="width: 70px; height: 70px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 4px 15px rgba(59, 109, 17, 0.1);">
         <i class="ti ti-pencil" style="font-size: 36px; color: #3B6D11;"></i>
       </div>
-      <h2 style="font-size: 1.6rem; color: #0f172a; margin-bottom: 10px; font-weight: 600;">Examiner Portal</h2>
-      <p id="desc-examiner" style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Create assessments, manage strict proctoring, and evaluate submissions.</p>
-      <button id="btn-examiner" onclick="toggleLogin()" style="width: 100%; background: #3B6D11; color: #fff; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(59, 109, 17, 0.2); transition: all 0.2s;">
+      <h2 class="feature-title" style="font-size: 1.6rem; color: #0f172a; margin-bottom: 10px; font-weight: 600;">Examiner Portal</h2>
+      <p id="desc-examiner" class="feature-desc" style="color: var(--color-text-secondary); margin-bottom: 2rem; line-height: 1.6; font-size: 15px;">Create assessments, manage strict proctoring, and evaluate submissions.</p>
+      <button id="btn-examiner" class="btn btn-success" style="width: 100%; justify-content: center; padding: 14px; font-size: 16px;">
         <i class="ti ti-brand-google" style="font-size: 20px;"></i> Login as Examiner
       </button>
     </div>
   </div>
 
-  <div id="card-offline" style="margin-top: 2rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 20px; padding: 1.5rem 2.5rem; display: flex; align-items: center; justify-content: space-between; gap: 20px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f1f5f9'; this.style.borderColor='#94a3b8';" onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#cbd5e1';" onclick="showOfflineGateway()">
+  <div id="card-offline" class="feature-card" style="margin-top: 2rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 20px; padding: 1.5rem 2.5rem; display: flex; align-items: center; justify-content: space-between; gap: 20px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#f1f5f9'; this.style.borderColor='#94a3b8';" onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#cbd5e1';" onclick="showOfflineGateway()">
       <div style="display:flex; align-items:center; gap:15px;">
-          <div style="width: 50px; height: 50px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+          <div class="hub-icon-wrap" style="width: 50px; height: 50px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin: 0;">
               <i class="ti ti-device-desktop" style="font-size: 28px; color: #854F0B;"></i>
           </div>
           <div style="text-align: left;">
-              <h3 style="color: #0f172a; margin: 0 0 4px 0; font-size: 18px;">Offline / Device-Only Mode</h3>
-              <p style="color: var(--color-text-secondary); font-size: 14px; margin: 0;">Create and test quizzes locally. No cloud sync, no login required.</p>
+              <h3 class="feature-title" style="color: #0f172a; margin: 0 0 4px 0; font-size: 18px;">Offline / Device-Only Mode</h3>
+              <p class="feature-desc" style="color: var(--color-text-secondary); font-size: 14px; margin: 0;">Create and test quizzes locally. No cloud sync, no login required.</p>
           </div>
       </div>
       <i class="ti ti-chevron-right" style="font-size: 24px; color: #cbd5e1;"></i>
