@@ -12,6 +12,7 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('activate', (e) => {
+    e.waitUntil(clients.claim());
     // Purane kachre (caches) ko delete karne ka logic
     e.waitUntil(
         caches.keys().then((keyList) => {

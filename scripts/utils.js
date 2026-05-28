@@ -260,3 +260,18 @@ document.addEventListener('click', function(event) {
         menu.classList.add('hidden');
     }
 });
+
+// --- AUTO-UPDATE MECHANISM FOR END USERS ---
+if ('serviceWorker' in navigator) {
+    let refreshing = false;
+    
+    // Ye sensor detect karega ki Vercel par naya update aaya hai ya nahi
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+            refreshing = true;
+            console.log("New Update Detected! Auto-refreshing silently...");
+            // User ki screen ko silently refresh karke naya code de dega
+            window.location.reload();
+        }
+    });
+}
