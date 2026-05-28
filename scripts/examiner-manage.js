@@ -210,66 +210,48 @@ function viewSubmissions(testIdx) {
 }
 
 // NAYA FIX: Async laga diya taaki script download hone ka wait kare
-async function showResultPageAsExaminer(testIdx, sIdx) {
+function showResultPageAsExaminer(testIdx, sIdx) {
     var sub = tests[testIdx].submissions[sIdx];
     var t = tests[testIdx];
 
-    // 1. SCREEN KO TURANT HIDE KARO (Transition Loader lagao)
-    let loader = document.createElement('div');
-    loader.id = 'flash-blocker-examiner';
-    loader.innerHTML = `<div class="spinner" style="width: 40px; height: 40px; border-width: 4px;"></div><div style="margin-top:15px; font-weight:600; font-size:16px; color:var(--color-text-primary);">Opening Evaluation Mode...</div>`;
-    loader.style = `position:fixed; top:0; left:0; width:100vw; height:100vh; background:var(--color-background-primary, #ffffff); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: opacity 0.3s ease;`;
-    document.body.appendChild(loader);
-
-    // 2. Ab safely Native Route par jao
     nav('student');
 
-    // 3. SMART DOM WATCHER (Wait for HTML)
-    let domWatcher = setInterval(async function() {
+    // SMART POLLING for Examiner
+    let checkExist = setInterval(async function() {
         var homeEl = document.getElementById('student-home');
         var testEl = document.getElementById('student-test');
         var resultEl = document.getElementById('student-result');
-        
-        // Jaise hi HTML background me aa jaye
+
         if (homeEl && resultEl) {
-            clearInterval(domWatcher); // Watcher band karo
-            
-            // Faltu sections ko Hamesha ke liye chupao (No Flashing!)
+            clearInterval(checkExist); // Polling band karo
+
+            // Badi Beharmi se Form chupao
             homeEl.style.display = 'none';
-            if (testEl) testEl.style.display = 'none';
-            
-            // Result Screen show karo
-            resultEl.classList.remove('hidden');
+            if(testEl) testEl.style.display = 'none';
+
             resultEl.style.display = 'block';
+            resultEl.classList.remove('hidden');
             resultEl.innerHTML = `<div class="spinner-container"><div class="spinner"></div><div style="margin-top:10px; color:var(--color-text-primary);">Loading Checked Paper...</div></div>`;
 
             try {
-                // Agar result engine nahi hai, toh chupke se load karo
                 if (typeof _generateResultDOM !== 'function') {
                     await loadScript('scripts/student-dash.js');
                 }
 
-                // Engine aate hi Evaluate mode print karo
                 setTimeout(() => {
-                    _generateResultDOM(sub, t, true, testIdx, sIdx); // true = Examiner Mode
+                    _generateResultDOM(sub, t, true, testIdx, sIdx);
+                    // Double Security
+                    document.getElementById('student-home').style.display = 'none';
                     
-                    // Navbar theek karo
                     var mainHeader = document.querySelector('.app-header');
                     if(mainHeader) mainHeader.style.display = '';
-
-                    // 4. Sab set hone ke baad Loader makkhan ki tarah hata do
-                    loader.style.opacity = '0';
-                    setTimeout(() => loader.remove(), 300);
-                    
-                }, 150);
+                }, 100);
 
             } catch(err) {
                 resultEl.innerHTML = `<div style="color:#A32D2D; padding:2rem; text-align:center;"><i class="ti ti-alert-triangle" style="font-size:48px;"></i><br><br>Error loading result engine.<br><small>${err.message}</small></div>`;
-                loader.style.opacity = '0';
-                setTimeout(() => loader.remove(), 300);
             }
         }
-    }, 50); // Har 50ms me scan karega
+    }, 50);
 }
 
 function openEditKeyModal(idx) {

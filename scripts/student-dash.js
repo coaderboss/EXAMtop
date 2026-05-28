@@ -7,48 +7,40 @@ function launchExistingResult(testId, name, roll) {
     var rollToMatch = roll ? roll.toLowerCase() : '';
     var sub = t.submissions.find(s => s.name.toLowerCase() === name.toLowerCase() && (s.roll || '').toLowerCase() === rollToMatch);
 
-    // 1. SCREEN KO TURANT HIDE KARO (Transition Loader lagao)
-    let loader = document.createElement('div');
-    loader.id = 'flash-blocker';
-    loader.innerHTML = `<div class="spinner" style="width: 40px; height: 40px; border-width: 4px;"></div><div style="margin-top:15px; font-weight:600; font-size:16px; color:var(--color-text-primary);">Opening Secure Paper...</div>`;
-    loader.style = `position:fixed; top:0; left:0; width:100vw; height:100vh; background:var(--color-background-primary, #ffffff); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; transition: opacity 0.3s ease;`;
-    document.body.appendChild(loader);
-
-    // 2. Ab safely Native Route par jao
+    // 1. Asli Page par route karo
     nav('student'); 
 
-    // 3. SMART DOM WATCHER (Ye tab tak wait karega jab tak page background me load nahi ho jata)
-    let domWatcher = setInterval(function() {
+    // 2. SMART POLLING: Har 50ms me check karo ki page load hua ya nahi
+    let checkExist = setInterval(function() {
         var homeEl = document.getElementById('student-home');
         var testEl = document.getElementById('student-test');
         var resultEl = document.getElementById('student-result');
-        
-        // Jaise hi HTML background me aa jaye
+
+        // Jaise hi elements screen par aa jayein...
         if (homeEl && resultEl) {
-            clearInterval(domWatcher); // Watcher band karo
-            
-            // Faltu sections ko Hamesha ke liye display none kar do (taki flash na ho)
+            clearInterval(checkExist); // Polling band karo
+
+            // 3. Form ko Badi Beharmi se chupao (Force hide)
             homeEl.style.display = 'none';
-            if (testEl) testEl.style.display = 'none';
-            
-            // Result Screen show karo
-            resultEl.classList.remove('hidden');
+            if(testEl) testEl.style.display = 'none';
+
+            // 4. Result Screen dikhao
             resultEl.style.display = 'block';
-            
-            // Engine se Result Generate karo
-            if (typeof _generateResultDOM === 'function') {
-                _generateResultDOM(sub, t, false);
-            } else {
-                resultEl.innerHTML = `<div style="color:#A32D2D; padding:2rem; text-align:center;">Result engine not found.</div>`;
-            }
-            
-            // 4. Sab set hone ke baad Loader ko makkhan ki tarah hata do
+            resultEl.classList.remove('hidden');
+            resultEl.innerHTML = `<div class="spinner-container"><div class="spinner"></div><div style="margin-top:10px;">Loading Checked Paper...</div></div>`;
+
+            // 5. Engine ko result print karne do
             setTimeout(() => {
-                loader.style.opacity = '0';
-                setTimeout(() => loader.remove(), 300);
-            }, 200); // 200ms extra buffer for smooth render
+                if (typeof _generateResultDOM === 'function') {
+                    _generateResultDOM(sub, t, false);
+                    // Double security: Phir se Join Test ko hide karo taki router usko wapas na laye
+                    document.getElementById('student-home').style.display = 'none';
+                } else {
+                    resultEl.innerHTML = `<div style="color:#A32D2D; padding:2rem; text-align:center;">Result engine not found. Please refresh.</div>`;
+                }
+            }, 100);
         }
-    }, 50); // Har 50 millisecond me check karega
+    }, 50); // Har 50ms me check karega
 }
 
 function claimCertificate(name, course, date) {
