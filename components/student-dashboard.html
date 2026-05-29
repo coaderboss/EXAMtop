@@ -5,3 +5,73 @@
   </div>
   <div id="student-analytics-area"></div>
 </div>
+<!-- ==========================================
+     PREMIUM PRACTICE ARENA UI
+========================================== -->
+<style>
+    .arena-wrapper { background: #ffffff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); padding: 25px; margin-top: 20px; font-family: 'Segoe UI', system-ui, sans-serif; border: 1px solid #f1f5f9; }
+    .arena-header { border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 20px; }
+    .arena-title { color: #0f172a; font-size: 1.5rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px; }
+    .arena-subtitle { color: #64748b; font-size: 0.95rem; margin-top: 5px; }
+    .arena-controls { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; }
+    .arena-input { flex: 1; min-width: 140px; padding: 14px 16px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 1rem; color: #334155; outline: none; transition: all 0.3s ease; background: #f8fafc; }
+    .arena-input:focus { border-color: #3b82f6; background: #ffffff; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+    .arena-btn { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; padding: 14px 24px; border-radius: 10px; font-size: 1.05rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+    .arena-btn:active { transform: translateY(2px); }
+    .arena-btn:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
+    
+    #ai-question-box { background: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 25px; display: none; margin-top: 20px; }
+    .ai-q-text { font-size: 1.2rem; color: #1e293b; font-weight: 600; margin-bottom: 20px; line-height: 1.6; }
+    .ai-options { display: flex; flex-direction: column; gap: 12px; }
+    .ai-opt-btn { background: #f8fafc; border: 2px solid #e2e8f0; padding: 14px 18px; border-radius: 10px; text-align: left; font-size: 1rem; cursor: pointer; transition: all 0.2s; color: #334155; font-weight: 500; }
+    .ai-opt-btn:hover { border-color: #cbd5e1; background: #f1f5f9; }
+    .ai-opt-btn.correct { background: #dcfce7; border-color: #22c55e; color: #166534; pointer-events: none; }
+    .ai-opt-btn.wrong { background: #fee2e2; border-color: #ef4444; color: #991b1b; pointer-events: none; }
+    .ai-opt-btn.disabled { pointer-events: none; opacity: 0.7; }
+    .ai-solution { margin-top: 25px; padding: 20px; background: #f0fdf4; border-left: 5px solid #22c55e; border-radius: 8px; display: none; }
+    .ai-solution h4 { color: #166534; margin: 0 0 10px 0; font-size: 1.1rem; }
+    .ai-solution p { color: #15803d; font-size: 0.95rem; line-height: 1.6; margin: 0; }
+    
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+        .arena-controls { flex-direction: column; gap: 10px; }
+        .arena-input, .arena-btn { width: 100%; }
+        .arena-wrapper { padding: 15px; }
+    }
+</style>
+
+<div class="arena-wrapper">
+    <div class="arena-header">
+        <h2 class="arena-title">✨ Your Practice </h2>
+        <div class="arena-subtitle">AI-Powered PYQ Generator (Stateless Engine)</div>
+    </div>
+
+    <div class="arena-controls">
+        <select id="arena-exam" class="arena-input">
+            <option value="JEE Mains">JEE Mains</option>
+            <option value="NEET">NEET</option>
+        </select>
+        <select id="arena-subject" class="arena-input">
+            <option value="Physics">Physics</option>
+            <option value="Chemistry">Chemistry</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="Biology">Biology</option>
+        </select>
+        <input type="text" id="arena-chapter" class="arena-input" placeholder="Enter Chapter (e.g., Optics, Kinematics)">
+        
+        <button id="fetch-q-btn" class="arena-btn" onclick="fetchAIQuestion()">
+            <span id="btn-text">Generate Question</span>
+        </button>
+    </div>
+
+    <div id="ai-question-box">
+        <div class="ai-q-text" id="ai-q-text">Loading question...</div>
+        <div class="ai-options" id="ai-options-container">
+            <!-- Options will be injected here -->
+        </div>
+        <div class="ai-solution" id="ai-solution-box">
+            <h4>💡 Step-by-Step Solution</h4>
+            <p id="ai-solution-text"></p>
+        </div>
+    </div>
+</div>

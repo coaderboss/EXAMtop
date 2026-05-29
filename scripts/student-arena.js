@@ -111,3 +111,30 @@ function checkPracticeAnswer(btnElem, selectedBase64, correctBase64) {
     }
     document.getElementById('p-next-btn').style.display = 'flex';
 }
+// student-arena.js ke andar
+async function fetchAIQuestion() {
+    const exam = document.getElementById('arena-exam').value;
+    const subject = document.getElementById('arena-subject').value;
+    const chapter = document.getElementById('arena-chapter').value || 'Random';
+
+    // Spinner dikhao...
+
+    try {
+        // Ab hum apni hi Vercel API ko call kar rahe hain, Gemini ko nahi
+        const res = await fetch('/api/gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                examTarget: exam,
+                subject: subject,
+                chapter: chapter
+            })
+        });
+
+        const qData = await res.json();
+        
+        // qData ko ab renderPracticeQ me use kar lenge...
+    } catch(err) {
+        // Error handling...
+    }
+}
