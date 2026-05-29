@@ -278,3 +278,100 @@ document.addEventListener('focusin', function(e) {
         }, 300); // 300ms delay taaki keyboard poora upar aa jaye
     }
 });
+
+// ==========================================
+// GEMINI AI - STATELESS PRACTICE ENGINE
+// ==========================================
+
+async function fetchAIQuestion() {
+    const btn = document.getElementById('fetch-q-btn');
+    const btnText = document.getElementById('btn-text');
+    const qBox = document.getElementById('ai-question-box');
+    const qText = document.getElementById('ai-q-text');
+    const optsContainer = document.getElementById('ai-options-container');
+    const solBox = document.getElementById('ai-solution-box');
+
+    // 1. Dropdowns se values uthao
+    const exam = document.getElementById('arena-exam').value;
+    const subject = document.getElementById('arena-subject').value;
+    const chapter = document.getElementById('arena-chapter').value || 'Mixed Concepts';
+
+    // 2. Loading State on karo (Button disable, Spinner on)
+    btn.disabled = true;
+    btnText.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;margin:0;display:inline-block;vertical-align:middle;"></span> Generating...';
+    
+    // UI reset karo naye question ke liye
+    qBox.style.display = 'block';
+    qText.innerHTML = 'AI is crafting a unique question for you...';
+    optsContainer.innerHTML = '';
+    solBox.style.display = 'none';
+
+    try {
+        // 3. Vercel ke "Middleman" API ko call karo
+        const res = await fetch('/api/gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                examTarget: exam, 
+                subject: subject, 
+                chapter: chapter 
+            })
+        });
+
+        if (!res.ok) throw new Error("API Route Error");
+
+        const qData = await res.json();
+        
+        // Is question data ko browser ki memory (Global Window) me save kar lo taaki answer check ho sake
+        window.currentAIQuestion = qData;
+
+        // 4. Question aur Options ko screen par print karo
+        qText.innerHTML = qData.question;
+        
+        optsContainer.innerHTML = qData.options.map((opt, idx) => `
+            <button class="ai-opt-btn" onclick="checkAIAnswer(${idx}, this)">
+                <span style="font-weight:bold; margin-right:8px; color:#185FA5;">${String.fromCharCode(65+idx)}.</span> ${opt}
+            </button>
+        `).join('');
+
+    } catch (err) {
+        console.error(err);
+        qText.innerHTML = `<span style="color:#A32D2D;"><i class="ti ti-wifi-off"></i> Failed to generate question. Please check your internet or API connection.</span>`;
+    } finally {
+        // 5. Loading State off karo
+        btn.disabled = false;
+        btnText.innerHTML = 'Generate Another Question';
+    }
+}
+
+// Answer Check Karne ka Logic
+window.checkAIAnswer = function(selectedIndex, btnElem) {
+    const qData = window.currentAIQuestion;
+    if (!qData) return;
+
+    // Saare buttons ko click hone se block kar do (taaki ek hi baar answer de sake)
+    const allBtns = document.querySelectorAll('.ai-opt-btn');
+    allBtns.forEach(b => {
+        b.classList.add('disabled'); 
+        b.style.pointerEvents = 'none'; 
+    });
+
+    // Check karo user ka answer sahi hai ya nahi
+    if (selectedIndex === qData.correct_index) {
+        btnElem.classList.add('correct');
+        btnElem.innerHTML += ' <span style="float:right;"><i class="ti ti-check"></i> Correct!</span>';
+    } else {
+        btnElem.classList.add('wrong');
+        btnElem.innerHTML += ' <span style="float:right;"><i class="ti ti-x"></i> Wrong</span>';
+        
+        // Sahi answer wala option automatically highlight kar do
+        allBtns[qData.correct_index].classList.add('correct');
+    }
+
+    // Solution ka dabba display kar do
+    const solBox = document.getElementById('ai-solution-box');
+    const solText = document.getElementById('ai-solution-text');
+    
+    solText.innerHTML = qData.solution;
+    solBox.style.display = 'block';
+}
