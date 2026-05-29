@@ -709,3 +709,8 @@ textarea { min-height: 80px; resize: vertical; }
 [data-theme="dark"] .hub-icon-wrap { background: #0f172a !important; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3) !important; }
 [data-theme="dark"] .hub-card-title { color: #f8fafc !important; }
 [data-theme="dark"] .hub-card-desc { color: #cbd5e1 !important; }
+
+   MOBILE KEYBOARD EXTRA SPACE FIX
+#student-test {
+    padding-bottom: 50vh !important; 
+}

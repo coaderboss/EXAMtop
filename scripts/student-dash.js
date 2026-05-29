@@ -265,3 +265,16 @@ function renderStudentResults() {
         c.innerHTML = html;
     }, 600);
 }
+// MOBILE KEYBOARD AUTO-SCROLL FIX
+document.addEventListener('focusin', function(e) {
+    // Check agar input type number/text par click hua hai
+    if (e.target && e.target.tagName === 'INPUT') {
+        setTimeout(function() {
+            // Box ko smooth tarike se screen ke center me laao
+            e.target.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+        }, 300); // 300ms delay taaki keyboard poora upar aa jaye
+    }
+});
