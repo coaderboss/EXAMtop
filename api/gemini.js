@@ -26,8 +26,7 @@ export default async function handler(req, res) {
         `;
 
         // YAHAN DONO FIX HAIN: gemini-3.5-flash AUR method: 'POST'
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${API_KEY}`, {            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }]
             })

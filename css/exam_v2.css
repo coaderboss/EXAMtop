@@ -715,6 +715,7 @@ textarea { min-height: 80px; resize: vertical; }
     padding-bottom: 50vh !important; 
 }
 
+
     /* CSS Grid Layout for Desktop Side-by-Side */
     .dashboard-layout {
         display: grid;
@@ -761,46 +762,39 @@ textarea { min-height: 80px; resize: vertical; }
     .ai-solution p { color: #0f172a; font-size: 13px; line-height: 1.6; margin: 0; }
 
     /* ==========================================
-       PREMIUM MOBILE VIEW LOGIC (NATIVE APP FEEL)
+       SMART MOBILE VIEW (ANALYTICS TOP, ARENA BOTTOM)
     ========================================== */
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
         .dashboard-layout { 
             grid-template-columns: 1fr; 
-            padding: 12px; /* Thoda tight padding mobile ke liye */
-            gap: 1.5rem;
+            padding: 1rem 0.5rem; /* Screen edges ka best use */
+            gap: 2rem;
         }
-        .analytics-container { order: 2; } /* History neeche chali jayegi */
+        .analytics-container { 
+            order: 1; /* Dashboard / History sabse upar rahegi */
+        }
         .arena-sticky-container { 
-            order: 1; /* Practice Arena sabse upar aayega */
+            order: 2; /* Arena respect ke saath neeche chala jayega */
             position: static; 
-            margin-bottom: 10px;
-            z-index: 10;
+            margin-top: 1rem;
+            padding-bottom: 2rem;
         }
         .arena-wrapper { 
-            padding: 20px 15px; 
-            border-radius: 20px; /* Thoda zyada curve native app jaisa */
-            box-shadow: 0 8px 25px rgba(24, 95, 165, 0.12); /* Deep pop-out shadow */
-            border: none;
+            padding: 25px 20px; 
+            border-radius: 20px; 
+            border: 2px solid #e2e8f0;
+            border-top: 5px solid #185FA5; /* Top border se distinct module ban jayega */
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); 
         }
-        .arena-title { font-size: 1.25rem; }
+        .arena-title { font-size: 1.3rem; }
         .arena-input { 
-            padding: 14px; /* Touch-friendly height */
-            font-size: 16px; /* Prevents auto-zoom in mobile browsers */
+            padding: 14px; /* Touch friendly */
+            font-size: 16px; /* Stop auto-zoom in mobile */
             border-radius: 12px;
         }
         .arena-btn { 
             padding: 16px; 
             font-size: 16px; 
             border-radius: 12px;
-            box-shadow: 0 6px 16px rgba(24, 95, 165, 0.25);
-        }
-        .ai-opt-btn {
-            padding: 14px;
-            font-size: 15px;
-            border-radius: 12px;
-        }
-        #ai-question-box {
-            padding: 15px;
-            border-radius: 16px;
         }
     }
