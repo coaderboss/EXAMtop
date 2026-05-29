@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-    // 1. Sirf POST allow karenge
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
@@ -26,9 +25,9 @@ export default async function handler(req, res) {
         }
         `;
 
-        // YAHAN DHYAN DENA: method: 'POST' wapas aa gaya hai!
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-            method: 'POST',  // <--- Ye missing tha
+        // YAHAN DONO FIX HAIN: gemini-3.5-flash AUR method: 'POST'
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${API_KEY}`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }]
@@ -37,13 +36,11 @@ export default async function handler(req, res) {
 
         const data = await response.json();
 
-        // Agar Gemini api key ya model me issue aaya toh
         if (data.error) {
             console.error("Gemini API Error:", data.error.message);
             return res.status(500).json({ error: data.error.message });
         }
 
-        // Response parse karna
         let rawText = data.candidates[0].content.parts[0].text;
         rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
         
