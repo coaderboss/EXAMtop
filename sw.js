@@ -1,4 +1,4 @@
-const CACHE_NAME = 'examitop-store-v3';
+const CACHE_NAME = 'examitop-store-v4';
 
 self.addEventListener('install', (e) => {
     self.skipWaiting(); // Naya SW aate hi purane ko hata dega

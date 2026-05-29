@@ -1,19 +1,18 @@
-// File: api/gemini.js
-
 export default async function handler(req, res) {
-    // 1. Sirf POST requests allow karenge
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
     try {
-        // Frontend se jo exam, subject aur chapter aayega usko read karenge
         const { examTarget, subject, chapter } = req.body;
-
-        // Vercel ke environment variables se tumhari chupi hui key nikalenge
         const API_KEY = process.env.GEMINI_API_KEY;
 
-        // Ye wahi prompt hai jo tumne bheja tha
+        // Check 1: Kya Vercel me API Key daali gai hai?
+        if (!API_KEY) {
+            console.error("Error: GEMINI_API_KEY is missing in Vercel Environment Variables!");
+            return res.status(500).json({ error: 'Server configuration missing API Key.' });
+        }
+
         const prompt = `
         You are an expert Indian examiner for JEE and NEET. 
         Generate 1 multiple-choice question for Exam: ${examTarget}, Subject: ${subject}, Topic: ${chapter}.
@@ -29,7 +28,6 @@ export default async function handler(req, res) {
         }
         `;
 
-        // Gemini API ko secure call
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -39,20 +37,28 @@ export default async function handler(req, res) {
         });
 
         const data = await response.json();
+
+        // Check 2: Kya Gemini ne error bheja hai? (Jaise invalid API key)
+        if (data.error) {
+            console.error("Gemini API Error Detected:", data.error.message);
+            return res.status(500).json({ error: 'Gemini API rejected the request', details: data.error.message });
+        }
+
+        // Check 3: Kya response ka structure waisa hi hai jaisa humein chahiye?
+        if (!data.candidates || !data.candidates[0].content) {
+            console.error("Unexpected Gemini response structure:", data);
+            return res.status(500).json({ error: 'Invalid response from Gemini', details: data });
+        }
         
-        // Gemini ke response se JSON nikalna
         let rawText = data.candidates[0].content.parts[0].text;
-        
-        // Kabhi kabhi AI ```json ... ``` tags laga deta hai, usko hatane ka logic
         rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
         
         const questionData = JSON.parse(rawText);
-
-        // Frontend ko safely data bhej do
         res.status(200).json(questionData);
 
     } catch (error) {
-        console.error('API Error:', error);
-        res.status(500).json({ error: 'Failed to generate question.' });
+        // TypeError ya JSON Parse error aayega toh yahan pakda jayega
+        console.error('Catch Block Error:', error.message);
+        res.status(500).json({ error: 'Failed to generate question.', details: error.message });
     }
 }
