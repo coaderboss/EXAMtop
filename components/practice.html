@@ -1,9 +1,61 @@
-<div style="padding: 2rem 1.5rem; max-width: 1080px; margin: 0 auto; width: 100%; animation: fadeIn 0.3s ease;">
-    <div class="header" style="margin-bottom: 2rem;">
-        <h1 style="display:flex; align-items:center; gap:10px; font-size: 26px;"><i class="ti ti-flame" style="color:#e63946;"></i> Practice Arena</h1>
-        <p style="color: var(--color-text-secondary); margin-top: 5px;">Endless random questions to sharpen your brain. No scores saved!</p>
+<div style="padding: 2rem 1.5rem; max-width: 900px; margin: 0 auto; width: 100%; animation: fadeIn 0.3s ease;">
+    
+    <div class="page-header" style="text-align: center; margin-bottom: 2.5rem;">
+        <h1 style="display:flex; align-items:center; justify-content:center; gap:10px; font-size: 32px; color: #185FA5;">
+            <i class="ti ti-flame" style="color:#e63946;"></i> Practice Arena
+        </h1>
+        <p style="color: var(--color-text-secondary); margin-top: 8px; font-size: 15px;">
+            Endless questions to sharpen your brain. Stateless engine, zero data saved!
+        </p>
     </div>
-    <div class="card" style="max-width:600px; margin: 0 auto; text-align:center;">
-        <div id="practice-area"></div>
+
+    <!-- MAIN CONTROL PANEL -->
+    <div class="card" style="box-shadow: 0 10px 30px rgba(24, 95, 165, 0.08); border-radius: 16px; padding: 25px; border-top: 4px solid #185FA5;">
+        
+        <!-- Category Dropdown (General vs AI Exam) -->
+        <div style="margin-bottom: 1.5rem;">
+            <label style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 8px; display: block;">Select Arena Mode</label>
+            <select id="arena-mode" class="input-block" style="padding: 14px; font-size: 16px; border-radius: 10px; cursor: pointer;" onchange="switchArenaMode()">
+                <option value="general">🌍 General Knowledge & Trivia (Global)</option>
+                <option value="exam">🎓 Competitive Exams & College (AI Powered)</option>
+            </select>
+        </div>
+
+        <!-- Dynamic Exam Config (Hidden in General Mode) -->
+        <div id="exam-config-row" style="display: none; flex-direction: column; gap: 1.5rem; margin-bottom: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed var(--color-border-secondary);">
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <div>
+                    <label style="font-size: 13px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 6px;">Target Exam</label>
+                    <select id="arena-exam" class="input-block" style="padding: 12px; border-radius: 8px;" onchange="updateArenaSubjects()">
+                        <option value="JEE Mains">JEE Mains</option>
+                        <option value="NEET">NEET</option>
+                        <option value="College (CSE)">College (B.Tech CSE)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 13px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 6px;">Subject</label>
+                    <select id="arena-subject" class="input-block" style="padding: 12px; border-radius: 8px;">
+                        <!-- Options injected by JS -->
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label style="font-size: 13px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 6px;">Specific Topic / Chapter (Required)</label>
+                <input type="text" id="arena-chapter" class="input-block" style="padding: 12px; border-radius: 8px;" placeholder="e.g., Kinematics">
+            </div>
+            
+        </div>
+
+        <!-- Action Button -->
+        <button id="arena-action-btn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 14px; font-size: 16px; font-weight: 600; border-radius: 10px;" onclick="fetchNewPracticeQ()">
+            <i class="ti ti-player-play"></i> Start Random Trivia
+        </button>
+
     </div>
+
+    <!-- DISPLAY AREA FOR QUESTIONS (Errors & Questions will show here) -->
+    <div id="practice-area" style="margin-top: 2rem;"></div>
+
 </div>

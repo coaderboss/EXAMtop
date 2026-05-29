@@ -1,54 +1,7 @@
-<style>
-   
-</style>
-
-<div class="dashboard-layout">
-    
-    <div class="analytics-container">
-        <div class="page-header" style="margin-bottom: 1.5rem;">
-            <div class="page-title">My Analytics Dashboard</div>
-            <div class="page-sub">Track your performance, overall accuracy, and past exam history.</div>
-        </div>
-        <div id="student-analytics-area"></div>
-    </div>
-
-    <div class="arena-sticky-container">
-        <div class="arena-wrapper">
-            <div class="arena-header">
-                <h2 class="arena-title"><i class="ti ti-sparkles" style="color: #F59E0B;"></i> Keep Practicing </h2>
-                <div class="arena-subtitle">Stateless Engine &bull; Zero Storage</div>
-            </div>
-
-            <div class="arena-controls">
-                <select id="arena-exam" class="arena-input">
-                    <option value="JEE Mains">JEE Mains Target</option>
-                    <option value="NEET">NEET Target</option>
-                    <option value="GATE CS">GATE CS Target</option>
-                </select>
-                <select id="arena-subject" class="arena-input">
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Biology">Biology</option>
-                    <option value="Computer Science">Computer Science</option>
-                </select>
-                <input type="text" id="arena-chapter" class="arena-input" placeholder="Enter Chapter (e.g., Kinematics, OOPs)">
-                
-                <button id="fetch-q-btn" class="arena-btn" onclick="fetchAIQuestion()">
-                    <span id="btn-text"><i class="ti ti-wand"></i> Generate Question</span>
-                </button>
-            </div>
-
-            <div id="ai-question-box">
-                <div class="ai-q-text" id="ai-q-text">Loading question...</div>
-                <div class="ai-options" id="ai-options-container">
-                    </div>
-                <div class="ai-solution" id="ai-solution-box">
-                    <h4><i class="ti ti-bulb"></i> Step-by-Step Solution</h4>
-                    <p id="ai-solution-text"></p>
-                </div>
-            </div>
-        </div>
-    </div>
-
+<div style="padding: 2rem 1.5rem; max-width: 1080px; margin: 0 auto; width: 100%; animation: fadeIn 0.3s ease;">
+  <div class="page-header">
+    <div class="page-title">My Analytics Dashboard</div>
+    <div class="page-sub">Track your performance, overall accuracy, and past exam history.</div>
+  </div>
+  <div id="student-analytics-area"></div>
 </div>
