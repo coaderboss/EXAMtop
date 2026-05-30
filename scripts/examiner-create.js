@@ -137,7 +137,9 @@ function saveTest(){
   
   tests.push(test); 
   updateDatabase(); 
-  qList=[]; renderQs(); document.getElementById('t-title').value='';
+  var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'guest');
+  localStorage.removeItem('exam_draft_creator_' + userIdent);
+  qList=[]; renderQs(); document.getElementById('t-title').value='';  
   
   var modalMsg = isOfflineMode ? "Saved Locally!" : "Saved to Cloud!";
   var iconCol = isOfflineMode ? "#854F0B" : "#3B6D11";
@@ -203,6 +205,115 @@ function previewAsStudent(){
   if(!qList.length){alert('Add questions first to preview.');return;}
   var t={id:'prev',code:'DEMO',title:document.getElementById('t-title').value||'Preview Test',subject:'Preview',duration:+document.getElementById('t-dur').value||60,totalMarks:300,negMarking:+document.getElementById('t-neg').value||0,allowChange:document.getElementById('t-change').checked,showPalette:document.getElementById('t-palette').checked,allowNav:document.getElementById('t-nav').checked,questions:JSON.parse(JSON.stringify(qList)),submissions:[],resultVis:'instant',scoreVis:'show'}; nav('student'); launchTest(t,'Demo Student','');
 }
+// ==========================================
+// 🔥 SMART AUTO-SAVE DRAFT ENGINE
+// ==========================================
+
+// 1. Check & Prompt (Jab Create page khulega tab chalega)
+window.checkAndPromptCreatorDraft = function() {
+    var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'guest');
+    var draftStr = localStorage.getItem('exam_draft_creator_' + userIdent);
+    
+    if (draftStr) {
+        var draft = JSON.parse(draftStr);
+        // Sirf tab pucho jab draft me kam se kam 1 question ho ya title likha ho
+        if ((draft.qList && draft.qList.length > 0) || draft.title) {
+            showModal(`
+                <div style="padding: 1.5rem; text-align: center;">
+                    <div style="width:72px; height:72px; background:#E6F1FB; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 1rem; color:#185FA5;">
+                        <i class="ti ti-file-text" style="font-size:36px;"></i>
+                    </div>
+                    <h3 style="margin-bottom: 0.5rem; color:#0f172a; font-size:20px;">Unsaved Draft Found!</h3>
+                    <p style="color:var(--color-text-secondary); font-size:14px; margin-bottom:1.5rem; line-height:1.5;">
+                        We found an incomplete test draft <strong>(${draft.qList ? draft.qList.length : 0} questions)</strong>. Do you want to restore it where you left off?
+                    </p>
+                    <div style="display:flex; gap:12px; justify-content:center;">
+                        <button class="btn" style="flex:1; padding:10px; font-weight:600;" onclick="hideModal()">No, Start Fresh</button>
+                        <button class="btn btn-primary" style="flex:1; padding:10px; font-weight:600;" onclick="restoreCreatorDraft(); hideModal();"><i class="ti ti-download"></i> Yes, Restore</button>
+                    </div>
+                </div>
+            `);
+        }
+    }
+};
+
+// 2. Restore Function (Agar user "Yes" dabaye)
+window.restoreCreatorDraft = function() {
+    var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'guest');
+    var draftStr = localStorage.getItem('exam_draft_creator_' + userIdent);
+    if(!draftStr) return;
+    
+    var draft = JSON.parse(draftStr);
+    
+    // Text fields restore
+    if(document.getElementById('t-title')) document.getElementById('t-title').value = draft.title || '';
+    if(document.getElementById('t-subject')) document.getElementById('t-subject').value = draft.subject || '';
+    if(document.getElementById('t-dur')) document.getElementById('t-dur').value = draft.duration || 60;
+    if(document.getElementById('t-total')) document.getElementById('t-total').value = draft.totalMarks || 300;
+    if(document.getElementById('t-neg')) document.getElementById('t-neg').value = draft.negMarking || 0;
+    if(document.getElementById('t-access')) document.getElementById('t-access').value = draft.access || 'code';
+    if(document.getElementById('t-resultvis')) document.getElementById('t-resultvis').value = draft.resultVis || 'instant';
+    if(document.getElementById('t-scorevis')) document.getElementById('t-scorevis').value = draft.scoreVis || 'show';
+    if(document.getElementById('t-expiry')) document.getElementById('t-expiry').value = draft.expiryDate || '';
+    if(document.getElementById('t-sections')) document.getElementById('t-sections').value = draft.sections || '';
+    
+    // Checkboxes (Toggles) restore
+    if(draft.toggles) {
+        if(document.getElementById('t-change')) document.getElementById('t-change').checked = draft.toggles.change;
+        if(document.getElementById('t-palette')) document.getElementById('t-palette').checked = draft.toggles.palette;
+        if(document.getElementById('t-nav')) document.getElementById('t-nav').checked = draft.toggles.nav;
+        if(document.getElementById('t-rand')) document.getElementById('t-rand').checked = draft.toggles.rand;
+        if(document.getElementById('t-shuffle-opts')) document.getElementById('t-shuffle-opts').checked = draft.toggles.shuffle;
+        if(document.getElementById('t-anticheat')) document.getElementById('t-anticheat').checked = draft.toggles.anticheat;
+        if(document.getElementById('t-fullscreen')) document.getElementById('t-fullscreen').checked = draft.toggles.fullscreen;
+    }
+
+    // Questions list restore
+    qList = draft.qList || [];
+    renderQs();
+    if(typeof showToast === 'function') showToast('Draft Restored Successfully!', 'success');
+};
+
+// 3. Background Auto-Saver (Har 5 second me check karega)
+setInterval(() => {
+    // Sirf tab save karega jab teacher 'Create' page par ho
+    if (window.location.hash.replace('#', '') !== 'create') return;
+    
+    var titleElem = document.getElementById('t-title');
+    if (!titleElem) return;
+    
+    var titleVal = titleElem.value.trim();
+    
+    // SMART LOGIC: Agar teacher form blank chhod de (Deny kiya), toh purana draft UDANA NAHI HAI. 
+    // Jab wo naya kuch likhega (title ya question add karega), tabhi save over-write hoga.
+    if (titleVal === '' && qList.length === 0) return; 
+
+    var draft = {
+        title: titleVal,
+        subject: document.getElementById('t-subject').value,
+        duration: document.getElementById('t-dur').value,
+        totalMarks: document.getElementById('t-total').value,
+        negMarking: document.getElementById('t-neg').value,
+        access: document.getElementById('t-access').value,
+        resultVis: document.getElementById('t-resultvis').value,
+        scoreVis: document.getElementById('t-scorevis').value,
+        expiryDate: document.getElementById('t-expiry').value,
+        sections: document.getElementById('t-sections').value,
+        toggles: {
+            change: document.getElementById('t-change').checked,
+            palette: document.getElementById('t-palette').checked,
+            nav: document.getElementById('t-nav').checked,
+            rand: document.getElementById('t-rand').checked,
+            shuffle: document.getElementById('t-shuffle-opts').checked,
+            anticheat: document.getElementById('t-anticheat').checked,
+            fullscreen: document.getElementById('t-fullscreen').checked
+        },
+        qList: qList
+    };
+
+    var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'guest');
+    localStorage.setItem('exam_draft_creator_' + userIdent, JSON.stringify(draft));
+}, 5000);
 
 // Default placeholder Question
 addQ({id:1,type:'mcq',text:'A particle moves with constant acceleration. Its velocity changes from 20 m/s to 60 m/s in 4 seconds. What is the acceleration?',marks:4,options:['5 m/s²','10 m/s²','15 m/s²','20 m/s²'],correct:[1],explanation:'a = (v-u)/t = (60-20)/4 = 10 m/s²'});

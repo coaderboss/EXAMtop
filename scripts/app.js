@@ -77,6 +77,7 @@ async function loadComponent(pageName) {
             if(pageName === 'home' && typeof updateSmartHubCards === 'function') {
                 updateSmartHubCards(window.userRole);
             }
+            if(pageName === 'create' && typeof checkAndPromptCreatorDraft === 'function') checkAndPromptCreatorDraft();
 
             if(pageName === 'tests' && typeof renderTestList === 'function') renderTestList();
             if(pageName === 'results' && typeof renderAllResults === 'function') renderAllResults();
