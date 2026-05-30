@@ -171,8 +171,28 @@ function launchTest(dbTest, name, roll){
   }
 
   activeTest = test;
-  activeState={name,roll,answers:Array(test.questions.length).fill(0).map(()=>({val:null,marked:false})),cur:0,start:Date.now(),done:false};
-  window.examWarnings = 0;
+  
+  // 100% FOOLPROOF: AUTO-SAVE & RESUME LOGIC
+  var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'anonymous');
+  var draftKey = 'exam_draft_' + activeTest.id + '_' + userIdent;
+  var draft = localStorage.getItem(draftKey);
+
+  if (draft) {
+      let parsed = JSON.parse(draft);
+      if (parsed.endTime > Date.now()) { 
+          activeState = parsed.state;
+          window.examEndTime = parsed.endTime;
+          if(typeof showToast === 'function') showToast("Exam resumed successfully from draft.", "success");
+      } else {
+          localStorage.removeItem(draftKey); 
+      }
+  }
+
+  if (!window.examEndTime || !draft || !activeState || activeState.done) {
+      activeState={name,roll,answers:Array(test.questions.length).fill(0).map(()=>({val:null,marked:false})),cur:0,start:Date.now(),done:false, cheatLogs:[]};
+      window.examEndTime = Date.now() + (test.duration * 60 * 1000);
+      window.examWarnings = 0;
+  }
   
   var mainHeader = document.querySelector('.app-header');
   if(mainHeader) mainHeader.style.display = 'none';
@@ -185,17 +205,19 @@ function launchTest(dbTest, name, roll){
 
   renderTest();
   
+  // ABSOLUTE TIMER LOGIC (Throttling Proof)
   if(timerIv) clearInterval(timerIv);
-  var secs=test.duration*60;
   timerIv=setInterval(()=>{
-    secs--;
+    var secsLeft = Math.floor((window.examEndTime - Date.now()) / 1000);
+    if (secsLeft < 0) secsLeft = 0;
+    
     var el=document.getElementById('timerEl');
     if(el){
-      var h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60), s=secs%60;
+      var h=Math.floor(secsLeft/3600), m=Math.floor((secsLeft%3600)/60), s=secsLeft%60;
       el.textContent=(h?h+':':'')+(String(m).padStart(2,'0'))+':'+(String(s).padStart(2,'0'));
-      if(secs<=300) el.closest('.timer-pill').classList.add('timer-warn');
+      if(secsLeft<=300) el.closest('.timer-pill').classList.add('timer-warn');
     }
-    if(secs<=0){ clearInterval(timerIv); doSubmit(); }
+    if(secsLeft<=0){ clearInterval(timerIv); doSubmit(); }
   },1000);
 }
 
@@ -310,13 +332,18 @@ function renderStudentOpts(q,qi,ans,locked){
   else{ return `<div style="margin-bottom:1rem"><label style="font-size:15px">Type your descriptive answer below:</label><textarea style="min-height:160px;font-size:15px" ${locked?'disabled':''} onchange="pickSubj(${qi},this.value)" placeholder="Write your detailed answer here...">${ans.val||''}</textarea></div>`; }
 }
 
-function pickMCQ(qi,j){activeState.answers[qi].val=j; renderTest();}
-function pickMSQ(qi,j){ if(!Array.isArray(activeState.answers[qi].val)) activeState.answers[qi].val=[]; var a=activeState.answers[qi].val, idx=a.indexOf(j); idx>-1?a.splice(idx,1):a.push(j); renderTest(); }
-function pickInt(qi,v){activeState.answers[qi].val=v===''?null:+v;}
-function pickSubj(qi,v){activeState.answers[qi].val=v||null;}
-function clearAns(qi){activeState.answers[qi].val=null; renderTest();}
-function togMark(qi){activeState.answers[qi].marked=!activeState.answers[qi].marked; renderTest();}
-function goQ(i){if(i<0||i>=activeTest.questions.length)return; activeState.cur=i; renderTest();}
+window.saveExamDraft = function() {
+    if(!activeTest || !activeState || activeState.done) return;
+    var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'anonymous');
+    localStorage.setItem('exam_draft_' + activeTest.id + '_' + userIdent, JSON.stringify({ state: activeState, endTime: window.examEndTime }));
+};
+
+function pickMCQ(qi,j){activeState.answers[qi].val=j; window.saveExamDraft(); renderTest();}
+function pickMSQ(qi,j){ if(!Array.isArray(activeState.answers[qi].val)) activeState.answers[qi].val=[]; var a=activeState.answers[qi].val, idx=a.indexOf(j); idx>-1?a.splice(idx,1):a.push(j); window.saveExamDraft(); renderTest(); }
+function pickInt(qi,v){activeState.answers[qi].val=v===''?null:+v; window.saveExamDraft();}
+function pickSubj(qi,v){activeState.answers[qi].val=v||null; window.saveExamDraft();}
+function clearAns(qi){activeState.answers[qi].val=null; window.saveExamDraft(); renderTest();}
+function togMark(qi){activeState.answers[qi].marked=!activeState.answers[qi].marked; window.saveExamDraft(); renderTest();}
 
 function confirmSubmit(){
   var answered=activeState.answers.filter(a=>a.val!==null&&(!Array.isArray(a.val)||a.val.length>0)).length;
@@ -327,6 +354,10 @@ function confirmSubmit(){
 function doSubmit(){
   if(!activeTest||activeState.done)return;
   clearInterval(timerIv); activeState.done=true;
+
+ var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'anonymous');
+  localStorage.removeItem('exam_draft_' + activeTest.id + '_' + userIdent);
+
   document.removeEventListener("visibilitychange", handleCheat); 
   document.removeEventListener("fullscreenchange", handleCheat);
   window.removeEventListener("blur", handleCheat); 

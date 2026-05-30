@@ -39,8 +39,15 @@ function renderQs(){
         <label>Question Text</label>
         <textarea placeholder="Type your question here..." onchange="qList[${i}].text=this.value" class="input-block">${q.text || ''}</textarea>
       </div>
+      
+      <div style="margin-bottom:1.5rem">
+          <label><i class="ti ti-photo"></i> Question Image URL (Optional)</label>
+          <input type="text" placeholder="Paste image link here (e.g., https://.../img.jpg)" value="${q.imgUrl||''}" onchange="qList[${i}].imgUrl=this.value; renderQs();" class="input-block">
+          ${q.imgUrl ? `<img src="${q.imgUrl}" style="max-height:160px; margin-top:12px; border-radius:8px; border: 1px solid var(--color-border-secondary); box-shadow: 0 2px 8px rgba(0,0,0,0.05);">` : ''}
+      </div>
+
       ${renderQEdit(q,i)}
-      <div style="margin-top:1rem"><label>Explanation</label><input type="text" placeholder="Formula or logic..." value="${q.explanation||''}" onchange="qList[${i}].explanation=this.value"></div>
+      <div style="margin-top:1rem"><label>Explanation / Solution</label><input type="text" placeholder="Formula or logic..." value="${q.explanation||''}" onchange="qList[${i}].explanation=this.value"></div>
       <button class="btn btn-sm btn-ghost" style="width:100%; margin-top:1.5rem; border:1px dashed #cbd5e1; color:#185FA5; justify-content:center;" onclick="addQ(null, ${i})">
           <i class="ti ti-row-insert-bottom"></i> Add New Question Below
       </button>
