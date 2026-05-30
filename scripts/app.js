@@ -89,14 +89,48 @@ async function loadComponent(pageName) {
 
     } catch (error) {
         console.error("Routing Error:", error);
-        viewport.innerHTML = `
-            <div style="text-align:center; padding:5rem; color:#A32D2D;">
-                <i class="ti ti-alert-triangle" style="font-size:48px; margin-bottom:1rem;"></i>
-                <h2>Component Missing</h2>
-                <p>Could not load <b>${pageName}.html</b> or its script.</p>
-                <button class="btn btn-primary" onclick="nav('home')" style="margin-top:1rem;">Go to Home</button>
-            </div>
-        `;
+        
+        const viewport = document.getElementById('app-viewport');
+
+        // SMART ERROR UI BUILDER
+        if (!navigator.onLine) {
+            // Case 1: Agar sach me internet band hai (Offline)
+            viewport.innerHTML = `
+                <div style="text-align:center; padding:5rem 1.5rem; max-width: 450px; margin: 0 auto; animation: fadeIn 0.4s ease;">
+                    <div style="width:80px; height:80px; background:#FCEBEB; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 1.5rem; box-shadow: 0 10px 25px rgba(163, 45, 45, 0.1);">
+                        <i class="ti ti-wifi-off" style="font-size:38px; color:#A32D2D;"></i>
+                    </div>
+                    <h2 style="color:#0f172a; margin-bottom:10px; font-size:22px; font-weight:700;">No Internet Connection</h2>
+                    <p style="color:#64748b; font-size:15px; line-height:1.6; margin-bottom:2rem;">
+                        You are currently offline. Please check your Wi-Fi or mobile data to open the <b>${pageName}</b> page.
+                    </p>
+                    <div style="display:flex; gap:12px; justify-content:center;">
+                        <button class="btn" style="padding:12px 20px; font-weight:600; border:1px solid #cbd5e1;" onclick="nav('home')">
+                            <i class="ti ti-home"></i> Go Back
+                        </button>
+                        <button class="btn btn-primary" style="padding:12px 20px; font-weight:600; background:#A32D2D; border-color:#A32D2D;" onclick="loadComponent('${pageName}')">
+                            <i class="ti ti-reload"></i> Try Again
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Case 2: Agar internet chal raha hai, par file sach me delete ho gayi hai (404 Error)
+            viewport.innerHTML = `
+                <div style="text-align:center; padding:5rem 1.5rem; max-width: 450px; margin: 0 auto; animation: fadeIn 0.4s ease;">
+                    <div style="width:80px; height:80px; background:#f1f5f9; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 1.5rem;">
+                        <i class="ti ti-file-unknown" style="font-size:38px; color:#64748b;"></i>
+                    </div>
+                    <h2 style="color:#0f172a; margin-bottom:10px; font-size:22px; font-weight:700;">Page Not Found</h2>
+                    <p style="color:#64748b; font-size:15px; line-height:1.6; margin-bottom:2rem;">
+                        Oops! We couldn't load the <b>${pageName}</b> page. It seems to be missing or broken.
+                    </p>
+                    <button class="btn btn-primary" onclick="nav('home')" style="padding:12px 24px; font-weight:600;">
+                        <i class="ti ti-arrow-left"></i> Return Home
+                    </button>
+                </div>
+            `;
+        }
     }
 }
 
