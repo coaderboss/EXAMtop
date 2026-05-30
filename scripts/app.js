@@ -85,7 +85,7 @@ async function loadComponent(pageName) {
             if(pageName === 'admin' && typeof renderAdminDashboard === 'function') renderAdminDashboard();
             
             if(pageName === 'practice' && typeof fetchNewPracticeQ === 'function') fetchNewPracticeQ();
-        }, 100);
+        }, 500);
 
     } catch (error) {
         console.error("Routing Error:", error);

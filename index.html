@@ -11,7 +11,31 @@
 
     <script>
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').then(()=> console.log("PWA Ready"));
+        navigator.serviceWorker.register('sw.js').then(registration => {
+            console.log("PWA Service Worker Registered");
+
+            // NAYA FIX: Listen for updates
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                    // Agar naya SW install ho gaya hai aur purana bhi hai (update aya hai)
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        console.log('New update available! Refreshing...');
+                        // Naye SW ko turant take-over karne ko kaho
+                        newWorker.postMessage({ type: 'SKIP_WAITING' }); 
+                    }
+                });
+            });
+        }).catch(err => console.log("SW Registration Failed: ", err));
+
+        // Jab naya SW take-over kar le, page ko auto-refresh karo
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+                refreshing = true;
+                window.location.reload(); 
+            }
+        });
     }
     </script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -84,8 +108,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="scripts/app.js?v=4.0"></script>
-    <script src="scripts/auth.js?v=4.0"></script>
-    <script src="scripts/utils.js?v=4.0"></script>
+    <script src="scripts/app.js"></script>
+    <script src="scripts/auth.js"></script>
+    <script src="scripts/utils.js"></script>
 </body>
 </html>

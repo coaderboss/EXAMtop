@@ -1,19 +1,13 @@
-const CACHE_NAME = 'examitop-store-v4';
+// Is naam ko ab kabhi change karne ki zarurat nahi hai
+const CACHE_NAME = 'examitop-smart-cache';
 
 self.addEventListener('install', (e) => {
-    self.skipWaiting(); // Naya SW aate hi purane ko hata dega
-    e.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => cache.addAll([
-            '/',
-            '/index.html',
-            '/css/exam_v2.css' // Nayi CSS file ka naam
-        ]))
-    );
+    self.skipWaiting(); // Naya SW aate hi turant activate ho jaye
 });
 
 self.addEventListener('activate', (e) => {
-    e.waitUntil(clients.claim());
-    // Purane kachre (caches) ko delete karne ka logic
+    e.waitUntil(clients.claim()); // Turant control le le
+    // Purane jitne bhi versioned caches the (v1, v2, v3, v4, v5) unko kachre se hata do
     e.waitUntil(
         caches.keys().then((keyList) => {
             return Promise.all(keyList.map((key) => {
@@ -24,18 +18,35 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-    // Smart Fetch: Pehle internet se nayi file laane ki koshish karega
+    const url = e.request.url;
+    
+    // 1. API aur Database ko kabhi cache mat karo (Hamesha Live Data)
+    if (url.includes('firestore.googleapis.com') || url.includes('/api/') || url.includes('identitytoolkit') || url.includes('opentdb.com')) {
+        return; 
+    }
+
+    // 2. STALE-WHILE-REVALIDATE STRATEGY (The Magic Auto-Update)
     e.respondWith(
-        fetch(e.request)
-            .then((response) => {
-                // Agar internet chal raha hai toh nayi file cache me update kar dega
-                const resClone = response.clone();
-                caches.open(CACHE_NAME).then((cache) => cache.put(e.request, resClone));
-                return response;
-            })
-            .catch(() => {
-                // Agar internet band hai toh purani saved file dikhayega
-                return caches.match(e.request);
-            })
+        caches.open(CACHE_NAME).then((cache) => {
+            return cache.match(e.request).then((cachedResponse) => {
+                
+                // Background me chupchaap Vercel se latest file laane ka process start karo
+                const fetchPromise = fetch(e.request).then((networkResponse) => {
+                    // Agar nayi file sahi-salamat mil gayi, toh cache ko silently update kar do
+                    if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+                        cache.put(e.request, networkResponse.clone());
+                    }
+                    return networkResponse;
+                }).catch(() => {
+                    // Agar internet band hai (Offline Mode), toh kuch mat karo, errors hide rakho
+                });
+
+                // MAIN LOGIC: 
+                // Agar cache me purani file padi hai, toh TURANT de do (Fast Loading).
+                // Agar cache khali hai (first time), toh network aane ka wait karo.
+                // Background me naya update 'fetchPromise' khud handle kar lega.
+                return cachedResponse || fetchPromise;
+            });
+        })
     );
 });
