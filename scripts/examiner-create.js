@@ -140,7 +140,7 @@ function saveTest(){
   var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'guest');
   localStorage.removeItem('exam_draft_creator_' + userIdent);
   qList=[]; renderQs(); document.getElementById('t-title').value='';  
-  
+
   var modalMsg = isOfflineMode ? "Saved Locally!" : "Saved to Cloud!";
   var iconCol = isOfflineMode ? "#854F0B" : "#3B6D11";
   var bgCol = isOfflineMode ? "#FAEEDA" : "#EAF3DE";
@@ -158,8 +158,24 @@ function saveTest(){
 }
 
 function dlTemplate(){
-  var t=JSON.stringify([ { section: 'Physics', type:'mcq', text:'What is the capital of France?', marks:4, options:['London','Berlin','Paris','Madrid'], correct:[2], explanation:'Paris is the capital of France.' } ],null,2);
-  var b=new Blob([t],{type:'application/json'}),a=document.createElement('a'); a.href=URL.createObjectURL(b);a.download='examitop_template.json';a.click();
+  var t=JSON.stringify([ 
+      { 
+          section: 'Physics', 
+          type:'mcq', 
+          text:'Identify the logic gate shown in the image below:', 
+          imgUrl: 'https://example.com/logic-gate.jpg', // 🔥 NAYA OPTIONAL FIELD
+          marks:4, 
+          options:['AND Gate','OR Gate','NAND Gate','NOR Gate'], 
+          correct:[0], 
+          explanation:'The image shows the standard symbol for an AND gate.' 
+      } 
+  ],null,2);
+  
+  var b=new Blob([t],{type:'application/json'});
+  var a=document.createElement('a'); 
+  a.href=URL.createObjectURL(b);
+  a.download='examitop_template.json';
+  a.click();
 }
 
 function importQ(inp){
@@ -176,6 +192,7 @@ function importQ(inp){
                   id:Date.now()+Math.random(),
                   type:d.type||'mcq',
                   text:d.text||'',
+                  imgUrl: d.imgUrl||'', // 🔥 JSON SE IMAGE URL YAHAN MAP HOGA
                   marks:d.marks||4,
                   options:d.options||['','','',''],
                   correct:d.correct||[],
@@ -194,9 +211,9 @@ function importQ(inp){
                   secInput.value = existing.join(', ');
               }
           }
-          showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-check" style="font-size:42px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-size:20px;font-weight:600;margin-bottom:0.5rem">Import Successful!</div><div style="font-size:14px;color:var(--color-text-secondary);">${data.length} questions mapped.</div></div>`); 
+          if(typeof showModal === 'function') showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-check" style="font-size:42px;color:#3B6D11;display:block;margin-bottom:1rem"></i><div style="font-size:20px;font-weight:600;margin-bottom:0.5rem">Import Successful!</div><div style="font-size:14px;color:var(--color-text-secondary);">${data.length} questions mapped.</div></div>`); 
           renderQs(); 
-      }catch(ex){ alert('Invalid JSON file.'); } 
+      }catch(ex){ alert('Invalid JSON file. Please check the formatting.'); } 
   }; 
   r.readAsText(f); inp.value = ''; 
 }
