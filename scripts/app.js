@@ -41,7 +41,7 @@ async function loadComponent(pageName) {
 
     try {
         // A. Fetch HTML Component
-        const response = await fetch(`${pageName}.html`); // Make sure the path is correct
+        const response = await fetch(`components/${pageName}.html`);
         if (!response.ok) throw new Error(`Page ${pageName} not found (404)`);
         const htmlContent = await response.text();
         
@@ -84,14 +84,13 @@ async function loadComponent(pageName) {
             if(pageName === 'student-results' && typeof renderStudentResults === 'function') renderStudentResults();
             if(pageName === 'admin' && typeof renderAdminDashboard === 'function') renderAdminDashboard();
             
-            if(pageName === 'practice' && typeof fetchNewPracticeQ === 'function') {
-                 var modeDrop = document.getElementById('arena-mode');
-                 if(modeDrop && modeDrop.value === 'general') fetchNewPracticeQ();
-            }
-        }, 500); 
+            if(pageName === 'practice' && typeof fetchNewPracticeQ === 'function') fetchNewPracticeQ();
+        }, 500);
 
     } catch (error) {
         console.error("Routing Error:", error);
+        
+        const viewport = document.getElementById('app-viewport');
 
         // SMART ERROR UI BUILDER
         if (!navigator.onLine) {
@@ -134,7 +133,6 @@ async function loadComponent(pageName) {
         }
     }
 }
-
 
 // 4. Global Navigation Function
 window.nav = function(pageId) {
