@@ -715,3 +715,41 @@ textarea { min-height: 80px; resize: vertical; }
     padding-bottom: 50vh !important; 
 }
 
+/* ==========================================
+   🚀 EXAMINER MOBILE OPTIMIZATIONS
+   ========================================== */
+@media (max-width: 768px) {
+    .mobile-card-stack { flex-direction: column !important; align-items: flex-start !important; gap: 12px; }
+    .mobile-card-stack > div { width: 100% !important; }
+    .mobile-chevron { display: none !important; }
+
+    .mobile-stats-header { flex-direction: column !important; padding: 1.25rem 1rem !important; }
+    .mobile-stats-header > div { width: 100%; align-items: flex-start !important; }
+    .mobile-stats-header p { line-height: 1.8; font-size: 13px !important; display: flex; flex-wrap: wrap; gap: 8px; }
+    .mobile-badge-wrap { width: 100%; margin-top: 10px; }
+
+    .mobile-tabs { padding-bottom: 12px !important; }
+    .mobile-sub-item { flex-direction: column !important; align-items: flex-start !important; gap: 15px !important; }
+    .mobile-sub-actions { width: 100% !important; justify-content: space-between !important; flex-direction: row-reverse; }
+
+    .mobile-subs-actions-wrap { flex-direction: column !important; width: 100% !important; align-items: stretch !important; gap: 10px !important; }
+    .mobile-subs-actions-wrap > div { width: 100% !important; max-width: 100% !important; }
+    .mobile-subs-actions-wrap input { width: 100% !important; box-sizing: border-box; }
+    .mobile-subs-actions-wrap button { width: 100% !important; justify-content: center; }
+
+    /* 🔥 THE FIX: Overrides Laptop button ONLY for Mobile Screens */
+    #floating-eval-back-btn {
+        position: absolute !important; 
+        top: 15px !important;
+        left: 15px !important;
+        padding: 8px !important;
+        width: 38px !important;
+        height: 38px !important;
+        border-radius: 50% !important;
+        justify-content: center !important;
+    }
+    #floating-eval-back-btn .btn-text { display: none !important; }
+    #floating-eval-back-btn i { margin: 0 !important; font-size: 20px !important; }
+    
+    #student-result { padding-top: 65px !important; position: relative !important; } 
+}

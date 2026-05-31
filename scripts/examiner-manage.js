@@ -1,50 +1,11 @@
 // ==========================================
 // EXAMINER: DASHBOARD & GRAPHICAL ANALYTICS
 // ==========================================
-/// ==========================================
-// 1. RENDER TEST LIST (WITH MOBILE OPTIMIZATION & ANTI-STUCK FIX)
-// ==========================================
 function renderTestList() {
     var container = document.getElementById('test-list-area');
     if(!container) return;
 
-    // 🔥 MOBILE UI FIX INJECTOR (Works automatically)
-    if (!document.getElementById('mobile-examiner-fixes')) {
-        const style = document.createElement('style');
-        style.id = 'mobile-examiner-fixes';
-        style.innerHTML = `
-            @media (max-width: 768px) {
-                .mobile-card-stack { flex-direction: column !important; align-items: flex-start !important; gap: 12px; }
-                .mobile-card-stack > div { width: 100% !important; }
-                .mobile-chevron { display: none !important; }
-                .mobile-stats-header { flex-direction: column !important; padding: 1.25rem !important; }
-                .mobile-stats-header > div { width: 100%; align-items: flex-start !important; }
-                .mobile-badge-wrap { width: 100%; margin-top: 10px; }
-                .mobile-tabs { padding-bottom: 12px !important; }
-                .mobile-sub-item { flex-direction: column !important; align-items: flex-start !important; gap: 15px !important; }
-                .mobile-sub-actions { width: 100% !important; justify-content: space-between !important; flex-direction: row-reverse; }
-                
-                /* 🔥 PREMIUM MOBILE BACK BUTTON */
-                #floating-eval-back-btn { 
-                    top: auto !important; 
-                    bottom: 24px !important; 
-                    left: 50% !important; 
-                    transform: translateX(-50%) !important; 
-                    width: calc(100% - 32px) !important; 
-                    justify-content: center !important; 
-                    background: #185FA5 !important; 
-                    color: #ffffff !important; 
-                    font-size: 16px !important; 
-                    padding: 16px !important;
-                    border-radius: 12px !important;
-                    box-shadow: 0 8px 25px rgba(24, 95, 165, 0.4) !important;
-                    border: none !important;
-                }
-                #student-result { padding-bottom: 90px !important; } /* Spacing so button doesn't hide text */
-            }
-        `;
-        document.head.appendChild(style);
-    }
+    // 🔥 FIX: CSS Injector Removed! CSS file me daal diya.
 
     var cUid = null;
     var cEmail = null;
@@ -89,7 +50,6 @@ function renderTestList() {
             ? `<div style="display:flex; align-items:center; gap:6px; background:#d1fae5; padding:4px 10px; border-radius:20px;"><span style="display:block; width:8px; height:8px; background:#10B981; border-radius:50%; box-shadow: 0 0 8px #10B981; animation: pulse 1.5s infinite;"></span><span style="color:#065f46; font-weight:700; font-size:12px; letter-spacing:0.5px; text-transform:uppercase;">Live</span></div>` 
             : `<div style="display:flex; align-items:center; gap:6px; background:#f1f5f9; padding:4px 10px; border-radius:20px;"><span style="display:block; width:8px; height:8px; background:#94a3b8; border-radius:50%;"></span><span style="color:#64748b; font-weight:600; font-size:12px; letter-spacing:0.5px; text-transform:uppercase;">Closed</span></div>`;
 
-        // 🔥 Added mobile classes
         html += `
         <div class="card mobile-card-stack" style="cursor:pointer; padding: 1.5rem; display:flex; justify-content:space-between; align-items:center; transition: all 0.2s ease; border-left: 4px solid ${isLive ? '#10B981' : '#cbd5e1'};" onclick="openTestDashboard(${i})" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.06)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.04)';">
             <div style="flex:1;">
@@ -146,10 +106,8 @@ function renderTestList() {
         if (!isDetailOpen) masterView.style.display = 'flex'; 
     }
 
-    // 🔥 THE FIX FOR VIDEO STUCK ISSUE: Browser ko zabardasti jagana (Repaint force)
     setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
-        // Clear any old stray spinners
         document.querySelectorAll('.spinner-container').forEach(el => {
             if(el.parentElement === container) el.remove();
         });
@@ -162,6 +120,19 @@ function renderTestList() {
 // ==========================================
 
 window.openTestDashboard = function(idx) {
+    // 🔥 THE 100% BULLETPROOF HEADER HIDER 🔥
+    // Ye 'test-list-area' ke alawa baki saare elements (My Managed Tests etc.) ko force-hide kar dega
+    var listArea = document.getElementById('test-list-area');
+    if(listArea && listArea.parentElement) {
+        var siblings = listArea.parentElement.children;
+        for(var i = 0; i < siblings.length; i++) {
+            if(siblings[i].id !== 'test-list-area') {
+                siblings[i].setAttribute('data-original-display', siblings[i].style.display || '');
+                siblings[i].style.display = 'none';
+            }
+        }
+    }
+
     var t = tests[idx];
     var isLive = t.isActive !== false;
     var subCount = t.submissions ? Object.keys(t.submissions).length : 0;
@@ -170,6 +141,10 @@ window.openTestDashboard = function(idx) {
     var statusText = isLive ? 'Close Exam Intake' : 'Open Exam Intake';
     var statusBg = isLive ? '#FCEBEB' : '#EAF3DE';
     var statusColor = isLive ? '#A32D2D' : '#3B6D11';
+
+    var currentUrl = window.location.href.split('#')[0];
+    var shareLink = currentUrl + '#student?code=' + t.code;
+    var shareText = `*${t.title}* is now live!\n\n🕒 *Time:* ${t.duration} Mins\n💯 *Marks:* ${t.totalMarks}\n🔑 *Test Code:* ${t.code}\n\nClick the link below to join directly:\n${shareLink}`;
 
     var expiryBadge = '';
     if (t.expiryDate) {
@@ -204,7 +179,6 @@ window.openTestDashboard = function(idx) {
             <button id="tab-btn-overview" class="btn btn-ghost active" style="font-size:15px; font-weight:600; color:#185FA5; background:#E6F1FB; border-radius:8px; padding:10px 20px; white-space:nowrap;" onclick="switchTestTab('overview')"><i class="ti ti-dashboard"></i> Overview & Settings</button>
             <button id="tab-btn-subs" class="btn btn-ghost" style="font-size:15px; font-weight:600; color:#64748b; padding:10px 20px; white-space:nowrap;" onclick="switchTestTab('subs')"><i class="ti ti-users"></i> Student Submissions <span class="badge b-gray" style="margin-left:8px; background:#cbd5e1; color:#0f172a;">${subCount}</span></button>
         </div>
-
 
         <div id="tab-content-overview">
             <div class="grid2">
@@ -248,7 +222,7 @@ window.openTestDashboard = function(idx) {
             <div class="card" style="border-radius:12px; padding:2rem; box-shadow:0 4px 15px rgba(0,0,0,0.03);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:15px;">
                     <h3 style="margin:0; font-size:18px; color:#0f172a; font-weight:700;">Submissions Ledger</h3>
-                    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                    <div class="mobile-subs-actions-wrap" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
                         <button class="btn btn-success" style="padding:10px 16px; font-weight:600; border-radius:8px;" onclick="exportToCSV(${t.id})">
                             <i class="ti ti-file-spreadsheet"></i> Export CSV
                         </button>
@@ -276,14 +250,16 @@ window.closeTestDashboard = function() {
     document.getElementById('test-detail-view').innerHTML = '';
     document.getElementById('tests-master-view').style.display = 'flex';
     
-    // 🔥 FIX 2: Restore surrounding titles when returning to master list
-    var container = document.getElementById('test-list-area');
-    if(container && container.parentNode) {
-        Array.from(container.parentNode.children).forEach(child => {
-            if(child.id !== 'test-list-area') {
-                child.style.display = child.getAttribute('data-old-display') || '';
+    // 🔥 WAPAS DIKHAO 🔥
+    // Jo kuch bhi humne upar chhupaya tha, usko wapas screen par le aao
+    var listArea = document.getElementById('test-list-area');
+    if(listArea && listArea.parentElement) {
+        var siblings = listArea.parentElement.children;
+        for(var i = 0; i < siblings.length; i++) {
+            if(siblings[i].id !== 'test-list-area') {
+                siblings[i].style.display = siblings[i].getAttribute('data-original-display') || '';
             }
-        });
+        }
     }
     
     renderTestList(); 
@@ -553,10 +529,10 @@ function showResultPageAsExaminer(testIdx, sIdx) {
                     var mainHeader = document.querySelector('.app-header');
                     if(mainHeader) mainHeader.style.display = '';
 
-                    // 🔥 THE FIX: Button top se kaafi neeche (130px) aur saaf. Mobile par automatically bottom me chala jayega CSS rule se.
+                    // 🔥 THE FIX: Wapas Laptop View (Fixed, Top 130px, with Text). Mobile isko CSS se overwrite karega.
                     var simpleBackBtn = `
                         <button id="floating-eval-back-btn" onclick="returnToSubmissions(${testIdx})" style="position: fixed; top: 130px; left: 24px; z-index: 9999; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; padding: 10px 16px; font-weight: 600; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;">
-                            <i class="ti ti-arrow-left"></i> Back
+                            <i class="ti ti-arrow-left" style="font-size:18px;"></i> <span class="btn-text">Back</span>
                         </button>
                     `;
                     resultEl.insertAdjacentHTML('afterbegin', simpleBackBtn);
@@ -653,10 +629,10 @@ function confirmAndSaveEval() {
     setTimeout(() => {
         var resultEl = document.getElementById('student-result');
         if(resultEl) {
-            // 🔥 THE FIX: Here as well
+            // 🔥 THE FIX: Wapas Laptop View
             var simpleBackBtn = `
                 <button id="floating-eval-back-btn" onclick="returnToSubmissions(${tIdx})" style="position: fixed; top: 130px; left: 24px; z-index: 9999; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; padding: 10px 16px; font-weight: 600; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;">
-                    <i class="ti ti-arrow-left"></i> Back
+                    <i class="ti ti-arrow-left" style="font-size:18px;"></i> <span class="btn-text">Back</span>
                 </button>
             `;
             resultEl.insertAdjacentHTML('afterbegin', simpleBackBtn);
