@@ -184,12 +184,14 @@ function _generateResultDOM(sub, test, isExaminerView, tIdx = null, sIdx = null)
     <div style="display:flex;gap:12px;margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--color-border-secondary)">${actionButtons}</div>`;
 
   window.__renderCards=renderCards;
+  if (typeof renderMath === 'function') renderMath();
 }
 
 function setFilter(f,btn){ 
     document.querySelectorAll('.ftab').forEach(b=>b.classList.remove('active')); 
     btn.classList.add('active'); 
     document.getElementById('q-review-area').innerHTML=window.__renderCards(f); 
+    if (typeof renderMath === 'function') renderMath();
 }
 
 function renderStudentDashboard() {
@@ -333,6 +335,7 @@ async function fetchAIQuestion() {
                 <span style="font-weight:bold; margin-right:8px; color:#185FA5;">${String.fromCharCode(65+idx)}.</span> ${opt}
             </button>
         `).join('');
+        if (typeof renderMath === 'function') renderMath();
 
     } catch (err) {
         console.error(err);
@@ -374,4 +377,5 @@ window.checkAIAnswer = function(selectedIndex, btnElem) {
     
     solText.innerHTML = qData.solution;
     solBox.style.display = 'block';
+    if (typeof renderMath === 'function') renderMath();
 }

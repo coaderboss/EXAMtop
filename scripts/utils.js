@@ -269,3 +269,12 @@ if ('serviceWorker' in navigator) {
         }
     });
 }
+
+// Add this anywhere in utils.js
+window.renderMath = function() {
+    setTimeout(() => {
+        if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+            MathJax.typesetPromise().catch((err) => console.log('MathJax Engine Error:', err));
+        }
+    }, 100); // 100ms delay ensures DOM is fully loaded before rendering math
+};

@@ -536,6 +536,7 @@ function showResultPageAsExaminer(testIdx, sIdx) {
                         </button>
                     `;
                     resultEl.insertAdjacentHTML('afterbegin', simpleBackBtn);
+                    if (typeof renderMath === 'function') renderMath(); // 🔥 Add this line
 
                 }, 100);
 
@@ -568,6 +569,7 @@ function openEditKeyModal(idx) {
 
     html += `</div><div style="display:flex; gap:10px;"><button class="btn" style="flex:1; padding:12px; font-weight:600;" onclick="hideModal()">Cancel</button><button class="btn btn-primary" style="flex:2; background:#854F0B; border-color:#854F0B; padding:12px; font-weight:600;" onclick="saveNewKeyAndReevaluate(${idx})"><i class="ti ti-refresh"></i> Update & Auto-Grade All</button></div></div>`;
     showModal(html);
+    if (typeof renderMath === 'function') renderMath(); // 🔥 Add this line
 }
 
 function saveNewKeyAndReevaluate(idx) {
@@ -636,6 +638,7 @@ function confirmAndSaveEval() {
                 </button>
             `;
             resultEl.insertAdjacentHTML('afterbegin', simpleBackBtn);
+            if (typeof renderMath === 'function') renderMath(); // 🔥 Add this line
         }
     }, 50);
 
@@ -714,7 +717,8 @@ window.printTestPaper = function(idx) {
     if (doc.document) doc = doc.document;
     
     doc.open();
-    doc.write('<html><head><title>Print: ' + t.title + '</title></head><body>');
+    doc.write('<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>');
+    doc.write('</head><body>');
     doc.write(printHtml);
     doc.write('</body></html>');
     doc.close();
@@ -728,7 +732,7 @@ window.printTestPaper = function(idx) {
         setTimeout(() => {
             document.body.removeChild(iframe);
         }, 1000);
-    }, 500);
+    }, 1500);
 };
 
 // 🔥 NAYA: Direct DOM Updater jisse Blink nahi hoga

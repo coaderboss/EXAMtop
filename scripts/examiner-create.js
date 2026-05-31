@@ -60,6 +60,7 @@ function renderQs(){
       </button>
     </div>`
   }).join('');
+  if (typeof renderMath === 'function') renderMath();
 }
 
 function renderQEdit(q,i){
