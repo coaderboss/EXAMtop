@@ -270,11 +270,15 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// Add this anywhere in utils.js
+//🔥 SMART MATH RENDERER TRIGGER (BULLETPROOF VERSION) 🔥
 window.renderMath = function() {
     setTimeout(() => {
         if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+            // Pehle engine ki purani memory clear karo (Taaki Next Q me overlap na ho)
+            MathJax.typesetClear();
+            
+            // Phir page par naye equations ko dhoondh kar render kar do
             MathJax.typesetPromise().catch((err) => console.log('MathJax Engine Error:', err));
         }
-    }, 100); // 100ms delay ensures DOM is fully loaded before rendering math
+    }, 150); // 150ms delay is perfect for DOM drawing
 };
