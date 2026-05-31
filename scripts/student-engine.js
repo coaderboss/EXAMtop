@@ -221,6 +221,29 @@ function launchTest(dbTest, name, roll){
   },1000);
 }
 
+// ==========================================
+// QUESTION NAVIGATION ENGINE (THE FIX)
+// ==========================================
+function goQ(idx) {
+    // Agar test active nahi hai ya khatam ho gaya hai toh kuch mat karo
+    if (!activeTest || !activeState || activeState.done) return;
+    
+    // Agar index limit ke bahar hai (jaise Q1 se peeche ya last Q se aage)
+    if (idx < 0 || idx >= activeTest.questions.length) return;
+    
+    // Current question index ko update karo
+    activeState.cur = idx;
+    
+    // Naya state save karo aur page ko wapas naye question ke sath render karo
+    window.saveExamDraft(); 
+    renderTest();
+    
+    // Agar mobile me palette khol kar question select kiya hai, toh palette auto-close kar do
+    if (typeof closeMobilePalette === 'function') {
+        closeMobilePalette();
+    }
+}
+
 function renderTest(){
   var t=activeTest, st=activeState, qi=st.cur, q=t.questions[qi], ans=st.answers[qi];
   var locked=!t.allowChange&&ans.val!==null&&(!Array.isArray(ans.val)||ans.val.length>0);
@@ -323,6 +346,9 @@ function renderTest(){
         <button class="btn btn-primary" style="width:100%;justify-content:center;font-weight:600; padding:12px;" onclick="confirmSubmit()"><i class="ti ti-send"></i> Submit Final Test</button>
       </div>`:''}
     </div>`;
+
+  // 🔥 THE MATH FIX: Render equations automatically every time a new question loads
+  if (typeof renderMath === 'function') renderMath();
 }
 
 function renderStudentOpts(q,qi,ans,locked){
