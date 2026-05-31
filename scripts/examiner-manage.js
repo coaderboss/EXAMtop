@@ -1,12 +1,50 @@
 // ==========================================
 // EXAMINER: DASHBOARD & GRAPHICAL ANALYTICS
 // ==========================================
-// ==========================================
-// 1. RENDER TEST LIST (ANTI-JUMP & SMOOTH TRANSITION FIX)
+/// ==========================================
+// 1. RENDER TEST LIST (WITH MOBILE OPTIMIZATION & ANTI-STUCK FIX)
 // ==========================================
 function renderTestList() {
     var container = document.getElementById('test-list-area');
     if(!container) return;
+
+    // 🔥 MOBILE UI FIX INJECTOR (Works automatically)
+    if (!document.getElementById('mobile-examiner-fixes')) {
+        const style = document.createElement('style');
+        style.id = 'mobile-examiner-fixes';
+        style.innerHTML = `
+            @media (max-width: 768px) {
+                .mobile-card-stack { flex-direction: column !important; align-items: flex-start !important; gap: 12px; }
+                .mobile-card-stack > div { width: 100% !important; }
+                .mobile-chevron { display: none !important; }
+                .mobile-stats-header { flex-direction: column !important; padding: 1.25rem !important; }
+                .mobile-stats-header > div { width: 100%; align-items: flex-start !important; }
+                .mobile-badge-wrap { width: 100%; margin-top: 10px; }
+                .mobile-tabs { padding-bottom: 12px !important; }
+                .mobile-sub-item { flex-direction: column !important; align-items: flex-start !important; gap: 15px !important; }
+                .mobile-sub-actions { width: 100% !important; justify-content: space-between !important; flex-direction: row-reverse; }
+                
+                /* 🔥 PREMIUM MOBILE BACK BUTTON */
+                #floating-eval-back-btn { 
+                    top: auto !important; 
+                    bottom: 24px !important; 
+                    left: 50% !important; 
+                    transform: translateX(-50%) !important; 
+                    width: calc(100% - 32px) !important; 
+                    justify-content: center !important; 
+                    background: #185FA5 !important; 
+                    color: #ffffff !important; 
+                    font-size: 16px !important; 
+                    padding: 16px !important;
+                    border-radius: 12px !important;
+                    box-shadow: 0 8px 25px rgba(24, 95, 165, 0.4) !important;
+                    border: none !important;
+                }
+                #student-result { padding-bottom: 90px !important; } /* Spacing so button doesn't hide text */
+            }
+        `;
+        document.head.appendChild(style);
+    }
 
     var cUid = null;
     var cEmail = null;
@@ -20,8 +58,6 @@ function renderTestList() {
 
     var masterView = document.getElementById('tests-master-view');
     var detailView = document.getElementById('test-detail-view');
-    
-    // Check if detail view is currently open
     var isDetailOpen = detailView && detailView.style.display === 'block';
     
     if (!masterView || !detailView) {
@@ -53,10 +89,11 @@ function renderTestList() {
             ? `<div style="display:flex; align-items:center; gap:6px; background:#d1fae5; padding:4px 10px; border-radius:20px;"><span style="display:block; width:8px; height:8px; background:#10B981; border-radius:50%; box-shadow: 0 0 8px #10B981; animation: pulse 1.5s infinite;"></span><span style="color:#065f46; font-weight:700; font-size:12px; letter-spacing:0.5px; text-transform:uppercase;">Live</span></div>` 
             : `<div style="display:flex; align-items:center; gap:6px; background:#f1f5f9; padding:4px 10px; border-radius:20px;"><span style="display:block; width:8px; height:8px; background:#94a3b8; border-radius:50%;"></span><span style="color:#64748b; font-weight:600; font-size:12px; letter-spacing:0.5px; text-transform:uppercase;">Closed</span></div>`;
 
+        // 🔥 Added mobile classes
         html += `
-        <div class="card" style="cursor:pointer; padding: 1.5rem; display:flex; justify-content:space-between; align-items:center; transition: all 0.2s ease; border-left: 4px solid ${isLive ? '#10B981' : '#cbd5e1'};" onclick="openTestDashboard(${i})" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.06)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.04)';">
+        <div class="card mobile-card-stack" style="cursor:pointer; padding: 1.5rem; display:flex; justify-content:space-between; align-items:center; transition: all 0.2s ease; border-left: 4px solid ${isLive ? '#10B981' : '#cbd5e1'};" onclick="openTestDashboard(${i})" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.06)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.04)';">
             <div style="flex:1;">
-                <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px; flex-wrap:wrap;">
                     <h3 style="margin:0; color:#0f172a; font-size:18px; font-weight:700;">${t.title}</h3>
                     ${pulseHtml}
                 </div>
@@ -68,7 +105,7 @@ function renderTestList() {
                     <span class="badge b-gray" style="padding:6px 12px;"><i class="ti ti-users"></i> ${subCount} Submissions</span>
                 </div>
             </div>
-            <div style="padding-left:20px; color:#185FA5;">
+            <div class="mobile-chevron" style="padding-left:20px; color:#185FA5;">
                 <div style="width:40px; height:40px; border-radius:50%; background:#E6F1FB; display:flex; align-items:center; justify-content:center; transition:0.2s;">
                     <i class="ti ti-chevron-right" style="font-size:20px;"></i>
                 </div>
@@ -84,10 +121,9 @@ function renderTestList() {
             <p style="color:#94a3b8; font-size:15px;">You haven't created any tests yet. Go to the 'Create' tab to build your first exam.</p>
         </div>`;
     } else {
-        masterView.innerHTML = html; // List background me update ho jayegi
+        masterView.innerHTML = html;
     }
 
-    // 🔥 THE FIX: Smooth Return aur Anti-Jump Logic
     if (typeof window.pendingTestDashboard !== 'undefined' && window.pendingTestDashboard !== null) {
         let targetIdx = window.pendingTestDashboard;
         window.pendingTestDashboard = null; 
@@ -99,26 +135,27 @@ function renderTestList() {
                 openTestDashboard(targetIdx);
                 if(typeof switchTestTab === 'function') switchTestTab('subs');
             }
-            
-            // Background me page ready hone ke baad, loading screen ko smoothly fade out karo
             var loader = document.getElementById('transition-loader');
             if(loader) {
                 loader.style.opacity = '0';
-                setTimeout(() => loader.remove(), 300); // Fade effect delay
+                setTimeout(() => loader.remove(), 300);
             }
         }, 100);
         
     } else {
-        // 🔥 ANTI-JUMP FIX: Agar pehle se Dashboard andar se khula hai, toh Master list ko zabardasti screen par mat laao!
-        if (!isDetailOpen) {
-            masterView.style.display = 'flex'; 
-        }
+        if (!isDetailOpen) masterView.style.display = 'flex'; 
     }
+
+    // 🔥 THE FIX FOR VIDEO STUCK ISSUE: Browser ko zabardasti jagana (Repaint force)
+    setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+        // Clear any old stray spinners
+        document.querySelectorAll('.spinner-container').forEach(el => {
+            if(el.parentElement === container) el.remove();
+        });
+    }, 150);
 }
 
-// ==========================================
-// 🎛️ TEST COMMAND CENTER LOGIC
-// ==========================================
 
 // ==========================================
 // 🎛️ TEST COMMAND CENTER LOGIC
@@ -146,7 +183,7 @@ window.openTestDashboard = function(idx) {
             <i class="ti ti-arrow-left"></i> Back to Vault
         </button>
 
-        <div class="card" style="border-top: 4px solid #185FA5; padding: 1.5rem 2rem; margin-bottom: 1.5rem; background: linear-gradient(to right, #ffffff, #f8fafc);">
+        <div class="card mobile-stats-header" style="border-top: 4px solid #185FA5; padding: 1.5rem 2rem; margin-bottom: 1.5rem; background: linear-gradient(to right, #ffffff, #f8fafc);">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:15px;">
                 <div>
                     <h2 style="margin:0 0 8px 0; color:#0f172a; font-size:24px; font-weight:800;">${t.title}</h2>
@@ -155,7 +192,7 @@ window.openTestDashboard = function(idx) {
                     </p>
                     ${expiryBadge}
                 </div>
-                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+                <div class="mobile-badge-wrap" style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
                     <div id="header-status-badge" style="display:flex; align-items:center; gap:8px; background:${isLive ? '#d1fae5' : '#f1f5f9'}; padding:8px 16px; border-radius:30px; font-size:14px; font-weight:700; color:${isLive ? '#065f46' : '#475569'}; border: 1px solid ${isLive ? '#34d399' : '#cbd5e1'};">
                         ${isLive ? '<span style="width:10px; height:10px; background:#10B981; border-radius:50%; box-shadow:0 0 8px #10B981; animation:pulse 1s infinite;"></span> Live Accepting' : '<span style="width:10px; height:10px; background:#94a3b8; border-radius:50%;"></span> Intake Locked'}
                     </div>
@@ -163,10 +200,11 @@ window.openTestDashboard = function(idx) {
             </div>
         </div>
 
-        <div style="display:flex; gap:10px; margin-bottom: 1.5rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; overflow-x: auto;">
-            <button id="tab-btn-overview" class="btn btn-ghost active" style="font-size:15px; font-weight:600; color:#185FA5; background:#E6F1FB; border-radius:8px; padding:10px 20px;" onclick="switchTestTab('overview')"><i class="ti ti-dashboard"></i> Overview & Settings</button>
-            <button id="tab-btn-subs" class="btn btn-ghost" style="font-size:15px; font-weight:600; color:#64748b; padding:10px 20px;" onclick="switchTestTab('subs')"><i class="ti ti-users"></i> Student Submissions <span class="badge b-gray" style="margin-left:8px; background:#cbd5e1; color:#0f172a;">${subCount}</span></button>
+        <div class="mobile-tabs" style="display:flex; gap:10px; margin-bottom: 1.5rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; overflow-x: auto;">
+            <button id="tab-btn-overview" class="btn btn-ghost active" style="font-size:15px; font-weight:600; color:#185FA5; background:#E6F1FB; border-radius:8px; padding:10px 20px; white-space:nowrap;" onclick="switchTestTab('overview')"><i class="ti ti-dashboard"></i> Overview & Settings</button>
+            <button id="tab-btn-subs" class="btn btn-ghost" style="font-size:15px; font-weight:600; color:#64748b; padding:10px 20px; white-space:nowrap;" onclick="switchTestTab('subs')"><i class="ti ti-users"></i> Student Submissions <span class="badge b-gray" style="margin-left:8px; background:#cbd5e1; color:#0f172a;">${subCount}</span></button>
         </div>
+
 
         <div id="tab-content-overview">
             <div class="grid2">
@@ -290,7 +328,7 @@ window.buildSmartSubmissionsList = function(t, tIdx) {
             : `<div style="text-align:right;"><div style="font-size:15px; font-weight:700; color:#f59e0b; margin-bottom:2px;"><i class="ti ti-clock"></i> Pending</div><div style="font-size:11px; color:#94a3b8;">Needs Check</div></div>`;
         
         html += `
-        <div class="sub-item" style="padding:15px; border-radius:10px; border:1px solid #e2e8f0; background:#fff; display:flex; justify-content:space-between; align-items:center; transition:0.2s;" data-name="${(s.name||'').toLowerCase()}" data-roll="${(s.roll||'').toLowerCase()}">
+        <div class="sub-item mobile-sub-item" style="padding:15px; border-radius:10px; border:1px solid #e2e8f0; background:#fff; display:flex; justify-content:space-between; align-items:center; transition:0.2s;" data-name="${(s.name||'').toLowerCase()}" data-roll="${(s.roll||'').toLowerCase()}">
             <div style="display:flex; align-items:center; gap:15px;">
                 <div style="width:40px; height:40px; border-radius:50%; background:#f1f5f9; color:#475569; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:16px;">
                     ${(s.name||'A').charAt(0).toUpperCase()}
@@ -300,9 +338,9 @@ window.buildSmartSubmissionsList = function(t, tIdx) {
                     <div style="font-size:13px; color:#64748b; font-family:monospace;">Roll: ${s.roll || 'N/A'}</div>
                 </div>
             </div>
-            <div style="display:flex; align-items:center; gap:20px;">
+            <div class="mobile-sub-actions" style="display:flex; align-items:center; gap:20px;">
                 ${scoreText}
-                <button class="btn btn-primary" style="padding:10px 16px; font-weight:600; border-radius:8px;" onclick="showResultPageAsExaminer(${tIdx}, ${sIdx})"><i class="ti ti-eye"></i> Evaluate</button>
+                <button class="btn btn-primary" style="padding:10px 16px; font-weight:600; border-radius:8px; flex-shrink:0;" onclick="showResultPageAsExaminer(${tIdx}, ${sIdx})"><i class="ti ti-eye"></i> Evaluate</button>
             </div>
         </div>`;
     });
@@ -515,7 +553,7 @@ function showResultPageAsExaminer(testIdx, sIdx) {
                     var mainHeader = document.querySelector('.app-header');
                     if(mainHeader) mainHeader.style.display = '';
 
-                    // 🔥 THE FIX: Position top: 110px kar diya hai (tum isko 120px ya 130px bhi kar sakte ho zaroorat padne par)
+                    // 🔥 THE FIX: Button top se kaafi neeche (130px) aur saaf. Mobile par automatically bottom me chala jayega CSS rule se.
                     var simpleBackBtn = `
                         <button id="floating-eval-back-btn" onclick="returnToSubmissions(${testIdx})" style="position: fixed; top: 130px; left: 24px; z-index: 9999; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; padding: 10px 16px; font-weight: 600; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;">
                             <i class="ti ti-arrow-left"></i> Back
@@ -615,7 +653,7 @@ function confirmAndSaveEval() {
     setTimeout(() => {
         var resultEl = document.getElementById('student-result');
         if(resultEl) {
-            // 🔥 THE FIX: Yahan bhi top: 110px aur left: 24px lagaya hai
+            // 🔥 THE FIX: Here as well
             var simpleBackBtn = `
                 <button id="floating-eval-back-btn" onclick="returnToSubmissions(${tIdx})" style="position: fixed; top: 130px; left: 24px; z-index: 9999; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; padding: 10px 16px; font-weight: 600; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;">
                     <i class="ti ti-arrow-left"></i> Back
