@@ -270,15 +270,32 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-//🔥 SMART MATH RENDERER TRIGGER (BULLETPROOF VERSION) 🔥
+// 🔥 SMART MATH RENDERER (FLICKER-FREE VERSION) 🔥
 window.renderMath = function() {
-    setTimeout(() => {
-        if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
-            // Pehle engine ki purani memory clear karo (Taaki Next Q me overlap na ho)
-            MathJax.typesetClear();
-            
-            // Phir page par naye equations ko dhoondh kar render kar do
-            MathJax.typesetPromise().catch((err) => console.log('MathJax Engine Error:', err));
-        }
-    }, 150); // 150ms delay is perfect for DOM drawing
+    // 1. Math render hone se pehle question areas ko chupao (Opacity 0)
+    let targetAreas = document.querySelectorAll('.q-area, .q-review-card, #ai-solution-box, #ai-options-container');
+    targetAreas.forEach(el => {
+        el.style.transition = 'none'; // Pehle transition off karo taaki turant chhupe
+        el.style.opacity = '0';
+    });
+
+    if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+        MathJax.typesetClear();
+        
+        // 2. MathJax ko bina kisi delay (setTimeout) ke turant run karo
+        MathJax.typesetPromise().then(() => {
+            // 3. Jaise hi math perfect ban jaye, question ko smoothly fade-in kar do
+            targetAreas.forEach(el => {
+                el.style.transition = 'opacity 0.2s ease-in';
+                el.style.opacity = '1';
+            });
+        }).catch((err) => {
+            console.log('MathJax Engine Error:', err);
+            // Agar koi error aaye toh bhi content dikha do, atakna nahi chahiye
+            targetAreas.forEach(el => el.style.opacity = '1'); 
+        });
+    } else {
+        // Agar MathJax load nahi hua hai, toh simply content dikha do
+        targetAreas.forEach(el => el.style.opacity = '1');
+    }
 };
