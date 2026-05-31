@@ -715,29 +715,52 @@ textarea { min-height: 80px; resize: vertical; }
     padding-bottom: 50vh !important; 
 }
 
-/* ==========================================
-   📱 EXAMINER UI POLISH & MOBILE FIXES (100% COMPLETE)
-   ========================================== */
-
-/* 🔥 "My Managed Tests" Hider (Detail view open hote hi hide karega) */
-body.detail-mode-active #page-tests > *:not(#test-list-area) {
-    display: none !important;
-}
-
 @media (max-width: 768px) {
-    /* 0. Master List Dashboard Cards (Ye miss ho gaya tha pichli baar!) */
+    /* 0. Master List Dashboard Cards */
     .mobile-card-stack { flex-direction: column !important; align-items: flex-start !important; gap: 12px; }
     .mobile-card-stack > div { width: 100% !important; }
     .mobile-chevron { display: none !important; }
 
-    /* 1. Header Card Tweaks (Neet 3, Code, Marks) */
-    .mobile-stats-header { padding: 1rem !important; flex-direction: column !important; }
-    .mobile-stats-header > div { width: 100%; align-items: flex-start !important; }
-    .mobile-stats-header h2 { font-size: 20px !important; margin-bottom: 6px !important; }
-    .mobile-stats-header p { font-size: 13px !important; display: flex; flex-wrap: wrap; gap: 6px; line-height: 1.4 !important; }
-    .mobile-stats-header .badge { font-size: 12px !important; padding: 4px 8px !important; }
-    .mobile-badge-wrap { width: 100%; margin-top: 8px !important; }
+    /* 1. Header Card Tweaks (Alignment & Text Size Fix) */
+    .mobile-stats-header { 
+        padding: 1.25rem 1rem !important; 
+        flex-direction: column !important; 
+        position: relative !important; /* Top-right dot ke liye zaroori hai */
+    }
+    .mobile-stats-header > div { width: 100%; align-items: flex-start !important; padding-right: 20px !important; }
+    .mobile-stats-header h2 { font-size: 20px !important; margin-bottom: 8px !important; padding-right: 15px !important; }
     
+    /* Code, Mins, Marks wrapping smartly */
+    .mobile-stats-header p { 
+        font-size: 13.5px !important; 
+        line-height: 1.8 !important; 
+        display: block !important; 
+        color: #475569 !important;
+    }
+    
+    /* 🔥 MAGIC FIX: Convert 'Live Accepting' to a Top-Right Dot */
+    .mobile-badge-wrap { 
+        position: absolute !important; 
+        top: 22px !important; 
+        right: 18px !important; 
+        margin: 0 !important; 
+        width: auto !important; 
+    }
+    #header-status-badge {
+        font-size: 0 !important; /* Text gayab kar dega */
+        padding: 0 !important; 
+        background: transparent !important; 
+        border: none !important;
+        width: auto !important;
+        height: auto !important;
+    }
+    #header-status-badge span {
+        width: 12px !important; 
+        height: 12px !important; 
+        margin: 0 !important; 
+        position: relative !important;
+    }
+
     .mobile-tabs { padding-bottom: 10px !important; }
     
     /* 2. Submissions Ledger Search & Buttons */
@@ -745,32 +768,32 @@ body.detail-mode-active #page-tests > *:not(#test-list-area) {
     .mobile-subs-actions-wrap > div, .mobile-subs-actions-wrap button { width: 100% !important; max-width: 100% !important; justify-content: center !important; }
     .mobile-subs-actions-wrap input { width: 100% !important; box-sizing: border-box !important; }
     
-    /* 3. Submissions Item Shrink (Evaluate & Score) */
+    /* 3. Submissions Item Shrink */
     .mobile-sub-item { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; padding: 12px !important; }
-    .mobile-sub-item > div:first-child > div:last-child > div:first-child { font-size: 14px !important; } /* Student Name smaller */
-    .mobile-sub-item > div:first-child > div:last-child > div:last-child { font-size: 12px !important; } /* Roll smaller */
+    .mobile-sub-item > div:first-child > div:last-child > div:first-child { font-size: 14px !important; } 
+    .mobile-sub-item > div:first-child > div:last-child > div:last-child { font-size: 12px !important; } 
     
     .mobile-sub-actions { width: 100% !important; justify-content: space-between !important; flex-direction: row !important; border-top: 1px dashed #e2e8f0 !important; padding-top: 10px !important; }
     .mobile-sub-actions > div { text-align: left !important; }
-    .mobile-sub-actions > div > div:first-child { font-size: 16px !important; } /* Score Text smaller */
-    .mobile-sub-actions button { padding: 8px 12px !important; font-size: 13px !important; flex-shrink: 0 !important; } /* Evaluate button shrink */
+    .mobile-sub-actions > div > div:first-child { font-size: 16px !important; } 
+    .mobile-sub-actions button { padding: 8px 12px !important; font-size: 13px !important; flex-shrink: 0 !important; } 
 
     /* 4. The Back Button Fix (Upar shift aur spacing kam) */
     #student-result {
-        padding-top: 55px !important; /* Extra spacing removed */
+        padding-top: 40px !important; /* 🔥 Faltu space hata di hai */
         position: relative !important;
     }
     #floating-eval-back-btn {
         position: absolute !important; 
-        top: 8px !important; /* Upar move ho gaya */
+        top: 5px !important; /* 🔥 Button ko aur upar khiska diya hai */
         left: 12px !important;
-        width: 36px !important; /* Chota kar diya */
+        width: 36px !important; 
         height: 36px !important;
         padding: 0 !important;
         border-radius: 50% !important;
         justify-content: center !important;
         z-index: 99 !important;
     }
-    #floating-eval-back-btn .btn-text { display: none !important; } /* Mobile par text gayab */
+    #floating-eval-back-btn .btn-text { display: none !important; } 
     #floating-eval-back-btn i { margin: 0 !important; font-size: 18px !important; }
 }
