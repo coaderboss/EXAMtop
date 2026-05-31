@@ -120,18 +120,11 @@ function renderTestList() {
 // 🎛️ TEST COMMAND CENTER LOGIC
 // ==========================================
 
-window.openTestDashboard = function(idx) {
-    // 🔥 FIX 1: Hide surrounding titles (e.g., "My Managed Tests") dynamically
-    var container = document.getElementById('test-list-area');
-    if(container && container.parentNode) {
-        Array.from(container.parentNode.children).forEach(child => {
-            if(child.id !== 'test-list-area') {
-                child.setAttribute('data-old-display', child.style.display || '');
-                child.style.display = 'none';
-            }
-        });
-    }
+// ==========================================
+// 🎛️ TEST COMMAND CENTER LOGIC
+// ==========================================
 
+window.openTestDashboard = function(idx) {
     var t = tests[idx];
     var isLive = t.isActive !== false;
     var subCount = t.submissions ? Object.keys(t.submissions).length : 0;
@@ -140,10 +133,6 @@ window.openTestDashboard = function(idx) {
     var statusText = isLive ? 'Close Exam Intake' : 'Open Exam Intake';
     var statusBg = isLive ? '#FCEBEB' : '#EAF3DE';
     var statusColor = isLive ? '#A32D2D' : '#3B6D11';
-
-    var currentUrl = window.location.href.split('#')[0];
-    var shareLink = currentUrl + '#student?code=' + t.code;
-    var shareText = `*${t.title}* is now live!\n\n🕒 *Time:* ${t.duration} Mins\n💯 *Marks:* ${t.totalMarks}\n🔑 *Test Code:* ${t.code}\n\nClick the link below to join directly:\n${shareLink}`;
 
     var expiryBadge = '';
     if (t.expiryDate) {
@@ -192,10 +181,10 @@ window.openTestDashboard = function(idx) {
 
                     <h3 style="font-size:16px; color:#0f172a; margin-bottom:1.25rem; display:flex; align-items:center; gap:8px;"><i class="ti ti-share" style="color:#10B981;"></i> 1-Click Share & Invite</h3>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; background:#dcf8c6; color:#075e54; border:1px solid #25d366;" onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('${shareText}'), '_blank')">
+                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; background:#dcf8c6; color:#075e54; border:1px solid #25d366;" onclick="shareTest(${idx}, 'whatsapp')">
                             <i class="ti ti-brand-whatsapp" style="font-size:20px;"></i> WhatsApp
                         </button>
-                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; background:#e0f2fe; color:#0284c7; border:1px solid #38bdf8;" onclick="window.open('https://t.me/share/url?url=&text=' + encodeURIComponent('${shareText}'), '_blank')">
+                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; background:#e0f2fe; color:#0284c7; border:1px solid #38bdf8;" onclick="shareTest(${idx}, 'telegram')">
                             <i class="ti ti-brand-telegram" style="font-size:20px;"></i> Telegram
                         </button>
                     </div>
@@ -652,7 +641,6 @@ function renderAllResults(){
 window.printTestPaper = function(idx) {
     var t = tests[idx];
     
-    // Create a clean HTML layout for printing
     var printHtml = `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; color: #000;">
             <div style="text-align:center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px;">
@@ -697,13 +685,36 @@ window.printTestPaper = function(idx) {
         </div>
     `;
     
-    // Nayi hidden window me kholkar usko seedha print karne ka command do
-    var printWindow = window.open('', '_blank');
-    printWindow.document.write('<html><head><title>Print: ' + t.title + '</title></head>');
-    printWindow.document.write('<body onload="window.print(); setTimeout(function(){window.close();}, 500);">');
-    printWindow.document.write(printHtml);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
+    // 🔥 THE FIX: Zero-Refresh Iframe Printing
+    var iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    
+    document.body.appendChild(iframe);
+    
+    var doc = iframe.contentWindow || iframe.contentDocument;
+    if (doc.document) doc = doc.document;
+    
+    doc.open();
+    doc.write('<html><head><title>Print: ' + t.title + '</title></head><body>');
+    doc.write(printHtml);
+    doc.write('</body></html>');
+    doc.close();
+
+    // Halka sa delay de rahe hain taaki agar koi image ho test me toh wo load ho jaye
+    setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        
+        // Print window aane ke baad kachra saaf kar do
+        setTimeout(() => {
+            document.body.removeChild(iframe);
+        }, 1000);
+    }, 500);
 };
 
 // 🔥 NAYA: Direct DOM Updater jisse Blink nahi hoga
@@ -763,4 +774,20 @@ window.returnToSubmissions = function(testIdx) {
     // Set memory flag and change page (piche sab loading screen ke andar chup kar ho raha hai)
     window.pendingTestDashboard = testIdx;
     nav('tests');
+};
+
+// 🔥 NAYA: Safe WhatsApp/Telegram sharing logic
+window.shareTest = function(idx, platform) {
+    var t = tests[idx];
+    var currentUrl = window.location.href.split('#')[0];
+    var shareLink = currentUrl + '#student?code=' + t.code;
+    
+    // Exact formatting waisi hi ayegi
+    var shareText = `*${t.title}* is now live!\n\n🕒 *Time:* ${t.duration} Mins\n💯 *Marks:* ${t.totalMarks}\n🔑 *Test Code:* ${t.code}\n\nClick the link below to join directly:\n${shareLink}`;
+    
+    if (platform === 'whatsapp') {
+        window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(shareText), '_blank');
+    } else if (platform === 'telegram') {
+        window.open('https://t.me/share/url?url=&text=' + encodeURIComponent(shareText), '_blank');
+    }
 };
