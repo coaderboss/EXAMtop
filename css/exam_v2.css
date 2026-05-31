@@ -777,24 +777,31 @@ textarea { min-height: 80px; resize: vertical; }
     .mobile-sub-actions > div { text-align: left !important; }
     .mobile-sub-actions > div > div:first-child { font-size: 16px !important; } 
     .mobile-sub-actions button { padding: 8px 12px !important; font-size: 13px !important; flex-shrink: 0 !important; } 
-
-    /* 4. The Back Button Fix (Upar ka gap khatam, neeche ka wapas laya) */
+/* 4. The Back Button Fix (Native App Style, Non-Floating) */
     #student-result {
-        margin-top: -7px !important; /* 🔥 Ye poore block ko upar Navbar ki taraf kheechega */
-        padding-top: 45px !important; /* 🔥 Ye button aur blue card ke beech ka gap wapas laayega */
-        position: relative !important;
+        padding-top: 0 !important; /* 🔥 Student ke liye faltu space saaf */
+        margin-top: 0 !important;  /* 🔥 Upar ka gap pehle jaisa normal */
     }
+
     #floating-eval-back-btn {
-        position: absolute !important; 
-        top: 5px !important; /* Button ko upar set kiya */
-        left: 10px !important;
-        width: 38px !important; 
-        height: 38px !important;
-        padding: 0 !important;
-        border-radius: 50% !important;
-        justify-content: center !important;
-        z-index: 99 !important;
+        position: static !important; /* 🔥 Hawa me float nahi karega, page ka hissa ban jayega */
+        display: inline-flex !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 0 15px 0 !important;
+        width: auto !important;
+        height: auto !important;
+        margin: 0 !important;
     }
-    #floating-eval-back-btn .btn-text { display: none !important; } 
-    #floating-eval-back-btn i { margin: 0 !important; font-size: 20px !important; }
+
+    #floating-eval-back-btn i {
+        font-size: 24px !important;
+        color: #185FA5 !important; /* Justdial jaisa clean blue arrow */
+        margin: 0 !important;
+    }
+
+    #floating-eval-back-btn .btn-text { 
+        display: none !important; 
+    }
 }
