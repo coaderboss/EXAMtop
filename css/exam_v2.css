@@ -780,7 +780,7 @@ textarea { min-height: 80px; resize: vertical; }
 
     /* 4. The Back Button Fix (Upar ka gap khatam, neeche ka wapas laya) */
     #student-result {
-        margin-top: -15px !important; /* 🔥 Ye poore block ko upar Navbar ki taraf kheechega */
+        margin-top: -7px !important; /* 🔥 Ye poore block ko upar Navbar ki taraf kheechega */
         padding-top: 45px !important; /* 🔥 Ye button aur blue card ke beech ka gap wapas laayega */
         position: relative !important;
     }
