@@ -1,61 +1,337 @@
 // ==========================================
 // EXAMINER: DASHBOARD & GRAPHICAL ANALYTICS
 // ==========================================
+// ==========================================
+// 1. RENDER TEST LIST (ANTI-JUMP & SMOOTH TRANSITION FIX)
+// ==========================================
+function renderTestList() {
+    var container = document.getElementById('test-list-area');
+    if(!container) return;
 
-function renderTestList(){
-  var c = document.getElementById('test-list-area');
-  
-  if(!isOfflineMode && !currentUser) { 
-      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view your managed tests.</div></div>`; 
-      return; 
-  }
-  
-  var myTests = isOfflineMode ? tests : tests.filter(t => t.creatorUid === currentUser.uid);
-  
-  if(!myTests.length){ 
-      c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-clipboard-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No tests created yet.</div></div>`; 
-      return; 
-  }
-  
-  var html = `<div style="display:flex; flex-direction:column; gap:16px; width:100%;">`;
-  
-  html += myTests.map((t) => {
-    var origIdx = tests.findIndex(x => x.id === t.id);
-    var isTestActive = t.isActive !== false; 
-    var statusColor = isTestActive ? '#3B6D11' : '#A32D2D';
-    var statusBg = isTestActive ? '#EAF3DE' : '#FCEBEB';
-    var statusIcon = isTestActive ? 'ti-door-enter' : 'ti-door-exit';
-    var statusText = isTestActive ? 'Close Intake' : 'Open Intake';
-    var statusBadge = isTestActive ? '<span class="badge b-green"><i class="ti ti-activity"></i> Accepting</span>' : '<span class="badge b-red"><i class="ti ti-lock"></i> Intake Closed</span>';
+    var cUid = null;
+    var cEmail = null;
+    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+        cUid = firebase.auth().currentUser.uid;
+        cEmail = firebase.auth().currentUser.email;
+    } else if (typeof currentUser !== 'undefined' && currentUser) {
+        cUid = currentUser.uid || null;
+        cEmail = currentUser.email || null;
+    }
 
-    return `
-    <div class="test-entry" style="${!isTestActive ? 'opacity:0.85; border-left:4px solid #A32D2D;' : 'border-left:4px solid #3B6D11;'} display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; padding:1.25rem 1.5rem; background:#fff; border-radius:12px; border:1px solid var(--color-border-secondary); box-shadow:0 2px 8px rgba(0,0,0,0.04);">
-      <div class="te-meta" style="flex:1; min-width:250px;">
-        <div style="font-weight:600;font-size:16px;color:var(--color-text-primary)">${t.title}</div>
-        <div style="font-size:13px;color:var(--color-text-secondary)">${t.subject||'No Subject'} &bull; ${t.questions.length} Questions &bull; ${t.duration} Mins</div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap; align-items:center;">
-          <span class="badge b-blue" style="cursor:pointer" onclick="copyToClip('${t.code}')" title="Click to copy code"><i class="ti ti-hash" style="font-size:12px"></i> ${t.code}</span>
-          <span class="badge b-gray">${t.submissions ? t.submissions.length : 0} Submissions</span>
-          ${t.resultVis==='manual' ? (t.released?'<span class="badge b-amber">Results Released</span>':'<span class="badge b-gray">Evaluation Pending</span>') : '<span class="badge b-purple">Instant Results</span>'}
-          ${statusBadge}
+    var masterView = document.getElementById('tests-master-view');
+    var detailView = document.getElementById('test-detail-view');
+    
+    // Check if detail view is currently open
+    var isDetailOpen = detailView && detailView.style.display === 'block';
+    
+    if (!masterView || !detailView) {
+        container.innerHTML = `
+            <div id="tests-master-view" style="display:flex; flex-direction:column; gap:16px; animation: fadeIn 0.3s ease;"></div>
+            <div id="test-detail-view" style="display:none; animation: fadeIn 0.3s ease;"></div>
+        `;
+        masterView = document.getElementById('tests-master-view');
+        detailView = document.getElementById('test-detail-view');
+    }
+
+    let html = '';
+    let renderedCount = 0; 
+
+    tests.forEach((t, i) => {
+        let isMine = false;
+        let testString = JSON.stringify(t); 
+        
+        if (cUid && testString.includes(cUid)) isMine = true;
+        if (cEmail && testString.includes(cEmail)) isMine = true;
+        if (!isMine) return; 
+
+        renderedCount++;
+        
+        let subCount = (t.submissions && Array.isArray(t.submissions)) ? t.submissions.length : (t.submissions ? Object.keys(t.submissions).length : 0);
+        let isLive = t.isActive !== false; 
+        
+        let pulseHtml = isLive 
+            ? `<div style="display:flex; align-items:center; gap:6px; background:#d1fae5; padding:4px 10px; border-radius:20px;"><span style="display:block; width:8px; height:8px; background:#10B981; border-radius:50%; box-shadow: 0 0 8px #10B981; animation: pulse 1.5s infinite;"></span><span style="color:#065f46; font-weight:700; font-size:12px; letter-spacing:0.5px; text-transform:uppercase;">Live</span></div>` 
+            : `<div style="display:flex; align-items:center; gap:6px; background:#f1f5f9; padding:4px 10px; border-radius:20px;"><span style="display:block; width:8px; height:8px; background:#94a3b8; border-radius:50%;"></span><span style="color:#64748b; font-weight:600; font-size:12px; letter-spacing:0.5px; text-transform:uppercase;">Closed</span></div>`;
+
+        html += `
+        <div class="card" style="cursor:pointer; padding: 1.5rem; display:flex; justify-content:space-between; align-items:center; transition: all 0.2s ease; border-left: 4px solid ${isLive ? '#10B981' : '#cbd5e1'};" onclick="openTestDashboard(${i})" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.06)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.04)';">
+            <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                    <h3 style="margin:0; color:#0f172a; font-size:18px; font-weight:700;">${t.title}</h3>
+                    ${pulseHtml}
+                </div>
+                <div style="font-size:14px; color:#64748b; margin-bottom:12px; font-weight:500;">
+                    <i class="ti ti-book"></i> ${t.subject || 'General'} &nbsp;&bull;&nbsp; <i class="ti ti-list-numbers"></i> ${t.questions.length} Qs &nbsp;&bull;&nbsp; <i class="ti ti-clock"></i> ${t.duration} Mins
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <span class="badge b-blue" style="font-family:monospace; font-size:14px; padding:6px 12px; background:#EEEDFE; color:#3C3489; border:1px solid #CECBF6;"><i class="ti ti-hash"></i> ${t.code}</span>
+                    <span class="badge b-gray" style="padding:6px 12px;"><i class="ti ti-users"></i> ${subCount} Submissions</span>
+                </div>
+            </div>
+            <div style="padding-left:20px; color:#185FA5;">
+                <div style="width:40px; height:40px; border-radius:50%; background:#E6F1FB; display:flex; align-items:center; justify-content:center; transition:0.2s;">
+                    <i class="ti ti-chevron-right" style="font-size:20px;"></i>
+                </div>
+            </div>
+        </div>`;
+    });
+    
+    if(renderedCount === 0) {
+        masterView.innerHTML = `
+        <div class="card" style="text-align:center; padding: 4rem 1rem; border:1px dashed #cbd5e1; background:transparent;">
+            <i class="ti ti-folder-off" style="font-size:56px; color:#cbd5e1; margin-bottom:1rem; display:block;"></i>
+            <h3 style="color:#475569; font-size:20px; margin-bottom:8px;">Vault is Empty</h3>
+            <p style="color:#94a3b8; font-size:15px;">You haven't created any tests yet. Go to the 'Create' tab to build your first exam.</p>
+        </div>`;
+    } else {
+        masterView.innerHTML = html; // List background me update ho jayegi
+    }
+
+    // 🔥 THE FIX: Smooth Return aur Anti-Jump Logic
+    if (typeof window.pendingTestDashboard !== 'undefined' && window.pendingTestDashboard !== null) {
+        let targetIdx = window.pendingTestDashboard;
+        window.pendingTestDashboard = null; 
+        
+        masterView.style.display = 'none'; 
+        
+        setTimeout(() => {
+            if(typeof openTestDashboard === 'function') {
+                openTestDashboard(targetIdx);
+                if(typeof switchTestTab === 'function') switchTestTab('subs');
+            }
+            
+            // Background me page ready hone ke baad, loading screen ko smoothly fade out karo
+            var loader = document.getElementById('transition-loader');
+            if(loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 300); // Fade effect delay
+            }
+        }, 100);
+        
+    } else {
+        // 🔥 ANTI-JUMP FIX: Agar pehle se Dashboard andar se khula hai, toh Master list ko zabardasti screen par mat laao!
+        if (!isDetailOpen) {
+            masterView.style.display = 'flex'; 
+        }
+    }
+}
+
+// ==========================================
+// 🎛️ TEST COMMAND CENTER LOGIC
+// ==========================================
+
+window.openTestDashboard = function(idx) {
+    // 🔥 FIX 1: Hide surrounding titles (e.g., "My Managed Tests") dynamically
+    var container = document.getElementById('test-list-area');
+    if(container && container.parentNode) {
+        Array.from(container.parentNode.children).forEach(child => {
+            if(child.id !== 'test-list-area') {
+                child.setAttribute('data-old-display', child.style.display || '');
+                child.style.display = 'none';
+            }
+        });
+    }
+
+    var t = tests[idx];
+    var isLive = t.isActive !== false;
+    var subCount = t.submissions ? Object.keys(t.submissions).length : 0;
+    
+    var statusIcon = isLive ? 'ti-lock' : 'ti-door-enter';
+    var statusText = isLive ? 'Close Exam Intake' : 'Open Exam Intake';
+    var statusBg = isLive ? '#FCEBEB' : '#EAF3DE';
+    var statusColor = isLive ? '#A32D2D' : '#3B6D11';
+
+    var currentUrl = window.location.href.split('#')[0];
+    var shareLink = currentUrl + '#student?code=' + t.code;
+    var shareText = `*${t.title}* is now live!\n\n🕒 *Time:* ${t.duration} Mins\n💯 *Marks:* ${t.totalMarks}\n🔑 *Test Code:* ${t.code}\n\nClick the link below to join directly:\n${shareLink}`;
+
+    var expiryBadge = '';
+    if (t.expiryDate) {
+        var dateObj = new Date(t.expiryDate);
+        var formattedDate = !isNaN(dateObj) ? dateObj.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : t.expiryDate;
+        expiryBadge = `<div style="display:inline-flex; align-items:center; gap:6px; background:#fffbeb; color:#b45309; padding:4px 10px; border-radius:6px; font-size:13px; font-weight:600; border:1px solid #fde68a; margin-top:8px;"><i class="ti ti-alarm"></i> Deadline: ${formattedDate}</div>`;
+    }
+
+    var detailHtml = `
+        <button class="btn btn-ghost" style="margin-bottom:1.25rem; padding:0; font-size:15px; color:#475569; font-weight:600;" onclick="closeTestDashboard()">
+            <i class="ti ti-arrow-left"></i> Back to Vault
+        </button>
+
+        <div class="card" style="border-top: 4px solid #185FA5; padding: 1.5rem 2rem; margin-bottom: 1.5rem; background: linear-gradient(to right, #ffffff, #f8fafc);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:15px;">
+                <div>
+                    <h2 style="margin:0 0 8px 0; color:#0f172a; font-size:24px; font-weight:800;">${t.title}</h2>
+                    <p style="margin:0; color:#475569; font-size:15px; font-weight:500;">
+                        Code: <span style="background:#EEEDFE; color:#3C3489; padding:2px 8px; border-radius:4px; font-family:monospace; font-size:16px; font-weight:bold; letter-spacing:1px; border:1px solid #CECBF6;">${t.code}</span> &nbsp;&bull;&nbsp; ${t.duration} Mins &nbsp;&bull;&nbsp; ${t.totalMarks} Marks
+                    </p>
+                    ${expiryBadge}
+                </div>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+                    <div id="header-status-badge" style="display:flex; align-items:center; gap:8px; background:${isLive ? '#d1fae5' : '#f1f5f9'}; padding:8px 16px; border-radius:30px; font-size:14px; font-weight:700; color:${isLive ? '#065f46' : '#475569'}; border: 1px solid ${isLive ? '#34d399' : '#cbd5e1'};">
+                        ${isLive ? '<span style="width:10px; height:10px; background:#10B981; border-radius:50%; box-shadow:0 0 8px #10B981; animation:pulse 1s infinite;"></span> Live Accepting' : '<span style="width:10px; height:10px; background:#94a3b8; border-radius:50%;"></span> Intake Locked'}
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-      
-      <div class="te-actions" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;">
-        <button class="btn btn-sm btn-ghost" style="border: 1px solid #cbd5e1; color: #475569; font-weight:600;" onclick="printTestPaper(${origIdx})"><i class="ti ti-printer"></i> Print Paper</button>
-        <button class="btn btn-sm" onclick="autoJoinLocalTest('${t.code}')"><i class="ti ti-player-play"></i> Self-Test</button>      
-        <button class="btn btn-sm btn-blue" onclick="viewSubmissions(${origIdx})"><i class="ti ti-users"></i> Submissions</button>
-        <button class="btn btn-sm" style="background:#EEEDFE; color:#3C3489; border-color:#CECBF6; font-weight:600;" onclick="openAnalytics(${origIdx})"><i class="ti ti-chart-pie"></i> Deep Analytics</button>
-        <button class="btn btn-sm" style="background:#FAEEDA; color:#854F0B; border-color:#FAC775;" onclick="openEditKeyModal(${origIdx})"><i class="ti ti-key"></i> Edit Key</button>
-        <button class="btn btn-sm" style="background:${statusBg}; color:${statusColor}; border-color:${statusColor}; font-weight:600;" onclick="toggleTestStatus(${origIdx})"><i class="ti ${statusIcon}"></i> ${statusText}</button>
-        ${!t.released && t.resultVis==='manual' ? `<button class="btn btn-sm btn-success" onclick="releaseRes(${origIdx})"><i class="ti ti-send"></i> Publish</button>` : ''}
-        <button class="btn btn-sm btn-danger" onclick="delTest(${origIdx})" title="Delete Test"><i class="ti ti-trash"></i></button>
-      </div>
-    </div>`;
-  }).join('');
-  
-  html += `</div>`;
-  c.innerHTML = html;
+
+        <div style="display:flex; gap:10px; margin-bottom: 1.5rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; overflow-x: auto;">
+            <button id="tab-btn-overview" class="btn btn-ghost active" style="font-size:15px; font-weight:600; color:#185FA5; background:#E6F1FB; border-radius:8px; padding:10px 20px;" onclick="switchTestTab('overview')"><i class="ti ti-dashboard"></i> Overview & Settings</button>
+            <button id="tab-btn-subs" class="btn btn-ghost" style="font-size:15px; font-weight:600; color:#64748b; padding:10px 20px;" onclick="switchTestTab('subs')"><i class="ti ti-users"></i> Student Submissions <span class="badge b-gray" style="margin-left:8px; background:#cbd5e1; color:#0f172a;">${subCount}</span></button>
+        </div>
+
+        <div id="tab-content-overview">
+            <div class="grid2">
+                <div class="card" style="border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.03);">
+                    <h3 style="font-size:16px; color:#0f172a; margin-bottom:1.25rem; display:flex; align-items:center; gap:8px;"><i class="ti ti-tool" style="color:#185FA5;"></i> Essential Tools</h3>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:2rem;">
+                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; border-color:#cbd5e1;" onclick="autoJoinLocalTest('${t.code}')"><i class="ti ti-player-play text-blue"></i> Demo Test</button>
+                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; border-color:#cbd5e1;" onclick="window.printTestPaper(${idx})"><i class="ti ti-printer"></i> Print Paper</button>
+                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; background:#FAEEDA; color:#854F0B; border-color:#FAC775;" onclick="openEditKeyModal(${idx})"><i class="ti ti-key"></i> Edit Key</button>
+                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; background:#EEEDFE; color:#3C3489; border-color:#CECBF6;" onclick="openAnalytics(${idx})"><i class="ti ti-chart-pie"></i> Analytics</button>
+                    </div>
+
+                    <h3 style="font-size:16px; color:#0f172a; margin-bottom:1.25rem; display:flex; align-items:center; gap:8px;"><i class="ti ti-share" style="color:#10B981;"></i> 1-Click Share & Invite</h3>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; background:#dcf8c6; color:#075e54; border:1px solid #25d366;" onclick="window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent('${shareText}'), '_blank')">
+                            <i class="ti ti-brand-whatsapp" style="font-size:20px;"></i> WhatsApp
+                        </button>
+                        <button class="btn" style="justify-content:center; padding:12px; font-weight:600; background:#e0f2fe; color:#0284c7; border:1px solid #38bdf8;" onclick="window.open('https://t.me/share/url?url=&text=' + encodeURIComponent('${shareText}'), '_blank')">
+                            <i class="ti ti-brand-telegram" style="font-size:20px;"></i> Telegram
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card" style="border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.03);">
+                    <h3 style="font-size:16px; color:#0f172a; margin-bottom:1.25rem; display:flex; align-items:center; gap:8px;"><i class="ti ti-settings" style="color:#64748b;"></i> Access Controls</h3>
+                    <button id="btn-toggle-status" class="btn" style="width:100%; justify-content:center; padding:14px; font-size:15px; margin-bottom:12px; background:${statusBg}; color:${statusColor}; border:1px solid ${statusColor}; font-weight:700;" onclick="toggleTestStatus(${idx})">
+                        <i class="ti ${statusIcon}"></i> ${statusText}
+                    </button>
+                    ${!t.released && t.resultVis==='manual' ? `<button class="btn btn-success" style="width:100%; justify-content:center; padding:12px; font-weight:600; margin-bottom:12px;" onclick="releaseRes(${idx})"><i class="ti ti-send"></i> Publish Results Manually</button>` : ''}
+                    
+                    <div style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px dashed #F7C1C1;">
+                        <h3 style="font-size:16px; color:#A32D2D; margin-bottom:8px; display:flex; align-items:center; gap:8px;"><i class="ti ti-alert-triangle"></i> Danger Zone</h3>
+                        <p style="font-size:13px; color:#64748b; margin-bottom:15px; line-height:1.5;">Deleting a test is irreversible. All associated student submissions and analytics will be permanently erased.</p>
+                        <button class="btn btn-danger" style="width:100%; justify-content:center; padding:12px; font-weight:600;" onclick="if(confirm('Are you absolutely sure?')){ executeDeleteTest(${idx}); closeTestDashboard(); }"><i class="ti ti-trash"></i> Delete Entire Test</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-content-subs" style="display:none; animation: fadeIn 0.3s ease;">
+            <div class="card" style="border-radius:12px; padding:2rem; box-shadow:0 4px 15px rgba(0,0,0,0.03);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:15px;">
+                    <h3 style="margin:0; font-size:18px; color:#0f172a; font-weight:700;">Submissions Ledger</h3>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                        <button class="btn btn-success" style="padding:10px 16px; font-weight:600; border-radius:8px;" onclick="exportToCSV(${t.id})">
+                            <i class="ti ti-file-spreadsheet"></i> Export CSV
+                        </button>
+                        <div style="position:relative; width:280px; max-width:100%;">
+                            <i class="ti ti-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:18px;"></i>
+                            <input type="text" id="sub-search-input" placeholder="Search by Student Name or Roll No..." style="padding:10px 10px 10px 40px; width:100%; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc;" onkeyup="filterSubmissionsList()">
+                        </div>
+                    </div>
+                </div>
+                <div id="subs-dynamic-list" style="max-height: 500px; overflow-y: auto; padding-right:5px;"></div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('tests-master-view').style.display = 'none';
+    var detailView = document.getElementById('test-detail-view');
+    detailView.innerHTML = detailHtml;
+    detailView.style.display = 'block';
+    
+    buildSmartSubmissionsList(t, idx);
+};
+
+window.closeTestDashboard = function() {
+    document.getElementById('test-detail-view').style.display = 'none';
+    document.getElementById('test-detail-view').innerHTML = '';
+    document.getElementById('tests-master-view').style.display = 'flex';
+    
+    // 🔥 FIX 2: Restore surrounding titles when returning to master list
+    var container = document.getElementById('test-list-area');
+    if(container && container.parentNode) {
+        Array.from(container.parentNode.children).forEach(child => {
+            if(child.id !== 'test-list-area') {
+                child.style.display = child.getAttribute('data-old-display') || '';
+            }
+        });
+    }
+    
+    renderTestList(); 
+}
+
+window.switchTestTab = function(tab) {
+    document.getElementById('tab-btn-overview').style.background = 'transparent';
+    document.getElementById('tab-btn-overview').style.color = '#64748b';
+    document.getElementById('tab-btn-subs').style.background = 'transparent';
+    document.getElementById('tab-btn-subs').style.color = '#64748b';
+    
+    document.getElementById('tab-content-overview').style.display = 'none';
+    document.getElementById('tab-content-subs').style.display = 'none';
+    
+    document.getElementById('tab-btn-' + tab).style.background = '#E6F1FB';
+    document.getElementById('tab-btn-' + tab).style.color = '#185FA5';
+    document.getElementById('tab-content-' + tab).style.display = 'block';
+}
+
+// 👥 Submissions List Builder (Untouched Logic Trigger)
+// 👥 Submissions List Builder (Array Corrected & Direct Evaluate Added)
+window.buildSmartSubmissionsList = function(t, tIdx) {
+    var container = document.getElementById('subs-dynamic-list');
+    
+    // Check array length properly
+    if(!t.submissions || t.submissions.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:3rem 1rem;">
+                <i class="ti ti-ghost" style="font-size:48px; color:#cbd5e1; margin-bottom:1rem; display:block;"></i>
+                <h4 style="color:#475569; margin-bottom:5px;">No Submissions Yet</h4>
+                <p style="color:#94a3b8; font-size:14px;">Students' copies will appear here once they start submitting.</p>
+            </div>`;
+        return;
+    }
+    
+    let html = `<div style="display:flex; flex-direction:column; gap:10px;">`;
+    
+    // Array loop (sIdx ab accurately pass hoga)
+    t.submissions.forEach((s, sIdx) => {
+        let scoreText = (s.evaluated || t.resultVis === 'instant') 
+            ? `<div style="text-align:right;"><div style="font-size:18px; font-weight:800; color:#185FA5;">${s.score} <span style="font-size:12px; font-weight:600; color:#94a3b8;">/ ${t.totalMarks}</span></div><div style="font-size:11px; color:#10B981; font-weight:600;">Evaluated</div></div>` 
+            : `<div style="text-align:right;"><div style="font-size:15px; font-weight:700; color:#f59e0b; margin-bottom:2px;"><i class="ti ti-clock"></i> Pending</div><div style="font-size:11px; color:#94a3b8;">Needs Check</div></div>`;
+        
+        html += `
+        <div class="sub-item" style="padding:15px; border-radius:10px; border:1px solid #e2e8f0; background:#fff; display:flex; justify-content:space-between; align-items:center; transition:0.2s;" data-name="${(s.name||'').toLowerCase()}" data-roll="${(s.roll||'').toLowerCase()}">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div style="width:40px; height:40px; border-radius:50%; background:#f1f5f9; color:#475569; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:16px;">
+                    ${(s.name||'A').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                    <div style="font-weight:700; color:#0f172a; font-size:15px; margin-bottom:2px;">${s.name}</div>
+                    <div style="font-size:13px; color:#64748b; font-family:monospace;">Roll: ${s.roll || 'N/A'}</div>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:20px;">
+                ${scoreText}
+                <button class="btn btn-primary" style="padding:10px 16px; font-weight:600; border-radius:8px;" onclick="showResultPageAsExaminer(${tIdx}, ${sIdx})"><i class="ti ti-eye"></i> Evaluate</button>
+            </div>
+        </div>`;
+    });
+    
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+window.filterSubmissionsList = function() {
+    var val = document.getElementById('sub-search-input').value.toLowerCase();
+    var items = document.querySelectorAll('.sub-item');
+    items.forEach(item => {
+        if(item.getAttribute('data-name').includes(val) || item.getAttribute('data-roll').includes(val)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
 }
 
 function openAnalytics(testIdx) {
@@ -155,11 +431,18 @@ function autoJoinLocalTest(code) {
 
 function toggleTestStatus(idx) { 
     if (tests[idx].isActive === undefined) tests[idx].isActive = true; 
+    
     tests[idx].isActive = !tests[idx].isActive; 
+    tests[idx].status = tests[idx].isActive ? 'open' : 'closed';
+    
+    // UI update turant karo, bina delay ke
+    if(typeof updateToggleUI === 'function') updateToggleUI(idx);
+    
+    // Background me database save hoga (Page redirect nahi marega)
     updateDatabase(); 
+    
     var msg = tests[idx].isActive ? 'Test is now OPEN for new submissions.' : 'Test intake CLOSED. No new students can enter.'; 
     showToast(msg, tests[idx].isActive ? 'success' : 'error'); 
-    renderTestList(); // NAYA FIX: Turant UI update hoga
 }
 
 // NAYA FIX: Premium Delete Popup with Safety Warning
@@ -210,23 +493,20 @@ function viewSubmissions(testIdx) {
   showModal(html);
 }
 
-// NAYA FIX: Async laga diya taaki script download hone ka wait kare
 function showResultPageAsExaminer(testIdx, sIdx) {
     var sub = tests[testIdx].submissions[sIdx];
     var t = tests[testIdx];
 
     nav('student');
 
-    // SMART POLLING for Examiner
     let checkExist = setInterval(async function() {
         var homeEl = document.getElementById('student-home');
         var testEl = document.getElementById('student-test');
         var resultEl = document.getElementById('student-result');
 
         if (homeEl && resultEl) {
-            clearInterval(checkExist); // Polling band karo
+            clearInterval(checkExist); 
 
-            // Badi Beharmi se Form chupao
             homeEl.style.display = 'none';
             if(testEl) testEl.style.display = 'none';
 
@@ -241,11 +521,19 @@ function showResultPageAsExaminer(testIdx, sIdx) {
 
                 setTimeout(() => {
                     _generateResultDOM(sub, t, true, testIdx, sIdx);
-                    // Double Security
-                    document.getElementById('student-home').style.display = 'none';
                     
+                    document.getElementById('student-home').style.display = 'none';
                     var mainHeader = document.querySelector('.app-header');
                     if(mainHeader) mainHeader.style.display = '';
+
+                    // 🔥 THE FIX: Position top: 110px kar diya hai (tum isko 120px ya 130px bhi kar sakte ho zaroorat padne par)
+                    var simpleBackBtn = `
+                        <button id="floating-eval-back-btn" onclick="returnToSubmissions(${testIdx})" style="position: fixed; top: 130px; left: 24px; z-index: 9999; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; padding: 10px 16px; font-weight: 600; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;">
+                            <i class="ti ti-arrow-left"></i> Back
+                        </button>
+                    `;
+                    resultEl.insertAdjacentHTML('afterbegin', simpleBackBtn);
+
                 }, 100);
 
             } catch(err) {
@@ -331,7 +619,24 @@ function confirmAndSaveEval() {
     sub.details.forEach(d => { newTotal += (d.earned || 0); if (d.status === 'skipped') newSkipped++; else if (d.earned > 0) newCorrect++; else if (d.earned < 0) newWrong++; else { if (d.q.type === 'subjective') newSkipped++; else newWrong++; } });
 
     sub.score = Number(newTotal.toFixed(2)); sub.correct = newCorrect; sub.wrong = newWrong; sub.skipped = newSkipped;
-    updateDatabase(); hideModal(); _generateResultDOM(sub, test, true, tIdx, sIdx); showToast('Marks Saved! Audit log securely recorded.', 'success'); window.tempEvalData = null; 
+    updateDatabase(); hideModal(); 
+    
+    _generateResultDOM(sub, test, true, tIdx, sIdx); 
+    
+    setTimeout(() => {
+        var resultEl = document.getElementById('student-result');
+        if(resultEl) {
+            // 🔥 THE FIX: Yahan bhi top: 110px aur left: 24px lagaya hai
+            var simpleBackBtn = `
+                <button id="floating-eval-back-btn" onclick="returnToSubmissions(${tIdx})" style="position: fixed; top: 130px; left: 24px; z-index: 9999; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; padding: 10px 16px; font-weight: 600; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;">
+                    <i class="ti ti-arrow-left"></i> Back
+                </button>
+            `;
+            resultEl.insertAdjacentHTML('afterbegin', simpleBackBtn);
+        }
+    }, 50);
+
+    showToast('Marks Saved! Audit log securely recorded.', 'success'); window.tempEvalData = null; 
 }
 
 function renderAllResults(){
@@ -399,4 +704,63 @@ window.printTestPaper = function(idx) {
     printWindow.document.write(printHtml);
     printWindow.document.write('</body></html>');
     printWindow.document.close();
+};
+
+// 🔥 NAYA: Direct DOM Updater jisse Blink nahi hoga
+window.updateToggleUI = function(idx) {
+    var t = tests[idx];
+    var isLive = t.isActive !== false;
+    
+    var btn = document.getElementById('btn-toggle-status');
+    if(btn) {
+        btn.innerHTML = `<i class="ti ${isLive ? 'ti-lock' : 'ti-door-enter'}"></i> ${isLive ? 'Close Exam Intake' : 'Open Exam Intake'}`;
+        btn.style.background = isLive ? '#FCEBEB' : '#EAF3DE';
+        btn.style.color = isLive ? '#A32D2D' : '#3B6D11';
+        btn.style.borderColor = isLive ? '#A32D2D' : '#3B6D11';
+    }
+
+    var badge = document.getElementById('header-status-badge');
+    if(badge) {
+        badge.innerHTML = isLive 
+            ? '<span style="width:10px; height:10px; background:#10B981; border-radius:50%; box-shadow:0 0 8px #10B981; animation:pulse 1s infinite;"></span> Live Accepting' 
+            : '<span style="width:10px; height:10px; background:#94a3b8; border-radius:50%;"></span> Intake Locked';
+        badge.style.background = isLive ? '#d1fae5' : '#f1f5f9';
+        badge.style.color = isLive ? '#065f46' : '#475569';
+        badge.style.borderColor = isLive ? '#34d399' : '#cbd5e1';
+    }
+}
+
+// 🔥 NAYA: Magic Return Function (With Memory Flag)
+window.returnToSubmissions = function(testIdx) {
+    // 🔥 NAYA FIX: Full Screen Loading Effect (Peeche ka kachra chupane ke liye)
+    var loader = document.createElement('div');
+    loader.id = 'transition-loader';
+    loader.innerHTML = `
+        <div class="spinner-container" style="transform: scale(1.2);">
+            <div class="spinner"></div>
+            <div style="margin-top:15px; font-weight:700; color:#185FA5; font-size:16px;">Opening Submissions...</div>
+        </div>
+    `;
+    loader.style = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:#f8fafc; z-index:999999; display:flex; align-items:center; justify-content:center; transition: opacity 0.3s ease;';
+    document.body.appendChild(loader);
+
+    // Clean up the floating button memory
+    var floatBtn = document.getElementById('floating-eval-back-btn');
+    if(floatBtn) floatBtn.remove();
+
+    var resultEl = document.getElementById('student-result');
+    if(resultEl) {
+        resultEl.innerHTML = '';
+        resultEl.style.display = 'none';
+        resultEl.classList.add('hidden');
+    }
+    
+    var homeEl = document.getElementById('student-home');
+    if(homeEl) {
+        homeEl.style.display = 'block'; 
+    }
+    
+    // Set memory flag and change page (piche sab loading screen ke andar chup kar ho raha hai)
+    window.pendingTestDashboard = testIdx;
+    nav('tests');
 };

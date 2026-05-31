@@ -28,7 +28,10 @@ function loadScript(src) {
 }
 
 // 3. Dynamic Page Loader Engine
-async function loadComponent(pageName) {
+async function loadComponent(pageNameRoute) {
+    // 🔥 FIX 1: URL Parameters (?code=...) ko alag karo taaki 404 Error na aaye
+    const pageName = pageNameRoute.split('?')[0]; 
+    
     const viewport = document.getElementById('app-viewport');
     
     // Show Loading Spinner while fetching
@@ -86,6 +89,18 @@ async function loadComponent(pageName) {
             if(pageName === 'admin' && typeof renderAdminDashboard === 'function') renderAdminDashboard();
             
             if(pageName === 'practice' && typeof fetchNewPracticeQ === 'function') fetchNewPracticeQ();
+
+            // 🔥 FIX 2: DEEP LINK AUTO-FILL MAGIC (WhatsApp se aane wale baccho ke liye)
+            if(pageName === 'student') {
+                var urlMatch = window.location.hash.match(/code=([^&]+)/);
+                var codeInput = document.getElementById('s-code');
+                if(urlMatch && urlMatch[1] && codeInput) {
+                    codeInput.value = urlMatch[1].toUpperCase();
+                    // Code auto-fill hone ke baad URL clean kar do taaki refresh par issue na ho
+                    window.history.replaceState(null, null, '#student');
+                }
+            }
+
         }, 500);
 
     } catch (error) {
@@ -140,11 +155,13 @@ window.nav = function(pageId) {
     window.location.hash = pageId;
     loadComponent(pageId);
     
-    // Update active state on nav tabs
+    // Update active state on nav tabs (Ignore URL params for tabs)
+    const basePage = pageId.split('?')[0];
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    var tab = document.querySelector(`.nav-tab[onclick="nav('${pageId}')"]`);
+    var tab = document.querySelector(`.nav-tab[onclick="nav('${basePage}')"]`);
     if(tab) tab.classList.add('active');
 };
+
 
 // 5. Initial Load Setup
 document.addEventListener('DOMContentLoaded', () => {
