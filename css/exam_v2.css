@@ -716,82 +716,61 @@ textarea { min-height: 80px; resize: vertical; }
 }
 
 /* ==========================================
-   📱 EXAMINER UI POLISH & MOBILE FIXES (FINAL STABLE)
+   📱 EXAMINER UI POLISH & MOBILE FIXES (100% COMPLETE)
    ========================================== */
 
+/* 🔥 "My Managed Tests" Hider (Detail view open hote hi hide karega) */
+body.detail-mode-active #page-tests > *:not(#test-list-area) {
+    display: none !important;
+}
+
 @media (max-width: 768px) {
-    /* 1. Dashboard Header & Cards Fixes */
+    /* 0. Master List Dashboard Cards (Ye miss ho gaya tha pichli baar!) */
     .mobile-card-stack { flex-direction: column !important; align-items: flex-start !important; gap: 12px; }
     .mobile-card-stack > div { width: 100% !important; }
     .mobile-chevron { display: none !important; }
 
-    .mobile-stats-header { flex-direction: column !important; padding: 1.25rem 1rem !important; }
+    /* 1. Header Card Tweaks (Neet 3, Code, Marks) */
+    .mobile-stats-header { padding: 1rem !important; flex-direction: column !important; }
     .mobile-stats-header > div { width: 100%; align-items: flex-start !important; }
-    .mobile-stats-header p { line-height: 1.8; font-size: 13px !important; display: flex; flex-wrap: wrap; gap: 8px; }
-    .mobile-badge-wrap { width: 100%; margin-top: 10px; }
-    .mobile-tabs { padding-bottom: 12px !important; }
+    .mobile-stats-header h2 { font-size: 20px !important; margin-bottom: 6px !important; }
+    .mobile-stats-header p { font-size: 13px !important; display: flex; flex-wrap: wrap; gap: 6px; line-height: 1.4 !important; }
+    .mobile-stats-header .badge { font-size: 12px !important; padding: 4px 8px !important; }
+    .mobile-badge-wrap { width: 100%; margin-top: 8px !important; }
+    
+    .mobile-tabs { padding-bottom: 10px !important; }
+    
+    /* 2. Submissions Ledger Search & Buttons */
+    .mobile-subs-actions-wrap { flex-direction: column !important; width: 100% !important; align-items: stretch !important; gap: 10px !important; }
+    .mobile-subs-actions-wrap > div, .mobile-subs-actions-wrap button { width: 100% !important; max-width: 100% !important; justify-content: center !important; }
+    .mobile-subs-actions-wrap input { width: 100% !important; box-sizing: border-box !important; }
+    
+    /* 3. Submissions Item Shrink (Evaluate & Score) */
+    .mobile-sub-item { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; padding: 12px !important; }
+    .mobile-sub-item > div:first-child > div:last-child > div:first-child { font-size: 14px !important; } /* Student Name smaller */
+    .mobile-sub-item > div:first-child > div:last-child > div:last-child { font-size: 12px !important; } /* Roll smaller */
+    
+    .mobile-sub-actions { width: 100% !important; justify-content: space-between !important; flex-direction: row !important; border-top: 1px dashed #e2e8f0 !important; padding-top: 10px !important; }
+    .mobile-sub-actions > div { text-align: left !important; }
+    .mobile-sub-actions > div > div:first-child { font-size: 16px !important; } /* Score Text smaller */
+    .mobile-sub-actions button { padding: 8px 12px !important; font-size: 13px !important; flex-shrink: 0 !important; } /* Evaluate button shrink */
 
-    /* 2. Submissions Ledger Header (Search & Export Button Fix) */
-    .mobile-subs-actions-wrap { 
-        flex-direction: column !important; 
-        width: 100% !important; 
-        align-items: stretch !important; 
-        gap: 12px !important; 
+    /* 4. The Back Button Fix (Upar shift aur spacing kam) */
+    #student-result {
+        padding-top: 55px !important; /* Extra spacing removed */
+        position: relative !important;
     }
-    .mobile-subs-actions-wrap > div,
-    .mobile-subs-actions-wrap button { 
-        width: 100% !important; 
-        max-width: 100% !important; 
-        justify-content: center !important; 
-    }
-    .mobile-subs-actions-wrap input { 
-        width: 100% !important; 
-        box-sizing: border-box !important; 
-    }
-
-    /* 3. Submissions Item (Evaluate Button & Score Overlap Fix) */
-    .mobile-sub-item { 
-        flex-direction: column !important; 
-        align-items: flex-start !important; 
-        gap: 12px !important; 
-    }
-    .mobile-sub-actions { 
-        width: 100% !important; 
-        justify-content: space-between !important; /* Score left, Evaluate right */
-        flex-direction: row !important; 
-        border-top: 1px dashed #e2e8f0 !important; 
-        padding-top: 12px !important; 
-    }
-    .mobile-sub-actions > div {
-        text-align: left !important; /* Align score text properly */
-    }
-    .mobile-sub-actions button {
-        flex-shrink: 0 !important; /* Button ko pichakne se rokega */
-    }
-
-    /* 4. The Back Button: Absolute (Scrolls Away), Icon Only */
     #floating-eval-back-btn {
-        position: absolute !important; /* 🔥 Fix: Scroll ke sath upar nikal jayega */
-        top: 20px !important;
-        left: 15px !important;
-        width: 40px !important;
-        height: 40px !important;
+        position: absolute !important; 
+        top: 8px !important; /* Upar move ho gaya */
+        left: 12px !important;
+        width: 36px !important; /* Chota kar diya */
+        height: 36px !important;
         padding: 0 !important;
         border-radius: 50% !important;
         justify-content: center !important;
         z-index: 99 !important;
     }
-    #floating-eval-back-btn .btn-text {
-        display: none !important; /* 🔥 Fix: Mobile pe 'Back' word hide kar dega */
-    }
-    #floating-eval-back-btn i {
-        margin: 0 !important;
-        font-size: 20px !important;
-    }
-    
-    /* Ensure the result area has enough padding at the top so button doesn't hide content */
-    #student-result {
-        padding-top: 70px !important; 
-        position: relative !important;
-    }
+    #floating-eval-back-btn .btn-text { display: none !important; } /* Mobile par text gayab */
+    #floating-eval-back-btn i { margin: 0 !important; font-size: 18px !important; }
 }

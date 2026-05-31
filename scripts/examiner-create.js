@@ -13,6 +13,13 @@ function addQ(data, insertAfterIdx = null){
 }
 
 function renderQs(){
+  var badgeElem = document.getElementById('qcount-badge');
+  // 🔥 THE FIX: Agar badge nahi hai page par, toh ruk jao, crash mat karo.
+  if(!badgeElem) return; 
+  
+  badgeElem.textContent = qList.length+' added';
+  var secInput = document.getElementById('t-sections');
+  var sections = secInput && secInput.value.trim() ? secInput.value.split(',').map(s=>s.trim()).filter(s=>s) : [];
   document.getElementById('qcount-badge').textContent = qList.length+' added';
   var secInput = document.getElementById('t-sections');
   var sections = secInput && secInput.value.trim() ? secInput.value.split(',').map(s=>s.trim()).filter(s=>s) : [];

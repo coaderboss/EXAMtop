@@ -82,7 +82,7 @@ function nav(pageId) {
     switchPageUI(pageId);
 }
 
-function switchPageUI(pageId) {
+ function switchPageUI(pageId) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     var target = document.getElementById('page-' + pageId);
     if(target) target.classList.add('active');
@@ -91,19 +91,13 @@ function switchPageUI(pageId) {
     var tab = document.querySelector(`.nav-tab[onclick="nav('${pageId}')"]`);
     if(tab) tab.classList.add('active');
     
-    if(pageId === 'tests') renderTestList();
-    if(pageId === 'results') renderAllResults(); 
+    // 🔥 THE FIX: Safety checks added so it doesn't crash if script is still downloading
+    if(pageId === 'tests' && typeof renderTestList === 'function') renderTestList();
+    if(pageId === 'results' && typeof renderAllResults === 'function') renderAllResults(); 
     
-    if(pageId === 'student-dashboard') {
-        if(typeof renderStudentDashboard === 'function') renderStudentDashboard();
-    }
-    // NAYA: Results tab click hone par list load karega
-    if(pageId === 'student-results') {
-        if(typeof renderStudentResults === 'function') renderStudentResults();
-    }
-    if(pageId === 'admin') {
-        if(typeof renderAdminDashboard === 'function') renderAdminDashboard();
-    }
+    if(pageId === 'student-dashboard' && typeof renderStudentDashboard === 'function') renderStudentDashboard();
+    if(pageId === 'student-results' && typeof renderStudentResults === 'function') renderStudentResults();
+    if(pageId === 'admin' && typeof renderAdminDashboard === 'function') renderAdminDashboard();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
