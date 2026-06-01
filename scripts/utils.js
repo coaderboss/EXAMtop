@@ -65,16 +65,18 @@ function hideModal() {
 // SPA ROUTER & HISTORY MANAGEMENT
 // ==========================================
 window.addEventListener('popstate', function(event) {
-    let hash = window.location.hash.replace('#', '') || 'home';
-    if (activeState && !activeState.done && hash !== 'student') {
+    let rawHash = window.location.hash.replace('#', '') || 'home';
+    let pageId = rawHash.split('?')[0]; // Sirf page ka naam nikalo
+    
+    if (typeof activeState !== 'undefined' && activeState && !activeState.done && pageId !== 'student') {
         if (!confirm("WARNING: You are in an active exam! Going back will cancel your test. Are you sure?")) {
             window.history.pushState(null, null, '#student');
             return;
         } else {
-            exitToHome();
+            if(typeof exitToHome === 'function') exitToHome();
         }
     }
-    switchPageUI(hash);
+    switchPageUI(rawHash);
 });
 
 function nav(pageId) {
@@ -82,7 +84,11 @@ function nav(pageId) {
     switchPageUI(pageId);
 }
 
- function switchPageUI(pageId) {
+function switchPageUI(rawPageId) {
+    // 🔥 THE FIX: URL se Page ID aur Test Code ko alag-alag todna
+    let pageId = rawPageId.split('?')[0];
+    let queryString = rawPageId.split('?')[1];
+
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     var target = document.getElementById('page-' + pageId);
     if(target) target.classList.add('active');
@@ -90,8 +96,23 @@ function nav(pageId) {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     var tab = document.querySelector(`.nav-tab[onclick="nav('${pageId}')"]`);
     if(tab) tab.classList.add('active');
+
+    // 🔥 AUTO-FILL CODE LOGIC: Agar link me code hai, toh seedha input me type kar do
+    if (queryString && pageId === 'student') {
+        let urlParams = new URLSearchParams(queryString);
+        let code = urlParams.get('code');
+        if (code) {
+            let codeInput = document.getElementById('s-code');
+            if (codeInput) {
+                codeInput.value = code.toUpperCase();
+                // Ek subtle highlight effect de rahe hain taaki bacche ko pata chale code autofill ho gaya hai
+                codeInput.style.borderColor = '#185FA5';
+                codeInput.style.boxShadow = '0 0 0 3px rgba(24, 95, 165, 0.1)';
+            }
+        }
+    }
     
-    // 🔥 THE FIX: Safety checks added so it doesn't crash if script is still downloading
+    // Safety checks
     if(pageId === 'tests' && typeof renderTestList === 'function') renderTestList();
     if(pageId === 'results' && typeof renderAllResults === 'function') renderAllResults(); 
     
