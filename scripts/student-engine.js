@@ -1,6 +1,10 @@
 // ==========================================
 // STUDENT EXAM ENGINE & ANTI-CHEAT LOGIC
 // ==========================================
+window.blockCopyPaste = function(e) {
+    e.preventDefault();
+    if(typeof showToast === 'function') showToast("Copy/Paste is disabled during the exam.", "error");
+};
 
 function cancelJoin() {
     nav('home');
@@ -17,6 +21,7 @@ function closeMobilePalette() {
     var o = document.getElementById('palette-overlay');
     if(p && o) { p.classList.remove('active'); o.classList.remove('active'); }
 }
+
 
 function joinTest(){
   var name=document.getElementById('s-name').value.trim();
@@ -233,6 +238,12 @@ function launchTest(dbTest, name, roll){
   
   if (activeTest.antiCheat) {
       document.addEventListener("visibilitychange", handleCheat);
+         // 🔥 TURN ON COPY LOCK
+      document.addEventListener('copy', window.blockCopyPaste);
+      document.addEventListener('cut', window.blockCopyPaste);
+      document.addEventListener('paste', window.blockCopyPaste);
+      document.addEventListener('contextmenu', window.blockCopyPaste); // Blocks Right-Click
+      document.getElementById('student-test').style.userSelect = 'none'; // CSS level text-selection lock
       window.addEventListener("blur", handleCheat); 
   }
   if (activeTest.fullScreenMode) document.addEventListener("fullscreenchange", handleCheat);
@@ -288,6 +299,63 @@ function goQ(idx) {
     }
 }
 
+// 🔥 SMART UI SYNCHRONIZER (No Flicker, No MathJax Re-run)
+window.syncLiveUI = function() {
+    var t = activeTest, st = activeState, qi = st.cur, q = t.questions[qi], ans = st.answers[qi];
+    var locked = !t.allowChange && ans.val !== null && (!Array.isArray(ans.val) || ans.val.length > 0);
+
+    // 1. Update Live Stats
+    var totalQs = t.questions.length;
+    var answeredQs = st.answers.filter(a => a.val !== null && (!Array.isArray(a.val) || a.val.length > 0)).length;
+    var markedQs = st.answers.filter(a => a.marked).length;
+    var remainingQs = totalQs - answeredQs;
+    
+    let statsBar = document.getElementById('live-stats-bar');
+    if (statsBar) {
+        statsBar.innerHTML = `
+            <span style="color:#185FA5; display:flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;background:#185FA5;border-radius:50%;"></span> Attempted: ${answeredQs}</span>
+            <span style="color:#854F0B; display:flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;background:#FAC775;border-radius:50%;"></span> Marked: ${markedQs}</span>
+            <span style="color:#A32D2D; display:flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;background:#f8fafc;border:1px solid #A32D2D;border-radius:50%;"></span> Pending: ${remainingQs}</span>
+        `;
+    }
+
+    // 2. Update Header Badges (Marked/Locked Status)
+    let badges = document.getElementById('q-badges-container');
+    if (badges) {
+        badges.innerHTML = `
+          <div class="q-num-badge" style="width:36px;height:36px;font-size:16px;">${qi+1}</div>
+          <span class="badge ${tbadge(q.type)}">${tlabel(q.type)}</span>
+          ${q.section ? `<span class="badge b-purple" style="font-weight:600;"><i class="ti ti-layout-grid-add"></i> ${q.section}</span>` : ''} 
+          <span class="badge b-blue" style="font-size:13px">${q.marks} Marks</span>
+          ${ans.marked ? '<span class="badge b-amber"><i class="ti ti-bookmark" style="font-size:12px"></i> Marked</span>' : ''}
+          ${locked ? '<span class="badge b-red"><i class="ti ti-lock" style="font-size:12px"></i> Locked</span>' : ''}
+        `;
+    }
+
+    // 3. Update Action Buttons
+    let actions = document.getElementById('exam-action-block');
+    if (actions) {
+        actions.innerHTML = `
+          <button class="btn btn-sm" onclick="togMark(${qi})" style="${ans.marked?'color:#633806;border-color:#FAC775;background:#FAEEDA;font-weight:600':''}">
+            <i class="ti ti-bookmark"></i> ${ans.marked?'Unmark':'Mark for Review'}
+          </button>
+          ${!locked && ans.val !== null ? `<button class="btn btn-sm btn-danger" onclick="clearAns(${qi})"><i class="ti ti-eraser"></i> Clear Selection</button>` : ''}
+        `;
+    }
+
+    // 4. Update Palette Instantaneously 
+    let allPalBtns = document.querySelectorAll('.pal-btn');
+    allPalBtns.forEach((btn) => {
+        let btnQi = parseInt(btn.getAttribute('data-qi'));
+        if (!isNaN(btnQi)) {
+            let a = st.answers[btnQi];
+            let done = a.val !== null && (!Array.isArray(a.val) || a.val.length > 0);
+            let cls = (a.marked && done) ? 'p-both' : a.marked ? 'p-marked' : done ? 'p-answered' : 'p-unanswered';
+            btn.className = `pal-btn ${cls} ${btnQi === qi ? 'p-current' : ''}`;
+        }
+    });
+};
+
 function renderTest(){
   var t=activeTest, st=activeState, qi=st.cur, q=t.questions[qi], ans=st.answers[qi];
   var locked=!t.allowChange&&ans.val!==null&&(!Array.isArray(ans.val)||ans.val.length>0);
@@ -315,7 +383,7 @@ function renderTest(){
           t.questions.forEach((qq, i) => {
               if (qq.section === sec || (!qq.section && sec === t.sections[0])) {
                   var a=st.answers[i]; var done=a.val!==null&&(!Array.isArray(a.val)||a.val.length > 0); var cls=a.marked&&done?'p-both':a.marked?'p-marked':done?'p-answered':'p-unanswered';
-                  secQsHtml += `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="closeMobilePalette(); goQ(${i})">${localQNum}</button>`;
+                  secQsHtml += `<button id="pal-btn-${i}" data-qi="${i}" class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="closeMobilePalette(); goQ(${i})">${localQNum}</button>`;
                   localQNum++;
               }
           });
@@ -327,28 +395,40 @@ function renderTest(){
       paletteHTML = `<div class="palette-grid">
         ${t.questions.map((qq,i)=>{
           var a=st.answers[i]; var done=a.val!==null&&(!Array.isArray(a.val)||a.val.length > 0); var cls=a.marked&&done?'p-both':a.marked?'p-marked':done?'p-answered':'p-unanswered';
-          return `<button class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="closeMobilePalette(); goQ(${i})">${i+1}</button>`;
+          return `<button id="pal-btn-${i}" data-qi="${i}" class="pal-btn ${cls}${i===qi?' p-current':''}" onclick="closeMobilePalette(); goQ(${i})">${i+1}</button>`;
         }).join('')}
       </div>`;
   }
+
+  var totalQs = t.questions.length;
+  var answeredQs = st.answers.filter(a => a.val !== null && (!Array.isArray(a.val) || a.val.length > 0)).length;
+  var markedQs = st.answers.filter(a => a.marked).length;
+  var remainingQs = totalQs - answeredQs;
 
   el.innerHTML=`
     <div class="test-topbar">
       <div>
         <div style="font-size:18px;font-weight:600;margin-bottom:2px">${t.title}</div>
-        <div style="font-size:13px;opacity:0.85">${st.name}${st.roll?' · '+st.roll:''} &nbsp;&bull;&nbsp; Q ${qi+1} / ${t.questions.length}</div>
+        <div style="font-size:13px;opacity:0.85">${st.name}${st.roll?' · '+st.roll:''} &bull; Q ${qi+1} / ${t.questions.length}</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="timer-pill"><i class="ti ti-clock" style="font-size:18px"></i><span id="timerEl">--:--</span></div>
         <button class="btn btn-sm hide-mobile" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-weight:600" onclick="confirmSubmit()"><i class="ti ti-send"></i> Finish</button>
       </div>
     </div>
+    
+    <div id="live-stats-bar" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; background:#f8fafc; padding:10px 16px; border-bottom:1px solid #e2e8f0; font-size:13px; font-weight:600;">
+        <span style="color:#185FA5; display:flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;background:#185FA5;border-radius:50%;"></span> Attempted: ${answeredQs}</span>
+        <span style="color:#854F0B; display:flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;background:#FAC775;border-radius:50%;"></span> Marked: ${markedQs}</span>
+        <span style="color:#A32D2D; display:flex; align-items:center; gap:4px;"><span style="width:10px;height:10px;background:#f8fafc;border:1px solid #A32D2D;border-radius:50%;"></span> Pending: ${remainingQs}</span>
+    </div>
+
     ${sectionTabsHTML}
     <div id="palette-overlay" class="palette-overlay" onclick="closeMobilePalette()"></div>
     
     <div class="test-layout">
       <div class="q-area">
-        <div class="q-block-header" style="margin-bottom:1.5rem; border-bottom:1px solid var(--color-border-secondary); padding-bottom:1rem;">
+        <div class="q-block-header" id="q-badges-container" style="margin-bottom:1.5rem; border-bottom:1px solid var(--color-border-secondary); padding-bottom:1rem;">
           <div class="q-num-badge" style="width:36px;height:36px;font-size:16px;">${qi+1}</div>
           <span class="badge ${tbadge(q.type)}">${tlabel(q.type)}</span>
           ${q.section ? `<span class="badge b-purple" style="font-weight:600;"><i class="ti ti-layout-grid-add"></i> ${q.section}</span>` : ''} 
@@ -359,9 +439,12 @@ function renderTest(){
         
         <div style="font-size:16px;line-height:1.7;margin-bottom:2rem;color:var(--color-text-primary);font-weight:500;">${q.text||'<em style="color:var(--color-text-secondary)">No question text.</em>'}</div>
         ${q.imgUrl ? `<div style="margin-bottom:1.5rem;"><img src="${q.imgUrl}" style="max-width:100%; max-height:250px; border-radius:8px; border:1px solid var(--color-border-secondary);"></div>` : ''}
-        ${renderStudentOpts(q,qi,ans,locked)}
         
-        <div style="display:flex;gap:10px;margin-top:1.5rem;flex-wrap:wrap">
+        <div id="exam-options-block">
+            ${renderStudentOpts(q,qi,ans,locked)}
+        </div>
+        
+        <div id="exam-action-block" style="display:flex;gap:10px;margin-top:1.5rem;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="togMark(${qi})" style="${ans.marked?'color:#633806;border-color:#FAC775;background:#FAEEDA;font-weight:600':''}">
             <i class="ti ti-bookmark"></i> ${ans.marked?'Unmark':'Mark for Review'}
           </button>
@@ -391,7 +474,6 @@ function renderTest(){
       </div>`:''}
     </div>`;
 
-  // 🔥 THE MATH FIX: Render equations automatically every time a new question loads
   if (typeof renderMath === 'function') renderMath();
 }
 
@@ -411,12 +493,43 @@ window.saveExamDraft = function() {
     localStorage.setItem('exam_draft_' + activeTest.id + '_' + userIdent + '_' + safeHash, JSON.stringify({ state: activeState, endTime: window.examEndTime }));
 };
 
-function pickMCQ(qi,j){activeState.answers[qi].val=j; window.saveExamDraft(); renderTest();}
-function pickMSQ(qi,j){ if(!Array.isArray(activeState.answers[qi].val)) activeState.answers[qi].val=[]; var a=activeState.answers[qi].val, idx=a.indexOf(j); idx>-1?a.splice(idx,1):a.push(j); window.saveExamDraft(); renderTest(); }
-function pickInt(qi,v){activeState.answers[qi].val=v===''?null:+v; window.saveExamDraft(); renderTest();}
-function pickSubj(qi,v){activeState.answers[qi].val=v||null; window.saveExamDraft(); renderTest();}
-function clearAns(qi){activeState.answers[qi].val=null; window.saveExamDraft(); renderTest();}
-function togMark(qi){activeState.answers[qi].marked=!activeState.answers[qi].marked; window.saveExamDraft(); renderTest();}
+// 🔥 REPLACED FUNCTIONS: No more rendering the whole page on click!
+function pickMCQ(qi, j) {
+    activeState.answers[qi].val = j; window.saveExamDraft();
+    let opts = document.querySelectorAll('#exam-options-block .opt-btn');
+    opts.forEach((btn, idx) => {
+        if (idx === j) { btn.classList.add('sel'); btn.querySelector('.olabel').innerHTML = '<i class="ti ti-check" style="font-size:14px"></i>'; } 
+        else { btn.classList.remove('sel'); btn.querySelector('.olabel').innerHTML = String.fromCharCode(65 + idx); }
+    });
+    syncLiveUI();
+}
+
+function pickMSQ(qi, j) { 
+    if(!Array.isArray(activeState.answers[qi].val)) activeState.answers[qi].val=[]; 
+    var a=activeState.answers[qi].val, idx=a.indexOf(j); 
+    idx>-1 ? a.splice(idx,1) : a.push(j); window.saveExamDraft(); 
+    let opts = document.querySelectorAll('#exam-options-block .opt-btn');
+    let btn = opts[j];
+    if (btn) {
+        if (a.includes(j)) { btn.classList.add('sel'); btn.querySelector('.olabel').innerHTML = '<i class="ti ti-check" style="font-size:14px"></i>'; } 
+        else { btn.classList.remove('sel'); btn.querySelector('.olabel').innerHTML = String.fromCharCode(65 + j); }
+    }
+    syncLiveUI(); 
+}
+
+function pickInt(qi, v) { activeState.answers[qi].val = v === '' ? null : +v; window.saveExamDraft(); syncLiveUI(); }
+function pickSubj(qi, v) { activeState.answers[qi].val = v || null; window.saveExamDraft(); syncLiveUI(); }
+
+function clearAns(qi) { 
+    activeState.answers[qi].val = null; window.saveExamDraft(); 
+    let opts = document.querySelectorAll('#exam-options-block .opt-btn');
+    opts.forEach((btn, idx) => { btn.classList.remove('sel'); btn.querySelector('.olabel').innerHTML = String.fromCharCode(65 + idx); });
+    let inputs = document.querySelectorAll('#exam-options-block input, #exam-options-block textarea');
+    inputs.forEach(inp => inp.value = '');
+    syncLiveUI(); 
+}
+
+function togMark(qi) { activeState.answers[qi].marked = !activeState.answers[qi].marked; window.saveExamDraft(); syncLiveUI(); }
 
 function confirmSubmit(){
   var answered=activeState.answers.filter(a=>a.val!==null&&(!Array.isArray(a.val)||a.val.length>0)).length;
@@ -433,7 +546,14 @@ function doSubmit(){
   // 1. Exact Hash match karke Zombie Draft memory clear karna
   var safeHash = btoa(encodeURIComponent(activeState.name + '_' + (activeState.roll || ''))).replace(/=/g, '');
   localStorage.removeItem('exam_draft_' + activeTest.id + '_' + userIdent + '_' + safeHash);
-
+  
+  // 🔥 TURN OFF COPY LOCK
+  document.removeEventListener('copy', window.blockCopyPaste);
+  document.removeEventListener('cut', window.blockCopyPaste);
+  document.removeEventListener('paste', window.blockCopyPaste);
+  document.removeEventListener('contextmenu', window.blockCopyPaste);
+  let testContainer = document.getElementById('student-test');
+  if (testContainer) testContainer.style.userSelect = 'auto';
   document.removeEventListener("visibilitychange", handleCheat); 
   document.removeEventListener("fullscreenchange", handleCheat);
   window.removeEventListener("blur", handleCheat); 
@@ -527,6 +647,13 @@ function updateStudentUIForRole() {
 
 function resetStudent(){
   activeTest=null; activeState=null;
+  // 🔥 TURN OFF COPY LOCK
+  document.removeEventListener('copy', window.blockCopyPaste);
+  document.removeEventListener('cut', window.blockCopyPaste);
+  document.removeEventListener('paste', window.blockCopyPaste);
+  document.removeEventListener('contextmenu', window.blockCopyPaste);
+  let testContainer = document.getElementById('student-test');
+  if (testContainer) testContainer.style.userSelect = 'auto';
   var h = document.getElementById('student-home');
   var t = document.getElementById('student-test');
   var r = document.getElementById('student-result');

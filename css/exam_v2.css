@@ -805,3 +805,28 @@ textarea { min-height: 80px; resize: vertical; }
         display: none !important; 
     }
 }
+
+/* 🔥 MATHJAX MOBILE OVERFLOW FIX 🔥 */
+.qr-body, .q-area {
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+}
+
+mjx-container, .MathJax {
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    /* Keeps the math centered or aligned properly without breaking layout */
+    display: inline-block; 
+    vertical-align: middle;
+}
+
+/* Hide scrollbar for a cleaner look (optional) */
+mjx-container::-webkit-scrollbar {
+    height: 4px;
+}
+mjx-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
