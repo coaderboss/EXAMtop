@@ -806,28 +806,41 @@ textarea { min-height: 80px; resize: vertical; }
     }
 }
 
-/* 🔥 MATHJAX MOBILE OVERFLOW FIX (FINAL) 🔥 */
+/* 🔥 MATHJAX MOBILE OVERFLOW FIX (SMART VERSION) 🔥 */
 .qr-body, .q-area, .test-layout {
     max-width: 100%;
     overflow-wrap: break-word;
     word-wrap: break-word;
 }
 
+/* 1. General Fix: Remove focus outlines and tap highlights from all math */
 mjx-container {
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* 2. INLINE MATH: Chhote variables ke liye (No lines, No scroll) */
+mjx-container:not([display="true"]) {
+    overflow: visible !important;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* 3. DISPLAY MATH: Sirf lambi equations ke liye (Smooth scroll, No visible bar) */
+mjx-container[display="true"] {
     max-width: 100%;
     overflow-x: auto !important;
     overflow-y: hidden !important;
-    display: inline-block; 
-    vertical-align: middle;
-    -webkit-overflow-scrolling: touch; /* Mobile par ekdum smooth swiping ke liye */
+    display: block !important; 
+    -webkit-overflow-scrolling: touch;
     
-    /* Gande Scrollbar ko chhupane ka code */
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
 }
 
-mjx-container::-webkit-scrollbar { 
-    display: none !important; /* Chrome, Safari, Opera */
+/* Chrome/Safari me scrollbar ko completely invisible karna */
+mjx-container[display="true"]::-webkit-scrollbar { 
+    display: none !important; 
 }
 
 /* Smooth premium transitions for student UI */
