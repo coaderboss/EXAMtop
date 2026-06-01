@@ -806,27 +806,31 @@ textarea { min-height: 80px; resize: vertical; }
     }
 }
 
-/* 🔥 MATHJAX MOBILE OVERFLOW FIX 🔥 */
-.qr-body, .q-area {
+/* 🔥 MATHJAX MOBILE OVERFLOW FIX (FINAL) 🔥 */
+.qr-body, .q-area, .test-layout {
     max-width: 100%;
     overflow-wrap: break-word;
     word-wrap: break-word;
 }
 
-mjx-container, .MathJax {
+mjx-container {
     max-width: 100%;
     overflow-x: auto !important;
-    overflow-y: hidden;
-    /* Keeps the math centered or aligned properly without breaking layout */
+    overflow-y: hidden !important;
     display: inline-block; 
     vertical-align: middle;
+    -webkit-overflow-scrolling: touch; /* Mobile par ekdum smooth swiping ke liye */
+    
+    /* Gande Scrollbar ko chhupane ka code */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
 }
 
-/* Hide scrollbar for a cleaner look (optional) */
-mjx-container::-webkit-scrollbar {
-    height: 4px;
+mjx-container::-webkit-scrollbar { 
+    display: none !important; /* Chrome, Safari, Opera */
 }
-mjx-container::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+
+/* Smooth premium transitions for student UI */
+.opt-btn, .pal-btn {
+    transition: all 0.2s ease-in-out !important;
 }

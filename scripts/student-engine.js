@@ -546,20 +546,22 @@ function doSubmit(){
   // 1. Exact Hash match karke Zombie Draft memory clear karna
   var safeHash = btoa(encodeURIComponent(activeState.name + '_' + (activeState.roll || ''))).replace(/=/g, '');
   localStorage.removeItem('exam_draft_' + activeTest.id + '_' + userIdent + '_' + safeHash);
+
+  // 2. Anti-cheat locks hatana
+  document.removeEventListener("visibilitychange", handleCheat); 
+  document.removeEventListener("fullscreenchange", handleCheat);
+  window.removeEventListener("blur", handleCheat); 
   
-  // 🔥 TURN OFF COPY LOCK
   document.removeEventListener('copy', window.blockCopyPaste);
   document.removeEventListener('cut', window.blockCopyPaste);
   document.removeEventListener('paste', window.blockCopyPaste);
   document.removeEventListener('contextmenu', window.blockCopyPaste);
   let testContainer = document.getElementById('student-test');
   if (testContainer) testContainer.style.userSelect = 'auto';
-  document.removeEventListener("visibilitychange", handleCheat); 
-  document.removeEventListener("fullscreenchange", handleCheat);
-  window.removeEventListener("blur", handleCheat); 
   
   var neg=activeTest.negMarking||0; var score=0,correct=0,wrong=0,skipped=0;
   
+  // 3. Evaluation Engine
   var details=activeTest.questions.map((q,i)=>{
     var ans=activeState.answers[i]; var status,earned=0;
     var hasVal=ans.val!==null&&(!Array.isArray(ans.val)||ans.val.length>0);
@@ -579,7 +581,7 @@ function doSubmit(){
         else if (correctlySelected === corrSel.length) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } 
         else if (correctlySelected > 0) { 
             var partialMarks = (q.marks / corrSel.length) * correctlySelected; 
-            earned = Math.round(partialMarks * 100) / 100; // 🔥 CRITICAL FIX: Removed 'let' to fix UI shadowing bug
+            earned = Math.round(partialMarks * 100) / 100; // 🔥 FIX: Scoping bug fixed
             score += earned; correct++; status = 'partial'; 
         } else { wrong++; earned = -neg; score -= neg; status = 'wrong'; } 
     }
@@ -604,11 +606,11 @@ function doSubmit(){
           updateDatabase();
       } else {
           tests[tIndex].submissions.push(sub); 
+          // 🔥 FIX: Firebase Transaction with Duplicate Block
           if (typeof db !== 'undefined') {
               var subsRef = db.ref('tests/' + tIndex + '/submissions');
               subsRef.transaction(function(currentSubs) {
                   if (!currentSubs) currentSubs = [];
-                  // 🔥 CRITICAL FIX: Exact duplicate check based strictly on Name + Roll
                   let exists = currentSubs.find(s => s.name.trim().toLowerCase() === sub.name.trim().toLowerCase() && (s.roll || '').trim().toLowerCase() === (sub.roll || '').trim().toLowerCase());
                   if (!exists) { currentSubs.push(sub); }
                   return currentSubs;
@@ -629,6 +631,11 @@ function doSubmit(){
       el.classList.remove('hidden');
       el.innerHTML = `<div class="spinner-container"><div class="spinner"></div><div>Processing Result...</div></div>`;
       setTimeout(() => { _generateResultDOM(sub, activeTest, false); }, 600);
+  }
+
+  // 🔥 NAYA: Deferred Update Logic (Agar update waiting me hai toh submit ke 3 sec baad reload)
+  if (window.pendingAppUpdate) {
+      setTimeout(() => { window.location.reload(); }, 3000);
   }
 }
 

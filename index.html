@@ -9,26 +9,45 @@
     <link rel="stylesheet" href="css/exam_v2.css"> 
     <link rel="manifest" href="manifest.json">
 
-    <script>
+   <script>
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').then(registration => {
             console.log("PWA Service Worker Registered");
 
-            // NAYA FIX: Listen for updates
             registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
                 newWorker.addEventListener('statechange', () => {
-                    // Agar naya SW install ho gaya hai aur purana bhi hai (update aya hai)
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        console.log('New update available! Refreshing...');
-                        // Naye SW ko turant take-over karne ko kaho
-                        newWorker.postMessage({ type: 'SKIP_WAITING' }); 
+                        console.log('New update available! Checking active exams...');
+                        
+                        // 🔥 SMART EXAM ISOLATOR (Deferred Update) 🔥
+                        let isExamActive = (typeof activeState !== 'undefined' && activeState && !activeState.done);
+                        let hasActiveDraft = false;
+                        
+                        // Check if any draft is active in local storage
+                        for(let i=0; i<localStorage.length; i++) {
+                            if(localStorage.key(i).startsWith('exam_draft_') && !localStorage.key(i).includes('_creator_')) {
+                                hasActiveDraft = true; 
+                                break;
+                            }
+                        }
+
+                        if (isExamActive || hasActiveDraft) {
+                            console.log("Update deferred: Exam in progress.");
+                            if (typeof showToast === 'function') {
+                                showToast("A platform update is waiting. It will apply automatically after you submit your test.", "normal");
+                            }
+                            // Flag set kar diya taaki doSubmit() ko pata chal jaye
+                            window.pendingAppUpdate = true; 
+                        } else {
+                            // Agar koi test nahi chal raha, toh mast refresh maro
+                            newWorker.postMessage({ type: 'SKIP_WAITING' }); 
+                        }
                     }
                 });
             });
         }).catch(err => console.log("SW Registration Failed: ", err));
 
-        // Jab naya SW take-over kar le, page ko auto-refresh karo
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (!refreshing) {
