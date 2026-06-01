@@ -290,16 +290,20 @@ db.ref('tests').on('value', (snapshot) => {
       var localTests = tests.filter(t => t.isLocal === true);
       tests = [...cloudTestsBackup, ...localTests];
       
-      // NAYA FIX: Ab ye directly render commands trigger nahi karega agar page loaded nahi hai
+      // 🔥 FIX: Modal khula ho toh UI violently auto-refresh nahi hoga
       setTimeout(() => {
+          let isModalOpen = document.getElementById('modal-area') && !document.getElementById('modal-area').classList.contains('hidden');
           let currentHash = window.location.hash.replace('#', '');
           
-          if(currentHash === 'tests' && typeof renderTestList === 'function' && document.getElementById('test-list-area')) renderTestList();
-          if(currentHash === 'results' && typeof renderAllResults === 'function' && document.getElementById('results-area')) renderAllResults();
+          if(!isModalOpen) {
+              if(currentHash === 'tests' && typeof renderTestList === 'function' && document.getElementById('test-list-area')) renderTestList();
+              if(currentHash === 'results' && typeof renderAllResults === 'function' && document.getElementById('results-area')) renderAllResults();
+              if(currentHash === 'admin' && typeof renderAdminDashboard === 'function' && document.getElementById('admin-content-area')) renderAdminDashboard();
+          }
+          // Student dashboards bina ruke update ho sakte hain
           if(currentHash === 'student-dashboard' && typeof renderStudentDashboard === 'function' && document.getElementById('student-analytics-area')) renderStudentDashboard();
           if(currentHash === 'student-results' && typeof renderStudentResults === 'function' && document.getElementById('student-results-area')) renderStudentResults();
-          if(currentHash === 'admin' && typeof renderAdminDashboard === 'function' && document.getElementById('admin-content-area')) renderAdminDashboard();
-      }, 300); // 300ms delay to wait for HTML rendering
+      }, 300);
   }
 });
 

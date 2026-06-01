@@ -7,40 +7,42 @@ function launchExistingResult(testId, name, roll) {
     var rollToMatch = roll ? roll.toLowerCase() : '';
     var sub = t.submissions.find(s => s.name.toLowerCase() === name.toLowerCase() && (s.roll || '').toLowerCase() === rollToMatch);
 
-    // 1. Asli Page par route karo
     nav('student'); 
 
-    // 2. SMART POLLING: Har 50ms me check karo ki page load hua ya nahi
+    // 🔥 FIX 3: SMART POLLING WITH TIMEOUT (Memory Leak Protection)
+    let attempts = 0;
     let checkExist = setInterval(function() {
+        attempts++;
+        if (attempts > 100) { // 5 second timeout limit
+            clearInterval(checkExist);
+            showToast("UI taking too long to load. Please refresh the page.", "error");
+            return;
+        }
+
         var homeEl = document.getElementById('student-home');
         var testEl = document.getElementById('student-test');
         var resultEl = document.getElementById('student-result');
 
-        // Jaise hi elements screen par aa jayein...
         if (homeEl && resultEl) {
-            clearInterval(checkExist); // Polling band karo
+            clearInterval(checkExist); 
 
-            // 3. Form ko Badi Beharmi se chupao (Force hide)
             homeEl.style.display = 'none';
             if(testEl) testEl.style.display = 'none';
 
-            // 4. Result Screen dikhao
             resultEl.style.display = 'block';
             resultEl.classList.remove('hidden');
             resultEl.innerHTML = `<div class="spinner-container"><div class="spinner"></div><div style="margin-top:10px;">Loading Checked Paper...</div></div>`;
 
-            // 5. Engine ko result print karne do
             setTimeout(() => {
                 if (typeof _generateResultDOM === 'function') {
                     _generateResultDOM(sub, t, false);
-                    // Double security: Phir se Join Test ko hide karo taki router usko wapas na laye
                     document.getElementById('student-home').style.display = 'none';
                 } else {
                     resultEl.innerHTML = `<div style="color:#A32D2D; padding:2rem; text-align:center;">Result engine not found. Please refresh.</div>`;
                 }
             }, 100);
         }
-    }, 50); // Har 50ms me check karega
+    }, 50); 
 }
 
 function claimCertificate(name, course, date) {

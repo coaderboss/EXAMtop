@@ -64,18 +64,29 @@ function hideModal() {
 // ==========================================
 // SPA ROUTER & HISTORY MANAGEMENT
 // ==========================================
+// ==========================================
+// SPA ROUTER & HISTORY MANAGEMENT
+// ==========================================
 window.addEventListener('popstate', function(event) {
     let rawHash = window.location.hash.replace('#', '') || 'home';
-    let pageId = rawHash.split('?')[0]; // Sirf page ka naam nikalo
-    
+    let pageId = rawHash.split('?')[0]; 
+
+    // 🔥 ANTI-CHEAT: Agar exam chal raha hai aur user back dabata hai
     if (typeof activeState !== 'undefined' && activeState && !activeState.done && pageId !== 'student') {
-        if (!confirm("WARNING: You are in an active exam! Going back will cancel your test. Are you sure?")) {
-            window.history.pushState(null, null, '#student');
-            return;
+        
+        // URL ko wapas exam page par lock kar do
+        window.history.pushState(null, null, '#student');
+        
+        // Turant Anti-Cheat handler ko bulao (wo apne aap submit marega)
+        if (typeof handleBackCheat === 'function') {
+            handleBackCheat();
         } else {
-            if(typeof exitToHome === 'function') exitToHome();
+            alert("SECURITY ALERT: Exam is being auto-submitted due to page exit attempt.");
+            if (typeof doSubmit === 'function') doSubmit();
         }
+        return;
     }
+    
     switchPageUI(rawHash);
 });
 
@@ -116,10 +127,14 @@ function switchPageUI(rawPageId) {
     if(pageId === 'tests' && typeof renderTestList === 'function') renderTestList();
     if(pageId === 'results' && typeof renderAllResults === 'function') renderAllResults(); 
     
+    // 🔥 THE FIX: Jaise hi Student page khulega, Name Autofill ho jayega
+    if(pageId === 'student' && typeof applyStudentIdentity === 'function') applyStudentIdentity();
+    
     if(pageId === 'student-dashboard' && typeof renderStudentDashboard === 'function') renderStudentDashboard();
     if(pageId === 'student-results' && typeof renderStudentResults === 'function') renderStudentResults();
     if(pageId === 'admin' && typeof renderAdminDashboard === 'function') renderAdminDashboard();
 }
+
 
 document.addEventListener('DOMContentLoaded', function() {
     let initialHash = window.location.hash.replace('#', '') || 'home';
@@ -128,12 +143,19 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function exitToHome(isTestActive = false) {
-    if (isTestActive && activeState && !activeState.done) {
-        if (!confirm("Are you sure you want to exit? Your exam progress will be lost and test will be cancelled.")) return;
+    // 🔥 NAYA: Cancel ka option hi hata diya. Active exam me exit button = Auto Submit.
+    if (isTestActive || (typeof activeState !== 'undefined' && activeState && !activeState.done)) {
+        alert("SECURITY ALERT: You cannot cancel an active exam. Your paper is being auto-submitted.");
+        if (typeof doSubmit === 'function') doSubmit();
+        return;
     }
-    if(timerIv) clearInterval(timerIv);
-    document.removeEventListener("visibilitychange", handleCheat);
-    document.removeEventListener("fullscreenchange", handleCheat);
+
+    if(typeof timerIv !== 'undefined' && timerIv) clearInterval(timerIv);
+    if (typeof handleCheat === 'function') {
+        document.removeEventListener("visibilitychange", handleCheat);
+        document.removeEventListener("fullscreenchange", handleCheat);
+        window.removeEventListener("blur", handleCheat);
+    }
     if (document.fullscreenElement) document.exitFullscreen().catch(err => console.log(err));
 
     activeTest = null;
@@ -145,8 +167,17 @@ function exitToHome(isTestActive = false) {
     var resultScreen = document.getElementById('student-result');
     if(resultScreen) resultScreen.classList.add('hidden');
     
-    document.getElementById('student-home').classList.remove('hidden');
-    if(currentUser) nav('tests'); else nav('student');
+    var homeScreen = document.getElementById('student-home');
+    if(homeScreen) homeScreen.classList.remove('hidden');
+    
+// 🔥 Strict Role Routing applied
+    if (typeof userRole !== 'undefined' && userRole === 'student') {
+        nav('student-dashboard');
+    } else if (typeof currentUser !== 'undefined' && currentUser) {
+        nav('tests');
+    } else {
+        nav('student');
+    }
 }
 
 function showHelpGuide() {

@@ -426,10 +426,16 @@ function openAnalytics(testIdx) {
 
 // --- EXAMINER ACTIONS (UPGRADED WITH UI REFRESH & CUSTOM MODALS) ---
 
+// --- EXAMINER ACTIONS ---
+
 function autoJoinLocalTest(code) { 
-    nav('student'); 
-    document.getElementById('s-code').value = code; 
-    setTimeout(() => { joinTest(); }, 500); 
+    // 🔥 THE FIX: Naya smart router feature use karo jo humne WhatsApp ke liye banaya tha
+    nav('student?code=' + code); 
+    
+    // Thoda zyada delay de dete hain taaki page UI smoothly load hone ke baad test start ho
+    setTimeout(() => { 
+        if (typeof joinTest === 'function') joinTest(); 
+    }, 600); 
 }
 
 function toggleTestStatus(idx) { 
@@ -647,9 +653,15 @@ function confirmAndSaveEval() {
 
 function renderAllResults(){
   var c = document.getElementById('results-area');
+  
+  // 🔥 THE MISSING SAFETY LOCK: Agar dabba screen par nahi hai, toh app ko crash hone se bachao!
+  if (!c) return; 
+  
   if(!isOfflineMode && !currentUser) { c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-lock" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">Please Login using Google to view results.</div></div>`; return; }
+  
   var myTests = isOfflineMode ? tests : tests.filter(t => t.creatorUid === currentUser.uid);
   var all = myTests.flatMap(t => t.submissions ? t.submissions.map(s => ({...s, testTitle: t.title, testCode: t.code})) : []);
+  
   if(!all.length){ c.innerHTML = `<div style="text-align:center;padding:4rem;color:var(--color-text-secondary)"><i class="ti ti-chart-off" style="font-size:48px;display:block;margin-bottom:1rem;opacity:0.5"></i><div style="font-size:16px;font-weight:500">No results available yet. Complete a test to see data here.</div></div>`; return; }
   
   c.innerHTML = all.map(s => `<div class="test-entry"><div class="te-meta"><div style="font-weight:600;font-size:16px">${s.name} ${s.roll?'<span style="font-weight:400;color:var(--color-text-secondary)">· '+s.roll+'</span>':''}</div><div style="font-size:13px;color:var(--color-text-secondary)">${s.testTitle} &bull; ${s.time}</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="badge b-blue" style="font-size:13px">Score: ${s.score}</span><span class="badge b-green">${s.correct} Correct</span><span class="badge b-red">${s.wrong} Wrong</span><span class="badge b-gray">${s.skipped} Skipped</span></div></div>`).join('');
@@ -716,22 +728,26 @@ window.printTestPaper = function(idx) {
     var doc = iframe.contentWindow || iframe.contentDocument;
     if (doc.document) doc = doc.document;
     
-    doc.open();
+   doc.open();
+    doc.write('<html><head><title>Print: ' + t.title + '</title>');
+    // 🔥 FIX: Proper HTML structure for MathJax to work securely
     doc.write('<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>');
     doc.write('</head><body>');
     doc.write(printHtml);
     doc.write('</body></html>');
     doc.close();
 
-    // Halka sa delay de rahe hain taaki agar koi image ho test me toh wo load ho jaye
+   // 🔥 FIX: Safe Print Spooler Handler
     setTimeout(() => {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
         
-        // Print window aane ke baad kachra saaf kar do
-        setTimeout(() => {
-            document.body.removeChild(iframe);
-        }, 1000);
+        // Browser jab tak print close na kare tab tak wait karo
+        iframe.contentWindow.onafterprint = function() {
+            setTimeout(() => { document.body.removeChild(iframe); }, 1000);
+        };
+        // Fallback for strict browsers
+        setTimeout(() => { if(document.body.contains(iframe)) document.body.removeChild(iframe); }, 60000); 
     }, 1500);
 };
 

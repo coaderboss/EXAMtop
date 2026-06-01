@@ -49,7 +49,7 @@ function joinTest(){
       showModal(`<div style="text-align:center;padding:2rem"><i class="ti ti-door-exit" style="font-size:56px;color:#A32D2D;display:block;margin-bottom:1rem"></i><h3 style="font-size:22px;color:#A32D2D;margin-bottom:0.5rem;font-weight:600">Intake Closed</h3><p style="color:var(--color-text-secondary);margin-bottom:1.5rem;font-size:15px">The examiner is no longer accepting new submissions for this test.</p><button class="btn btn-danger" style="padding:10px 24px;font-size:15px" onclick="hideModal()">Understood</button></div>`);
       return;
   }
-
+  
   if(t.expiryDate && new Date() > new Date(t.expiryDate)) {
       showModal(`<div style="text-align:center;padding:1.5rem"><i class="ti ti-clock-off" style="font-size:42px;color:#A32D2D;display:block;margin-bottom:1rem"></i><div style="font-weight:600;font-size:20px;margin-bottom:0.5rem">Exam Expired!</div><p style="color:var(--color-text-secondary);margin-bottom:1.5rem">The deadline for this exam has passed.</p><button class="btn btn-primary" onclick="hideModal()">Close</button></div>`);
       return;
@@ -128,6 +128,34 @@ function handleCheat(event) {
     }
 }
 
+window.backPressWarnings = 0; 
+window.lastBackPressTime = 0; // 🔥 NAYA: Cooldown timer ke liye memory
+
+window.handleBackCheat = function() {
+    if (!activeTest || activeState.done) return;
+
+    let now = Date.now();
+    // 🔥 THE FIX: Agar 2 second ke andar dobara event fire hua, toh usko ignore karo (Glitch prevention)
+    if (now - window.lastBackPressTime < 2000) return; 
+    window.lastBackPressTime = now;
+
+    window.backPressWarnings = (window.backPressWarnings || 0) + 1;
+
+    if (!activeState.cheatLogs) activeState.cheatLogs = [];
+    activeState.cheatLogs.push({ 
+        time: new Date().toLocaleTimeString('en-IN'), 
+        reason: "Attempted to exit exam via Browser Back Button" 
+    });
+
+    if (window.backPressWarnings >= 2) {
+        showToast("SECURITY ALERT: Exam Auto-Submitted! You attempted to exit the exam multiple times.", "error");
+        doSubmit(); 
+    } else {
+        // alert() ki jagah showModal ya confirm use kar sakte hain, par strictness ke liye alert theek hai
+        alert(`WARNING 1/2: Pressing the BACK button is strictly prohibited during an active exam. Doing it again will automatically submit your paper!`);
+    }
+};
+
 function initiateTestStart(testId, name, roll) {
     var t = tests.find(x => x.id == testId);
     if(t.fullScreenMode) {
@@ -162,24 +190,30 @@ function launchTest(dbTest, name, roll){
   if (test.shuffleOpts) {
       test.questions.forEach(q => {
           if (q.type === 'mcq' || q.type === 'msq') {
-              let optsWithKeys = q.options.map((opt, idx) => ({ text: opt, isCorrect: q.correct.includes(idx) }));
-              optsWithKeys.sort(() => Math.random() - 0.5);
-              q.options = optsWithKeys.map(o => o.text);
-              q.correct = optsWithKeys.map((o, idx) => o.isCorrect ? idx : -1).filter(idx => idx !== -1);
+              let hasRelativeOptions = q.options.some(opt => {
+                  let text = opt.toLowerCase().trim();
+                  return /(all of the above|none of the above|none of these|all of these|^both\b|\b(a|b|c|d)\s*(and|&)\s*(a|b|c|d)\b)/i.test(text);
+              });
+              if (!hasRelativeOptions) {
+                  let optsWithKeys = q.options.map((opt, idx) => ({ text: opt, isCorrect: q.correct.includes(idx) }));
+                  optsWithKeys.sort(() => Math.random() - 0.5);
+                  q.options = optsWithKeys.map(o => o.text);
+                  q.correct = optsWithKeys.map((o, idx) => o.isCorrect ? idx : -1).filter(idx => idx !== -1);
+              }
           }
       });
   }
 
   activeTest = test;
   
-  // 100% FOOLPROOF: AUTO-SAVE & RESUME LOGIC
   var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'anonymous');
-  var draftKey = 'exam_draft_' + activeTest.id + '_' + userIdent;
+  var safeHash = btoa(encodeURIComponent(name + '_' + roll)).replace(/=/g, ''); 
+  var draftKey = 'exam_draft_' + activeTest.id + '_' + userIdent + '_' + safeHash;
   var draft = localStorage.getItem(draftKey);
 
   if (draft) {
       let parsed = JSON.parse(draft);
-      if (parsed.endTime > Date.now()) { 
+      if (parsed.endTime > Date.now()) {
           activeState = parsed.state;
           window.examEndTime = parsed.endTime;
           if(typeof showToast === 'function') showToast("Exam resumed successfully from draft.", "success");
@@ -205,10 +239,20 @@ function launchTest(dbTest, name, roll){
 
   renderTest();
   
-  // ABSOLUTE TIMER LOGIC (Throttling Proof)
+  // 🔥 FIX 4: ABSOLUTE TIMER WITH ANTI-HACK (Time Travel Proof)
   if(timerIv) clearInterval(timerIv);
+  let lastCheckedTime = Date.now();
+  
   timerIv=setInterval(()=>{
-    var secsLeft = Math.floor((window.examEndTime - Date.now()) / 1000);
+    let currentTime = Date.now();
+    
+    // Hack Detection: Agar time 5 second se zyada peeche gaya
+    if (lastCheckedTime - currentTime > 5000) {
+        window.examEndTime -= (lastCheckedTime - currentTime); 
+    }
+    lastCheckedTime = currentTime;
+
+    var secsLeft = Math.floor((window.examEndTime - currentTime) / 1000);
     if (secsLeft < 0) secsLeft = 0;
     
     var el=document.getElementById('timerEl');
@@ -361,13 +405,16 @@ function renderStudentOpts(q,qi,ans,locked){
 window.saveExamDraft = function() {
     if(!activeTest || !activeState || activeState.done) return;
     var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'anonymous');
-    localStorage.setItem('exam_draft_' + activeTest.id + '_' + userIdent, JSON.stringify({ state: activeState, endTime: window.examEndTime }));
+    
+    // Yahan state se name aur roll nikal kar hash banaya
+    var safeHash = btoa(encodeURIComponent(activeState.name + '_' + (activeState.roll || ''))).replace(/=/g, '');
+    localStorage.setItem('exam_draft_' + activeTest.id + '_' + userIdent + '_' + safeHash, JSON.stringify({ state: activeState, endTime: window.examEndTime }));
 };
 
 function pickMCQ(qi,j){activeState.answers[qi].val=j; window.saveExamDraft(); renderTest();}
 function pickMSQ(qi,j){ if(!Array.isArray(activeState.answers[qi].val)) activeState.answers[qi].val=[]; var a=activeState.answers[qi].val, idx=a.indexOf(j); idx>-1?a.splice(idx,1):a.push(j); window.saveExamDraft(); renderTest(); }
-function pickInt(qi,v){activeState.answers[qi].val=v===''?null:+v; window.saveExamDraft();}
-function pickSubj(qi,v){activeState.answers[qi].val=v||null; window.saveExamDraft();}
+function pickInt(qi,v){activeState.answers[qi].val=v===''?null:+v; window.saveExamDraft(); renderTest();}
+function pickSubj(qi,v){activeState.answers[qi].val=v||null; window.saveExamDraft(); renderTest();}
 function clearAns(qi){activeState.answers[qi].val=null; window.saveExamDraft(); renderTest();}
 function togMark(qi){activeState.answers[qi].marked=!activeState.answers[qi].marked; window.saveExamDraft(); renderTest();}
 
@@ -381,8 +428,11 @@ function doSubmit(){
   if(!activeTest||activeState.done)return;
   clearInterval(timerIv); activeState.done=true;
 
- var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'anonymous');
-  localStorage.removeItem('exam_draft_' + activeTest.id + '_' + userIdent);
+  var userIdent = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : ((typeof isOfflineMode !== 'undefined' && isOfflineMode) ? 'offline_user' : 'anonymous');
+  
+  // 1. Exact Hash match karke Zombie Draft memory clear karna
+  var safeHash = btoa(encodeURIComponent(activeState.name + '_' + (activeState.roll || ''))).replace(/=/g, '');
+  localStorage.removeItem('exam_draft_' + activeTest.id + '_' + userIdent + '_' + safeHash);
 
   document.removeEventListener("visibilitychange", handleCheat); 
   document.removeEventListener("fullscreenchange", handleCheat);
@@ -394,23 +444,58 @@ function doSubmit(){
     var ans=activeState.answers[i]; var status,earned=0;
     var hasVal=ans.val!==null&&(!Array.isArray(ans.val)||ans.val.length>0);
     if(!hasVal){skipped++;status='skipped';return{q,ans,status,earned};}
-    if(q.type==='mcq'){ if(ans.val===q.correct[0]){correct++;earned=q.marks;score+=q.marks;status='correct';} else{wrong++;earned=-neg;score-=neg;status='wrong';} }
-    else if(q.type==='msq'){ var userSel = Array.isArray(ans.val) ? ans.val : []; var corrSel = q.correct; var hasWrongOption = userSel.some(x => !corrSel.includes(x)); var correctlySelected = userSel.filter(x => corrSel.includes(x)).length; if (hasWrongOption) { wrong++; earned = -neg; score -= neg; status = 'wrong'; } else if (correctlySelected === corrSel.length) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } else if (correctlySelected > 0) { var partialMarks = (q.marks / corrSel.length) * correctlySelected; let earned = Math.round(partialMarks * 100) / 100; score += earned; correct++; status = 'partial'; } else { wrong++; status = 'wrong'; } }
-    else if(q.type==='integer'){ if(ans.val===q.correctInt){correct++;earned=q.marks;score+=q.marks;status='correct';} else{wrong++;earned=-neg;score-=neg;status='wrong';} }
+    
+    if(q.type==='mcq'){ 
+        if(ans.val===q.correct[0]){correct++;earned=q.marks;score+=q.marks;status='correct';} 
+        else{wrong++;earned=-neg;score-=neg;status='wrong';} 
+    }
+    else if(q.type==='msq'){ 
+        var userSel = Array.isArray(ans.val) ? ans.val : []; 
+        var corrSel = q.correct; 
+        var hasWrongOption = userSel.some(x => !corrSel.includes(x)); 
+        var correctlySelected = userSel.filter(x => corrSel.includes(x)).length; 
+        
+        if (hasWrongOption) { wrong++; earned = -neg; score -= neg; status = 'wrong'; } 
+        else if (correctlySelected === corrSel.length) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } 
+        else if (correctlySelected > 0) { 
+            var partialMarks = (q.marks / corrSel.length) * correctlySelected; 
+            earned = Math.round(partialMarks * 100) / 100; // 🔥 CRITICAL FIX: Removed 'let' to fix UI shadowing bug
+            score += earned; correct++; status = 'partial'; 
+        } else { wrong++; earned = -neg; score -= neg; status = 'wrong'; } 
+    }
+    else if(q.type==='integer'){ 
+        if(ans.val===q.correctInt){correct++;earned=q.marks;score+=q.marks;status='correct';} 
+        else{wrong++;earned=-neg;score-=neg;status='wrong';} 
+    }
     else{skipped++;status='submitted';}
     return{q,ans,status,earned};
   });
   
   score = Number(score.toFixed(2));
-  var userIdent = 'anonymous';
-  if (typeof isOfflineMode !== 'undefined' && isOfflineMode) userIdent = 'offline_user';
-  else if (currentUser) userIdent = currentUser.uid;
 
-  // NAYA: cheatLogs array ko submission package me add kar diya
   var sub = { uid: userIdent, email: currentUser ? currentUser.email : '', name: activeState.name, roll: activeState.roll, score, correct, wrong, skipped, details, time: new Date().toLocaleString('en-IN'), totalMarks: activeTest.totalMarks, cheatLogs: activeState.cheatLogs || [] };
   
-  var t=tests.find(x=>x.id===activeTest.id);
-  if(t && t.id !== 'prev') { if(!t.submissions) t.submissions = []; t.submissions.push(sub); updateDatabase(); }
+  var tIndex = tests.findIndex(x => x.id === activeTest.id);
+  if(tIndex > -1 && activeTest.id !== 'prev') { 
+      if(!tests[tIndex].submissions) tests[tIndex].submissions = []; 
+      
+      if (typeof isOfflineMode !== 'undefined' && isOfflineMode) {
+          tests[tIndex].submissions.push(sub); 
+          updateDatabase();
+      } else {
+          tests[tIndex].submissions.push(sub); 
+          if (typeof db !== 'undefined') {
+              var subsRef = db.ref('tests/' + tIndex + '/submissions');
+              subsRef.transaction(function(currentSubs) {
+                  if (!currentSubs) currentSubs = [];
+                  // 🔥 CRITICAL FIX: Exact duplicate check based strictly on Name + Roll
+                  let exists = currentSubs.find(s => s.name.trim().toLowerCase() === sub.name.trim().toLowerCase() && (s.roll || '').trim().toLowerCase() === (sub.roll || '').trim().toLowerCase());
+                  if (!exists) { currentSubs.push(sub); }
+                  return currentSubs;
+              }).catch(err => console.error("Firebase Transaction Failed:", err));
+          }
+      }
+  }
   
   document.getElementById('student-test').classList.add('hidden');
   closeMobilePalette();
@@ -453,10 +538,15 @@ function resetStudent(){
   var mainHeader = document.querySelector('.app-header');
   if(mainHeader) mainHeader.style.display = '';
   
-  if(currentUser && document.getElementById('s-name')) { document.getElementById('s-name').value = currentUser.displayName || ''; }
-  if (userRole === 'student') nav('student-dashboard');
-  else if (userRole === 'guest') nav('student'); 
-  else if (typeof isOfflineMode !== 'undefined' && isOfflineMode) nav('student');
+  
+
+  if (typeof userRole !== 'undefined') {
+      if (userRole === 'student') nav('student-dashboard');
+      else if (userRole === 'guest') nav('student'); 
+  } else {
+      nav('student');
+  }
+  
   if (typeof updateStudentUIForRole === 'function') updateStudentUIForRole();
 }
 
@@ -499,3 +589,37 @@ document.addEventListener('keydown', function(e) {
         }
     }
 });
+
+// 🔥 SMART STUDENT IDENTITY LOCK (Firebase Race Condition Fixed)
+window.applyStudentIdentity = function() {
+    let nameInput = document.getElementById('s-name');
+    if (!nameInput) return;
+
+    // Helper function taaki baar-baar code na likhna pade
+    const lockNameUI = (user) => {
+        if (user && user.displayName) { 
+            nameInput.value = user.displayName; 
+            nameInput.readOnly = true; 
+            nameInput.style.backgroundColor = '#f1f5f9'; 
+            nameInput.style.color = '#475569';
+            nameInput.title = "Name is locked to your Google Account profile";
+        } else {
+            nameInput.value = '';
+            nameInput.readOnly = false; 
+            nameInput.style.backgroundColor = '#ffffff';
+            nameInput.style.color = '#0f172a';
+            nameInput.title = "";
+        }
+    };
+
+    // Agar user already memory me hai
+    if (typeof currentUser !== 'undefined' && currentUser) {
+        lockNameUI(currentUser);
+    } 
+    // Agar Firebase abhi load ho raha hai, toh background me wait karo
+    else if (typeof firebase !== 'undefined' && firebase.auth) {
+        firebase.auth().onAuthStateChanged(function(user) {
+            lockNameUI(user);
+        });
+    }
+};
