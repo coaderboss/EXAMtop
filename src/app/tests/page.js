@@ -21,6 +21,7 @@ export default function ManageTests() {
   const [selectedTest, setSelectedTest] = useState(null);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'subs'
   const [searchQuery, setSearchQuery] = useState('');
+  const [undoData, setUndoData] = useState(null); // For Delete Undo timer
   
   // --- MODALS & SUB-VIEWS ---
   const [modalType, setModalType] = useState(null); // 'analytics' | 'editKey' | 'audit'
@@ -48,11 +49,20 @@ export default function ManageTests() {
 
   // 2. MathJax Auto-Renderer
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
-      window.MathJax.typesetClear();
-      window.MathJax.typesetPromise().catch((err) => console.log('MathJax Error:', err));
-    }
-  }, [selectedTest, modalType, evaluateSub, evalFilter]);
+    const renderMath = async () => {
+        if (typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
+            try {
+                window.MathJax.typesetClear();
+                await window.MathJax.typesetPromise();
+            } catch (err) {
+                console.log('MathJax Error:', err);
+            }
+        }
+    };
+    // 100ms delay ensures JSON DOM is fully painted before scanning
+    const timer = setTimeout(renderMath, 100);
+    return () => clearTimeout(timer);
+  }, [selectedTest, evaluateSub, evalFilter, modalType, activeTab]);
 
   if (authLoading || loadingData || !isMounted) {
     return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div><div>Loading Vault...</div></div>;
@@ -99,28 +109,37 @@ export default function ManageTests() {
     } catch (e) { setSysAlert({ title: 'Error', msg: 'Error toggling status.', type: 'error' }); }
   };
 
-  const deleteTest = (t) => {
+  const triggerDelete = (t) => {
     setSysConfirm({
         title: 'Delete Test?',
-        msg: `Are you absolutely sure you want to permanently delete "${t.title}"? All student submissions and analytics will be erased. This cannot be undone.`,
-        action: async () => {
-            try {
-                if (t.isLocal) {
-                    let currentLocal = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
-                    let newLocal = currentLocal.filter(x => x.id !== t.id);
-                    localStorage.setItem('examitop_offline_tests', JSON.stringify(newLocal));
-                    setLocalTests(newLocal);
-                } else {
-                    const newTests = tests.filter(x => x.id !== t.id);
-                    await set(ref(database, 'tests'), newTests);
-                }
-                setSelectedTest(null);
-                setSysAlert({ title: 'Deleted', msg: `Test "${t.title}" deleted successfully.`, type: 'success' });
-            } catch (e) { 
-                setSysAlert({ title: 'Error', msg: 'Error deleting test.', type: 'error' }); 
-            }
+        msg: `Are you sure you want to delete "${t.title}"? You will have 5 seconds to undo this action.`,
+        action: () => {
+            setSelectedTest(null); // Return to vault immediately
+            
+            // 5-second countdown for actual deletion
+            const timeoutId = setTimeout(async () => {
+                try {
+                    if (t.isLocal) {
+                        let currentLocal = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
+                        let newLocal = currentLocal.filter(x => x.id !== t.id);
+                        localStorage.setItem('examitop_offline_tests', JSON.stringify(newLocal));
+                        setLocalTests(newLocal);
+                    } else {
+                        const newTests = tests.filter(x => x.id !== t.id);
+                        await set(ref(database, 'tests'), newTests);
+                    }
+                    setUndoData(null); 
+                } catch (e) { console.error("Deletion failed", e); }
+            }, 5000);
+
+            setUndoData({ test: t, timeoutId });
         }
     });
+  };
+
+  const handleUndo = () => {
+      if (undoData?.timeoutId) clearTimeout(undoData.timeoutId);
+      setUndoData(null);
   };
 
   const publishResults = async (t) => {
@@ -510,6 +529,13 @@ export default function ManageTests() {
                                 <div style={{ padding: '1rem', background: 'var(--color-background-tertiary)', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', marginBottom: '1rem' }}>
                                     <strong>Student Answer:</strong><br/><span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{ans.val || <em style={{ color: 'var(--color-text-secondary)' }}>No answer provided.</em>}</span>
                                 </div>
+                                {/* Explanation Box for Examiner */}
+                             {q.explanation && (
+                                 <div style={{ padding: '1rem', background: '#EAF3DE', borderRadius: '8px', borderLeft: '4px solid #3B6D11', marginTop: '1.5rem', marginBottom: '1rem' }}>
+                                     <strong style={{ color: '#27500A', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Correct Explanation / Logic:</strong>
+                                     <div style={{ fontSize: '14px', color: '#3B6D11', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
+                                 </div>
+                             )}
                                 {q.modelAnswer && (
                                     <div style={{ padding: '1rem', background: '#EAF3DE', border: '1px solid #C0DD97', borderRadius: '8px', color: '#27500A' }}>
                                         <strong>Model Answer (Reference):</strong><br/><span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{q.modelAnswer}</span>
@@ -637,7 +663,7 @@ export default function ManageTests() {
                     <div style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px dashed #F7C1C1' }}>
                         <h3 style={{ fontSize: '16px', color: '#A32D2D', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-alert-triangle"></i> Danger Zone</h3>
                         <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>Deleting a test is irreversible. All associated student submissions and analytics will be permanently erased.</p>
-                        <button className="btn btn-danger" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 600 }} onClick={() => deleteTest(selectedTest)}><i className="ti ti-trash"></i> Delete Entire Test</button>
+                        <button className="btn btn-danger" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 600 }} onClick={() => triggerDelete(selectedTest)}><i className="ti ti-trash"></i> Delete Entire Test</button>
                     </div>
                 </div>
             </div>
@@ -884,6 +910,14 @@ export default function ManageTests() {
                 })}
             </div>
         )}
+
+        {/* Undo Toast Notification */}
+      {undoData && (
+          <div style={{ position: 'fixed', bottom: '30px', right: '30px', background: '#334155', color: '#fff', padding: '16px 24px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', zIndex: 9999, animation: 'slideUp 0.3s ease' }}>
+              <div><i className="ti ti-trash"></i> Test moved to trash.</div>
+              <button className="btn btn-sm" style={{ background: '#f59e0b', color: '#fff', border: 'none', fontWeight: 700 }} onClick={handleUndo}>UNDO</button>
+          </div>
+      )}
 
         {/* 🔥 SYSTEM MODALS */}
         {sysAlert && (
