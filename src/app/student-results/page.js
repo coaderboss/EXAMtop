@@ -283,13 +283,13 @@ export default function StudentResults() {
                         </>
                     )}
 
-                    {/* Explanation Box for Student */}
-                    {q.explanation && (
-                        <div style={{ padding: '1rem', background: '#E6F1FB', borderRadius: '8px', borderLeft: '4px solid #185FA5', marginTop: '1.5rem', marginBottom: '1rem' }}>
-                            <strong style={{ color: '#114B87', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Solution & Explanation:</strong>
-                            <div style={{ fontSize: '14px', color: '#114B87', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
-                        </div>
-                    )}
+                    {/* 2. EXPLANATION BOX (New Distinct Color & Math Scroll) */}
+                        {q.explanation && (
+                            <div className="math-scroll" style={{ padding: '1rem', background: '#F8FAFC', borderRadius: '8px', borderLeft: '4px solid #475569', marginTop: '1.5rem', marginBottom: '1rem' }}>
+                                <strong style={{ color: '#334155', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Correct Explanation / Logic:</strong>
+                                <div className="math-scroll" style={{ fontSize: '14px', color: '#334155', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
+                            </div>
+                        )}
 
                     {/* Audit Logs */}
                     {d.auditLogs && d.auditLogs.length > 0 && (

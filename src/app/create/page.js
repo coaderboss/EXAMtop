@@ -36,6 +36,7 @@ export default function CreateTest() {
   
   // Premium Draft State (For Custom Modal)
   const [pendingDraft, setPendingDraft] = useState(null); 
+  const [successModal, setSuccessModal] = useState(null); // Custom popup state
 
   // Questions State
   const [qList, setQList] = useState([]);
@@ -307,7 +308,7 @@ export default function CreateTest() {
       const userIdent = currentUser ? currentUser.uid : (isOffline ? 'offline_user' : 'guest');
       localStorage.removeItem('exam_draft_creator_' + userIdent);
 
-      alert(`Test Saved Successfully!\n\nYour Test Code is: ${testCode}\nMode: ${isOffline ? 'Offline (Local)' : 'Cloud (Firebase)'}`);
+      setSuccessModal({ code: newCode, mode: isOffline ? 'Local Device' : 'Cloud (Firebase)' });  
       router.push('/tests');
 
     } catch (error) {
@@ -545,6 +546,49 @@ export default function CreateTest() {
                   <div style={{ display: 'flex', gap: '12px' }}>
                       <button className="btn" style={{ flex: 1, padding: '12px', justifyContent: 'center', fontWeight: 600, color: '#A32D2D', background: '#FCEBEB', border: 'none' }} onClick={handleDiscardDraft}>Discard Draft</button>
                       <button className="btn btn-primary" style={{ flex: 1, padding: '12px', justifyContent: 'center', fontWeight: 600 }} onClick={handleRestoreDraft}>Yes, Restore</button>
+                  </div>
+              </div>
+          </div>
+      )}
+      {/* SUCCESS MODAL POPUP */}
+      {successModal && (
+          <div className="modal-bg" style={{ zIndex: 99999 }}>
+              <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem 2rem' }}>
+                  <div style={{ width: '64px', height: '64px', background: '#EAF3DE', color: '#3B6D11', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', margin: '0 auto 1.5rem' }}>
+                      <i className="ti ti-check"></i>
+                  </div>
+                  <h2 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '10px', color: '#0f172a' }}>Test Saved Successfully!</h2>
+                  <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '1.5rem' }}>Your test is ready. Share the code below with your students.</p>
+                  
+                  <div style={{ background: '#f8fafc', border: '2px dashed #cbd5e1', borderRadius: '8px', padding: '15px', marginBottom: '1.5rem', position: 'relative' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '5px' }}>TEST CODE</div>
+                      <div style={{ fontSize: '28px', fontWeight: 800, color: '#185FA5', letterSpacing: '2px', fontFamily: 'monospace' }}>{successModal.code}</div>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: successModal.mode.includes('Local') ? '#d97706' : '#10B981', marginTop: '5px' }}>
+                          <i className={`ti ${successModal.mode.includes('Local') ? 'ti-device-floppy' : 'ti-cloud-check'}`}></i> Saved to {successModal.mode}
+                      </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <button 
+                          className="btn btn-primary" 
+                          style={{ width: '100%', padding: '14px', justifyContent: 'center', fontSize: '15px' }}
+                          onClick={() => {
+                              navigator.clipboard.writeText(successModal.code);
+                              alert("Code Copied to Clipboard!");
+                          }}
+                      >
+                          <i className="ti ti-copy"></i> Copy Code
+                      </button>
+                      <button 
+                          className="btn" 
+                          style={{ width: '100%', padding: '14px', justifyContent: 'center', background: '#f1f5f9', color: '#475569', border: 'none', fontWeight: 600, fontSize: '15px' }}
+                          onClick={() => {
+                              setSuccessModal(null);
+                              router.push('/tests'); // Direct Vault me jane ka button
+                          }}
+                      >
+                          <i className="ti ti-list-check"></i> Go to My Vault
+                      </button>
                   </div>
               </div>
           </div>

@@ -847,3 +847,23 @@ mjx-container[display="true"]::-webkit-scrollbar {
 .opt-btn, .pal-btn {
     transition: all 0.2s ease-in-out !important;
 }
+
+/* Transparent Horizontal Scroll for Math Equations */
+.math-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+.math-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.math-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.math-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+}
+.math-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
