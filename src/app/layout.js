@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { database } from '../lib/firebase';
 import { ref, update, remove } from 'firebase/database';
+import Script from 'next/script';
 
 
 function Header() {
@@ -289,10 +290,26 @@ export default function RootLayout({ children }) {
         <title>ExamiTop | Secure Assessment Platform</title>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
         
-        {/* PWA Manifest aur Theme Color yahan direct HTML style me daal do */}
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#185FA5" />
         <link rel="apple-touch-icon" href="/logo.png" />
+        
+        {/* 🔥 FIX 1: MathJax Configuration (Isko batana padta hai ki $ math hai) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.MathJax = {
+                tex: {
+                  inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                  displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']]
+                }
+              };
+            `,
+          }}
+        />
+        
+        {/* 🔥 FIX 2: Standard HTML Script tag (Next.js tag use nahi kar rahe taaki delay na ho) */}
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async />
       </head>
       
       <body suppressHydrationWarning>

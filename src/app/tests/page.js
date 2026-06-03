@@ -64,9 +64,10 @@ export default function ManageTests() {
     return () => clearTimeout(timer);
   }, [selectedTest, evaluateSub, evalFilter, modalType, activeTab]);
 
-  if (authLoading || loadingData || !isMounted) {
-    return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div><div>Loading Vault...</div></div>;
-  }
+  // Naya condition: Agar offline mode active hai, toh cloud data loading ka wait mat karo!
+if (authLoading || !isMounted || (!isOffline && loadingData)) {
+  return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div><div>Loading Vault...</div></div>;
+}
 
   // 3. Strict Access Control (Allows Offline Access without Login)
   if (!isOffline && (!currentUser || (userRole !== 'examiner' && userRole !== 'admin'))) {
