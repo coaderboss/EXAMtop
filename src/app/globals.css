@@ -843,27 +843,32 @@ mjx-container[display="true"]::-webkit-scrollbar {
     display: none !important; 
 }
 
-/* Smooth premium transitions for student UI */
-.opt-btn, .pal-btn {
-    transition: all 0.2s ease-in-out !important;
+/* 1. General Fix: Remove focus outlines and tap highlights from all math */
+mjx-container {
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent;
 }
 
-/* Transparent Horizontal Scroll for Math Equations */
-.math-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  max-width: 100%;
+/* 2. INLINE MATH: Chhote variables ke liye (No lines, No scroll) */
+mjx-container:not([display="true"]) {
+    overflow: visible !important;
+    display: inline-block;
+    vertical-align: middle;
 }
-.math-scroll::-webkit-scrollbar {
-  height: 6px;
+
+/* 3. DISPLAY MATH: Sirf lambi equations ke liye (Smooth scroll, No visible bar) */
+mjx-container[display="true"] {
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    display: block !important; 
+    -webkit-overflow-scrolling: touch;
+    
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
 }
-.math-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.math-scroll::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 10px;
-}
-.math-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
+
+/* Chrome/Safari me scrollbar ko completely invisible karna */
+mjx-container[display="true"]::-webkit-scrollbar { 
+    display: none !important; 
 }
