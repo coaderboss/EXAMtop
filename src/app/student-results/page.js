@@ -16,6 +16,7 @@ export default function StudentResults() {
 
   // MathJax Auto-Renderer for detailed view
   // MathJax Auto-Renderer for detailed view
+  // MathJax Auto-Renderer for detailed view
   useEffect(() => {
     const renderMath = async () => {
         if (selectedResult && typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
@@ -30,7 +31,7 @@ export default function StudentResults() {
     // 100ms delay ensures JSON text is painted before scanning
     const timer = setTimeout(renderMath, 100);
     return () => clearTimeout(timer);
-  }, [selectedTest, filter]);
+  }, [selectedResult, filter]); // 🔥 THE FIX: selectedResult kar diya!
 
   if (authLoading || loadingData) {
     return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div><div>Fetching Results...</div></div>;

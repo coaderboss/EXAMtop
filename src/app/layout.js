@@ -10,7 +10,6 @@ import { database } from '../lib/firebase';
 import { ref, update, remove } from 'firebase/database';
 import Script from 'next/script';
 
-
 function Header() {
   const { currentUser, userRole, loginWithGoogle, logout } = useAuth();
   const pathname = usePathname();
