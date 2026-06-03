@@ -48,11 +48,20 @@ export default function StudentPortal() {
   }, [currentUser]);
 
   // MathJax Auto-Renderer
+  // MathJax Auto-Renderer
   useEffect(() => {
-    if (step === 'exam' && typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
-      window.MathJax.typesetClear();
-      window.MathJax.typesetPromise().catch((err) => console.log('MathJax Error:', err));
-    }
+    const renderMath = async () => {
+      if (step === 'exam' && typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
+        try {
+          window.MathJax.typesetClear();
+          await window.MathJax.typesetPromise();
+        } catch (err) {
+          console.log('MathJax Error:', err);
+        }
+      }
+    };
+    const timer = setTimeout(renderMath, 100);
+    return () => clearTimeout(timer);
   }, [curQ, step]);
 
   // Hide Global Header during Active Exam
@@ -402,8 +411,7 @@ export default function StudentPortal() {
                 {answers[curQ]?.marked && <span className="badge b-amber"><i className="ti ti-bookmark" style={{ fontSize: '12px' }}></i> Marked</span>}
               </div>
               
-              <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }}>
-                  {currentQuestion?.text}
+              <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} dangerouslySetInnerHTML={{ __html: currentQuestion?.text || '' }}>
               </div>
               
               {currentQuestion?.imgUrl && (
@@ -414,7 +422,7 @@ export default function StudentPortal() {
                   {currentQuestion?.type === 'mcq' && currentQuestion.options.map((opt, j) => (
                       <button key={j} className={`opt-btn ${answers[curQ]?.val === j ? 'sel' : ''}`} onClick={() => pickMCQ(curQ, j)}>
                           <div className="olabel">{answers[curQ]?.val === j ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                          <span style={{ fontSize: '15px' }}>{opt}</span>
+                          <span style={{ fontSize: '15px' }} dangerouslySetInnerHTML={{ __html: opt }}></span>                     
                       </button>
                   ))}
                   
@@ -423,7 +431,7 @@ export default function StudentPortal() {
                       return (
                           <button key={j} className={`opt-btn ${isSelected ? 'sel' : ''}`} onClick={() => pickMSQ(curQ, j)}>
                               <div className="olabel" style={{ borderRadius: '4px' }}>{isSelected ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                              <span style={{ fontSize: '15px' }}>{opt}</span>
+                              <span style={{ fontSize: '15px' }} dangerouslySetInnerHTML={{ __html: opt }}></span>               
                           </button>
                       );
                   })}

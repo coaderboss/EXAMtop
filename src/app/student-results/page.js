@@ -15,12 +15,22 @@ export default function StudentResults() {
   const [filter, setFilter] = useState('all'); // 'all', 'correct', 'wrong', 'skipped'
 
   // MathJax Auto-Renderer for detailed view
+  // MathJax Auto-Renderer for detailed view
   useEffect(() => {
-    if (selectedResult && typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
-      window.MathJax.typesetClear();
-      window.MathJax.typesetPromise().catch((err) => console.log('MathJax Error:', err));
-    }
-  }, [selectedResult, filter]);
+    const renderMath = async () => {
+        if (selectedResult && typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
+            try {
+                window.MathJax.typesetClear();
+                await window.MathJax.typesetPromise();
+            } catch (err) {
+                console.log('MathJax Error:', err);
+            }
+        }
+    };
+    // 100ms delay ensures JSON text is painted before scanning
+    const timer = setTimeout(renderMath, 100);
+    return () => clearTimeout(timer);
+  }, [selectedTest, filter]);
 
   if (authLoading || loadingData) {
     return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div><div>Fetching Results...</div></div>;
@@ -218,7 +228,7 @@ export default function StudentResults() {
                     <span style={{ marginLeft: 'auto', fontSize: '14px', fontWeight: 600, background: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: '12px' }}>{statusLabel} &nbsp; {earnedStr} marks</span>
                 </div>
                 <div className="qr-body">
-                    <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.5rem', color: 'var(--color-text-primary)', fontWeight: 500 }}>{q.text}</div>
+                    <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.5rem', color: 'var(--color-text-primary)', fontWeight: 500 }} dangerouslySetInnerHTML={{ __html: q.text }}></div>
                     {q.imgUrl && <div style={{ marginBottom: '1.5rem' }}><img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} /></div>}
                     
                     {/* MCQ / MSQ Options */}
@@ -235,8 +245,7 @@ export default function StudentResults() {
                             <div key={j} className={`qr-opt ${cls}`} style={borderStyle}>
                                 <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, flexShrink: 0, background: 'rgba(255,255,255,0.7)' }}>{String.fromCharCode(65 + j)}</div>
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0' }}>
-                                    <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400 }}>{o}</div>
-                                    {(isUser || isCorr) && (
+                                         <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400 }} dangerouslySetInnerHTML={{ __html: o }}></div>                                    {(isUser || isCorr) && (
                                         <div style={{ display: 'flex', gap: '6px' }}>
                                             {isUser && <span style={{ fontSize: '11px', background: '#185FA5', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Student Picked</span>}
                                             {isCorr && <span style={{ fontSize: '11px', background: '#3B6D11', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Correct Key</span>}
@@ -273,11 +282,11 @@ export default function StudentResults() {
                         </>
                     )}
 
-                    {/* Explanation */}
+                    {/* Explanation Box for Student */}
                     {q.explanation && (
-                        <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--color-background-tertiary)', borderRadius: 'var(--border-radius-md)', fontSize: '14px', display: 'flex', gap: '10px', alignItems: 'flex-start', border: '1px solid var(--color-border-secondary)' }}>
-                            <i className="ti ti-info-circle" style={{ flexShrink: 0, color: '#185FA5', fontSize: '18px', marginTop: '2px' }}></i>
-                            <span style={{ lineHeight: 1.6, minWidth: 0, width: '100%', overflowX: 'auto' }}><strong>Explanation:</strong> {q.explanation}</span>
+                        <div style={{ padding: '1rem', background: '#E6F1FB', borderRadius: '8px', borderLeft: '4px solid #185FA5', marginTop: '1.5rem', marginBottom: '1rem' }}>
+                            <strong style={{ color: '#114B87', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Solution & Explanation:</strong>
+                            <div style={{ fontSize: '14px', color: '#114B87', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
                         </div>
                     )}
 

@@ -80,11 +80,13 @@ export default function ManageTests() {
     );
   }
 
-  // 4. Merge Cloud Tests with Local Tests
-  const myTests = isOffline 
+  // 4. Merge Cloud Tests and Hide the one being deleted (Undo State)
+  const baseTests = isOffline 
     ? localTests 
     : [...tests.filter(t => t?.creatorUid === currentUser?.uid), ...localTests];
-
+    
+  const myTests = baseTests.filter(t => t.id !== undoData?.test?.id);
+  
   // 5. Universal Data Updater (Handles both LocalStorage and Firebase)
   const updateTestGlobal = async (updatedTest) => {
     if (updatedTest.isLocal) {
@@ -488,8 +490,8 @@ export default function ManageTests() {
                     </div>
                     
                     <div className="qr-body">
-                        <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.25rem', fontWeight: 500 }}>{q.text}</div>
-                        {q.imgUrl && <div style={{ marginBottom: '1.5rem' }}><img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} /></div>}
+                       <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.25rem', fontWeight: 500 }} dangerouslySetInnerHTML={{ __html: q.text }}></div>           
+                       {q.imgUrl && <div style={{ marginBottom: '1.5rem' }}><img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} /></div>}
                         
                         {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
                             let isUser = userSel.includes(j);
@@ -503,7 +505,7 @@ export default function ManageTests() {
                                 <div key={j} className={`qr-opt ${cls}`} style={borderStyle}>
                                     <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, flexShrink: 0, background: 'rgba(255,255,255,0.7)' }}>{String.fromCharCode(65 + j)}</div>
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0' }}>
-                                        <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400 }}>{o}</div>
+                                        <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400 }} dangerouslySetInnerHTML={{ __html: o }}></div>
                                         {(isUser || isCorr) && (
                                             <div style={{ display: 'flex', gap: '6px' }}>
                                                 {isUser && <span style={{ fontSize: '11px', background: '#185FA5', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Student Picked</span>}
@@ -524,23 +526,25 @@ export default function ManageTests() {
                             </div>
                         )}
 
+                        {/* 1. Subjective Answer Block */}
                         {q.type === 'subjective' && (
                             <div style={{ marginBottom: '1rem' }}>
                                 <div style={{ padding: '1rem', background: 'var(--color-background-tertiary)', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', marginBottom: '1rem' }}>
                                     <strong>Student Answer:</strong><br/><span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{ans.val || <em style={{ color: 'var(--color-text-secondary)' }}>No answer provided.</em>}</span>
                                 </div>
-                                {/* Explanation Box for Examiner */}
-                             {q.explanation && (
-                                 <div style={{ padding: '1rem', background: '#EAF3DE', borderRadius: '8px', borderLeft: '4px solid #3B6D11', marginTop: '1.5rem', marginBottom: '1rem' }}>
-                                     <strong style={{ color: '#27500A', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Correct Explanation / Logic:</strong>
-                                     <div style={{ fontSize: '14px', color: '#3B6D11', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
-                                 </div>
-                             )}
                                 {q.modelAnswer && (
                                     <div style={{ padding: '1rem', background: '#EAF3DE', border: '1px solid #C0DD97', borderRadius: '8px', color: '#27500A' }}>
                                         <strong>Model Answer (Reference):</strong><br/><span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{q.modelAnswer}</span>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* 2. EXPLANATION BOX (Ab ye sabme dikhega) */}
+                        {q.explanation && (
+                            <div style={{ padding: '1rem', background: '#EAF3DE', borderRadius: '8px', borderLeft: '4px solid #3B6D11', marginTop: '1.5rem', marginBottom: '1rem' }}>
+                                <strong style={{ color: '#27500A', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Correct Explanation / Logic:</strong>
+                                <div style={{ fontSize: '14px', color: '#3B6D11', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
                             </div>
                         )}
 
@@ -670,14 +674,14 @@ export default function ManageTests() {
         )}
 
         {activeTab === 'subs' && (
-            <div className="card" style={{ borderRadius: '12px', padding: '2rem' }}>
+            <div className="card" style={{ padding: '2rem 1rem', borderRadius: '12px' }}> {/* Mobile friendly padding */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '15px' }}>
                     <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>Submissions Ledger</h3>
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <button className="btn btn-success" style={{ padding: '10px 16px', fontWeight: 600, borderRadius: '8px' }} onClick={() => exportToCSV(selectedTest)}><i className="ti ti-file-spreadsheet"></i> Export CSV</button>
-                        <div style={{ position: 'relative', width: '280px', maxWidth: '100%' }}>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', width: '100%' }}>
+                        <button className="btn btn-success" style={{ padding: '10px 16px', fontWeight: 600, borderRadius: '8px', flexGrow: 1, justifyContent: 'center' }} onClick={() => exportToCSV(selectedTest)}><i className="ti ti-file-spreadsheet"></i> Export CSV</button>
+                        <div style={{ position: 'relative', flexGrow: 2, minWidth: '200px' }}>
                             <i className="ti ti-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '18px' }}></i>
-                            <input type="text" placeholder="Search by Name or Roll No..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ padding: '10px 10px 10px 40px', width: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc' }} />
+                            <input type="text" placeholder="Search by Name or Roll No..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ padding: '10px 10px 10px 40px', width: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', boxSizing: 'border-box' }} />
                         </div>
                     </div>
                 </div>
@@ -689,30 +693,34 @@ export default function ManageTests() {
                         <p style={{ color: '#94a3b8', fontSize: '14px' }}>Wait for students to complete the test.</p>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '500px', overflowY: 'auto', paddingRight: '5px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '500px', overflowY: 'auto', paddingRight: '5px' }}>
                         {filteredSubs.map((s, sIdx) => (
-                            <div key={sIdx} style={{ padding: '15px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '16px' }}>{(s.name || 'A').charAt(0).toUpperCase()}</div>
-                                    <div>
-                                        <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '2px' }}>{s.name}</div>
+                            <div key={sIdx} style={{ padding: '15px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '15px' }}>
+                                
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '150px' }}>
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '16px', flexShrink: 0 }}>{(s.name || 'A').charAt(0).toUpperCase()}</div>
+                                    <div style={{ overflow: 'hidden' }}>
+                                        <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '2px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{s.name}</div>
                                         <div style={{ fontSize: '13px', color: '#64748b', fontFamily: 'monospace' }}>Roll: {s.roll || 'N/A'}</div>
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap', flexGrow: 1, justifyContent: 'flex-end' }}>
                                     {s.evaluated || selectedTest.resultVis === 'instant' ? (
                                         <div style={{ textAlign: 'right' }}><div style={{ fontSize: '18px', fontWeight: 800, color: '#185FA5' }}>{s.score} <span style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8' }}>/ {selectedTest.totalMarks}</span></div><div style={{ fontSize: '11px', color: '#10B981', fontWeight: 600 }}>Evaluated</div></div>
                                     ) : (
                                         <div style={{ textAlign: 'right' }}><div style={{ fontSize: '15px', fontWeight: 700, color: '#f59e0b', marginBottom: '2px' }}><i className="ti ti-clock"></i> Pending</div><div style={{ fontSize: '11px', color: '#94a3b8' }}>Needs Check</div></div>
                                     )}
-                                    <button className="btn btn-primary" style={{ padding: '10px 16px', fontWeight: 600, borderRadius: '8px' }} onClick={() => { setEvaluateSub({ sub: s, test: selectedTest, sIdx }); setEvalFilter('all'); }}><i className="ti ti-eye"></i> Evaluate</button>
+                                    <button className="btn btn-primary" style={{ padding: '8px 14px', fontWeight: 600, borderRadius: '8px', whiteSpace: 'nowrap' }} onClick={() => { setEvaluateSub({ sub: s, test: selectedTest, sIdx }); setEvalFilter('all'); }}><i className="ti ti-eye"></i> Evaluate</button>
                                 </div>
+
                             </div>
                         ))}
                     </div>
                 )}
             </div>
         )}
+        
 
         {/* MODALS INLINE */}
         {modalType === 'editKey' && (
