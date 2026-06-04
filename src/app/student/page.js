@@ -7,8 +7,7 @@ import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
 import { ref, push, set } from 'firebase/database';
 
-// 🔥 THE MASTER FIX: Ye component MathJax ko React ke re-renders se bachayega
-// Isse Timer aur Option Clicks par math equations galti se bhi raw JSON me nahi badlengi.
+// 🔥 THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
   if (isBlock) return <div className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
   return <span className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
@@ -20,9 +19,10 @@ export default function StudentPortal() {
   const router = useRouter();
 
   // --- SCREEN STATES ---
-  const [step, setStep] = useState('join');
+  const [step, setStep] = useState('join'); // join, instructions, exam, offline_saved
   const [isSubmitting, setIsSubmitting] = useState(false); 
   const [showConfirmModal, setShowConfirmModal] = useState(false); 
+  const [draftToResume, setDraftToResume] = useState(null); 
   
   // --- FORM STATES ---
   const [name, setName] = useState('');
@@ -35,11 +35,15 @@ export default function StudentPortal() {
   const [answers, setAnswers] = useState([]);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState(false);
+  const [showRoughPad, setShowRoughPad] = useState(false);
+  const [roughText, setRoughText] = useState('');
 
+  // --- CUSTOM POPUPS & ALERTS ---
   const [joinError, setJoinError] = useState(''); 
   const [cheatWarning, setCheatWarning] = useState(null); 
+  const [sysModal, setSysModal] = useState(null); // { type: 'success'|'error'|'info', msg: '', action: ()=>{} }
   
-  // --- REFS (For performance & avoiding re-renders) ---
+  // --- REFS ---
   const timerRef = useRef(null);
   const endTimeRef = useRef(null);
   const warningsRef = useRef(0);
@@ -47,14 +51,12 @@ export default function StudentPortal() {
   const lastWarningTimeRef = useRef(0);
   const isActionLockedRef = useRef(false);
 
-  // Auto-fill student name if logged in via Google
+  // Auto-fill student name
   useEffect(() => {
-    if (currentUser && currentUser.displayName) {
-      setName(currentUser.displayName);
-    }
+    if (currentUser && currentUser.displayName) setName(currentUser.displayName);
   }, [currentUser]);
 
-  // 🔥 MathJax Auto-Renderer (Smooth Fade-In, No Flickering)
+  // 🔥 1. MathJax Auto-Renderer (Smooth Fade-In)
   useEffect(() => {
     const renderMath = async () => {
       if (step === 'exam' && typeof window !== 'undefined' && window.MathJax) {
@@ -64,7 +66,6 @@ export default function StudentPortal() {
         } catch (err) {
           console.log('MathJax Error:', err);
         } finally {
-            // Processing hone ke baad slowly dikhao taaki raw text flash na ho
             let targetAreas = document.querySelectorAll('.q-area-content');
             targetAreas.forEach(el => {
                 el.style.transition = 'opacity 0.25s ease-in';
@@ -73,61 +74,91 @@ export default function StudentPortal() {
         }
       }
     };
-    
-    // Sirf Question change hone par chalega
     const timer = setTimeout(renderMath, 20); 
     return () => clearTimeout(timer);
   }, [curQ, step]);
 
-  // Hide Global Header during Active Exam
+  // Hide Global Header during Exam
   useEffect(() => {
     const header = document.querySelector('.app-header');
-    if (step === 'exam') {
-      if (header) header.style.display = 'none'; 
-    } else {
-      if (header) header.style.display = ''; 
-    }
+    if (step === 'exam' && header) header.style.display = 'none'; 
+    else if (header) header.style.display = ''; 
     return () => { if (header) header.style.display = ''; };
   }, [step]);
 
-  // ADVANCED ANTI-CHEAT ENGINE
+  // 🔥 2. AUTO-SAVE DRAFT (Panic Refresh Protection)
+  useEffect(() => {
+    if (step === 'exam' && activeTest && answers.length > 0) {
+        const safeName = name.trim() || 'guest';
+        const safeRoll = roll.trim() || 'noroll';
+        const draftData = {
+            answers, curQ, endTime: endTimeRef.current,
+            warnings: warningsRef.current, cheatLogs: cheatLogsRef.current
+        };
+        localStorage.setItem(`exam_draft_${activeTest.id}_${safeName}_${safeRoll}`, JSON.stringify(draftData));
+    }
+  }, [answers, curQ, step]);
+
+  // 🔥 3. AUTO-SYNC OFFLINE SUBMISSIONS
+  useEffect(() => {
+    const handleOnline = async () => {
+        let pending = JSON.parse(localStorage.getItem('examitop_pending_subs') || '[]');
+        if (pending.length > 0) {
+            for (let p of pending) {
+                try {
+                    const tIndex = tests.findIndex(x => x.id === p.testId);
+                    if (tIndex > -1) await set(push(ref(database, `tests/${tIndex}/submissions`)), p.sub);
+                } catch(e) {}
+            }
+            localStorage.removeItem('examitop_pending_subs');
+            setSysModal({ type: 'success', msg: "Internet restored! Pending offline submissions have been synced safely." });
+        }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [tests]);
+
+  // 🔥 4. ENTERPRISE ANTI-CHEAT ENGINE (Keyboard Ninja Blocker)
   useEffect(() => {
     if (step !== 'exam' || !activeTest?.antiCheat) return;
 
-    const handleCheat = (event) => {
+    const triggerCheat = (reason) => {
         if (isActionLockedRef.current) return;
-
         const now = Date.now();
-        if (now - lastWarningTimeRef.current < 3000) return; 
+        if (now - lastWarningTimeRef.current < 3000) return; // Cooldown
+        
+        lastWarningTimeRef.current = now;
+        warningsRef.current += 1;
+        cheatLogsRef.current.push({ time: new Date().toLocaleTimeString('en-IN'), reason });
 
-        let reason = "";
-        let isTabSwitch = event.type === 'visibilitychange' && document.hidden;
-        let isWindowBlur = event.type === 'blur';
-        let isFullScreenExit = event.type === 'fullscreenchange' && !document.fullscreenElement && activeTest.fullScreenMode;
+        if (warningsRef.current >= 3) {
+            setCheatWarning({ fatal: true, msg: "SECURITY ALERT: Exam Blocked! Rules violated 3 times. Auto-submitting paper." });
+            setTimeout(() => handleFinalSubmit(), 3000); 
+        } else {
+            setCheatWarning({ fatal: false, count: warningsRef.current, msg: `${reason} detected! Please do not leave the exam screen.` });
+        }
+    };
 
-        if (isTabSwitch) reason = "Tab switching / App change";
-        else if (isWindowBlur) reason = "Opened another window (Focus lost)";
-        else if (isFullScreenExit) reason = "Exited full-screen mode";
+    const handleWindowCheat = (e) => {
+        if (e.type === 'visibilitychange' && document.hidden) triggerCheat("Tab switching / App change");
+        else if (e.type === 'blur') triggerCheat("Opened another window (Focus lost)");
+        else if (e.type === 'fullscreenchange' && !document.fullscreenElement && activeTest.fullScreenMode) triggerCheat("Exited full-screen mode");
+    };
 
-        if (reason) {
-            lastWarningTimeRef.current = now;
-            warningsRef.current += 1;
-            cheatLogsRef.current.push({ time: new Date().toLocaleTimeString('en-IN'), reason });
-
-            if (warningsRef.current >= 3) {
-                setCheatWarning({ fatal: true, msg: "SECURITY ALERT: Exam Blocked! Rules violated 3 times. Auto-submitting paper." });
-                setTimeout(() => handleFinalSubmit(), 3000); 
-            } else {
-                setCheatWarning({ fatal: false, count: warningsRef.current, msg: `${reason} detected! Please do not leave the exam screen.` });
-            }
+    const handleKeyCheat = (e) => {
+        // Block F12, Ctrl+Shift+I/J/C (DevTools), Ctrl+P (Print), Ctrl+U (Source)
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) || (e.ctrlKey && ['P','U','S'].includes(e.key.toUpperCase()))) {
+            e.preventDefault();
+            triggerCheat("Developer Tools / Print Shortcuts are strictly prohibited.");
         }
     };
 
     const blockCopyPaste = (e) => { e.preventDefault(); };
 
-    document.addEventListener("visibilitychange", handleCheat);
-    window.addEventListener("blur", handleCheat);
-    if (activeTest.fullScreenMode) document.addEventListener("fullscreenchange", handleCheat);
+    document.addEventListener("visibilitychange", handleWindowCheat);
+    window.addEventListener("blur", handleWindowCheat);
+    document.addEventListener("keydown", handleKeyCheat);
+    if (activeTest.fullScreenMode) document.addEventListener("fullscreenchange", handleWindowCheat);
     
     document.addEventListener('copy', blockCopyPaste);
     document.addEventListener('cut', blockCopyPaste);
@@ -136,9 +167,10 @@ export default function StudentPortal() {
     document.body.style.userSelect = 'none';
 
     return () => {
-        document.removeEventListener("visibilitychange", handleCheat);
-        window.removeEventListener("blur", handleCheat);
-        if (activeTest.fullScreenMode) document.removeEventListener("fullscreenchange", handleCheat);
+        document.removeEventListener("visibilitychange", handleWindowCheat);
+        window.removeEventListener("blur", handleWindowCheat);
+        document.removeEventListener("keydown", handleKeyCheat);
+        if (activeTest.fullScreenMode) document.removeEventListener("fullscreenchange", handleWindowCheat);
         document.removeEventListener('copy', blockCopyPaste);
         document.removeEventListener('cut', blockCopyPaste);
         document.removeEventListener('paste', blockCopyPaste);
@@ -148,7 +180,7 @@ export default function StudentPortal() {
   }, [step, activeTest]);
 
 
-  // --- 1. JOIN LOGIC (WITH OFFLINE SUPPORT) ---
+  // --- JOIN LOGIC ---
   const handleJoinTest = () => {
     setJoinError(''); 
     if (!name.trim()) { setJoinError('Please enter your full name.'); return; }
@@ -162,31 +194,51 @@ export default function StudentPortal() {
     if (t.isActive === false) { setJoinError("Intake Closed: The examiner is no longer accepting submissions."); return; }
     if (t.expiryDate && new Date() > new Date(t.expiryDate)) { setJoinError("Exam Expired: The deadline has passed."); return; }
 
-    let rollToMatch = roll ? roll.trim().toLowerCase() : '';
-    let existingSub = t.submissions?.find(s => s.name.trim().toLowerCase() === name.trim().toLowerCase() && (s.roll || '').trim().toLowerCase() === rollToMatch);
+    const safeName = name.trim();
+    const safeRoll = roll.trim().toLowerCase();
+    
+    let existingSub = t.submissions?.find(s => s.name.trim().toLowerCase() === safeName.toLowerCase() && (s.roll || '').trim().toLowerCase() === safeRoll);
     if (existingSub) { setJoinError("Submission Received: You have already submitted this test."); return; }
+
+    // Panic Refresh Check
+    const draftStr = localStorage.getItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
+    if (draftStr) {
+        const draft = JSON.parse(draftStr);
+        if (draft.endTime > Date.now()) {
+             setDraftToResume(draft); 
+        } else {
+             localStorage.removeItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
+        }
+    }
 
     setActiveTest(t);
     setStep('instructions');
   };
 
-  // --- 2. START EXAM LOGIC ---
+  // --- START EXAM LOGIC ---
   const startExam = () => {
     if (!activeTest) return;
 
     if (activeTest.fullScreenMode) {
         const elem = document.documentElement;
-        if (elem.requestFullscreen) elem.requestFullscreen().catch(err => console.log("Fullscreen blocked by browser:", err));
+        if (elem.requestFullscreen) elem.requestFullscreen().catch(err => console.log("Fullscreen blocked:", err));
     }
 
-    const initialAnswers = activeTest.questions.map(() => ({ val: null, marked: false }));
-    setAnswers(initialAnswers);
-    warningsRef.current = 0;
-    cheatLogsRef.current = [];
-    isActionLockedRef.current = false;
+    if (draftToResume) {
+        setAnswers(draftToResume.answers);
+        setCurQ(draftToResume.curQ);
+        endTimeRef.current = draftToResume.endTime;
+        warningsRef.current = draftToResume.warnings || 0;
+        cheatLogsRef.current = draftToResume.cheatLogs || [];
+    } else {
+        const initialAnswers = activeTest.questions.map(() => ({ val: null, marked: false }));
+        setAnswers(initialAnswers);
+        warningsRef.current = 0;
+        cheatLogsRef.current = [];
+        endTimeRef.current = Date.now() + (activeTest?.duration || 60) * 60 * 1000;
+    }
     
-    const durationMs = (activeTest?.duration || 60) * 60 * 1000;
-    endTimeRef.current = Date.now() + durationMs;
+    isActionLockedRef.current = false;
     
     timerRef.current = setInterval(() => {
       const remaining = Math.max(0, Math.floor((endTimeRef.current - Date.now()) / 1000));
@@ -200,24 +252,14 @@ export default function StudentPortal() {
     setStep('exam');
   };
 
-  // 🔥 THE FLICKER-FREE NAVIGATION FIX
-  // Ye function next/prev dabane par question area ko gayab karega, fir naya question layega 
   const changeQuestion = (newIdx) => {
     if (newIdx === curQ) return;
-    
     let targetAreas = document.querySelectorAll('.q-area-content');
-    targetAreas.forEach(el => {
-        el.style.transition = 'none';
-        el.style.opacity = '0'; // Screen hide before changing text
-    });
-
-    setTimeout(() => {
-        setCurQ(newIdx);
-        setIsMobilePaletteOpen(false); 
-    }, 15);
+    targetAreas.forEach(el => { el.style.transition = 'none'; el.style.opacity = '0'; });
+    setTimeout(() => { setCurQ(newIdx); setIsMobilePaletteOpen(false); }, 15);
   };
 
-  // --- 3. QUESTION SELECTION LOGIC ---
+  // --- QUESTION SELECTION ---
   const pickMCQ = (qIndex, optIndex) => { let newAns = [...answers]; newAns[qIndex].val = optIndex; setAnswers(newAns); };
   const pickMSQ = (qIndex, optIndex) => { let newAns = [...answers]; let currentVal = Array.isArray(newAns[qIndex].val) ? [...newAns[qIndex].val] : []; if (currentVal.includes(optIndex)) { currentVal = currentVal.filter(v => v !== optIndex); } else { currentVal.push(optIndex); } newAns[qIndex].val = currentVal; setAnswers(newAns); };
   const pickInt = (qIndex, val) => { let newAns = [...answers]; newAns[qIndex].val = val === '' ? null : Number(val); setAnswers(newAns); };
@@ -229,18 +271,11 @@ export default function StudentPortal() {
   const getLabel = (type) => ({ mcq: 'Single Correct', msq: 'Multi Correct', integer: 'Integer Type', subjective: 'Subjective' }[type] || type);
   const getBadge = (type) => ({ mcq: 'b-blue', msq: 'b-green', integer: 'b-amber', subjective: 'b-purple' }[type] || 'b-gray');
 
-  // --- 4. SUBMIT CONFIRMATION UI ---
-  const confirmAndSubmit = () => {
-    isActionLockedRef.current = true; 
-    setShowConfirmModal(true);
-  };
+  // --- SUBMIT CONFIRMATION UI ---
+  const confirmAndSubmit = () => { isActionLockedRef.current = true; setShowConfirmModal(true); };
+  const cancelSubmit = () => { setShowConfirmModal(false); setTimeout(() => { isActionLockedRef.current = false; }, 500); };
 
-  const cancelSubmit = () => {
-    setShowConfirmModal(false);
-    setTimeout(() => { isActionLockedRef.current = false; }, 500); 
-  };
-
-  // --- 5. SECURE SUBMISSION LOGIC ---
+  // --- SECURE SUBMISSION LOGIC ---
   const handleFinalSubmit = async () => {
     if (!activeTest || step !== 'exam') return;
     
@@ -261,22 +296,16 @@ export default function StudentPortal() {
       if (!hasVal) {
         skipped++;
       } else if (q.type === 'mcq') {
-        if (!q.correct || q.correct.length === 0) {
-            status = 'submitted'; skipped++;
-        } else if (ans.val === q.correct[0]) { 
-            correct++; earned = q.marks; score += q.marks; status = 'correct'; 
-        } else { 
-            wrong++; earned = -neg; score -= neg; status = 'wrong'; 
-        }
+        if (!q.correct || q.correct.length === 0) { status = 'submitted'; skipped++; } 
+        else if (ans.val === q.correct[0]) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } 
+        else { wrong++; earned = -neg; score -= neg; status = 'wrong'; }
       } else if (q.type === 'msq') {
         let userSel = Array.isArray(ans.val) ? ans.val : [];
         let corrSel = q.correct || [];
-        if (corrSel.length === 0) {
-            status = 'submitted'; skipped++;
-        } else {
+        if (corrSel.length === 0) { status = 'submitted'; skipped++; } 
+        else {
             let hasWrongOption = userSel.some(x => !corrSel.includes(x));
             let correctlySelected = userSel.filter(x => corrSel.includes(x)).length;
-
             if (hasWrongOption) { wrong++; earned = -neg; score -= neg; status = 'wrong'; }
             else if (correctlySelected === corrSel.length) { correct++; earned = q.marks; score += q.marks; status = 'correct'; }
             else if (correctlySelected > 0) {
@@ -286,33 +315,41 @@ export default function StudentPortal() {
             } else { wrong++; earned = -neg; score -= neg; status = 'wrong'; }
         }
       } else if (q.type === 'integer') {
-        if (q.correctInt === null || q.correctInt === undefined || q.correctInt === '') {
-             status = 'submitted'; skipped++;
-        } else if (ans.val === q.correctInt) { 
-            correct++; earned = q.marks; score += q.marks; status = 'correct'; 
-        } else { 
-            wrong++; earned = -neg; score -= neg; status = 'wrong'; 
-        }
-      } else {
-        skipped++; status = 'submitted';
-      }
+        if (q.correctInt === null || q.correctInt === undefined || q.correctInt === '') { status = 'submitted'; skipped++; } 
+        else if (ans.val === q.correctInt) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } 
+        else { wrong++; earned = -neg; score -= neg; status = 'wrong'; }
+      } else { skipped++; status = 'submitted'; }
 
       return { q, ans, status, earned };
     });
-
-    score = Number(score.toFixed(2));
 
     const finalSub = {
       uid: currentUser ? currentUser.uid : 'anonymous',
       email: currentUser ? currentUser.email : '',
       name: name,
       roll: roll,
-      score, correct, wrong, skipped, details,
+      score: Number(score.toFixed(2)), correct, wrong, skipped, details,
       time: new Date().toLocaleString('en-IN'),
       totalMarks: activeTest.totalMarks,
       cheatLogs: cheatLogsRef.current 
     };
 
+    // Clean up draft safely
+    localStorage.removeItem(`exam_draft_${activeTest.id}_${name.trim() || 'guest'}_${roll.trim().toLowerCase() || 'noroll'}`);
+
+    // 🔥 OFFLINE SAFE VAULT SYNC LOGIC
+    if (!navigator.onLine && !activeTest.isLocal) {
+        let pending = JSON.parse(localStorage.getItem('examitop_pending_subs') || '[]');
+        pending.push({ testId: activeTest.id, sub: finalSub });
+        localStorage.setItem('examitop_pending_subs', JSON.stringify(pending));
+        
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(e => {});
+        setStep('offline_saved');
+        setIsSubmitting(false);
+        return;
+    }
+
+    // Normal Submission
     try {
       if (activeTest.isLocal) {
           let localTests = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
@@ -326,31 +363,42 @@ export default function StudentPortal() {
           const tIndex = tests.findIndex(x => x.id === activeTest.id);
           if (tIndex > -1) {
               const subsRef = ref(database, `tests/${tIndex}/submissions`);
-              const newSubRef = push(subsRef); 
-              await set(newSubRef, finalSub);  
+              await set(push(subsRef), finalSub);  
           }
       }
 
-      if (document.fullscreenElement && document.exitFullscreen) {
-          document.exitFullscreen().catch(err => console.log("Exit fullscreen failed:", err));
-      }
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(e => {});
+      setIsSubmitting(false);
 
+      // 🔥 Replace Alert with Beautiful Custom Modal
       if (activeTest.resultVis === 'manual') {
-          alert("Test Submitted Successfully! Your answers have been saved. Examiner will declare results later.");
-          router.push('/student-dashboard');
+          setSysModal({
+              type: 'success',
+              msg: 'Test Submitted Successfully! Your answers have been saved securely. Examiner will declare results later.',
+              action: () => router.push('/student-dashboard')
+          });
       } else {
           router.push('/student-results'); 
       }
 
     } catch (error) {
         console.error("Transmission Error:", error);
-        alert("Failed to securely submit the exam. Check your connection.");
-        router.push('/');
+        setIsSubmitting(false);
+        setSysModal({
+            type: 'error',
+            msg: 'Failed to securely submit the exam over internet. Activating Offline Vault...',
+            action: () => {
+                let pending = JSON.parse(localStorage.getItem('examitop_pending_subs') || '[]');
+                pending.push({ testId: activeTest.id, sub: finalSub });
+                localStorage.setItem('examitop_pending_subs', JSON.stringify(pending));
+                setStep('offline_saved');
+            }
+        });
     }
   };
 
 
-  // --- CENTRALIZED LOADING UI ---
+  // --- LOADING UI ---
   if (authLoading || loadingData || isSubmitting) {
     return (
       <div className="spinner-container" style={{ paddingTop: '10vh' }}>
@@ -360,6 +408,20 @@ export default function StudentPortal() {
         </div>
       </div>
     );
+  }
+
+  // --- OFFLINE VAULT UI ---
+  if (step === 'offline_saved') {
+      return (
+          <div style={{ textAlign: 'center', marginTop: '5rem', padding: '2rem', maxWidth: '500px', margin: '5rem auto' }}>
+             <i className="ti ti-wifi-off" style={{ fontSize: '80px', color: '#854F0B', marginBottom: '1rem', animation: 'pulse 2s infinite' }}></i>
+             <h2 style={{ color: '#0f172a', marginBottom: '10px' }}>Connection Lost, But You're Safe!</h2>
+             <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: '2rem' }}>
+                 Your answers have been securely saved to this device. Please do not clear your browser cache. Connect to the internet and return to this platform, and the system will automatically sync your submission.
+             </p>
+             <button className="btn btn-primary" onClick={() => router.push('/')}>Return Home</button>
+          </div>
+      );
   }
 
   // --- STATS CALCULATION ---
@@ -393,6 +455,13 @@ export default function StudentPortal() {
       {step === 'instructions' && activeTest && (
         <div style={{ maxWidth: '600px', margin: '2rem auto', background: '#fff', padding: '2rem', borderRadius: '12px', border: '1px solid var(--color-border-secondary)', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
             <h2 style={{ marginBottom: '1rem', fontSize: '24px', color: '#185FA5' }}><i className="ti ti-file-info"></i> Pre-Exam Instructions</h2>
+            
+            {draftToResume && (
+                <div style={{ background: '#FAEEDA', borderLeft: '4px solid #854F0B', padding: '12px', borderRadius: '6px', marginBottom: '1.5rem', color: '#633806' }}>
+                    <strong><i className="ti ti-history"></i> Session Restored:</strong> We found your previously incomplete exam session. You will resume from where you left off.
+                </div>
+            )}
+
             <div style={{ fontSize: '15px', color: 'var(--color-text-primary)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
                 <p style={{ marginBottom: '8px' }}><strong>Test:</strong> {activeTest?.title}</p>
                 <p style={{ marginBottom: '15px' }}><strong>Subject:</strong> {activeTest?.subject || 'N/A'}</p>
@@ -403,7 +472,7 @@ export default function StudentPortal() {
                     {activeTest?.fullScreenMode && <li style={{ marginBottom: '8px', color: '#A32D2D' }}><strong><i className="ti ti-maximize"></i> Full-Screen Lock:</strong> Exiting full-screen will trigger a warning.</li>}
                 </ul>
             </div>
-            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '16px' }} onClick={startExam}><i className="ti ti-player-play"></i> Start Exam Now</button>
+            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '16px' }} onClick={startExam}><i className="ti ti-player-play"></i> {draftToResume ? 'Resume Exam Now' : 'Start Exam Now'}</button>
             <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '16px', marginTop: '12px' }} onClick={() => setStep('join')}><i className="ti ti-arrow-left"></i> Go Back</button>
         </div>
       )}
@@ -448,13 +517,10 @@ export default function StudentPortal() {
           )}
 
           <div className="test-layout" style={{ marginTop: '1rem' }}>
-            {/* Added "opacity: 0" so the very first question doesn't flash raw text */}
             <div className="q-area q-area-content" style={{ opacity: 0 }}>
               
-              {/* 🔥 SMART SPACE-SAVING HEADER FOR MOBILE */}
+              {/* SMART SPACE-SAVING HEADER FOR MOBILE */}
               <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)', paddingBottom: '0.75rem' }}>
-                
-                {/* Left Side: Q.No, Type, and Marked Status */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div className="q-num-badge" style={{ width: '36px', height: '36px', fontSize: '16px', flexShrink: 0 }}>{curQ + 1}</div>
@@ -462,16 +528,13 @@ export default function StudentPortal() {
                     </div>
                     {answers[curQ]?.marked && <span className="badge b-amber" style={{ alignSelf: 'flex-start' }}><i className="ti ti-bookmark" style={{ fontSize: '12px' }}></i> Marked</span>}
                 </div>
-
-                {/* Right Side: Marks and Section */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
                     <span className="badge b-blue" style={{ fontSize: '13px', fontWeight: 600 }}>{currentQuestion?.marks} Marks</span>
                     {currentQuestion?.section && <span className="badge b-purple" style={{ fontSize: '11px', fontWeight: 600 }}><i className="ti ti-layout-grid-add"></i> {currentQuestion.section}</span>}
                 </div>
-                
               </div>
               
-              {/* 🔥 StaticMath applied to Question Text */}
+              {/* StaticMath applied to Question Text */}
               <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
               
               {currentQuestion?.imgUrl && (
@@ -482,7 +545,6 @@ export default function StudentPortal() {
                   {currentQuestion?.type === 'mcq' && currentQuestion.options.map((opt, j) => (
                       <button key={j} className={`opt-btn ${answers[curQ]?.val === j ? 'sel' : ''}`} onClick={() => pickMCQ(curQ, j)}>
                           <div className="olabel">{answers[curQ]?.val === j ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                          {/* 🔥 StaticMath applied to Option Text */}
                           <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px' }} />
                       </button>
                   ))}
@@ -492,7 +554,6 @@ export default function StudentPortal() {
                       return (
                           <button key={j} className={`opt-btn ${isSelected ? 'sel' : ''}`} onClick={() => pickMSQ(curQ, j)}>
                               <div className="olabel" style={{ borderRadius: '4px' }}>{isSelected ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                              {/* 🔥 StaticMath applied to Option Text */}
                               <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px' }} />
                           </button>
                       );
@@ -522,8 +583,8 @@ export default function StudentPortal() {
                 )}
               </div>
               
-                  {/* BOTTOM NAVIGATION ACTIONS (Sticky on Mobile) */}
-                  <div className="mobile-sticky-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '2rem' }}>
+              {/* BOTTOM NAVIGATION ACTIONS (Sticky on Mobile) */}
+              <div className="mobile-sticky-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '2rem' }}>
                   <button className="btn" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ - 1)} disabled={curQ === 0}>
                       <i className="ti ti-arrow-left"></i> <span className="hide-mobile">Prev</span>
                   </button>
@@ -555,7 +616,6 @@ export default function StudentPortal() {
                 <div className="leg"><div className="leg-dot" style={{ background: '#FAC775' }}></div>Marked</div>
               </div>
               
-              {/* Palette Grid container with Scroll */}
               <div style={{ maxHeight: '50vh', overflowY: 'auto', paddingRight: '5px' }}>
                   {activeTest?.sections && activeTest.sections.length > 0 ? (
                       activeTest.sections.map(sec => {
@@ -606,7 +666,21 @@ export default function StudentPortal() {
             </div>
           </div>
 
-          {/* BEAUTIFUL CUSTOM CONFIRMATION MODAL */}
+          {/* 🔥 VIRTUAL ROUGH PAD (Floating) */}
+          {showRoughPad && (
+              <div style={{ position: 'fixed', bottom: '90px', right: '20px', width: '300px', height: '350px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '12px', zIndex: 999, display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                  <div style={{ background: '#185FA5', color: '#fff', padding: '10px 15px', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-pencil"></i> Rough Pad</span>
+                      <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '18px' }} onClick={() => setShowRoughPad(false)}></i>
+                  </div>
+                  <textarea value={roughText} onChange={e => setRoughText(e.target.value)} style={{ flex: 1, border: 'none', padding: '12px', outline: 'none', resize: 'none', fontSize: '14px', lineHeight: 1.5 }} placeholder="Scribble your rough calculations here..."></textarea>
+              </div>
+          )}
+          <button className="btn btn-primary" style={{ position: 'fixed', bottom: '90px', right: '20px', borderRadius: '50%', width: '54px', height: '54px', zIndex: 998, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(24,95,165,0.4)' }} onClick={() => setShowRoughPad(!showRoughPad)}>
+              <i className="ti ti-pencil" style={{ fontSize: '24px', margin: 0 }}></i>
+          </button>
+
+          {/* CONFIRMATION MODAL */}
           {showConfirmModal && (
               <div className="modal-bg" style={{ zIndex: 9999 }}>
                   <div className="modal-box" style={{ maxWidth: '420px', textAlign: 'center', padding: '2rem' }}>
@@ -627,30 +701,47 @@ export default function StudentPortal() {
 
         </>
       )}
+
       {/* PREMIUM ANTI-CHEAT OVERLAY */}
-          {cheatWarning && (
-              <div className="modal-bg" style={{ zIndex: 99999, background: 'rgba(0,0,0,0.9)' }}>
-                  <div className="modal-box" style={{ maxWidth: '450px', textAlign: 'center', padding: '3rem 2rem', border: '2px solid #A32D2D' }}>
-                      <i className="ti ti-shield-x" style={{ fontSize: '64px', color: '#A32D2D', display: 'block', marginBottom: '1rem', animation: 'pulse 1s infinite' }}></i>
-                      <h3 style={{ fontSize: '24px', color: '#A32D2D', marginBottom: '10px' }}>{cheatWarning.fatal ? 'EXAM BLOCKED' : 'SECURITY WARNING'}</h3>
-                      <p style={{ fontSize: '16px', color: '#1e293b', marginBottom: '1rem', fontWeight: 500 }}>{cheatWarning.msg}</p>
-                      
-                      {!cheatWarning.fatal && (
-                          <>
-                              <div style={{ display: 'inline-block', background: '#FCEBEB', color: '#A32D2D', padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 700, marginBottom: '2rem' }}>
-                                  Strike {cheatWarning.count} of 2
-                              </div>
-                              <button className="btn btn-danger" style={{ width: '100%', padding: '14px', justifyContent: 'center', fontSize: '16px' }} onClick={() => {
-                                  setCheatWarning(null);
-                                  if (activeTest.fullScreenMode && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(e => console.log(e));
-                              }}>
-                                  I Understand, Resume Exam
-                              </button>
-                          </>
-                      )}
-                  </div>
+      {cheatWarning && (
+          <div className="modal-bg" style={{ zIndex: 99999, background: 'rgba(0,0,0,0.9)' }}>
+              <div className="modal-box" style={{ maxWidth: '450px', textAlign: 'center', padding: '3rem 2rem', border: '2px solid #A32D2D' }}>
+                  <i className="ti ti-shield-x" style={{ fontSize: '64px', color: '#A32D2D', display: 'block', marginBottom: '1rem', animation: 'pulse 1s infinite' }}></i>
+                  <h3 style={{ fontSize: '24px', color: '#A32D2D', marginBottom: '10px' }}>{cheatWarning.fatal ? 'EXAM BLOCKED' : 'SECURITY WARNING'}</h3>
+                  <p style={{ fontSize: '16px', color: '#1e293b', marginBottom: '1rem', fontWeight: 500 }}>{cheatWarning.msg}</p>
+                  
+                  {!cheatWarning.fatal && (
+                      <>
+                          <div style={{ display: 'inline-block', background: '#FCEBEB', color: '#A32D2D', padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 700, marginBottom: '2rem' }}>
+                              Strike {cheatWarning.count} of 3
+                          </div>
+                          <button className="btn btn-danger" style={{ width: '100%', padding: '14px', justifyContent: 'center', fontSize: '16px' }} onClick={() => {
+                              setCheatWarning(null);
+                              if (activeTest.fullScreenMode && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(e => console.log(e));
+                          }}>
+                              I Understand, Resume Exam
+                          </button>
+                      </>
+                  )}
               </div>
-          )}
+          </div>
+      )}
+
+      {/* 🔥 CUSTOM SYSTEM MODALS (Replaces alert()) */}
+      {sysModal && (
+          <div className="modal-bg" style={{ zIndex: 999999 }}>
+              <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem', border: `2px solid ${sysModal.type === 'error' ? '#A32D2D' : '#3B6D11'}`, borderRadius: '16px' }}>
+                  <i className={`ti ${sysModal.type === 'error' ? 'ti-alert-octagon' : 'ti-circle-check'}`} style={{ fontSize: '48px', color: sysModal.type === 'error' ? '#A32D2D' : '#3B6D11', marginBottom: '15px' }}></i>
+                  <h3 style={{ fontSize: '20px', marginBottom: '10px', color: '#0f172a', fontWeight: 800 }}>{sysModal.type === 'error' ? 'Alert' : 'Success'}</h3>
+                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem', fontWeight: 500, lineHeight: 1.6 }}>{sysModal.msg}</p>
+                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', background: sysModal.type === 'error' ? '#A32D2D' : '#3B6D11', color: '#fff', border: 'none', fontWeight: 800, letterSpacing: '1px' }} onClick={() => {
+                      const action = sysModal.action;
+                      setSysModal(null);
+                      if(action) action();
+                  }}>ACKNOWLEDGE</button>
+              </div>
+          </div>
+      )}
 
     </div>
   );
