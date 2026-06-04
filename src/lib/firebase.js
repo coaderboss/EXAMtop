@@ -4,15 +4,16 @@ import { getDatabase } from "firebase/database";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCHW5XDpS16BRH2XgsNJ5YbkIPnyl4i7MI", 
-  authDomain: "examtop-e3263.firebaseapp.com",
-  databaseURL: "https://examtop-e3263-default-rtdb.firebaseio.com",
-  projectId: "examtop-e3263",
-  storageBucket: "examtop-e3263.firebasestorage.app",
-  messagingSenderId: "758815189008",
-  appId: "1:758815189008:web:6acc172966158abdd64295",
-  measurementId: "G-G3NRG0VXTV"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
+
 
 // 🔥 SMART INITIALIZATION: Next.js server-side aur client-side dono jagah chalta hai.
 // Ye check karta hai ki agar Firebase pehle se chalu hai, toh dobara start na kare (Memory Leak bachata hai).
