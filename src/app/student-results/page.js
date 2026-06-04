@@ -287,7 +287,7 @@ export default function StudentResults() {
                     {q.explanation && (
                         <div style={{ padding: '1rem', background: '#E6F1FB', borderRadius: '8px', borderLeft: '4px solid #185FA5', marginTop: '1.5rem', marginBottom: '1rem' }}>
                             <strong style={{ color: '#114B87', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Solution & Explanation:</strong>
-                            <div style={{ fontSize: '14px', color: '#114B87', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
+                            <div className="math-scroll-box" style={{ fontSize: '14px', color: '#114B87', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
                         </div>
                     )}
                     

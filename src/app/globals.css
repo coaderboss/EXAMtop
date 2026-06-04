@@ -872,3 +872,46 @@ mjx-container[display="true"] {
 mjx-container[display="true"]::-webkit-scrollbar { 
     display: none !important; 
 }
+
+/* --- 1. MOBILE STICKY BOTTOM NAV --- */
+@media (max-width: 768px) {
+    .mobile-sticky-nav {
+        position: fixed !important;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #ffffff;
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+        z-index: 1000;
+        padding: 12px 15px !important;
+        margin: 0 !important;
+        box-sizing: border-box;
+        border-top: 1px solid #e2e8f0;
+    }
+    /* Sticky nav ke peeche content na chhupe isliye bottom padding */
+    .q-area-content {
+        padding-bottom: 90px !important; 
+    }
+}
+
+/* --- 2. MATH SCROLL FIX FOR EXPLANATIONS --- */
+.math-scroll-box {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    max-width: 100%;
+    padding-bottom: 8px; /* Scrollbar ke liye space */
+}
+/* Custom Elegant Scrollbar */
+.math-scroll-box::-webkit-scrollbar {
+    height: 5px;
+}
+.math-scroll-box::-webkit-scrollbar-track {
+    background: transparent;
+}
+.math-scroll-box::-webkit-scrollbar-thumb {
+    background: rgba(24, 95, 165, 0.4);
+    border-radius: 10px;
+}
+.math-scroll-box::-webkit-scrollbar-thumb:hover {
+    background: rgba(24, 95, 165, 0.8);
+}

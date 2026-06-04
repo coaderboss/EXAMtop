@@ -541,11 +541,11 @@ if (authLoading || !isMounted || (!isOffline && loadingData)) {
                             </div>
                         )}
 
-                        {/* 2. EXPLANATION BOX (Distinct Color, Scroll handled by MathJax CSS) */}
+                        {/* 2. EXPLANATION BOX */}
                         {q.explanation && (
                             <div style={{ padding: '1rem', background: '#F8FAFC', borderRadius: '8px', borderLeft: '4px solid #475569', marginTop: '1.5rem', marginBottom: '1rem' }}>
                                 <strong style={{ color: '#334155', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Correct Explanation / Logic:</strong>
-                                <div style={{ fontSize: '14px', color: '#334155', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
+                                <div className="math-scroll-box" style={{ fontSize: '14px', color: '#334155', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
                             </div>
                         )}
 

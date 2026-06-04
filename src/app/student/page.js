@@ -510,8 +510,8 @@ export default function StudentPortal() {
                 )}
               </div>
               
-              {/* BOTTOM NAVIGATION ACTIONS */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '2rem' }}>
+                  {/* BOTTOM NAVIGATION ACTIONS (Sticky on Mobile) */}
+                  <div className="mobile-sticky-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '2rem' }}>
                   <button className="btn" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ - 1)} disabled={curQ === 0}>
                       <i className="ti ti-arrow-left"></i> <span className="hide-mobile">Prev</span>
                   </button>
