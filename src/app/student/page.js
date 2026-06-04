@@ -451,12 +451,24 @@ export default function StudentPortal() {
             {/* Added "opacity: 0" so the very first question doesn't flash raw text */}
             <div className="q-area q-area-content" style={{ opacity: 0 }}>
               
-              <div className="q-block-header" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border-secondary)', paddingBottom: '1rem' }}>
-                <div className="q-num-badge" style={{ width: '36px', height: '36px', fontSize: '16px' }}>{curQ + 1}</div>
-                <span className={`badge ${getBadge(currentQuestion?.type)}`}>{getLabel(currentQuestion?.type)}</span>
-                {currentQuestion?.section && <span className="badge b-purple" style={{ fontWeight: 600 }}><i className="ti ti-layout-grid-add"></i> {currentQuestion.section}</span>}
-                <span className="badge b-blue" style={{ fontSize: '13px' }}>{currentQuestion?.marks} Marks</span>
-                {answers[curQ]?.marked && <span className="badge b-amber"><i className="ti ti-bookmark" style={{ fontSize: '12px' }}></i> Marked</span>}
+              {/* 🔥 SMART SPACE-SAVING HEADER FOR MOBILE */}
+              <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)', paddingBottom: '0.75rem' }}>
+                
+                {/* Left Side: Q.No, Type, and Marked Status */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div className="q-num-badge" style={{ width: '36px', height: '36px', fontSize: '16px', flexShrink: 0 }}>{curQ + 1}</div>
+                        <span className={`badge ${getBadge(currentQuestion?.type)}`}>{getLabel(currentQuestion?.type)}</span>
+                    </div>
+                    {answers[curQ]?.marked && <span className="badge b-amber" style={{ alignSelf: 'flex-start' }}><i className="ti ti-bookmark" style={{ fontSize: '12px' }}></i> Marked</span>}
+                </div>
+
+                {/* Right Side: Marks and Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
+                    <span className="badge b-blue" style={{ fontSize: '13px', fontWeight: 600 }}>{currentQuestion?.marks} Marks</span>
+                    {currentQuestion?.section && <span className="badge b-purple" style={{ fontSize: '11px', fontWeight: 600 }}><i className="ti ti-layout-grid-add"></i> {currentQuestion.section}</span>}
+                </div>
+                
               </div>
               
               {/* 🔥 StaticMath applied to Question Text */}
