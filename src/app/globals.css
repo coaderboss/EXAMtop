@@ -52,8 +52,10 @@ body {
 .navbar {
    background: var(--color-background-primary);
    border-bottom: 1px solid var(--color-border-secondary); padding: 0 2rem;
-    display: flex; align-items: center; justify-content: space-between; height: 70px; position:
-     sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+   display: flex; align-items: center; justify-content: space-between; 
+   height: 70px; position: sticky; top: 0; z-index: 100; 
+   box-shadow: 0 2px 10px rgba(0,0,0,0.03); 
+}
 
 .logo { 
   font-size: 24px; font-weight: 600;

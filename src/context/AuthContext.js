@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [userRole]);
+  }, []);
 
   // --- GOOGLE LOGIN ---
   const loginWithGoogle = async (intendedRole = 'student') => {
