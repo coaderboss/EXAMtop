@@ -1,11 +1,18 @@
 // src/app/student/page.js
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
 import { ref, push, set } from 'firebase/database';
+
+// 🔥 THE MASTER FIX: Ye component MathJax ko React ke re-renders se bachayega
+// Isse Timer aur Option Clicks par math equations galti se bhi raw JSON me nahi badlengi.
+const StaticMath = memo(({ html, isBlock, style, className }) => {
+  if (isBlock) return <div className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
+  return <span className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
+});
 
 export default function StudentPortal() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -47,20 +54,28 @@ export default function StudentPortal() {
     }
   }, [currentUser]);
 
-  // MathJax Auto-Renderer
-  // MathJax Auto-Renderer
+  // 🔥 MathJax Auto-Renderer (Smooth Fade-In, No Flickering)
   useEffect(() => {
     const renderMath = async () => {
-      if (step === 'exam' && typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
+      if (step === 'exam' && typeof window !== 'undefined' && window.MathJax) {
         try {
           window.MathJax.typesetClear();
           await window.MathJax.typesetPromise();
         } catch (err) {
           console.log('MathJax Error:', err);
+        } finally {
+            // Processing hone ke baad slowly dikhao taaki raw text flash na ho
+            let targetAreas = document.querySelectorAll('.q-area-content');
+            targetAreas.forEach(el => {
+                el.style.transition = 'opacity 0.25s ease-in';
+                el.style.opacity = '1'; 
+            });
         }
       }
     };
-    const timer = setTimeout(renderMath, 100);
+    
+    // Sirf Question change hone par chalega
+    const timer = setTimeout(renderMath, 20); 
     return () => clearTimeout(timer);
   }, [curQ, step]);
 
@@ -110,7 +125,6 @@ export default function StudentPortal() {
 
     const blockCopyPaste = (e) => { e.preventDefault(); };
 
-    // Attach Listeners
     document.addEventListener("visibilitychange", handleCheat);
     window.addEventListener("blur", handleCheat);
     if (activeTest.fullScreenMode) document.addEventListener("fullscreenchange", handleCheat);
@@ -121,7 +135,6 @@ export default function StudentPortal() {
     document.addEventListener('contextmenu', blockCopyPaste);
     document.body.style.userSelect = 'none';
 
-    // Cleanup
     return () => {
         document.removeEventListener("visibilitychange", handleCheat);
         window.removeEventListener("blur", handleCheat);
@@ -141,7 +154,6 @@ export default function StudentPortal() {
     if (!name.trim()) { setJoinError('Please enter your full name.'); return; }
     if (!code.trim()) { setJoinError('Please enter the 6-digit test code.'); return; }
 
-    // Merge Cloud and Local Tests to allow offline joining
     const localTests = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
     const allTests = [...tests, ...localTests];
 
@@ -188,6 +200,23 @@ export default function StudentPortal() {
     setStep('exam');
   };
 
+  // 🔥 THE FLICKER-FREE NAVIGATION FIX
+  // Ye function next/prev dabane par question area ko gayab karega, fir naya question layega 
+  const changeQuestion = (newIdx) => {
+    if (newIdx === curQ) return;
+    
+    let targetAreas = document.querySelectorAll('.q-area-content');
+    targetAreas.forEach(el => {
+        el.style.transition = 'none';
+        el.style.opacity = '0'; // Screen hide before changing text
+    });
+
+    setTimeout(() => {
+        setCurQ(newIdx);
+        setIsMobilePaletteOpen(false); 
+    }, 15);
+  };
+
   // --- 3. QUESTION SELECTION LOGIC ---
   const pickMCQ = (qIndex, optIndex) => { let newAns = [...answers]; newAns[qIndex].val = optIndex; setAnswers(newAns); };
   const pickMSQ = (qIndex, optIndex) => { let newAns = [...answers]; let currentVal = Array.isArray(newAns[qIndex].val) ? [...newAns[qIndex].val] : []; if (currentVal.includes(optIndex)) { currentVal = currentVal.filter(v => v !== optIndex); } else { currentVal.push(optIndex); } newAns[qIndex].val = currentVal; setAnswers(newAns); };
@@ -211,7 +240,7 @@ export default function StudentPortal() {
     setTimeout(() => { isActionLockedRef.current = false; }, 500); 
   };
 
-  // --- 5. SECURE SUBMISSION & EVALUATION LOGIC (WITH OFFLINE SUPPORT) ---
+  // --- 5. SECURE SUBMISSION LOGIC ---
   const handleFinalSubmit = async () => {
     if (!activeTest || step !== 'exam') return;
     
@@ -401,18 +430,37 @@ export default function StudentPortal() {
               <span style={{ color: '#A32D2D', display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '10px', height: '10px', background: '#f8fafc', border: '1px solid #A32D2D', borderRadius: '50%' }}></span> Pending: {remainingQs}</span>
           </div>
 
+          {/* SECTION TABS */}
+          {activeTest?.sections && activeTest.sections.length > 0 && (
+             <div style={{ display: 'flex', gap: '8px', background: 'var(--color-background-secondary)', padding: '8px 16px', borderBottom: '1px solid var(--color-border-secondary)', overflowX: 'auto', scrollbarWidth: 'none', marginBottom: '1rem', marginTop: '1rem' }}>
+                  {activeTest.sections.map((sec, idx) => {
+                      var firstQIdx = activeTest.questions.findIndex(qq => qq.section === sec);
+                      var isCurrentSec = (currentQuestion?.section === sec) || (!currentQuestion?.section && sec === activeTest.sections[0]);
+                      return (
+                          <button key={idx} className="btn btn-sm" 
+                              style={isCurrentSec ? { background: '#185FA5', color: '#fff', borderColor: '#185FA5', fontWeight: 600, whiteSpace: 'nowrap' } : { background: '#fff', color: 'var(--color-text-secondary)', borderColor: '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }} 
+                              onClick={() => { if(firstQIdx > -1) changeQuestion(firstQIdx); }}>
+                              {sec}
+                          </button>
+                      );
+                  })}
+              </div>
+          )}
+
           <div className="test-layout" style={{ marginTop: '1rem' }}>
-            <div className="q-area">
+            {/* Added "opacity: 0" so the very first question doesn't flash raw text */}
+            <div className="q-area q-area-content" style={{ opacity: 0 }}>
               
               <div className="q-block-header" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border-secondary)', paddingBottom: '1rem' }}>
                 <div className="q-num-badge" style={{ width: '36px', height: '36px', fontSize: '16px' }}>{curQ + 1}</div>
                 <span className={`badge ${getBadge(currentQuestion?.type)}`}>{getLabel(currentQuestion?.type)}</span>
+                {currentQuestion?.section && <span className="badge b-purple" style={{ fontWeight: 600 }}><i className="ti ti-layout-grid-add"></i> {currentQuestion.section}</span>}
                 <span className="badge b-blue" style={{ fontSize: '13px' }}>{currentQuestion?.marks} Marks</span>
                 {answers[curQ]?.marked && <span className="badge b-amber"><i className="ti ti-bookmark" style={{ fontSize: '12px' }}></i> Marked</span>}
               </div>
               
-              <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} dangerouslySetInnerHTML={{ __html: currentQuestion?.text || '' }}>
-              </div>
+              {/* 🔥 StaticMath applied to Question Text */}
+              <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
               
               {currentQuestion?.imgUrl && (
                   <div style={{ marginBottom: '1.5rem' }}><img src={currentQuestion.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} /></div>
@@ -422,7 +470,8 @@ export default function StudentPortal() {
                   {currentQuestion?.type === 'mcq' && currentQuestion.options.map((opt, j) => (
                       <button key={j} className={`opt-btn ${answers[curQ]?.val === j ? 'sel' : ''}`} onClick={() => pickMCQ(curQ, j)}>
                           <div className="olabel">{answers[curQ]?.val === j ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                          <span style={{ fontSize: '15px' }} dangerouslySetInnerHTML={{ __html: opt }}></span>                     
+                          {/* 🔥 StaticMath applied to Option Text */}
+                          <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px' }} />
                       </button>
                   ))}
                   
@@ -431,7 +480,8 @@ export default function StudentPortal() {
                       return (
                           <button key={j} className={`opt-btn ${isSelected ? 'sel' : ''}`} onClick={() => pickMSQ(curQ, j)}>
                               <div className="olabel" style={{ borderRadius: '4px' }}>{isSelected ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                              <span style={{ fontSize: '15px' }} dangerouslySetInnerHTML={{ __html: opt }}></span>               
+                              {/* 🔥 StaticMath applied to Option Text */}
+                              <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px' }} />
                           </button>
                       );
                   })}
@@ -460,19 +510,30 @@ export default function StudentPortal() {
                 )}
               </div>
               
-              <div className="q-nav-row">
-                <button className="btn" disabled={curQ === 0} onClick={() => setCurQ(curQ - 1)}><i className="ti ti-arrow-left"></i> <span className="hide-mobile">Prev</span></button>
-                <button className="btn hide-desktop" style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', flex: 0.4 }} onClick={() => setIsMobilePaletteOpen(!isMobilePaletteOpen)}><i className="ti ti-layout-grid" style={{ margin: 0, fontSize: '22px' }}></i></button>
-                {curQ < (activeTest?.questions?.length || 1) - 1 ? (
-                    <button className="btn btn-primary" onClick={() => setCurQ(curQ + 1)}>Next <i className="ti ti-arrow-right"></i></button>
-                ) : (
-                    <button className="btn btn-success" style={{ fontWeight: 600 }} onClick={confirmAndSubmit}><i className="ti ti-check"></i> Submit</button>
-                )}
+              {/* BOTTOM NAVIGATION ACTIONS */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '2rem' }}>
+                  <button className="btn" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ - 1)} disabled={curQ === 0}>
+                      <i className="ti ti-arrow-left"></i> <span className="hide-mobile">Prev</span>
+                  </button>
+                  
+                  <button className="btn hide-desktop" style={{ width: '60px', padding: '14px', background: '#f8fafc', justifyContent: 'center', border: '1px solid #cbd5e1', flexShrink: 0 }} onClick={() => setIsMobilePaletteOpen(!isMobilePaletteOpen)}>
+                      <i className="ti ti-layout-grid" style={{ fontSize: '24px', color: '#185FA5' }}></i>
+                  </button>
+                  
+                  {curQ < (activeTest?.questions?.length || 1) - 1 ? (
+                      <button className="btn btn-primary" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ + 1)}>
+                          <span className="hide-mobile">Next</span> <i className="ti ti-arrow-right"></i>
+                      </button>
+                  ) : (
+                      <button className="btn btn-success" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0', fontWeight: 600 }} onClick={confirmAndSubmit}>
+                          <i className="ti ti-check"></i> Submit
+                      </button>
+                  )}
               </div>
             </div>
             
             <div className={`sidebar-panel ${!isMobilePaletteOpen ? 'hide-mobile' : ''}`} style={isMobilePaletteOpen ? { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, margin: 0, borderRadius: '20px 20px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.15)' } : {}}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1rem 0' }}>
                   <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Question Palette</div>
                   {isMobilePaletteOpen && <button className="btn btn-ghost" style={{ padding: 0 }} onClick={() => setIsMobilePaletteOpen(false)}><i className="ti ti-x" style={{ fontSize: '24px' }}></i></button>}
               </div>
@@ -482,17 +543,51 @@ export default function StudentPortal() {
                 <div className="leg"><div className="leg-dot" style={{ background: '#FAC775' }}></div>Marked</div>
               </div>
               
-              <div className="palette-grid">
-                {activeTest?.questions?.map((_, i) => {
-                  let a = answers[i];
-                  let isDone = a?.val !== null && (!Array.isArray(a?.val) || a.val.length > 0);
-                  let cls = (a?.marked && isDone) ? 'p-both' : a?.marked ? 'p-marked' : isDone ? 'p-answered' : 'p-unanswered';
-                  return (
-                    <button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => { setCurQ(i); setIsMobilePaletteOpen(false); }}>
-                        {i + 1}
-                    </button>
-                  );
-                })}
+              {/* Palette Grid container with Scroll */}
+              <div style={{ maxHeight: '50vh', overflowY: 'auto', paddingRight: '5px' }}>
+                  {activeTest?.sections && activeTest.sections.length > 0 ? (
+                      activeTest.sections.map(sec => {
+                          let localQNum = 1;
+                          let secHTML = activeTest.questions.map((qq, i) => {
+                              if (qq.section === sec || (!qq.section && sec === activeTest.sections[0])) {
+                                  let a = answers[i];
+                                  let isDone = a?.val !== null && (!Array.isArray(a?.val) || a.val.length > 0);
+                                  let cls = (a?.marked && isDone) ? 'p-both' : a?.marked ? 'p-marked' : isDone ? 'p-answered' : 'p-unanswered';
+                                  let currentNum = localQNum++; 
+                                  return (
+                                      <button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => changeQuestion(i)}>
+                                          {currentNum}
+                                      </button>
+                                  );
+                              }
+                              return null;
+                          }).filter(Boolean); 
+
+                          if (secHTML.length === 0) return null;
+
+                          return (
+                              <div key={sec} style={{ marginBottom: '1rem' }}>
+                                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-secondary)', margin: '15px 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                      <i className="ti ti-folder"></i> {sec}
+                                  </div>
+                                  <div className="palette-grid">{secHTML}</div>
+                              </div>
+                          );
+                      })
+                  ) : (
+                      <div className="palette-grid">
+                          {activeTest?.questions?.map((_, i) => {
+                              let a = answers[i];
+                              let isDone = a?.val !== null && (!Array.isArray(a?.val) || a.val.length > 0);
+                              let cls = (a?.marked && isDone) ? 'p-both' : a?.marked ? 'p-marked' : isDone ? 'p-answered' : 'p-unanswered';
+                              return (
+                                  <button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => changeQuestion(i)}>
+                                      {i + 1}
+                                  </button>
+                              );
+                          })}
+                      </div>
+                  )}
               </div>
               <div className="divider"></div>
               <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontWeight: 600, padding: '12px' }} onClick={confirmAndSubmit}><i className="ti ti-send"></i> Submit Final Test</button>
