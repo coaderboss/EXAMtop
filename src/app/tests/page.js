@@ -63,6 +63,17 @@ export default function ManageTests() {
     const timer = setTimeout(renderMath, 100);
     return () => clearTimeout(timer);
   }, [selectedTest, evaluateSub, evalFilter, modalType, activeTab]);
+  
+  // 🔥 AUTO-KICK BOUNCER: Security bypass rokne ke liye
+  useEffect(() => {
+      // Agar loading ho chuki hai, user offline NAHI hai, aur wo na toh admin hai na examiner
+      if (isMounted && !authLoading && !isOffline && (!currentUser || (userRole !== 'examiner' && userRole !== 'admin'))) {
+          const kickTimer = setTimeout(() => {
+              router.replace('/');
+            }, 3000); 
+        return () => clearTimeout(kickTimer);
+    }
+}, [currentUser, userRole, authLoading, isMounted, isOffline, router]);
 
   // Naya condition: Agar offline mode active hai, toh cloud data loading ka wait mat karo!
 if (authLoading || !isMounted || (!isOffline && loadingData)) {
@@ -72,11 +83,13 @@ if (authLoading || !isMounted || (!isOffline && loadingData)) {
   // 3. Strict Access Control (Allows Offline Access without Login)
   if (!isOffline && (!currentUser || (userRole !== 'examiner' && userRole !== 'admin'))) {
     return (
-      <div style={{ textAlign: 'center', padding: '4rem' }}>
-        <i className="ti ti-lock" style={{ fontSize: '48px', color: '#A32D2D', marginBottom: '1rem' }}></i>
-        <h3>Access Denied</h3>
-        <p>Login required for cloud sync. Activate Offline mode from Home to use locally.</p>
-        <button className="btn btn-primary" onClick={() => router.push('/')}>Go Home</button>
+      <div style={{ textAlign: 'center', padding: '4rem', marginTop: '10vh' }}>
+        <i className="ti ti-shield-x" style={{ fontSize: '64px', color: '#A32D2D', marginBottom: '1rem', animation: 'pulse 1s infinite' }}></i>
+        <h3 style={{ color: '#A32D2D', fontSize: '24px' }}>SECURITY CLEARANCE REQUIRED</h3>
+        <p style={{ fontSize: '16px', color: 'var(--color-text-secondary)', marginBottom: '2rem' }}>
+          Your account does not have Examiner privileges. <br/> Redirecting you to the safe zone in 3 seconds...
+        </p>
+        <div className="spinner" style={{ margin: '0 auto', borderColor: '#A32D2D', borderTopColor: 'transparent' }}></div>
       </div>
     );
   }

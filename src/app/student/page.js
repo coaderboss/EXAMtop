@@ -85,8 +85,7 @@ export default function StudentPortal() {
     else if (header) header.style.display = ''; 
     return () => { if (header) header.style.display = ''; };
   }, [step]);
-
-  // 🔥 2. AUTO-SAVE DRAFT (Panic Refresh Protection)
+// 🔥 2. AUTO-SAVE DRAFT (Panic Refresh Protection + ENCRYPTION)
   useEffect(() => {
     if (step === 'exam' && activeTest && answers.length > 0) {
         const safeName = name.trim() || 'guest';
@@ -95,9 +94,15 @@ export default function StudentPortal() {
             answers, curQ, endTime: endTimeRef.current,
             warnings: warningsRef.current, cheatLogs: cheatLogsRef.current
         };
-        localStorage.setItem(`exam_draft_${activeTest.id}_${safeName}_${safeRoll}`, JSON.stringify(draftData));
+        
+        // 🔥 THE FIX: Encrypting the draft (Reverse + Base64)
+        const jsonString = JSON.stringify(draftData);
+        const reversedString = jsonString.split('').reverse().join('');
+        const secretPayload = btoa(encodeURIComponent(reversedString));
+        
+        localStorage.setItem(`exam_draft_${activeTest.id}_${safeName}_${safeRoll}`, secretPayload);
     }
-  }, [answers, curQ, step]);
+  }, [answers, curQ, step, activeTest, name, roll]);
 
   // 🔥 3. AUTO-SYNC OFFLINE SUBMISSIONS
   useEffect(() => {
@@ -203,11 +208,20 @@ export default function StudentPortal() {
     // Panic Refresh Check
     const draftStr = localStorage.getItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
     if (draftStr) {
-        const draft = JSON.parse(draftStr);
-        if (draft.endTime > Date.now()) {
-             setDraftToResume(draft); 
-        } else {
-             localStorage.removeItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
+        try {
+            // 🔥 THE FIX: Decrypting the draft safely
+            const decodedString = decodeURIComponent(atob(draftStr));
+            const originalJson = decodedString.split('').reverse().join('');
+            const draft = JSON.parse(originalJson);
+
+            if (draft.endTime > Date.now()) {
+                 setDraftToResume(draft); 
+            } else {
+                 localStorage.removeItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
+            }
+        } catch (e) {
+            console.error("Tampered or corrupt draft data found. Clearing draft.");
+            localStorage.removeItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
         }
     }
 

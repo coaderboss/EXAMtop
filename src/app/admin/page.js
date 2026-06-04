@@ -99,7 +99,20 @@ export default function GodMode() {
   useEffect(() => {
       if (userRole === 'admin') fetchGodData();
   }, [userRole]);
-
+  
+  // 🔥 AUTO-KICK BOUNCER: Security bypass rokne ke liye
+  useEffect(() => {
+      // Agar loading khatam ho gayi aur user admin nahi hai
+      if (!authLoading && (!currentUser || userRole !== 'admin')) {
+          // 3 second tak usko "Security Breach" ki laal screen dikhegi darrane ke liye
+          // Fir system usko automatically utha kar Home Page par phek dega
+          const kickTimer = setTimeout(() => {
+              router.replace('/');
+          }, 3000); 
+          return () => clearTimeout(kickTimer);
+      }
+  }, [currentUser, userRole, authLoading, router]);
+  
   // ===============================================
   // 📊 CHART RENDERING LOGIC
   // ===============================================

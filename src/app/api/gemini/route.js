@@ -40,10 +40,18 @@ export async function POST(req) {
         }
 
         const rawText = data.candidates[0].content.parts[0].text;
-        const qData = JSON.parse(rawText);
-
-        return NextResponse.json(qData);
-
+        
+        // 🔥 FIX: Safety net for AI's unpredictable JSON formatting
+        try {
+            // Agar Gemini ne markdown tags bhej diye, toh unko clean karna
+            const cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+            const qData = JSON.parse(cleanText);
+            return NextResponse.json(qData);
+        } catch (parseError) {
+            console.error("Gemini JSON Parse Error:", parseError, "Raw Output:", rawText);
+            return NextResponse.json({ error: "AI generated invalid format. Please try again." }, { status: 500 });
+        }
+        
     } catch (error) {
         console.error("Gemini API Error:", error);
         return NextResponse.json({ error: "High Traffic or API Error" }, { status: 503 });
