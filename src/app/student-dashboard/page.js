@@ -31,12 +31,16 @@ export default function StudentDashboard() {
   }
 
   // --- DATA CALCULATION LOGIC ---
+  // --- DATA CALCULATION LOGIC ---
   let myHistory = [];
   tests.forEach(t => {
       if (t.submissions) {
           t.submissions.forEach((s, idx) => {
-              // Exact match logic
-              if (s.uid === currentUser.uid || (s.name && currentUser.displayName && s.name.toLowerCase() === currentUser.displayName.toLowerCase())) {
+              // 🔥 STRICT MATCH LOGIC: Match ONLY by unique Firebase UID or authenticated Email. NO NAME MATCHING!
+              let isExactMatch = (s.uid && currentUser.uid && s.uid === currentUser.uid) || 
+                                 (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase());
+
+              if (isExactMatch) {
                   myHistory.push({ testId: t.id, testTitle: t.title, testCode: t.code, score: s.score, totalMarks: s.totalMarks, correct: s.correct, wrong: s.wrong, skipped: s.skipped, time: s.time, sIdx: idx });
               }
           });
