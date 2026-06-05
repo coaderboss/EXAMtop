@@ -308,8 +308,8 @@ export default function CreateTest() {
       const userIdent = currentUser ? currentUser.uid : (isOffline ? 'offline_user' : 'guest');
       localStorage.removeItem('exam_draft_creator_' + userIdent);
 
-      setSuccessModal({ code: newCode, mode: isOffline ? 'Local Device' : 'Cloud (Firebase)' });  
-      router.push('/tests');
+      setSuccessModal({ code: testCode, mode: isOffline ? 'Local Device' : 'Cloud (Firebase)' });  
+      // router.push('/tests');
 
     } catch (error) {
       console.error(error);
