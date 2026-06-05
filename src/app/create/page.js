@@ -33,6 +33,9 @@ export default function CreateTest() {
   
   // Offline Mode State
   const [isOffline, setIsOffline] = useState(false);
+
+  const [mismatchModal, setMismatchModal] = useState(null); // For Marks Mismatch Custom Alert
+  const [formError, setFormError] = useState(null); // Generic Error Modal
   
   // Premium Draft State (For Custom Modal)
   const [pendingDraft, setPendingDraft] = useState(null); 
@@ -236,62 +239,45 @@ export default function CreateTest() {
     e.target.value = '';
   };
 
-  // --- Final Save Logic ---
-  const saveTest = async () => {
-    if (!isOffline && !currentUser) {
-      alert("Login Required! You need to log in to save this test to the cloud.");
-      return;
-    }
+  // --- Final Save Logic (Triggered on Button Click) ---
+  const saveTest = () => {
+    if (!isOffline && !currentUser) { alert("Login Required! You need to log in to save this test to the cloud."); return; }
     if (!title.trim()) { alert('Please enter a test title.'); return; }
     if (!qList.length) { alert('Add at least one question.'); return; }
 
-    // 🔥 Strict Evaluation Key Validation
     for (let i = 0; i < qList.length; i++) {
         const q = qList[i];
         if (q.type === 'mcq' || q.type === 'msq') {
-            if (!q.correct || q.correct.length === 0) {
-                alert(`⚠️ Action Required: Please mark the correct option for Question ${i + 1} before saving.`);
-                return; 
-            }
+            if (!q.correct || q.correct.length === 0) { setFormError(`Action Required: Please mark the correct option for Question ${i + 1} before saving.`); return; }
         }
         if (q.type === 'integer') {
-            if (q.correctInt === null || q.correctInt === undefined || q.correctInt === '') {
-                alert(`⚠️ Action Required: Please enter the correct integer answer for Question ${i + 1} before saving.`);
-                return; 
-            }
+            if (q.correctInt === null || q.correctInt === undefined || q.correctInt === '') { setFormError(`Action Required: Please enter the correct integer answer for Question ${i + 1} before saving.`); return; }
         }
     }
 
     const calculatedSum = qList.reduce((sum, q) => sum + Number(q.marks), 0);
-    let finalMarks = totalMarks;
+    
+    // Yahan Custom Modal Trigger Hoga agar marks match nahi kiye
     if (calculatedSum !== totalMarks) {
-      if (confirm(`⚠️ MARKS MISMATCH!\nYou entered Total Marks: ${totalMarks}\nBut questions sum to: ${calculatedSum}\nUpdate Total Marks to ${calculatedSum} automatically?`)) {
-        setTotalMarks(calculatedSum);
-        finalMarks = calculatedSum;
-      } else {
-        return;
-      }
+      setMismatchModal({ entered: totalMarks, actual: calculatedSum });
+      return;
     }
 
+    proceedWithSave(totalMarks);
+  };
+
+  // --- Actual DB Saving Logic ---
+  const proceedWithSave = async (finalMarks) => {
     const testCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const parsedSections = sections.split(',').map(s => s.trim()).filter(s => s);
 
     const newTest = {
-      id: Date.now(),
-      code: testCode,
-      title, subject, duration,
-      sections: parsedSections,
-      totalMarks: finalMarks,
-      negMarking, expiryDate, 
-      access, resultVis, scoreVis,
+      id: Date.now(), code: testCode, title, subject, duration, sections: parsedSections,
+      totalMarks: finalMarks, negMarking, expiryDate, access, resultVis, scoreVis,
       allowChange, showPalette, allowNav, randomOrder, shuffleOpts, antiCheat, fullScreenMode,
       creatorUid: isOffline ? 'offline_creator' : currentUser.uid,
-      questions: qList,
-      submissions: [],
-      released: false,
-      isActive: true,
-      createdAt: new Date().toLocaleDateString('en-IN'),
-      isLocal: isOffline
+      questions: qList, submissions: [], released: false, isActive: true,
+      createdAt: new Date().toLocaleDateString('en-IN'), isLocal: isOffline
     };
 
     try {
@@ -310,13 +296,9 @@ export default function CreateTest() {
       const userIdent = currentUser ? currentUser.uid : (isOffline ? 'offline_user' : 'guest');
       localStorage.removeItem('exam_draft_creator_' + userIdent);
 
+      setMismatchModal(null);
       setSuccessModal({ code: testCode, mode: isOffline ? 'Local Device' : 'Cloud (Firebase)' });  
-      // router.push('/tests');
-
-    } catch (error) {
-      console.error(error);
-      alert("Error saving test: " + error.message);
-    }
+    } catch (error) { console.error(error); alert("Error saving test: " + error.message); }
   };
 
   if (authLoading) return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div></div>;
@@ -549,6 +531,38 @@ export default function CreateTest() {
                       <button className="btn" style={{ flex: 1, padding: '12px', justifyContent: 'center', fontWeight: 600, color: '#A32D2D', background: '#FCEBEB', border: 'none' }} onClick={handleDiscardDraft}>Discard Draft</button>
                       <button className="btn btn-primary" style={{ flex: 1, padding: '12px', justifyContent: 'center', fontWeight: 600 }} onClick={handleRestoreDraft}>Yes, Restore</button>
                   </div>
+              </div>
+          </div>
+      )}
+      {/* 🔥 Premium Marks Mismatch Modal */}
+      {mismatchModal && (
+          <div className="modal-bg" style={{ zIndex: 9999 }}>
+              <div className="modal-box" style={{ maxWidth: '420px', textAlign: 'center', padding: '2rem' }}>
+                  <div style={{ width: '64px', height: '64px', background: '#FEF5E5', color: '#d97706', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', margin: '0 auto 1rem' }}>
+                      <i className="ti ti-alert-triangle"></i>
+                  </div>
+                  <h3 style={{ fontSize: '22px', marginBottom: '10px', color: '#1e293b' }}>Marks Mismatch Detected!</h3>
+                  <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+                      You entered Total Marks as <strong style={{ color: '#A32D2D' }}>{mismatchModal.entered}</strong>, but the questions you added sum up to <strong style={{ color: '#185FA5' }}>{mismatchModal.actual}</strong>.
+                      <br/><br/>Should we automatically update the total marks to <strong>{mismatchModal.actual}</strong> and save?
+                  </p>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                      <button className="btn" style={{ flex: 1, padding: '12px', justifyContent: 'center', fontWeight: 600, border: '1px solid #cbd5e1' }} onClick={() => setMismatchModal(null)}>Cancel & Edit</button>
+                      <button className="btn btn-primary" style={{ flex: 1, padding: '12px', justifyContent: 'center', fontWeight: 600, background: '#d97706', border: 'none' }} onClick={() => proceedWithSave(mismatchModal.actual)}>Yes, Update & Save</button>
+                  </div>
+              </div>
+          </div>
+      )}
+      {/* 🔥 The Generic Form Error Modal (Kills all alerts) */}
+      {formError && (
+          <div className="modal-bg" style={{ zIndex: 9999 }}>
+              <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2rem' }}>
+                  <div style={{ width: '60px', height: '60px', background: '#FCEBEB', color: '#A32D2D', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', margin: '0 auto 1rem' }}>
+                      <i className="ti ti-x"></i>
+                  </div>
+                  <h3 style={{ fontSize: '20px', marginBottom: '10px' }}>Action Required</h3>
+                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem' }}>{formError}</p>
+                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }} onClick={() => setFormError(null)}>Got it</button>
               </div>
           </div>
       )}

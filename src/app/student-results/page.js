@@ -13,9 +13,90 @@ export default function StudentResults() {
   // State to toggle between List View and Detailed View
   const [selectedResult, setSelectedResult] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'correct', 'wrong', 'skipped'
+   
 
-  // MathJax Auto-Renderer for detailed view
-  // MathJax Auto-Renderer for detailed view
+  // 🔥 PREMIUM EXAMITOP CERTIFICATE GENERATOR (1-Page Fix)
+  const generateCertificate = () => {
+    const { test, sub } = selectedResult;
+    const pct = Math.round((sub.score / test.totalMarks) * 100);
+    const dateOnly = sub.time.split(',')[0] || sub.time;
+
+    let printHtml = `
+    <html>
+      <head>
+        <title>ExamiTop_Certificate_${sub.roll || sub.name}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Lora:ital,wght@0,500;0,700;1,400&display=swap');
+          
+          /* Strict 1-Page Landscape Print Settings */
+          @page { size: A4 landscape; margin: 0; }
+          html, body { margin: 0; padding: 0; width: 100%; height: 100vh; display: flex; justify-content: center; align-items: center; background: #fff; -webkit-print-color-adjust: exact; color-adjust: exact; overflow: hidden; }
+          
+          .cert-container { width: 100%; height: 100%; padding: 20px; box-sizing: border-box; }
+          .cert-box { width: 100%; height: 100%; border: 12px solid #0B0F19; box-sizing: border-box; text-align: center; position: relative; background: #fff; outline: 3px solid #D4AF37; outline-offset: -22px; padding: 40px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+          
+          .header { font-family: 'Lora', serif; font-size: 48px; color: #0B0F19; margin-bottom: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+          .sub { font-family: 'Montserrat', sans-serif; font-size: 18px; color: #D4AF37; margin-bottom: 30px; letter-spacing: 4px; text-transform: uppercase; font-weight: 700; }
+          
+          .text { font-family: 'Lora', serif; font-size: 20px; color: #475569; margin-bottom: 15px; font-style: italic; }
+          .name { font-family: 'Montserrat', sans-serif; font-size: 42px; color: #0B0F19; margin-bottom: 25px; font-weight: 700; border-bottom: 2px solid #D4AF37; padding-bottom: 10px; display: inline-block; min-width: 450px; }
+          
+          .desc { font-family: 'Montserrat', sans-serif; font-size: 18px; line-height: 1.6; color: #334155; max-width: 85%; margin: 0 auto 40px; }
+          .highlight { font-weight: 700; color: #0B0F19; }
+          
+          .footer { display: flex; justify-content: space-between; width: 85%; position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); }
+          .signature-box { text-align: center; }
+          .signature { font-family: 'Lora', serif; font-size: 22px; color: #0B0F19; font-style: italic; margin-bottom: 5px; }
+          .line { border-top: 2px solid #cbd5e1; width: 220px; padding-top: 8px; font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+          
+          .seal { position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%); width: 120px; height: 120px; background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; border: 2px dashed #D4AF37; box-shadow: 0 0 0 6px #0B0F19; color: #0B0F19; font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 12px; flex-direction: column; }
+          .seal-score { font-size: 26px; color: #D4AF37; margin: 4px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="cert-container">
+            <div class="cert-box">
+              <div class="header">Certificate of Excellence</div>
+              <div class="sub">ExamiTop &bull; Premium Assessment Platform</div>
+              <div class="text">This is proudly presented to</div>
+              <div class="name">${sub.name}</div>
+              <div class="desc">
+                for successfully clearing the <span class="highlight">${test.title}</span> examination on <span class="highlight">${dateOnly}</span>.<br><br>
+                Demonstrating outstanding academic performance with a score of <span class="highlight">${sub.score} / ${test.totalMarks}</span> 
+                (<span style="color: #D4AF37; font-weight: 700; font-size: 20px;">${pct}%</span>).
+              </div>
+              <div class="footer">
+                 <div class="signature-box">
+                    <div class="signature" style="font-family: monospace; font-size: 16px; color: #64748b; margin-top: 10px;">${test.code}</div>
+                    <div class="line">Verification Hash</div>
+                 </div>
+                 <div class="signature-box">
+                    <div class="signature">ExamiTop Engine</div>
+                    <div class="line">Authorized System</div>
+                 </div>
+              </div>
+              <div class="seal">
+                  <span>SCORE</span>
+                  <div class="seal-score">${pct}%</div>
+                  <span style="font-size: 9px; letter-spacing: 1px;">EXAMITOP</span>
+              </div>
+            </div>
+        </div>
+        <script>
+          window.onload = () => { setTimeout(() => { window.print(); }, 500); }
+        </script>
+      </body>
+    </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
+    doc.open(); doc.write(printHtml); doc.close();
+    iframe.contentWindow.onafterprint = () => { setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 1000); };
+  };
+
   // MathJax Auto-Renderer for detailed view
   useEffect(() => {
     const renderMath = async () => {
@@ -146,7 +227,8 @@ export default function StudentResults() {
         </div>
         {pct >= 75 && (
           <div style={{ marginTop: '10px' }}>
-            <button className="btn btn-sm" style={{ background: '#FAEEDA', color: '#854F0B', borderColor: '#FAC775', fontWeight: 600, marginTop: '12px' }} onClick={() => alert('Certificate feature will be linked here!')}>
+            {/* Change this line: */}
+            <button className="btn btn-sm" style={{ background: '#FAEEDA', color: '#854F0B', borderColor: '#FAC775', fontWeight: 600, marginTop: '12px' }} onClick={generateCertificate}>
               <i className="ti ti-medal"></i> Claim Certificate
             </button>
           </div>
