@@ -40,6 +40,8 @@ export default function CreateTest() {
 
   // Questions State
   const [qList, setQList] = useState([]);
+
+  const [toastMsg, setToastMsg] = useState('');
   
   // 🔥 DRAFT CHECK ON MOUNT
   useEffect(() => {
@@ -571,12 +573,12 @@ export default function CreateTest() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <button 
                           className="btn btn-primary" 
-                          style={{ width: '100%', padding: '14px', justifyContent: 'center', fontSize: '15px' }}
+                          style={{ width: '100%', padding: '14px', justifyContent: 'center', fontSize: '15px', position: 'relative' }}
                           onClick={() => {
-                              navigator.clipboard.writeText(successModal.code);
-                              alert("Code Copied to Clipboard!");
-                          }}
-                      >
+                          navigator.clipboard.writeText(successModal.code);
+                          setToastMsg("✅ Code Copied to Clipboard!");
+                          setTimeout(() => setToastMsg(''), 3000); // 3 second baad apne aap gayab
+                          }}>
                           <i className="ti ti-copy"></i> Copy Code
                       </button>
                       <button 
@@ -593,7 +595,17 @@ export default function CreateTest() {
               </div>
           </div>
       )}
-
+     {/* BOTTOM FLOATING TOAST */}
+{toastMsg && (
+    <div style={{
+        position: 'fixed', bottom: '40px', left: '50%', transform: 'translateX(-50%)',
+        background: '#1e293b', color: 'white', padding: '12px 24px', borderRadius: '30px',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.2)', zIndex: 999999, fontWeight: 600,
+        fontSize: '14px', animation: 'fadeInUp 0.3s ease', display: 'flex', alignItems: 'center', gap: '8px'
+    }}>
+        {toastMsg}
+    </div>
+)}
     </div>
   );
 }
