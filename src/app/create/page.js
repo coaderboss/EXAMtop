@@ -35,7 +35,7 @@ export default function CreateTest() {
   const [isOffline, setIsOffline] = useState(false);
 
   const [mismatchModal, setMismatchModal] = useState(null); // For Marks Mismatch Custom Alert
-  const [formError, setFormError] = useState(null); // Generic Error Modal
+  const [sysAlert, setSysAlert] = useState(null); // { title, msg, type }
   
   // Premium Draft State (For Custom Modal)
   const [pendingDraft, setPendingDraft] = useState(null); 
@@ -231,29 +231,40 @@ export default function CreateTest() {
         });
         
         setSections(Array.from(importedSections).join(', '));
-        setQList([...qList, ...mappedData]);
-        alert(`Import Successful! ${data.length} questions mapped.`);
-      } catch (ex) { alert('Invalid JSON file format.'); }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+      setQList([...qList, ...mappedData]);
+      
+      // 🔥 Alert Hatao, SysModal Lagao
+      setSysAlert({ title: 'Import Successful', msg: `${data.length} questions mapped from JSON.`, type: 'success' });
+      
+    } catch (ex) { 
+      // 🔥 Error Alert Hatao
+      setSysAlert({ title: 'Import Failed', msg: 'Invalid JSON file format. Please check your syntax.', type: 'error' });
+    }
   };
+  reader.readAsText(file);
+  e.target.value = '';
+};
 
   // --- Final Save Logic (Triggered on Button Click) ---
+  // --- Final Save Logic (Triggered on Button Click) ---
   const saveTest = () => {
-    if (!isOffline && !currentUser) { alert("Login Required! You need to log in to save this test to the cloud."); return; }
-    if (!title.trim()) { alert('Please enter a test title.'); return; }
-    if (!qList.length) { alert('Add at least one question.'); return; }
+    // 🔥 Teeno Alerts ko SysAlert se replace kar diya
+    if (!isOffline && !currentUser) { setSysAlert({ title: 'Authentication Error', msg: "Login Required! You need to log in to save this test to the cloud.", type: 'error' }); return; }
+    if (!title.trim()) { setSysAlert({ title: 'Missing Field', msg: 'Please enter a test title before saving.', type: 'warning' }); return; }
+    if (!qList.length) { setSysAlert({ title: 'Empty Test', msg: 'Please add at least one question to the test.', type: 'warning' }); return; }
 
+    // 🔥 Strict Evaluation Key Validation (Isko bhi SysAlert kar diya)
     for (let i = 0; i < qList.length; i++) {
         const q = qList[i];
         if (q.type === 'mcq' || q.type === 'msq') {
-            if (!q.correct || q.correct.length === 0) { setFormError(`Action Required: Please mark the correct option for Question ${i + 1} before saving.`); return; }
+            if (!q.correct || q.correct.length === 0) { setSysAlert({ title: 'Action Required', msg: `Please mark the correct option for Question ${i + 1}.`, type: 'warning' }); return; }
         }
         if (q.type === 'integer') {
-            if (q.correctInt === null || q.correctInt === undefined || q.correctInt === '') { setFormError(`Action Required: Please enter the correct integer answer for Question ${i + 1} before saving.`); return; }
+            if (q.correctInt === null || q.correctInt === undefined || q.correctInt === '') { setSysAlert({ title: 'Action Required', msg: `Please enter the correct integer answer for Question ${i + 1}.`, type: 'warning' }); return; }
         }
     }
+    
+    // ... baaki ka mismatch modal aur proceedWithSave ka logic waisa hi rahega
 
     const calculatedSum = qList.reduce((sum, q) => sum + Number(q.marks), 0);
     
@@ -553,16 +564,16 @@ export default function CreateTest() {
               </div>
           </div>
       )}
-      {/* 🔥 The Generic Form Error Modal (Kills all alerts) */}
-      {formError && (
+      {/* 🔥 The Universal System Alert Modal */}
+      {sysAlert && (
           <div className="modal-bg" style={{ zIndex: 9999 }}>
               <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2rem' }}>
-                  <div style={{ width: '60px', height: '60px', background: '#FCEBEB', color: '#A32D2D', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', margin: '0 auto 1rem' }}>
-                      <i className="ti ti-x"></i>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', margin: '0 auto 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', background: sysAlert.type === 'success' ? '#EAF3DE' : sysAlert.type === 'error' ? '#FCEBEB' : '#FEF5E5', color: sysAlert.type === 'success' ? '#3B6D11' : sysAlert.type === 'error' ? '#A32D2D' : '#d97706' }}>
+                      <i className={`ti ${sysAlert.type === 'success' ? 'ti-check' : sysAlert.type === 'error' ? 'ti-x' : 'ti-alert-triangle'}`}></i>
                   </div>
-                  <h3 style={{ fontSize: '20px', marginBottom: '10px' }}>Action Required</h3>
-                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem' }}>{formError}</p>
-                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }} onClick={() => setFormError(null)}>Got it</button>
+                  <h3 style={{ fontSize: '20px', marginBottom: '10px' }}>{sysAlert.title}</h3>
+                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', lineHeight: 1.5 }}>{sysAlert.msg}</p>
+                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }} onClick={() => setSysAlert(null)}>Okay</button>
               </div>
           </div>
       )}

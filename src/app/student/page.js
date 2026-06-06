@@ -255,6 +255,51 @@ export default function StudentPortal() {
     }
   };
 
+ // --- SMART SHUFFLE ALGORITHM ---
+  const applySmartShuffle = (test) => {
+    if (!test.shuffleOpts) return test;
+    
+    let clonedTest = JSON.parse(JSON.stringify(test)); // Deep copy to avoid mutating original
+    
+    clonedTest.questions = clonedTest.questions.map(q => {
+        if ((q.type === 'mcq' || q.type === 'msq') && q.options) {
+            let standardOpts = [];
+            let fixedOpts = []; // To hold 'All of the above' etc.
+            
+            q.options.forEach((opt, idx) => {
+                let lowerOpt = opt.toLowerCase().replace(/<[^>]*>?/gm, '').trim(); // Remove HTML tags to check text
+                if (lowerOpt.includes('all of') || lowerOpt.includes('none of') || lowerOpt.includes('both ') || lowerOpt.includes('only ')) {
+                    fixedOpts.push({ text: opt, originalIdx: idx });
+                } else {
+                    standardOpts.push({ text: opt, originalIdx: idx });
+                }
+            });
+
+            // Fisher-Yates Shuffle for standard options
+            for (let i = standardOpts.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [standardOpts[i], standardOpts[j]] = [standardOpts[j], standardOpts[i]];
+            }
+
+            // Merge shuffled standard options with fixed options at the end
+            let finalOpts = [...standardOpts, ...fixedOpts];
+            q.options = finalOpts.map(o => o.text);
+            
+            // 🔥 CRITICAL: Remap the correct answers index
+            let newCorrectArray = [];
+            if (q.correct) {
+                q.correct.forEach(cIdx => {
+                    let newIdx = finalOpts.findIndex(o => o.originalIdx === cIdx);
+                    if(newIdx !== -1) newCorrectArray.push(newIdx);
+                });
+            }
+            q.correct = newCorrectArray;
+        }
+        return q;
+    });
+    return clonedTest;
+  };
+
   // --- START EXAM LOGIC ---
   const startExam = () => {
     if (!activeTest) return;
@@ -265,17 +310,22 @@ export default function StudentPortal() {
     }
 
     if (draftToResume) {
+        // ... (Keep existing draft resume logic)
         setAnswers(draftToResume.answers);
         setCurQ(draftToResume.curQ);
         endTimeRef.current = draftToResume.endTime;
         warningsRef.current = draftToResume.warnings || 0;
         cheatLogsRef.current = draftToResume.cheatLogs || [];
     } else {
-        const initialAnswers = activeTest.questions.map(() => ({ val: null, marked: false }));
+        // 🔥 Apply Smart Shuffle before initializing answers
+        const shuffledTest = applySmartShuffle(activeTest);
+        setActiveTest(shuffledTest); // Set the shuffled test as the active one
+
+        const initialAnswers = shuffledTest.questions.map(() => ({ val: null, marked: false }));
         setAnswers(initialAnswers);
         warningsRef.current = 0;
         cheatLogsRef.current = [];
-        endTimeRef.current = Date.now() + (activeTest?.duration || 60) * 60 * 1000;
+        endTimeRef.current = Date.now() + (shuffledTest.duration || 60) * 60 * 1000;
     }
     
     isActionLockedRef.current = false;
