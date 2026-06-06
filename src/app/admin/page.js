@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
 import { ref, get, update, set, remove } from 'firebase/database';
 
-// 🔥 UTILITY: Safe Array Converter (Prevents NaN & Crash Bugs)
+// 🔥 UTILITY: Safe Array Converter
 const safeArray = (data) => {
     if (!data) return [];
     if (Array.isArray(data)) return data.filter(Boolean);
@@ -24,14 +24,15 @@ export default function GodMode() {
   const [platformInstalls, setPlatformInstalls] = useState(0);
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [currentBroadcast, setCurrentBroadcast] = useState('');
+  
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false); // 🔥 For On-Demand User Loading
 
   // System Modals & Views
   const [sysAlert, setSysAlert] = useState(null);
   const [sysConfirm, setSysConfirm] = useState(null);
   const [viewingSubsFor, setViewingSubsFor] = useState(null); 
 
-  // Back Button Interceptor for Modals
   useEffect(() => {
     const handlePopState = () => {
         if (viewingSubsFor) {
@@ -43,7 +44,6 @@ export default function GodMode() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [viewingSubsFor]);
 
-  // Dynamic Chart.js Injector
   useEffect(() => {
       if (activeTab === 'analytics' && !window.Chart) {
           const script = document.createElement('script');
@@ -55,19 +55,11 @@ export default function GodMode() {
       }
   }, [activeTab, allTests]);
 
+  // 🔥 CORE DATA FETCH (Only fetch tests and stats on mount, NOT users)
   const fetchGodData = async () => {
     setIsLoadingData(true);
     try {
-        // CORE DATA (Users & Tests) - 100% zaroori hai
-        const usersSnap = await get(ref(database, 'users'));
         const testsSnap = await get(ref(database, 'tests'));
-        
-        let uData = [];
-        if (usersSnap.exists()) {
-            const rawUsers = usersSnap.val();
-            uData = Object.keys(rawUsers).map(key => ({ uid: key, ...rawUsers[key] }));
-        }
-        
         let tData = [];
         if (testsSnap.exists()) {
             const rawTests = testsSnap.val();
@@ -75,15 +67,12 @@ export default function GodMode() {
                 if(rawTests[key]) tData.push({ ...rawTests[key], dbKey: key });
             });
         }
-
-        setAllUsers(uData);
         setAllTests(tData.reverse()); 
 
-        // SECONDARY DATA (Stats & Broadcast) - Agar Firebase Rules block karein, toh crash na ho
         try {
             const statsSnap = await get(ref(database, 'platform_stats/total_downloads'));
-            setPlatformInstalls(statsSnap.exists() ? statsSnap.val() : Math.floor(uData.length * 1.5) + 42);
-        } catch(err) { setPlatformInstalls(Math.floor(uData.length * 1.5) + 42); } // Fallback dummy data
+            setPlatformInstalls(statsSnap.exists() ? statsSnap.val() : 42);
+        } catch(err) { setPlatformInstalls(42); } 
 
         try {
             const broadSnap = await get(ref(database, 'platform_settings/announcement'));
@@ -96,16 +85,30 @@ export default function GodMode() {
     setIsLoadingData(false);
   };
 
+  // 🔥 NAYA FEATURE: ON-DEMAND USER FETCHING
+  const fetchUsersOnDemand = async () => {
+      setIsLoadingUsers(true);
+      try {
+          const usersSnap = await get(ref(database, 'users'));
+          if (usersSnap.exists()) {
+              const rawUsers = usersSnap.val();
+              const uData = Object.keys(rawUsers).map(key => ({ uid: key, ...rawUsers[key] }));
+              setAllUsers(uData);
+          }
+      } catch (e) {
+          setSysAlert({ title: 'Error', msg: 'Failed to fetch users matrix.', type: 'error' });
+      } finally {
+          setIsLoadingUsers(false);
+      }
+  };
+
   useEffect(() => {
       if (userRole === 'admin') fetchGodData();
   }, [userRole]);
   
-  // 🔥 AUTO-KICK BOUNCER: Security bypass rokne ke liye
+  // 🔥 AUTO-KICK BOUNCER
   useEffect(() => {
-      // Agar loading khatam ho gayi aur user admin nahi hai
       if (!authLoading && (!currentUser || userRole !== 'admin')) {
-          // 3 second tak usko "Security Breach" ki laal screen dikhegi darrane ke liye
-          // Fir system usko automatically utha kar Home Page par phek dega
           const kickTimer = setTimeout(() => {
               router.replace('/');
           }, 3000); 
@@ -114,14 +117,14 @@ export default function GodMode() {
   }, [currentUser, userRole, authLoading, router]);
   
   // ===============================================
-  // 📊 CHART RENDERING LOGIC
+  // CHART RENDERING LOGIC
   // ===============================================
   const renderCharts = () => {
       setTimeout(() => {
           if (!document.getElementById('accuracyChart') || !document.getElementById('trendChart') || !window.Chart) return;
           
           let totalCorrect = 0, totalWrong = 0, totalSkipped = 0;
-          let testAttempts = {}; // { "12/05/2026": 5 }
+          let testAttempts = {}; 
 
           allTests.forEach(t => {
               safeArray(t.submissions).forEach(s => {
@@ -134,7 +137,6 @@ export default function GodMode() {
               });
           });
 
-          // 1. Doughnut Chart (Accuracy)
           if(window.accChartInstance) window.accChartInstance.destroy();
           const ctxAcc = document.getElementById('accuracyChart').getContext('2d');
           window.accChartInstance = new window.Chart(ctxAcc, {
@@ -151,9 +153,8 @@ export default function GodMode() {
               options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1' } } }, cutout: '70%' }
           });
 
-          // 2. Line Chart (Activity Trends)
           if(window.trendChartInstance) window.trendChartInstance.destroy();
-          const dates = Object.keys(testAttempts).slice(-7); // Last 7 active days
+          const dates = Object.keys(testAttempts).slice(-7); 
           const counts = dates.map(d => testAttempts[d]);
           
           const ctxTrend = document.getElementById('trendChart').getContext('2d');
@@ -198,7 +199,7 @@ export default function GodMode() {
   }
 
   // ===============================================
-  // 🔥 REAL-WORLD GOD POWERS (ZERO REFRESH)
+  // REAL-WORLD GOD POWERS 
   // ===============================================
   
   const updateGodVoice = async () => {
@@ -208,10 +209,7 @@ export default function GodMode() {
           setCurrentBroadcast(broadcastMsg);
           setBroadcastMsg('');
           setSysAlert({ title: 'Broadcast Live', msg: 'The entire platform will see this message.', type: 'success' });
-      } catch(e) { 
-          // Agar Firebase rules deny karein
-          setSysAlert({ title: 'Database Locked', msg: 'Update your Firebase Realtime DB rules to allow writing to "platform_settings".', type: 'error' }); 
-      }
+      } catch(e) { setSysAlert({ title: 'Database Locked', msg: 'Update your Firebase Realtime DB rules to allow writing to "platform_settings".', type: 'error' }); }
   };
 
   const changeUserRole = async (uid, newRole, userName) => {
@@ -221,10 +219,9 @@ export default function GodMode() {
           action: async () => {
               try { 
                   await update(ref(database, `users/${uid}`), { role: newRole }); 
-                  setAllUsers(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole } : u)); // ZERO REFRESH
+                  setAllUsers(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole } : u)); 
                   setSysAlert({ title: 'Role Updated', msg: `${userName} is now an ${newRole}.`, type: 'success' }); 
-              } 
-              catch(e) { setSysAlert({ title: 'Error', msg: 'Failed to update reality.', type: 'error' }); }
+              } catch(e) { setSysAlert({ title: 'Error', msg: 'Failed to update reality.', type: 'error' }); }
           }
       });
   };
@@ -237,10 +234,9 @@ export default function GodMode() {
           action: async () => {
               try { 
                   await update(ref(database, `users/${uid}`), { isBlocked: !isCurrentlyBlocked }); 
-                  setAllUsers(prev => prev.map(u => u.uid === uid ? { ...u, isBlocked: !isCurrentlyBlocked } : u)); // ZERO REFRESH
+                  setAllUsers(prev => prev.map(u => u.uid === uid ? { ...u, isBlocked: !isCurrentlyBlocked } : u)); 
                   setSysAlert({ title: 'Access Updated', msg: `${userName} has been ${actionTxt.toLowerCase()}ed.`, type: 'success' }); 
-              } 
-              catch(e) { setSysAlert({ title: 'Error', msg: 'Action failed.', type: 'error' }); }
+              } catch(e) { setSysAlert({ title: 'Error', msg: 'Action failed.', type: 'error' }); }
           }
       });
   };
@@ -252,10 +248,9 @@ export default function GodMode() {
           action: async () => {
               try { 
                   await remove(ref(database, `users/${uid}`)); 
-                  setAllUsers(prev => prev.filter(u => u.uid !== uid)); // ZERO REFRESH
+                  setAllUsers(prev => prev.filter(u => u.uid !== uid)); 
                   setSysAlert({ title: 'Target Neutralized', msg: `${userName} wiped from existence.`, type: 'success' }); 
-              } 
-              catch(e) { setSysAlert({ title: 'Error', msg: 'Eradication failed.', type: 'error' }); }
+              } catch(e) { setSysAlert({ title: 'Error', msg: 'Eradication failed.', type: 'error' }); }
           }
       });
   };
@@ -267,7 +262,7 @@ export default function GodMode() {
           action: async () => {
               try {
                   await remove(ref(database, `tests/${t.dbKey}`));
-                  setAllTests(prev => prev.filter(test => test.dbKey !== t.dbKey)); // ZERO REFRESH
+                  setAllTests(prev => prev.filter(test => test.dbKey !== t.dbKey)); 
                   setSysAlert({ title: 'Eradicated', msg: 'Test wiped from existence.', type: 'success' });
                   setViewingSubsFor(null);
               } catch(e) { setSysAlert({ title: 'Error', msg: 'Failed deletion.', type: 'error' }); }
@@ -285,7 +280,6 @@ export default function GodMode() {
                   newSubs.splice(idx, 1); 
                   await set(ref(database, `tests/${t.dbKey}/submissions`), newSubs);
                   
-                  // ZERO REFRESH STATE UPDATES
                   const updatedTest = { ...t, submissions: newSubs };
                   setViewingSubsFor(updatedTest);
                   setAllTests(prev => prev.map(test => test.dbKey === t.dbKey ? updatedTest : test));
@@ -296,6 +290,18 @@ export default function GodMode() {
       });
   };
 
+  // 🔥 NAYA FEATURE: Admin Force Edit Name
+  const adminChangeName = async (uid, currentName) => {
+      const newName = prompt(`Enter new legal name for user (Current: ${currentName || 'N/A'}):`);
+      if (newName && newName.trim() !== '') {
+          try {
+              await update(ref(database, `users/${uid}`), { legalName: newName.trim() });
+              setAllUsers(prev => prev.map(u => u.uid === uid ? { ...u, legalName: newName.trim() } : u));
+              setSysAlert({ title: 'Name Updated', msg: `User's official name overridden to ${newName.trim()}`, type: 'success' });
+          } catch (e) { setSysAlert({ title: 'Error', msg: 'Failed to update name in database.', type: 'error' }); }
+      }
+  };
+
   // ===============================================
   // DERIVED DATA & METRICS
   // ===============================================
@@ -303,7 +309,7 @@ export default function GodMode() {
   let totalSubsCount = 0;
   let totalQuestionsInSystem = 0;
   let cheatAttemptsCaught = 0;
-  let radarFeed = []; // Mock feed for live activity
+  let radarFeed = []; 
 
   allTests.forEach(t => {
       totalQuestionsInSystem += safeArray(t.questions).length;
@@ -318,7 +324,7 @@ export default function GodMode() {
       });
   });
 
-  radarFeed.reverse().slice(0, 8); // Take top 8 latest
+  radarFeed.reverse().slice(0, 8); 
 
   // ===============================================
   // VIEW: INDIVIDUAL SUBMISSIONS LEDGER (God Mode)
@@ -389,7 +395,6 @@ export default function GodMode() {
                 )}
             </div>
             
-            {/* Confirm Dialog inside Ledger */}
             {sysConfirm && (
                 <div className="modal-bg" style={{ zIndex: 9999, background: 'rgba(11, 15, 25, 0.8)' }}>
                     <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem', background: '#0B0F19', border: '2px solid #A32D2D', borderRadius: '16px' }}>
@@ -413,7 +418,6 @@ export default function GodMode() {
   return (
     <div style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto', animation: 'fadeIn 0.4s ease' }}>
         
-        {/* 🔥 PREMIUM RED & GOLD ADMIN IDENTITY CARD */}
         <div style={{ background: 'linear-gradient(135deg, #0B0F19 0%, #1a0b0b 100%)', borderRadius: '16px', padding: '2.5rem 2rem', color: '#fff', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', border: '1px solid #3f1515', boxShadow: '0 15px 35px rgba(139, 0, 0, 0.2)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                 <div style={{ width: '80px', height: '80px', background: 'rgba(212, 175, 55, 0.1)', border: '2px solid #D4AF37', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '38px', color: '#D4AF37', fontWeight: 800, boxShadow: 'inset 0 0 15px rgba(212,175,55,0.2)' }}>
@@ -434,7 +438,6 @@ export default function GodMode() {
             </div>
         </div>
 
-        {/* TABS (Dark Themed) */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '2rem', overflowX: 'auto', paddingBottom: '5px' }}>
             <button className="btn btn-ghost" style={{ fontWeight: 800, padding: '12px 24px', borderRadius: '8px', color: activeTab === 'pulse' ? '#fff' : '#64748b', background: activeTab === 'pulse' ? '#8B0000' : 'transparent', transition: '0.3s' }} onClick={() => setActiveTab('pulse')}><i className="ti ti-activity-heartbeat"></i> System Pulse</button>
             <button className="btn btn-ghost" style={{ fontWeight: 800, padding: '12px 24px', borderRadius: '8px', color: activeTab === 'analytics' ? '#fff' : '#64748b', background: activeTab === 'analytics' ? '#8B0000' : 'transparent', transition: '0.3s' }} onClick={() => setActiveTab('analytics')}><i className="ti ti-chart-pie"></i> Analytics</button>
@@ -443,11 +446,10 @@ export default function GodMode() {
         </div>
 
         {/* ============================== */}
-        {/* TAB 1: PLATFORM PULSE (Enhanced) */}
+        {/* TAB 1: PLATFORM PULSE          */}
         {/* ============================== */}
         {activeTab === 'pulse' && (
             <div style={{ animation: 'fadeIn 0.3s' }}>
-                {/* GLOBAL BROADCAST MODULE */}
                 <div style={{ background: '#0B0F19', border: '1px solid #1e293b', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
                         <i className="ti ti-speakerphone" style={{ color: '#D4AF37', fontSize: '20px' }}></i>
@@ -467,7 +469,7 @@ export default function GodMode() {
                 <div className="grid4" style={{ marginBottom: '2rem' }}>
                     <div className="card" style={{ padding: '2rem', textAlign: 'center', border: '1px solid #e2e8f0', background: '#fff' }}>
                         <i className="ti ti-users" style={{ fontSize: '38px', color: '#185FA5', marginBottom: '15px' }}></i>
-                        <div style={{ fontSize: '42px', fontWeight: 900, color: '#0B0F19' }}>{allUsers.length}</div>
+                        <div style={{ fontSize: '42px', fontWeight: 900, color: '#0B0F19' }}>{allUsers.length > 0 ? allUsers.length : 'N/A'}</div>
                         <div style={{ fontSize: '13px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Citizens</div>
                     </div>
                     <div className="card" style={{ padding: '2rem', textAlign: 'center', border: '1px solid #e2e8f0', background: '#fff' }}>
@@ -487,9 +489,7 @@ export default function GodMode() {
                     </div>
                 </div>
 
-                {/* Radar & Health Row */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-                    {/* Live Radar Feed */}
                     <div style={{ background: '#0B0F19', borderRadius: '12px', padding: '1.5rem', border: '1px solid #1e293b' }}>
                         <h3 style={{ color: '#D4AF37', margin: '0 0 1rem 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-radar"></i> Live System Radar</h3>
                         <div style={{ height: '250px', overflowY: 'auto', paddingRight: '5px' }}>
@@ -503,7 +503,6 @@ export default function GodMode() {
                         </div>
                     </div>
                     
-                    {/* Security & Health */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div style={{ background: '#FCEBEB', border: '1px solid #F7C1C1', borderRadius: '12px', padding: '1.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -556,63 +555,86 @@ export default function GodMode() {
         {/* TAB 3: USER MATRIX             */}
         {/* ============================== */}
         {activeTab === 'users' && (
-            <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
-                        <thead>
-                            <tr style={{ background: '#0B0F19', color: '#D4AF37', textAlign: 'left' }}>
-                                <th style={{ padding: '16px 20px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>Citizen Info</th>
-                                <th style={{ padding: '16px 20px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>Email & UID</th>
-                                <th style={{ padding: '16px 20px', fontWeight: 800, textAlign: 'center', letterSpacing: '1px', textTransform: 'uppercase' }}>Clearance Level</th>
-                                <th style={{ padding: '16px 20px', fontWeight: 800, textAlign: 'right', letterSpacing: '1px', textTransform: 'uppercase' }}>God Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {allUsers.map((u, i) => (
-                                <tr key={u.uid} style={{ borderBottom: '1px solid #e2e8f0', background: u.isBlocked ? '#fff0f0' : (i % 2 === 0 ? '#fff' : '#f8fafc'), opacity: u.isBlocked ? 0.7 : 1 }}>
-                                    <td style={{ padding: '16px 20px' }}>
-                                        <div style={{ fontWeight: 800, color: '#0B0F19', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            {u.name || 'Unknown Entity'}
-                                            {u.isBlocked && <i className="ti ti-ban" style={{ color: '#A32D2D' }} title="Account Suspended"></i>}
-                                        </div>
-                                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginTop: '4px' }}>Joined: {u.createdAt || 'Legacy'}</div>
-                                    </td>
-                                    <td style={{ padding: '16px 20px' }}>
-                                        <div style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{u.email}</div>
-                                        <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace', marginTop: '4px' }}>{u.uid}</div>
-                                    </td>
-                                    <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                                        {u.uid === currentUser.uid ? (
-                                            <span style={{ fontSize: '12px', color: '#D4AF37', fontWeight: 900, background: '#0B0F19', padding: '6px 12px', borderRadius: '6px', letterSpacing: '1px' }}><i className="ti ti-crown"></i> SYSTEM OWNER</span>
-                                        ) : (
-                                            <select 
-                                                value={u.role || 'student'} 
-                                                onChange={(e) => changeUserRole(u.uid, e.target.value, u.name || 'User')}
-                                                style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, border: '1px solid #cbd5e1', background: u.role === 'admin' ? '#FCEBEB' : u.role === 'examiner' ? '#EAF3DE' : '#f1f5f9', color: u.role === 'admin' ? '#A32D2D' : u.role === 'examiner' ? '#3B6D11' : '#475569', cursor: 'pointer', outline: 'none' }}
-                                            >
-                                                <option value="student">Student</option>
-                                                <option value="examiner">Examiner</option>
-                                                <option value="admin">Admin</option>
-                                            </select>
-                                        )}
-                                    </td>
-                                    <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                                        {u.uid !== currentUser.uid && (
-                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                                <button className="btn btn-sm" style={{ padding: '8px', background: u.isBlocked ? '#EAF3DE' : '#fff5f5', color: u.isBlocked ? '#3B6D11' : '#A32D2D', border: `1px solid ${u.isBlocked ? '#C0DD97' : '#ffcdd2'}` }} onClick={() => toggleUserBlock(u.uid, u.isBlocked, u.name || 'User')} title={u.isBlocked ? "Unblock User" : "Suspend User"}>
-                                                    <i className={`ti ${u.isBlocked ? 'ti-user-check' : 'ti-user-off'}`} style={{ fontSize: '16px' }}></i>
-                                                </button>
-                                                <button className="btn btn-sm btn-danger" style={{ padding: '8px', background: '#8B0000', color: '#fff', border: 'none' }} onClick={() => eradicateUser(u.uid, u.name || 'User')} title="Permanently Eradicate">
-                                                    <i className="ti ti-trash-x" style={{ fontSize: '16px' }}></i>
-                                                </button>
-                                            </div>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+            <div className="card" style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <h2 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>Citizen Registry</h2>
+                    <button className="btn btn-primary" onClick={fetchUsersOnDemand} disabled={isLoadingUsers}>
+                        {isLoadingUsers ? 'Fetching...' : <><i className="ti ti-download"></i> Load Users Matrix</>}
+                    </button>
                 </div>
+
+                {isLoadingUsers ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 0' }}><div className="spinner"></div></div>
+                ) : allUsers.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '3rem 0', color: '#64748b' }}>Click "Load Users Matrix" to fetch database records.</div>
+                ) : (
+                    <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
+                            <thead>
+                                <tr style={{ background: '#0B0F19', color: '#D4AF37', textAlign: 'left' }}>
+                                    <th style={{ padding: '16px 20px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>Citizen Info</th>
+                                    <th style={{ padding: '16px 20px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>Email & UID</th>
+                                    <th style={{ padding: '16px 20px', fontWeight: 800, textAlign: 'center', letterSpacing: '1px', textTransform: 'uppercase' }}>Clearance Level</th>
+                                    <th style={{ padding: '16px 20px', fontWeight: 800, textAlign: 'right', letterSpacing: '1px', textTransform: 'uppercase' }}>God Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {allUsers.map((u, i) => (
+                                    <tr key={u.uid} style={{ borderBottom: '1px solid #e2e8f0', background: u.isBlocked ? '#fff0f0' : (i % 2 === 0 ? '#fff' : '#f8fafc'), opacity: u.isBlocked ? 0.7 : 1 }}>
+                                        <td style={{ padding: '16px 20px' }}>
+                                            <div style={{ fontWeight: 800, color: '#0B0F19', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {/* 🔥 SHOWING LEGAL NAME HERE */}
+                                                {u.legalName || u.name || 'Unknown Entity'}
+                                                {u.isBlocked && <i className="ti ti-ban" style={{ color: '#A32D2D' }} title="Account Suspended"></i>}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                                                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>{u.rollNo || u.examinerId || 'No ID'}</span>
+                                                {u.profileLocked ? <span className="badge b-green" style={{ fontSize: '10px' }}><i className="ti ti-lock"></i> Locked</span> : <span className="badge b-amber" style={{ fontSize: '10px' }}>Unverified</span>}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '16px 20px' }}>
+                                            <div style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{u.email}</div>
+                                            <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace', marginTop: '4px' }}>{u.uid}</div>
+                                        </td>
+                                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                                            {u.uid === currentUser.uid ? (
+                                                <span style={{ fontSize: '12px', color: '#D4AF37', fontWeight: 900, background: '#0B0F19', padding: '6px 12px', borderRadius: '6px', letterSpacing: '1px' }}><i className="ti ti-crown"></i> SYSTEM OWNER</span>
+                                            ) : (
+                                                <select 
+                                                    value={u.role || 'student'} 
+                                                    onChange={(e) => changeUserRole(u.uid, e.target.value, u.legalName || u.name || 'User')}
+                                                    style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, border: '1px solid #cbd5e1', background: u.role === 'admin' ? '#FCEBEB' : u.role === 'examiner' ? '#EAF3DE' : '#f1f5f9', color: u.role === 'admin' ? '#A32D2D' : u.role === 'examiner' ? '#3B6D11' : '#475569', cursor: 'pointer', outline: 'none' }}
+                                                >
+                                                    <option value="student">Student</option>
+                                                    <option value="examiner">Examiner</option>
+                                                    <option value="admin">Admin</option>
+                                                </select>
+                                            )}
+                                        </td>
+                                        <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                                            {u.uid !== currentUser.uid && (
+                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                                    {/* 🔥 FORCE EDIT NAME ACTION */}
+                                                    <button className="btn btn-sm" style={{ padding: '8px', background: '#fff', color: '#854F0B', border: '1px solid #FAC775' }} onClick={() => adminChangeName(u.uid, u.legalName || u.name)} title="Force Edit Name">
+                                                        <i className="ti ti-pencil" style={{ fontSize: '16px' }}></i>
+                                                    </button>
+                                                    
+                                                    <button className="btn btn-sm" style={{ padding: '8px', background: u.isBlocked ? '#EAF3DE' : '#fff5f5', color: u.isBlocked ? '#3B6D11' : '#A32D2D', border: `1px solid ${u.isBlocked ? '#C0DD97' : '#ffcdd2'}` }} onClick={() => toggleUserBlock(u.uid, u.isBlocked, u.legalName || u.name || 'User')} title={u.isBlocked ? "Unblock User" : "Suspend User"}>
+                                                        <i className={`ti ${u.isBlocked ? 'ti-user-check' : 'ti-user-off'}`} style={{ fontSize: '16px' }}></i>
+                                                    </button>
+                                                    
+                                                    <button className="btn btn-sm btn-danger" style={{ padding: '8px', background: '#8B0000', color: '#fff', border: 'none' }} onClick={() => eradicateUser(u.uid, u.legalName || u.name || 'User')} title="Permanently Eradicate">
+                                                        <i className="ti ti-trash-x" style={{ fontSize: '16px' }}></i>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         )}
 

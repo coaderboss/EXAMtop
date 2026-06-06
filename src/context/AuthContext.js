@@ -19,21 +19,31 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setCurrentUser(user);
         try {
           const userRef = ref(database, `users/${user.uid}`);
           const snapshot = await get(userRef);
           if (snapshot.exists()) {
-            setUserRole(snapshot.val().role);
+            const userData = snapshot.val();
+            setUserRole(userData.role);
+            // 🔥 NAYA UPDATE: Profile Details ko context me load karna
+            setCurrentUser({
+                ...user,
+                role: userData.role,
+                legalName: userData.legalName || null,
+                profileLocked: userData.profileLocked || false,
+                rollNo: userData.rollNo || null,
+                examinerId: userData.examinerId || null
+            });
           } else {
-            setUserRole('student'); // Default fallback
+            setUserRole('student'); 
+            setCurrentUser(user);
           }
         } catch (err) {
           console.error("Error fetching role:", err);
           setUserRole('student');
+          setCurrentUser(user);
         }
       } else {
-        // Only clear state if it's NOT a guest (Guests aren't tracked by Firebase auth)
         if (userRole !== 'guest') {
             setCurrentUser(null);
             setUserRole(null);
@@ -42,7 +52,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [userRole]); // 🔥 Dependency add ki
 
   // --- GOOGLE LOGIN ---
   const loginWithGoogle = async (intendedRole = 'student') => {
@@ -57,26 +67,43 @@ export const AuthProvider = ({ children }) => {
       const snapshot = await get(userRef);
       
       let finalRole = intendedRole;
+      let isLocked = false;
 
       if (!snapshot.exists()) {
         await set(userRef, {
           name: user.displayName,
           email: user.email,
           uid: user.uid,
-          role: intendedRole
+          role: intendedRole,
+          profileLocked: false // 🔥 Naya user hai, toh lock false hoga
         });
+        setCurrentUser({ ...user, role: intendedRole, profileLocked: false });
       } else {
-        finalRole = snapshot.val().role;
+        const userData = snapshot.val();
+        finalRole = userData.role;
+        isLocked = userData.profileLocked || false;
+        
+        setCurrentUser({
+            ...user,
+            role: userData.role,
+            legalName: userData.legalName || null,
+            profileLocked: isLocked,
+            rollNo: userData.rollNo || null,
+            examinerId: userData.examinerId || null
+        });
       }
 
-      setCurrentUser(user);
       setUserRole(finalRole);
 
-      // 🔥 Ensure stable redirect after login
+      // 🔥 SMART REDIRECT: Agar identity verified nahi hai, toh onboarding me bhejo
       setTimeout(() => {
-        if (finalRole === 'admin') router.push('/admin');
-        else if (finalRole === 'examiner') router.push('/tests');
-        else router.push('/student-dashboard');
+        if (!isLocked && finalRole !== 'guest') {
+            router.push('/onboarding');
+        } else {
+            if (finalRole === 'admin') router.push('/admin');
+            else if (finalRole === 'examiner') router.push('/tests');
+            else router.push('/student-dashboard');
+        }
       }, 500);
 
     } catch (error) {
@@ -94,12 +121,13 @@ export const AuthProvider = ({ children }) => {
       const guestUser = {
           uid: 'guest_' + Date.now(),
           displayName: 'Guest User',
-          email: 'guest@examitop.local'
+          email: 'guest@examitop.local',
+          profileLocked: true // Guests don't need onboarding
       };
       setCurrentUser(guestUser);
       setUserRole('guest');
       setTimeout(() => {
-          router.push('/student'); // Guests usually go straight to joining a test
+          router.push('/student');
       }, 300);
   };
 
