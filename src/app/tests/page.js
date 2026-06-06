@@ -5,17 +5,21 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
-import { ref, set, update, remove } from 'firebase/database';
+// 🔥 THE FIX: 'get' import add kiya gaya hai exact update/delete ke liye
+import { ref, set, update, remove, get } from 'firebase/database'; 
 
 export default function ManageTests() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
-  const { tests, loadingData } = useData();
+  // 🔥 THE FIX: Naye On-Demand fetch functions ko destructure kiya hai
+  const { tests, setTests, loadingData, fetchMyTests } = useData();
   const router = useRouter();
 
   // --- NEW: Local Offline State ---
   const [localTests, setLocalTests] = useState([]);
   const [isOffline, setIsOffline] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // 🔥 THE MAKKHAN FIX
   
   // --- CORE STATE ---
   const [selectedTest, setSelectedTest] = useState(null);
@@ -47,6 +51,15 @@ export default function ManageTests() {
     }
   }, [selectedTest]);
 
+  // 🔥 THE FIX 1: Sirf apne tests fetch karo (With Anti-Flicker Logic)
+  useEffect(() => {
+      if (isMounted && !isOffline && currentUser?.uid && (userRole === 'examiner' || userRole === 'admin')) {
+          fetchMyTests(currentUser.uid).finally(() => setIsInitialLoad(false));
+      } else if (isMounted) {
+          setIsInitialLoad(false);
+      }
+  }, [isMounted, isOffline, currentUser, userRole]);
+
   // 2. MathJax Auto-Renderer
   useEffect(() => {
     const renderMath = async () => {
@@ -59,28 +72,24 @@ export default function ManageTests() {
             }
         }
     };
-    // 100ms delay ensures JSON DOM is fully painted before scanning
     const timer = setTimeout(renderMath, 100);
     return () => clearTimeout(timer);
   }, [selectedTest, evaluateSub, evalFilter, modalType, activeTab]);
   
-  // 🔥 AUTO-KICK BOUNCER: Security bypass rokne ke liye
+  // 🔥 AUTO-KICK BOUNCER
   useEffect(() => {
-      // Agar loading ho chuki hai, user offline NAHI hai, aur wo na toh admin hai na examiner
       if (isMounted && !authLoading && !isOffline && (!currentUser || (userRole !== 'examiner' && userRole !== 'admin'))) {
           const kickTimer = setTimeout(() => {
               router.replace('/');
             }, 3000); 
         return () => clearTimeout(kickTimer);
     }
-}, [currentUser, userRole, authLoading, isMounted, isOffline, router]);
+  }, [currentUser, userRole, authLoading, isMounted, isOffline, router]);
 
-  // Naya condition: Agar offline mode active hai, toh cloud data loading ka wait mat karo!
-  if (authLoading || !isMounted || (!isOffline && loadingData)) {
+  if (authLoading || !isMounted || (!isOffline && (loadingData || isInitialLoad))) {
     return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div><div>Loading Vault...</div></div>;
   }
 
-  // 3. Strict Access Control (Allows Offline Access without Login)
   if (!isOffline && (!currentUser || (userRole !== 'examiner' && userRole !== 'admin'))) {
     return (
       <div style={{ textAlign: 'center', padding: '4rem', marginTop: '10vh' }}>
@@ -94,14 +103,11 @@ export default function ManageTests() {
     );
   }
 
-  // 4. Merge Cloud Tests and Hide the one being deleted (Undo State)
-  const baseTests = isOffline 
-    ? localTests 
-    : [...tests.filter(t => t?.creatorUid === currentUser?.uid), ...localTests];
-    
+  // 🔥 THE FIX 2: Kyunki ab 'tests' me pehle se hi sirf is examiner ke tests hain, humein filter lagane ki zaroorat nahi
+  const baseTests = isOffline ? localTests : [...tests, ...localTests];
   const myTests = baseTests.filter(t => t.id !== undoData?.test?.id);
   
-  // 5. Universal Data Updater (Handles both LocalStorage and Firebase)
+  // 🔥 THE FIX 3: SAFE UPDATER (Firebase Index Matcher)
   const updateTestGlobal = async (updatedTest) => {
     if (updatedTest.isLocal) {
         let currentLocal = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
@@ -110,9 +116,15 @@ export default function ManageTests() {
         setLocalTests(newLocal);
         setSelectedTest(updatedTest);
     } else {
-        const tIndex = tests.findIndex(x => x.id === updatedTest.id);
+        // Ek mini-fetch karke exact real index nikalna (Data Leak Proof)
+        const snapshot = await get(ref(database, 'tests'));
+        const allTests = snapshot.val() || [];
+        const tIndex = allTests.findIndex(x => x && x.id === updatedTest.id);
+        
         if (tIndex > -1) {
             await update(ref(database, `tests/${tIndex}`), updatedTest);
+            // Local state turant update karna bina page reload kiye
+            if (setTests) setTests(prev => prev.map(t => t.id === updatedTest.id ? updatedTest : t));
             setSelectedTest(updatedTest);
         }
     }
@@ -125,14 +137,13 @@ export default function ManageTests() {
     } catch (e) { setSysAlert({ title: 'Error', msg: 'Error toggling status.', type: 'error' }); }
   };
 
+  // 🔥 THE FIX 4: SAFE DELETER (Cross-Check Delete)
   const triggerDelete = (t) => {
     setSysConfirm({
         title: 'Delete Test?',
         msg: `Are you sure you want to delete "${t.title}"? You will have 5 seconds to undo this action.`,
         action: () => {
-            setSelectedTest(null); // Return to vault immediately
-            
-            // 5-second countdown for actual deletion
+            setSelectedTest(null); 
             const timeoutId = setTimeout(async () => {
                 try {
                     if (t.isLocal) {
@@ -141,13 +152,16 @@ export default function ManageTests() {
                         localStorage.setItem('examitop_offline_tests', JSON.stringify(newLocal));
                         setLocalTests(newLocal);
                     } else {
-                        const newTests = tests.filter(x => x.id !== t.id);
+                        // DB se safely wo element nikal kar array set karna
+                        const snapshot = await get(ref(database, 'tests'));
+                        let allTests = snapshot.val() || [];
+                        const newTests = allTests.filter(x => x && x.id !== t.id);
                         await set(ref(database, 'tests'), newTests);
+                        if (setTests) setTests(prev => prev.filter(x => x.id !== t.id));
                     }
                     setUndoData(null); 
                 } catch (e) { console.error("Deletion failed", e); }
             }, 5000);
-
             setUndoData({ test: t, timeoutId });
         }
     });
@@ -192,7 +206,6 @@ export default function ManageTests() {
     link.click();
   };
 
-  // 🔥 THE FIX: MathJax Print Engine Sync
   const printTestPaper = (t) => {
     let printHtml = `
       <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; color: #000;">
@@ -228,7 +241,6 @@ export default function ManageTests() {
     const doc = iframe.contentWindow.document;
     doc.open();
     
-    // Auto-Trigger Print AFTER MathJax finishes parsing
     const mathJaxScript = `
         <script>
             window.MathJax = {
@@ -248,10 +260,9 @@ export default function ManageTests() {
     doc.close();
     
     iframe.contentWindow.onafterprint = () => { setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 1000); };
-    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 120000); // 2 min fallback
+    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 120000); 
   };
 
-  // --- EDIT KEY LOGIC ---
   const openEditKey = () => {
     setTempQuestions(JSON.parse(JSON.stringify(selectedTest.questions)));
     setModalType('editKey');
@@ -311,7 +322,6 @@ export default function ManageTests() {
     } catch (e) { setSysAlert({ title: 'Error', msg: 'Error saving new key.', type: 'error' }); }
   };
 
-  // --- EVALUATE SUBMISSION LOGIC ---
   const saveEvaluation = async () => {
     if (!auditReason.trim()) {
         setSysAlert({ title: 'Required', msg: 'Audit reason is mandatory for manual grading.', type: 'warning' });
@@ -360,12 +370,11 @@ export default function ManageTests() {
 
   const getLabel = (type) => ({ mcq: 'Single Correct', msq: 'Multi Correct', integer: 'Integer Type', subjective: 'Subjective' }[type] || type);
 
-  // 🔥 THE FIX: SINGLE ROOT RETURN TO KEEP POPUPS ALWAYS MOUNTED
   return (
     <>
       {evaluateSub ? (
         // ==========================================
-        // VIEW 3: EVALUATE PAPER (Full Detailed UI)
+        // VIEW 3: EVALUATE PAPER
         // ==========================================
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
           
@@ -466,7 +475,6 @@ export default function ManageTests() {
                               </div>
                           )}
 
-                          {/* 1. Subjective Answer Block */}
                           {q.type === 'subjective' && (
                               <div style={{ marginBottom: '1rem' }}>
                                   <div style={{ padding: '1rem', background: 'var(--color-background-tertiary)', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', marginBottom: '1rem' }}>
@@ -480,7 +488,6 @@ export default function ManageTests() {
                               </div>
                           )}
 
-                          {/* 2. EXPLANATION BOX */}
                           {q.explanation && (
                               <div style={{ padding: '1rem', background: '#F8FAFC', borderRadius: '8px', borderLeft: '4px solid #475569', marginTop: '1.5rem', marginBottom: '1rem' }}>
                                   <strong style={{ color: '#334155', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Correct Explanation / Logic:</strong>
@@ -517,7 +524,6 @@ export default function ManageTests() {
               );
           })}
 
-          {/* Audit Modal */}
           {modalType === 'audit' && (
               <div className="modal-bg" style={{ zIndex: 1000 }}>
                   <div className="modal-box">
@@ -537,7 +543,7 @@ export default function ManageTests() {
       ) : selectedTest ? (
 
         // ==========================================
-        // VIEW 2: TEST DASHBOARD (Detail View)
+        // VIEW 2: TEST DASHBOARD
         // ==========================================
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
           
@@ -813,7 +819,6 @@ export default function ManageTests() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
                                         <h3 style={{ margin: 0, color: '#0f172a', fontSize: '18px', fontWeight: 700 }}>{t.title}</h3>
                                         
-                                        {/* 🔥 THE FIX: Added Local Device Tag properly */}
                                         {t.isLocal && <span className="badge b-amber"><i className="ti ti-device-floppy"></i> Local Device</span>}
                                         
                                         {isLive && !t.isLocal ? (
@@ -849,7 +854,7 @@ export default function ManageTests() {
         </div>
       )}
 
-      {/* 🔥 ROOT LEVEL SYSTEM POPUPS (These will now work flawlessly from ANY screen) */}
+      {/* 🔥 ROOT LEVEL SYSTEM POPUPS */}
       
       {undoData && (
           <div style={{ position: 'fixed', bottom: '30px', right: '30px', background: '#334155', color: '#fff', padding: '16px 24px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', zIndex: 9999, animation: 'slideUp 0.3s ease' }}>

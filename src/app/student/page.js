@@ -5,7 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
-import { ref, push, set } from 'firebase/database';
+// 🔥 THE FIX: Added 'get' for Absolute Index Lookup during submission
+import { ref, push, set, get } from 'firebase/database'; 
 
 // 🔥 THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
@@ -15,8 +16,12 @@ const StaticMath = memo(({ html, isBlock, style, className }) => {
 
 export default function StudentPortal() {
   const { currentUser, loading: authLoading } = useAuth();
-  const { tests, loadingData } = useData();
+  // 🔥 THE FIX: Imported fetchSingleTest from DataContext
+  const { fetchSingleTest } = useData(); 
   const router = useRouter();
+
+  const [isMounted, setIsMounted] = useState(false);
+  const [isFetchingTest, setIsFetchingTest] = useState(false); // 🔥 For Smart Loading
 
   // --- SCREEN STATES ---
   const [step, setStep] = useState('join'); // join, instructions, exam, offline_saved
@@ -50,6 +55,8 @@ export default function StudentPortal() {
   const cheatLogsRef = useRef([]);
   const lastWarningTimeRef = useRef(0);
   const isActionLockedRef = useRef(false);
+
+  useEffect(() => { setIsMounted(true); }, []);
 
   // Auto-fill student name
   useEffect(() => {
@@ -85,7 +92,8 @@ export default function StudentPortal() {
     else if (header) header.style.display = ''; 
     return () => { if (header) header.style.display = ''; };
   }, [step]);
-// 🔥 2. AUTO-SAVE DRAFT (Panic Refresh Protection + ENCRYPTION)
+
+  // 🔥 2. AUTO-SAVE DRAFT (Panic Refresh Protection + ENCRYPTION)
   useEffect(() => {
     if (step === 'exam' && activeTest && answers.length > 0) {
         const safeName = name.trim() || 'guest';
@@ -95,7 +103,6 @@ export default function StudentPortal() {
             warnings: warningsRef.current, cheatLogs: cheatLogsRef.current
         };
         
-        // 🔥 THE FIX: Encrypting the draft (Reverse + Base64)
         const jsonString = JSON.stringify(draftData);
         const reversedString = jsonString.split('').reverse().join('');
         const secretPayload = btoa(encodeURIComponent(reversedString));
@@ -104,14 +111,18 @@ export default function StudentPortal() {
     }
   }, [answers, curQ, step, activeTest, name, roll]);
 
-  // 🔥 3. AUTO-SYNC OFFLINE SUBMISSIONS
+  // 🔥 3. AUTO-SYNC OFFLINE SUBMISSIONS (Updated for Safe Indexing)
   useEffect(() => {
     const handleOnline = async () => {
         let pending = JSON.parse(localStorage.getItem('examitop_pending_subs') || '[]');
         if (pending.length > 0) {
             for (let p of pending) {
                 try {
-                    const tIndex = tests.findIndex(x => x.id === p.testId);
+                    // Safe Index Lookup
+                    const snapshot = await get(ref(database, 'tests'));
+                    const allTests = snapshot.val() || [];
+                    const tIndex = allTests.findIndex(x => x && x.id === p.testId);
+                    
                     if (tIndex > -1) await set(push(ref(database, `tests/${tIndex}/submissions`)), p.sub);
                 } catch(e) {}
             }
@@ -121,7 +132,7 @@ export default function StudentPortal() {
     };
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [tests]);
+  }, []);
 
   // 🔥 4. ENTERPRISE ANTI-CHEAT ENGINE (Keyboard Ninja Blocker)
   useEffect(() => {
@@ -151,7 +162,6 @@ export default function StudentPortal() {
     };
 
     const handleKeyCheat = (e) => {
-        // Block F12, Ctrl+Shift+I/J/C (DevTools), Ctrl+P (Print), Ctrl+U (Source)
         if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key.toUpperCase())) || (e.ctrlKey && ['P','U','S'].includes(e.key.toUpperCase()))) {
             e.preventDefault();
             triggerCheat("Developer Tools / Print Shortcuts are strictly prohibited.");
@@ -185,48 +195,64 @@ export default function StudentPortal() {
   }, [step, activeTest]);
 
 
-  // --- JOIN LOGIC ---
-  const handleJoinTest = () => {
+  // --- 🔥 UPDATED JOIN LOGIC (On-Demand Smart Fetch) ---
+  const handleJoinTest = async () => {
     setJoinError(''); 
     if (!name.trim()) { setJoinError('Please enter your full name.'); return; }
     if (!code.trim()) { setJoinError('Please enter the 6-digit test code.'); return; }
 
-    const localTests = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
-    const allTests = [...tests, ...localTests];
-
-    const t = allTests.find(x => x.code === code.trim().toUpperCase());
-    if (!t) { setJoinError('Invalid Test Code. Check and try again.'); return; }
-    if (t.isActive === false) { setJoinError("Intake Closed: The examiner is no longer accepting submissions."); return; }
-    if (t.expiryDate && new Date() > new Date(t.expiryDate)) { setJoinError("Exam Expired: The deadline has passed."); return; }
-
-    const safeName = name.trim();
-    const safeRoll = roll.trim().toLowerCase();
+    setIsFetchingTest(true); // Spin loader strictly for verification phase
     
-    let existingSub = t.submissions?.find(s => s.name.trim().toLowerCase() === safeName.toLowerCase() && (s.roll || '').trim().toLowerCase() === safeRoll);
-    if (existingSub) { setJoinError("Submission Received: You have already submitted this test."); return; }
+    try {
+        const codeUpper = code.trim().toUpperCase();
+        let t = null;
 
-    // Panic Refresh Check
-    const draftStr = localStorage.getItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
-    if (draftStr) {
-        try {
-            // 🔥 THE FIX: Decrypting the draft safely
-            const decodedString = decodeURIComponent(atob(draftStr));
-            const originalJson = decodedString.split('').reverse().join('');
-            const draft = JSON.parse(originalJson);
+        // Offline tests array me check karo
+        const localTests = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
+        t = localTests.find(x => x.code === codeUpper);
 
-            if (draft.endTime > Date.now()) {
-                 setDraftToResume(draft); 
-            } else {
-                 localStorage.removeItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
-            }
-        } catch (e) {
-            console.error("Tampered or corrupt draft data found. Clearing draft.");
-            localStorage.removeItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
+        // Agar locally nahi mila, toh cloud se sirf ek document mangwao (Zero Data Leak)
+        if (!t) {
+            t = await fetchSingleTest(codeUpper);
         }
-    }
 
-    setActiveTest(t);
-    setStep('instructions');
+        if (!t) { setJoinError('Invalid Test Code. Check and try again.'); setIsFetchingTest(false); return; }
+        if (t.isActive === false) { setJoinError("Intake Closed: The examiner is no longer accepting submissions."); setIsFetchingTest(false); return; }
+        if (t.expiryDate && new Date() > new Date(t.expiryDate)) { setJoinError("Exam Expired: The deadline has passed."); setIsFetchingTest(false); return; }
+
+        const safeName = name.trim();
+        const safeRoll = roll.trim().toLowerCase();
+        
+        let existingSub = t.submissions?.find(s => s.name.trim().toLowerCase() === safeName.toLowerCase() && (s.roll || '').trim().toLowerCase() === safeRoll);
+        if (existingSub) { setJoinError("Submission Received: You have already submitted this test."); setIsFetchingTest(false); return; }
+
+        // Panic Refresh Check
+        const draftStr = localStorage.getItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
+        if (draftStr) {
+            try {
+                const decodedString = decodeURIComponent(atob(draftStr));
+                const originalJson = decodedString.split('').reverse().join('');
+                const draft = JSON.parse(originalJson);
+
+                if (draft.endTime > Date.now()) {
+                     setDraftToResume(draft); 
+                } else {
+                     localStorage.removeItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
+                }
+            } catch (e) {
+                console.error("Tampered or corrupt draft data found. Clearing draft.");
+                localStorage.removeItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
+            }
+        }
+
+        setActiveTest(t);
+        setStep('instructions');
+    } catch (error) {
+        console.error("Join test error:", error);
+        setJoinError("Network Error. Please try again.");
+    } finally {
+        setIsFetchingTest(false);
+    }
   };
 
   // --- START EXAM LOGIC ---
@@ -289,7 +315,7 @@ export default function StudentPortal() {
   const confirmAndSubmit = () => { isActionLockedRef.current = true; setShowConfirmModal(true); };
   const cancelSubmit = () => { setShowConfirmModal(false); setTimeout(() => { isActionLockedRef.current = false; }, 500); };
 
-  // --- SECURE SUBMISSION LOGIC ---
+  // --- 🔥 UPDATED SECURE SUBMISSION LOGIC (Safe Index Lookup) ---
   const handleFinalSubmit = async () => {
     if (!activeTest || step !== 'exam') return;
     
@@ -374,7 +400,11 @@ export default function StudentPortal() {
               localStorage.setItem('examitop_offline_tests', JSON.stringify(localTests));
           }
       } else {
-          const tIndex = tests.findIndex(x => x.id === activeTest.id);
+          // 🔥 Absolute Index Lookup to avoid mis-submitting to wrong test
+          const snapshot = await get(ref(database, 'tests'));
+          const allTests = snapshot.val() || [];
+          const tIndex = allTests.findIndex(x => x && x.id === activeTest.id);
+          
           if (tIndex > -1) {
               const subsRef = ref(database, `tests/${tIndex}/submissions`);
               await set(push(subsRef), finalSub);  
@@ -384,7 +414,6 @@ export default function StudentPortal() {
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(e => {});
       setIsSubmitting(false);
 
-      // 🔥 Replace Alert with Beautiful Custom Modal
       if (activeTest.resultVis === 'manual') {
           setSysModal({
               type: 'success',
@@ -412,13 +441,13 @@ export default function StudentPortal() {
   };
 
 
-  // --- LOADING UI ---
-  if (authLoading || loadingData || isSubmitting) {
+  // --- 🔥 UPDATED LOADING UI (Removed blocking global load) ---
+  if (!isMounted || authLoading || isSubmitting || isFetchingTest) {
     return (
       <div className="spinner-container" style={{ paddingTop: '10vh' }}>
         <div className="spinner"></div>
         <div style={{ fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-          {isSubmitting ? 'Securely evaluating and saving paper...' : 'Loading Portal...'}
+          {isSubmitting ? 'Securely evaluating and saving paper...' : isFetchingTest ? 'Locating Exam...' : 'Loading Portal...'}
         </div>
       </div>
     );
@@ -741,7 +770,7 @@ export default function StudentPortal() {
           </div>
       )}
 
-      {/* 🔥 CUSTOM SYSTEM MODALS (Replaces alert()) */}
+      {/* 🔥 CUSTOM SYSTEM MODALS */}
       {sysModal && (
           <div className="modal-bg" style={{ zIndex: 999999 }}>
               <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem', border: `2px solid ${sysModal.type === 'error' ? '#A32D2D' : '#3B6D11'}`, borderRadius: '16px' }}>

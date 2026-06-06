@@ -2,18 +2,68 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useData } from '../../context/DataContext';
 import { useRouter } from 'next/navigation';
+// 🔥 THE FIX: Imported direct Firebase functions
+import { database } from '../../lib/firebase';
+import { ref, get } from 'firebase/database';
 
 export default function StudentResults() {
   const { currentUser, loading: authLoading } = useAuth();
-  const { tests, loadingData } = useData();
   const router = useRouter();
+
+  // --- NEW: Local State for Smart Fetching ---
+  const [myHistory, setMyHistory] = useState([]);
+  const [fetchingResults, setFetchingResults] = useState(true);
 
   // State to toggle between List View and Detailed View
   const [selectedResult, setSelectedResult] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'correct', 'wrong', 'skipped'
    
+  // 🔥 THE FIX: Fetch results ON-DEMAND only when this page is opened
+  useEffect(() => {
+    const fetchStudentHistory = async () => {
+      if (!currentUser) {
+        setFetchingResults(false);
+        return;
+      }
+      
+      try {
+        setFetchingResults(true);
+        // Sirf ek baar get() request (Zero background data leak)
+        const snapshot = await get(ref(database, 'tests'));
+        
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const allTests = Array.isArray(data) ? data : Object.values(data);
+            let historyTemp = [];
+
+            allTests.filter(Boolean).forEach(t => {
+                if (t.submissions) {
+                    const subsArray = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions);
+                    subsArray.filter(Boolean).forEach((s) => {
+                        // 🔥 STRICT MATCH LOGIC
+                        let isExactMatch = (s.uid && currentUser.uid && s.uid === currentUser.uid) || 
+                                           (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase());
+
+                        if (isExactMatch) {
+                            let canView = (t.resultVis === 'instant') || (t.released === true);
+                            historyTemp.push({ test: t, sub: s, canView });
+                        }
+                    });
+                }
+            });
+            // Naye tests upar dikhane ke liye reverse
+            setMyHistory(historyTemp.reverse());
+        }
+      } catch (error) {
+        console.error("Error fetching history:", error);
+      } finally {
+        setFetchingResults(false);
+      }
+    };
+
+    fetchStudentHistory();
+  }, [currentUser]);
 
   // 🔥 PREMIUM EXAMITOP CERTIFICATE GENERATOR (1-Page Fix)
   const generateCertificate = () => {
@@ -112,9 +162,10 @@ export default function StudentResults() {
     // 100ms delay ensures JSON text is painted before scanning
     const timer = setTimeout(renderMath, 100);
     return () => clearTimeout(timer);
-  }, [selectedResult, filter]); // 🔥 THE FIX: selectedResult kar diya!
+  }, [selectedResult, filter]);
 
-  if (authLoading || loadingData) {
+  // 🔥 THE FIX: Using 'fetchingResults' instead of 'loadingData'
+  if (authLoading || fetchingResults) {
     return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div><div>Fetching Results...</div></div>;
   }
 
@@ -128,27 +179,8 @@ export default function StudentResults() {
     );
   }
 
-  // Calculate History
-  let myHistory = [];
-  tests.forEach(t => {
-    if (t.submissions) {
-      t.submissions.forEach((s, idx) => {
-        // 🔥 STRICT MATCH LOGIC: Match ONLY by unique Firebase UID or authenticated Email. NO NAME MATCHING!
-        let isExactMatch = (s.uid && currentUser.uid && s.uid === currentUser.uid) || 
-                           (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase());
-
-        if (isExactMatch) {
-          let canView = (t.resultVis === 'instant') || (t.released === true);
-          myHistory.push({ test: t, sub: s, canView });
-        }
-      });
-    }
-  });
-  myHistory.reverse();
-
   // Helpers for UI
   const getLabel = (type) => ({ mcq: 'Single Correct', msq: 'Multi Correct', integer: 'Integer Type', subjective: 'Subjective' }[type] || type);
-  const getBadge = (type) => ({ mcq: 'b-blue', msq: 'b-green', integer: 'b-amber', subjective: 'b-purple' }[type] || 'b-gray');
 
   // ==========================================
   // VIEW 1: LIST OF PAST RESULTS
@@ -227,7 +259,6 @@ export default function StudentResults() {
         </div>
         {pct >= 75 && (
           <div style={{ marginTop: '10px' }}>
-            {/* Change this line: */}
             <button className="btn btn-sm" style={{ background: '#FAEEDA', color: '#854F0B', borderColor: '#FAC775', fontWeight: 600, marginTop: '12px' }} onClick={generateCertificate}>
               <i className="ti ti-medal"></i> Claim Certificate
             </button>
@@ -332,7 +363,8 @@ export default function StudentResults() {
                             <div key={j} className={`qr-opt ${cls}`} style={borderStyle}>
                                 <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, flexShrink: 0, background: 'rgba(255,255,255,0.7)' }}>{String.fromCharCode(65 + j)}</div>
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0' }}>
-                                         <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400 }} dangerouslySetInnerHTML={{ __html: o }}></div>                                    {(isUser || isCorr) && (
+                                         <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400 }} dangerouslySetInnerHTML={{ __html: o }}></div>                                    
+                                         {(isUser || isCorr) && (
                                         <div style={{ display: 'flex', gap: '6px' }}>
                                             {isUser && <span style={{ fontSize: '11px', background: '#185FA5', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Student Picked</span>}
                                             {isCorr && <span style={{ fontSize: '11px', background: '#3B6D11', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Correct Key</span>}
