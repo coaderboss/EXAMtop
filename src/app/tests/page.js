@@ -391,9 +391,15 @@ export default function ManageTests() {
               <div style={{ fontSize: '26px', fontWeight: 700, marginBottom: '0.25rem' }}>{evaluateSub.sub.name} {evaluateSub.sub.roll ? '• ' + evaluateSub.sub.roll : ''}</div>
               <div style={{ fontSize: '14px', opacity: 0.8, marginBottom: '1.5rem' }}>Submitted on: {evaluateSub.sub.time}</div>
               
-              <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.1)', borderRadius: '50%', width: '130px', height: '130px', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', margin: '0 auto 1.5rem', border: '4px solid rgba(255,255,255,0.2)' }}>
+             <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.1)', borderRadius: '50%', width: '130px', height: '130px', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', margin: '0 auto 1rem', border: '4px solid rgba(255,255,255,0.2)' }}>
                   <div style={{ fontSize: '42px', fontWeight: 700, marginBottom: '4px', lineHeight: 1 }}>{evaluateSub.sub.score}</div>
                   <div style={{ fontSize: '14px', opacity: 0.9, fontWeight: 600 }}>/ {evaluateSub.test.totalMarks}</div>
+              </div>
+              {/* 🔥 FIX: Centered Premium Percentage Badge */}
+              <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.25)', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 16px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', letterSpacing: '0.5px' }}>
+                      <i className="ti ti-target"></i> {((evaluateSub.sub.score / evaluateSub.test.totalMarks) * 100).toFixed(1)}% Accuracy
+                  </div>
               </div>
           </div>
 
@@ -416,8 +422,66 @@ export default function ManageTests() {
               </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          {/* 🔥 NAYA: Performance Overview Graph */}
+          <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+              <h3 style={{ margin: '0 0 1rem 0', fontSize: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ti ti-chart-donut"></i> Performance Breakdown
+              </h3>
+              
+              <div style={{ display: 'flex', height: '16px', borderRadius: '8px', overflow: 'hidden', marginBottom: '1rem', background: '#f1f5f9' }}>
+                  <div style={{ width: `${(evaluateSub.sub.correct / evaluateSub.test.questions.length) * 100}%`, background: '#10B981', transition: 'width 1s ease' }}></div>
+                  <div style={{ width: `${(evaluateSub.sub.wrong / evaluateSub.test.questions.length) * 100}%`, background: '#EF4444', transition: 'width 1s ease' }}></div>
+                  <div style={{ width: `${(evaluateSub.sub.skipped / evaluateSub.test.questions.length) * 100}%`, background: '#94A3B8', transition: 'width 1s ease' }}></div>
+              </div>
+              <div style={{ display: 'flex', gap: '15px', fontSize: '13px', fontWeight: 600, color: '#64748b', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', background: '#10B981', borderRadius: '50%' }}></span> {Math.round((evaluateSub.sub.correct / evaluateSub.test.questions.length) * 100)}% Correct</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', background: '#EF4444', borderRadius: '50%' }}></span> {Math.round((evaluateSub.sub.wrong / evaluateSub.test.questions.length) * 100)}% Incorrect</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', background: '#94A3B8', borderRadius: '50%' }}></span> {Math.round((evaluateSub.sub.skipped / evaluateSub.test.questions.length) * 100)}% Skipped</div>
+              </div>
+          </div>
+
+          {/* 🔥 FIX: Integrity & Time Analytics Box (With Ultimate Data Catcher) */}
+          <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem', borderLeft: '4px solid #f59e0b', background: '#FEF5E5' }}>
+              <h3 style={{ margin: '0 0 1rem 0', fontSize: '16px', color: '#854F0B', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="ti ti-shield-half-filled"></i> Integrity & Session Analytics
+              </h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+                  <div style={{ flex: 1, minWidth: '180px' }}>
+                      <div style={{ fontSize: '13px', color: '#b45309', marginBottom: '6px', fontWeight: 600 }}>Total Time Taken</div>
+                      <div style={{ fontSize: '18px', fontWeight: 700, color: '#854f0b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <i className="ti ti-clock"></i>
+                        {evaluateSub.sub.timeTaken ? evaluateSub.sub.timeTaken : <span style={{fontSize: '14px', color: '#b45309', fontWeight: 500}}>Not Tracked (Old Paper)</span>}
+                      </div>
+                  </div>
+                  
+                  <div style={{ flex: 2, minWidth: '250px' }}>
+                      <div style={{ fontSize: '13px', color: '#b45309', marginBottom: '6px', fontWeight: 600 }}>Proctoring Alerts / Logs</div>
+                      {(() => {
+                          // 🔥 ULTIMATE FALLBACK: Har possible naam check karo jisme student ne logs save kiye ho
+                           const logs = evaluateSub.sub.cheatLogs || evaluateSub.sub.antiCheatLogs || evaluateSub.sub.logs || evaluateSub.sub.events || evaluateSub.sub.warnings || [];                          if (logs.length > 0) {
+                              return (
+                                  <div style={{ maxHeight: '120px', overflowY: 'auto', background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
+                                      {logs.map((log, idx) => (
+                                          <div key={idx} style={{ fontSize: '13px', color: '#991b1b', marginBottom: '6px', display: 'flex', gap: '6px' }}>
+                                              <i className="ti ti-alert-triangle" style={{ marginTop: '2px' }}></i> 
+                                              <span>{typeof log === 'string' ? log : log.msg || log.type || log.event || JSON.stringify(log)}</span>
+                                          </div>
+                                      ))}
+                                  </div>
+                              );
+                          } else {
+                              return (
+                                  <div style={{ fontSize: '14px', color: '#166534', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', background: '#dcfce7', padding: '10px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                                      <i className="ti ti-check"></i> No suspicious activity detected. All clear.
+                                  </div>
+                              );
+                          }
+                      })()}
+                  </div>
+              </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)' }}>              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>Question-wise Analysis</h3>
                   {(() => {
                       // 🔥 DYNAMIC COUNT CALCULATION BASED ON ACTIVE SECTION (EXAMINER)

@@ -414,6 +414,11 @@ export default function StudentPortal() {
       return { q, ans, status, earned };
     });
 
+   // 🔥 NAYA: Time Taken Calculation (Total time in seconds - Time left in seconds)
+    const totalSecondsGiven = activeTest.duration ? activeTest.duration * 60 : 0;
+    const secondsSpent = totalSecondsGiven > 0 ? (totalSecondsGiven - timeLeft) : 0;
+    const timeTakenStr = formatTime(secondsSpent);
+
     const finalSub = {
       uid: currentUser ? currentUser.uid : 'anonymous',
       email: currentUser ? currentUser.email : '',
@@ -422,7 +427,8 @@ export default function StudentPortal() {
       score: Number(score.toFixed(2)), correct, wrong, skipped, details,
       time: new Date().toLocaleString('en-IN'),
       totalMarks: activeTest.totalMarks,
-      cheatLogs: cheatLogsRef.current 
+      cheatLogs: cheatLogsRef.current,
+      timeTaken: timeTakenStr // 🔥 Ab bache ka total time database me safely jayega!
     };
 
     // Clean up draft safely
