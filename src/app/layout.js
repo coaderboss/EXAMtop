@@ -203,13 +203,14 @@ function Header() {
                 </div>
             </div>
 
-            {userRole && userRole !== 'guest' && (
-                <div id="dynamic-nav-wrapper" style={{ background: 'var(--color-background-secondary)', overflowX: 'auto', borderBottom: '1px solid var(--color-border-secondary)', scrollbarWidth: 'none' }}>
-                    <div className="nav-tabs" id="dynamic-nav-tabs" style={{ display: 'flex', gap: '8px', padding: '10px 20px', width: 'max-content', margin: '0 auto' }}>
-                        {renderNavTabs()}
-                    </div>
-                </div>
+              {userRole && userRole !== 'guest' && pathname !== '/onboarding' && (
+                   <div id="dynamic-nav-wrapper" style={{ background: 'var(--color-background-secondary)', overflowX: 'auto', borderBottom: '1px solid var(--color-border-secondary)', scrollbarWidth: 'none' }}>
+                   <div className="nav-tabs" id="dynamic-nav-tabs" style={{ display: 'flex', gap: '8px', padding: '10px 20px', width: 'max-content', margin: '0 auto' }}>
+                  {renderNavTabs()}
+            </div>
+            </div>
             )}
+            
         </div>
 
         {/* 🔥 DETAILED INFO MODAL */}
@@ -228,53 +229,99 @@ function Header() {
             </div>
         )}
 
-        {/* 🔥 ADVANCED PROFILE MODAL */}
+        {/* 櫨 ADVANCED PREMIUM PROFILE MODAL */}
         {showProfile && currentUser && (
-            <div className="modal-bg" style={{ zIndex: 99999 }}>
-                <div className="modal-box" style={{ maxWidth: '450px', padding: '2.5rem 2rem', textAlign: 'center' }}>
-                    <div style={{ width: '80px', height: '80px', background: 'linear-gradient(135deg, #185FA5, #3C3489)', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px', fontWeight: 800, margin: '0 auto 1rem', boxShadow: '0 4px 15px rgba(24,95,165,0.3)' }}>
-                        {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}
+            <div 
+                className="modal-bg" 
+                style={{ zIndex: 99999, padding: '20px' }} 
+                onClick={() => { setShowProfile(false); setIsEditingProfile(false); }} // 🔥 Click outside to close
+            >
+                <div 
+                    className="modal-box" 
+                    onClick={(e) => e.stopPropagation()} // 🔥 Prevent closing when clicking inside the box
+                    style={{ maxWidth: '420px', width: '100%', padding: 0, borderRadius: '20px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: 'none' }}
+                >
+                    {/* Header Banner */}
+                    <div style={{ background: 'linear-gradient(135deg, #185FA5 0%, #0B0F19 100%)', height: '110px', position: 'relative' }}>
+                        <button 
+                            onClick={() => { setShowProfile(false); setIsEditingProfile(false); }} 
+                            style={{ position: 'absolute', right: '16px', top: '16px', background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' }}
+                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                        >
+                            <i className="ti ti-x" style={{ fontSize: '18px' }}></i>
+                        </button>
                     </div>
-                    
-                    <h3 style={{ margin: '0 0 5px 0', fontSize: '24px', color: 'var(--color-text-primary)' }}>{currentUser.displayName || 'Platform User'}</h3>
-                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '14px', marginBottom: '1.5rem', fontFamily: 'monospace' }}>{currentUser.email}</div>
-                    
-                    {!isEditingProfile ? (
-                        <>
-                            <div style={{ background: 'var(--color-background-secondary)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--color-border-secondary)', textAlign: 'left', marginBottom: '1.5rem' }}>
-                                <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Role</div>
-                                <div style={{ fontWeight: 700, color: '#185FA5', textTransform: 'uppercase', marginBottom: '12px' }}>{userRole}</div>
-                                
-                                <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Institution / College</div>
-                                <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '12px' }}>{profileData.college || 'Not specified'}</div>
-                                
-                                <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Phone Number</div>
-                                <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{profileData.phone || 'Not specified'}</div>
-                            </div>
-                            
-                            <div style={{ display: 'flex', gap: '10px', marginBottom: '1rem' }}>
-                                <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: '12px', fontWeight: 600 }} onClick={() => setShowProfile(false)}>Close</button>
-                                <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '12px', fontWeight: 600 }} onClick={() => setIsEditingProfile(true)}><i className="ti ti-edit"></i> Edit Details</button>
-                            </div>
-                            
-                            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: '#A32D2D', padding: '10px', fontSize: '13px', fontWeight: 600 }} onClick={deleteAccount}>
-                                <i className="ti ti-trash"></i> Permanently Delete Account
-                            </button>
-                        </>
-                    ) : (
-                        <div style={{ textAlign: 'left', marginBottom: '1.5rem' }}>
-                            <label style={{ fontSize: '14px', fontWeight: 600 }}>Institution / College Name</label>
-                            <input type="text" placeholder="e.g. UIET Kanpur" value={profileData.college} onChange={e => setProfileData({...profileData, college: e.target.value})} style={{ marginBottom: '1rem', width: '100%', padding: '10px', borderRadius: '8px' }} />
-                            
-                            <label style={{ fontSize: '14px', fontWeight: 600 }}>Phone Number</label>
-                            <input type="text" placeholder="+91 XXXXX XXXXX" value={profileData.phone} onChange={e => setProfileData({...profileData, phone: e.target.value})} style={{ marginBottom: '1.5rem', width: '100%', padding: '10px', borderRadius: '8px' }} />
-                            
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: '12px' }} onClick={() => setIsEditingProfile(false)}>Cancel</button>
-                                <button className="btn btn-success" style={{ flex: 1, justifyContent: 'center', padding: '12px' }} onClick={saveProfile}><i className="ti ti-device-floppy"></i> Save Info</button>
-                            </div>
+
+                    {/* Overlapping Avatar */}
+                    <div style={{ width: '90px', height: '90px', background: '#fff', borderRadius: '50%', padding: '4px', position: 'absolute', top: '65px', left: '50%', transform: 'translateX(-50%)', zIndex: 2 }}>
+                        <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #185FA5, #3C3489)', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: 800, boxShadow: '0 4px 15px rgba(24,95,165,0.3)' }}>
+                            {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : 'U'}
                         </div>
-                    )}
+                    </div>
+
+                    {/* Modal Content */}
+                    <div style={{ padding: '60px 24px 24px 24px', textAlign: 'center', position: 'relative', background: '#fff' }}>
+                        <h3 style={{ margin: '0 0 4px 0', fontSize: '22px', color: '#0f172a', fontWeight: 800 }}>{currentUser.displayName || 'Platform User'}</h3>
+                        <div style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px', fontFamily: 'monospace', background: '#f1f5f9', display: 'inline-block', padding: '4px 12px', borderRadius: '20px' }}>
+                            {currentUser.email}
+                        </div>
+                        
+                        {!isEditingProfile ? (
+                            <>
+                                <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '20px', textAlign: 'left', marginBottom: '24px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                                        <div>
+                                            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}><i className="ti ti-shield"></i> Role</div>
+                                            <div style={{ fontWeight: 800, color: '#185FA5', fontSize: '15px', marginTop: '4px', textTransform: 'uppercase' }}>{userRole}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}><i className="ti ti-id"></i> ID / Roll No</div>
+                                            <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '15px', marginTop: '4px' }}>{currentUser.rollNo || currentUser.examinerId || 'N/A'}</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+                                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}><i className="ti ti-building-bank"></i> Institution</div>
+                                        <div style={{ fontWeight: 600, color: '#334155', fontSize: '15px', marginTop: '4px' }}>{profileData.college || 'Not specified'}</div>
+                                    </div>
+                                </div>
+                                
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: '14px', fontWeight: 600, background: '#f1f5f9', color: '#475569', border: 'none' }} onClick={() => setShowProfile(false)}>Close</button>
+                                    <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '14px', fontWeight: 600, boxShadow: '0 4px 15px rgba(24,95,165,0.2)' }} onClick={() => setIsEditingProfile(true)}>
+                                        <i className="ti ti-edit"></i> Edit Details
+                                    </button>
+                                </div>
+
+                                {/* 🔥 The Danger Zone (Hidden safely at the bottom) */}
+                                <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px dashed #cbd5e1' }}>
+                                    <button 
+                                        style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', transition: 'color 0.2s' }} 
+                                        onMouseOver={(e) => e.currentTarget.style.color = '#A32D2D'} 
+                                        onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'} 
+                                        onClick={deleteAccount}
+                                    >
+                                        <i className="ti ti-alert-triangle" style={{ fontSize: '14px' }}></i> Danger Zone: Delete Account
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ textAlign: 'left', animation: 'fadeIn 0.3s ease' }}>
+                                <label style={{ fontSize: '13px', fontWeight: 700, color: '#475569', marginBottom: '6px', display: 'block' }}>Institution / College Name</label>
+                                <input type="text" placeholder="e.g. UIET Kanpur" value={profileData.college} onChange={e => setProfileData({...profileData, college: e.target.value})} style={{ marginBottom: '16px', width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', outline: 'none', transition: 'border 0.2s' }} onFocus={(e) => e.target.style.borderColor = '#185FA5'} onBlur={(e) => e.target.style.borderColor = '#e2e8f0'} />
+                                
+                                <label style={{ fontSize: '13px', fontWeight: 700, color: '#475569', marginBottom: '6px', display: 'block' }}>Phone Number</label>
+                                <input type="text" placeholder="+91 XXXXX XXXXX" value={profileData.phone} onChange={e => setProfileData({...profileData, phone: e.target.value})} style={{ marginBottom: '24px', width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', outline: 'none', transition: 'border 0.2s' }} onFocus={(e) => e.target.style.borderColor = '#185FA5'} onBlur={(e) => e.target.style.borderColor = '#e2e8f0'} />
+                                
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: '14px', background: '#f1f5f9', color: '#475569', border: 'none', fontWeight: 600 }} onClick={() => setIsEditingProfile(false)}>Cancel</button>
+                                    <button className="btn btn-success" style={{ flex: 1, justifyContent: 'center', padding: '14px', fontWeight: 600, boxShadow: '0 4px 15px rgba(59,109,17,0.2)' }} onClick={saveProfile}>
+                                        <i className="ti ti-device-floppy"></i> Save Info
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         )}

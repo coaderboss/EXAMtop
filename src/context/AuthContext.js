@@ -25,18 +25,21 @@ export const AuthProvider = ({ children }) => {
           if (snapshot.exists()) {
             const userData = snapshot.val();
             setUserRole(userData.role);
-            // 🔥 NAYA UPDATE: Profile Details ko context me load karna
+            
+            // 🔥 THE MASTER OVERRIDE: Ab puri app me 'displayName' ki jagah legalName dikhega
             setCurrentUser({
-                ...user,
+                uid: user.uid,
+                email: user.email,
+                photoURL: user.photoURL,
+                displayName: userData.legalName || user.displayName, 
                 role: userData.role,
-                legalName: userData.legalName || null,
                 profileLocked: userData.profileLocked || false,
                 rollNo: userData.rollNo || null,
                 examinerId: userData.examinerId || null
             });
           } else {
             setUserRole('student'); 
-            setCurrentUser(user);
+            setCurrentUser({ uid: user.uid, email: user.email, displayName: user.displayName, profileLocked: false });
           }
         } catch (err) {
           console.error("Error fetching role:", err);
@@ -52,7 +55,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [userRole]); // 🔥 Dependency add ki
+  }, [userRole]);
 
   // --- GOOGLE LOGIN ---
   const loginWithGoogle = async (intendedRole = 'student') => {
@@ -68,6 +71,7 @@ export const AuthProvider = ({ children }) => {
       
       let finalRole = intendedRole;
       let isLocked = false;
+      let legalName = null;
 
       if (!snapshot.exists()) {
         await set(userRef, {
@@ -75,29 +79,29 @@ export const AuthProvider = ({ children }) => {
           email: user.email,
           uid: user.uid,
           role: intendedRole,
-          profileLocked: false // 🔥 Naya user hai, toh lock false hoga
+          profileLocked: false 
         });
-        setCurrentUser({ ...user, role: intendedRole, profileLocked: false });
       } else {
         const userData = snapshot.val();
         finalRole = userData.role;
         isLocked = userData.profileLocked || false;
-        
-        setCurrentUser({
-            ...user,
-            role: userData.role,
-            legalName: userData.legalName || null,
-            profileLocked: isLocked,
-            rollNo: userData.rollNo || null,
-            examinerId: userData.examinerId || null
-        });
+        legalName = userData.legalName;
       }
 
+      // 🔥 Force Override
+      setCurrentUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: isLocked ? legalName : user.displayName,
+          role: finalRole,
+          profileLocked: isLocked
+      });
       setUserRole(finalRole);
 
-      // 🔥 SMART REDIRECT: Agar identity verified nahi hai, toh onboarding me bhejo
+      // 🔥 SMART REDIRECT: Admin ko aur verify ho chuke logo ko seedha unki jagah bhejo
       setTimeout(() => {
-        if (!isLocked && finalRole !== 'guest') {
+        // Admin ko onboarding nahi dikhana hai
+        if (!isLocked && finalRole !== 'guest' && finalRole !== 'admin') {
             router.push('/onboarding');
         } else {
             if (finalRole === 'admin') router.push('/admin');
@@ -107,34 +111,20 @@ export const AuthProvider = ({ children }) => {
       }, 500);
 
     } catch (error) {
-      if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
-        console.log("Login popup closed by user.");
-        return;
-      }
+      if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') return;
       console.error("Login Error:", error);
       alert("Login failed. Please try again.");
     }
   };
 
-  // --- GUEST LOGIN ---
   const loginAsGuest = () => {
-      const guestUser = {
-          uid: 'guest_' + Date.now(),
-          displayName: 'Guest User',
-          email: 'guest@examitop.local',
-          profileLocked: true // Guests don't need onboarding
-      };
-      setCurrentUser(guestUser);
+      setCurrentUser({ uid: 'guest_' + Date.now(), displayName: 'Guest User', email: 'guest@examitop.local', profileLocked: true });
       setUserRole('guest');
-      setTimeout(() => {
-          router.push('/student');
-      }, 300);
+      setTimeout(() => router.push('/student'), 300);
   };
 
   const logout = async () => {
-    if (userRole !== 'guest') {
-        await signOut(auth);
-    }
+    if (userRole !== 'guest') await signOut(auth);
     setCurrentUser(null);
     setUserRole(null);
     router.push('/');

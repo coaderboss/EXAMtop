@@ -1,3 +1,4 @@
+// src/app/onboarding/page.js
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -10,17 +11,15 @@ export default function Onboarding() {
   const router = useRouter();
 
   const [legalName, setLegalName] = useState('');
-  const [identifier, setIdentifier] = useState(''); // Roll No for students, College for examiners
+  const [identifier, setIdentifier] = useState(''); 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Agar user pehle se setup kar chuka hai, toh usko yahan se bhagao
   useEffect(() => {
     if (!loading && currentUser) {
-      if (currentUser.profileLocked) {
-        router.replace(userRole === 'student' ? '/student-dashboard' : '/tests');
+      if (currentUser.profileLocked || userRole === 'admin') {
+        router.replace(userRole === 'examiner' ? '/tests' : userRole === 'admin' ? '/admin' : '/student-dashboard');
       } else {
-        // Pre-fill name from Google if available, but let them edit it ONCE
         setLegalName(currentUser.displayName || '');
       }
     } else if (!loading && !currentUser) {
@@ -30,33 +29,28 @@ export default function Onboarding() {
 
   const handleLockProfile = async () => {
     setError('');
-    if (!legalName.trim()) { setError('Full Name is strictly required.'); return; }
-    if (userRole === 'student' && !identifier.trim()) { setError('Roll Number is required for students.'); return; }
-    if (userRole === 'examiner' && !identifier.trim()) { setError('Institution/College name is required.'); return; }
+    // 🔥 FIX: Roll Number strictness hatadi gayi hai
+    if (!legalName.trim()) { setError('Official Full Name is required.'); return; }
+    if (userRole === 'examiner' && !identifier.trim()) { setError('Institution/College name is required for Examiners.'); return; }
 
     setIsSaving(true);
     try {
       let updateData = {
         legalName: legalName.trim(),
-        profileLocked: true, // 🔒 LOCK LAG GAYA!
+        profileLocked: true, 
       };
 
       if (userRole === 'student') {
-        updateData.rollNo = identifier.trim().toUpperCase();
+        updateData.rollNo = identifier.trim().toUpperCase() || 'N/A'; // Default to N/A if left blank
       } else if (userRole === 'examiner') {
         updateData.college = identifier.trim();
-        // 🔥 Generate Smart Examiner ID (e.g., EXT-9A3K)
         updateData.examinerId = 'EXT-' + Math.random().toString(36).substring(2, 6).toUpperCase();
       }
 
-      // Firebase me user node update karo
       await update(ref(database, `users/${currentUser.uid}`), updateData);
-      
-      // Page reload karke naye data ke sath dashboard bhejo
       window.location.href = userRole === 'student' ? '/student-dashboard' : '/tests';
       
     } catch (err) {
-      console.error(err);
       setError('Failed to secure profile. Please try again.');
       setIsSaving(false);
     }
@@ -82,7 +76,8 @@ export default function Onboarding() {
         </div>
 
         <div style={{ textAlign: 'left', marginBottom: '2.5rem' }}>
-          <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>{userRole === 'student' ? 'University Roll Number' : 'Institution / College Name'} <span style={{ color: '#A32D2D' }}>*</span></label>
+          {/* 🔥 FIX: Changed Label to reflect Optional status */}
+          <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>{userRole === 'student' ? 'Student ID / Roll Number (Optional)' : 'Institution / College Name *'}</label>
           <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder={userRole === 'student' ? "e.g. 2024CS001" : "e.g. UIET Kanpur"} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #cbd5e1', fontSize: '16px', marginTop: '6px', textTransform: userRole === 'student' ? 'uppercase' : 'none' }} />
         </div>
 
