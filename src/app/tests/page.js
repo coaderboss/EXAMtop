@@ -36,6 +36,8 @@ export default function ManageTests() {
   const [evalOverrides, setEvalOverrides] = useState({});
   const [auditReason, setAuditReason] = useState('');
   const [evalFilter, setEvalFilter] = useState('all'); 
+  const [evalSectionFilter, setEvalSectionFilter] = useState('all_sections'); // 🔥 NAYA: Examiner Section Filter
+  
 
   // --- SYSTEM POPUP STATES ---
   const [sysAlert, setSysAlert] = useState(null); // { title, msg, type }
@@ -74,7 +76,7 @@ export default function ManageTests() {
     };
     const timer = setTimeout(renderMath, 100);
     return () => clearTimeout(timer);
-  }, [selectedTest, evaluateSub, evalFilter, modalType, activeTab]);
+  }, [selectedTest, evaluateSub, evalFilter, evalSectionFilter, modalType, activeTab]);
   
   // 🔥 AUTO-KICK BOUNCER
   useEffect(() => {
@@ -379,7 +381,8 @@ export default function ManageTests() {
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
           
           <div style={{ position: 'sticky', top: '70px', background: '#fff', zIndex: 90, padding: '15px 0', borderBottom: '1px solid var(--color-border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button className="btn btn-ghost" style={{ fontWeight: 600, padding: 0 }} onClick={() => { setEvaluateSub(null); setEvalOverrides({}); }}><i className="ti ti-arrow-left"></i> Back to Submissions</button>
+              {/* 🔥 FIX: setEvalSectionFilter reset added here */}
+              <button className="btn btn-ghost" style={{ fontWeight: 600, padding: 0 }} onClick={() => { setEvaluateSub(null); setEvalOverrides({}); setEvalSectionFilter('all_sections'); }}><i className="ti ti-arrow-left"></i> Back to Submissions</button>
               <button className="btn btn-success" style={{ fontWeight: 600 }} onClick={() => setModalType('audit')}><i className="ti ti-device-floppy"></i> Save Evaluation</button>
           </div>
 
@@ -413,17 +416,58 @@ export default function ManageTests() {
               </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>Question-wise Analysis</h3>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button className="btn btn-sm" style={{ background: evalFilter === 'all' ? '#185FA5' : '#fff', color: evalFilter === 'all' ? '#fff' : '#64748b', border: evalFilter === 'all' ? 'none' : '1px solid #cbd5e1', borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('all')}>All ({evaluateSub.test.questions.length})</button>
-                  <button className="btn btn-sm" style={{ background: evalFilter === 'correct' ? '#fff' : '#fff', color: evalFilter === 'correct' ? '#3B6D11' : '#64748b', border: `1px solid ${evalFilter === 'correct' ? '#3B6D11' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('correct')}>Correct ({evaluateSub.sub.correct})</button>
-                  <button className="btn btn-sm" style={{ background: evalFilter === 'wrong' ? '#fff' : '#fff', color: evalFilter === 'wrong' ? '#A32D2D' : '#64748b', border: `1px solid ${evalFilter === 'wrong' ? '#A32D2D' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('wrong')}>Wrong ({evaluateSub.sub.wrong})</button>
-                  <button className="btn btn-sm" style={{ background: evalFilter === 'skipped' ? '#fff' : '#fff', color: evalFilter === 'skipped' ? '#64748b' : '#64748b', border: `1px solid ${evalFilter === 'skipped' ? '#94a3b8' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('skipped')}>Pending/Skipped ({evaluateSub.sub.skipped})</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>Question-wise Analysis</h3>
+                  {(() => {
+                      // 🔥 DYNAMIC COUNT CALCULATION BASED ON ACTIVE SECTION (EXAMINER)
+                      const secDetails = evaluateSub.sub.details.filter(d => evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0])));
+                      const countAll = secDetails.length;
+                      const countCorrect = secDetails.filter(d => d.status === 'correct' || d.status === 'partial').length;
+                      const countWrong = secDetails.filter(d => d.status === 'wrong').length;
+                      const countSkipped = secDetails.filter(d => d.status === 'skipped' || d.status === 'submitted' || d.status === 'evaluated').length;
+
+                      return (
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              <button className="btn btn-sm" style={{ background: evalFilter === 'all' ? '#185FA5' : '#fff', color: evalFilter === 'all' ? '#fff' : '#64748b', border: evalFilter === 'all' ? 'none' : '1px solid #cbd5e1', borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('all')}>All ({countAll})</button>
+                              <button className="btn btn-sm" style={{ background: evalFilter === 'correct' ? '#fff' : '#fff', color: evalFilter === 'correct' ? '#3B6D11' : '#64748b', border: `1px solid ${evalFilter === 'correct' ? '#3B6D11' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('correct')}>Correct ({countCorrect})</button>
+                              <button className="btn btn-sm" style={{ background: evalFilter === 'wrong' ? '#fff' : '#fff', color: evalFilter === 'wrong' ? '#A32D2D' : '#64748b', border: `1px solid ${evalFilter === 'wrong' ? '#A32D2D' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('wrong')}>Wrong ({countWrong})</button>
+                              <button className="btn btn-sm" style={{ background: evalFilter === 'skipped' ? '#fff' : '#fff', color: evalFilter === 'skipped' ? '#64748b' : '#64748b', border: `1px solid ${evalFilter === 'skipped' ? '#94a3b8' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('skipped')}>Pending/Skipped ({countSkipped})</button>
+                          </div>
+                      );
+                  })()}
               </div>
+
+              {/* 🔥 NEW: Section Scrollable Pill Menu for Examiner */}
+              {evaluateSub.test.sections && evaluateSub.test.sections.length > 0 && (
+                  <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '4px' }}>
+                      <button 
+                          className="btn btn-sm" 
+                          style={{ whiteSpace: 'nowrap', fontWeight: 600, background: evalSectionFilter === 'all_sections' ? '#185FA5' : '#f1f5f9', color: evalSectionFilter === 'all_sections' ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
+                          onClick={() => setEvalSectionFilter('all_sections')}
+                      >
+                          All Sections
+                      </button>
+                      {evaluateSub.test.sections.map((sec, idx) => (
+                          <button 
+                              key={idx} 
+                              className="btn btn-sm" 
+                              style={{ whiteSpace: 'nowrap', fontWeight: 600, background: evalSectionFilter === sec ? '#185FA5' : '#f1f5f9', color: evalSectionFilter === sec ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
+                              onClick={() => setEvalSectionFilter(sec)}
+                          >
+                              {sec}
+                          </button>
+                      ))}
+                  </div>
+              )}
           </div>
 
-          {evaluateSub.sub.details.filter(d => evalFilter === 'all' || d.status === evalFilter || (evalFilter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'))).map((d, index) => {
+          {evaluateSub.sub.details.filter(d => {
+              // 🔥 Dono conditions (Status aur Section) match honi chahiye
+              let sMatch = evalFilter === 'all' || d.status === evalFilter || (evalFilter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
+              let secMatch = evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0]));
+              return sMatch && secMatch;
+          }).map((d, index) => {
               const originalQIdx = evaluateSub.sub.details.indexOf(d);
               const q = d.q;
               const ans = d.ans;

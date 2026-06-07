@@ -18,6 +18,8 @@ export default function StudentResults() {
   // State to toggle between List View and Detailed View
   const [selectedResult, setSelectedResult] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'correct', 'wrong', 'skipped'
+  const [sectionFilter, setSectionFilter] = useState('all_sections'); // 🔥 NAYA: Section Filter
+  
    
   // 🔥 THE FIX: Fetch results ON-DEMAND only when this page is opened
   useEffect(() => {
@@ -162,7 +164,7 @@ export default function StudentResults() {
     // 100ms delay ensures JSON text is painted before scanning
     const timer = setTimeout(renderMath, 100);
     return () => clearTimeout(timer);
-  }, [selectedResult, filter]);
+}, [selectedResult, filter, sectionFilter]);
 
   // 🔥 THE FIX: Using 'fetchingResults' instead of 'loadingData'
   if (authLoading || fetchingResults) {
@@ -241,7 +243,7 @@ export default function StudentResults() {
   return (
     <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', animation: 'fadeIn 0.3s ease' }}>
       
-      <button className="btn btn-ghost" style={{ marginBottom: '1rem', padding: 0, fontWeight: 600, color: 'var(--color-text-secondary)' }} onClick={() => setSelectedResult(null)}>
+      <button className="btn btn-ghost" style={{ marginBottom: '1rem', padding: 0, fontWeight: 600, color: 'var(--color-text-secondary)' }} onClick={() => { setSelectedResult(null); setSectionFilter('all_sections'); }}>
         <i className="ti ti-arrow-left"></i> Back to Results
       </button>
 
@@ -313,19 +315,61 @@ export default function StudentResults() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '12px', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)' }}>
-        <div style={{ fontSize: '18px', fontWeight: 600 }}>Question-wise Analysis</div>
-        <div className="filter-tabs" style={{ marginBottom: 0 }}>
-          <button className={`ftab ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>All ({sub.details.length})</button>
-          <button className={`ftab ${filter === 'correct' ? 'active' : ''}`} onClick={() => setFilter('correct')}>Correct ({sub.correct})</button>
-          <button className={`ftab ${filter === 'wrong' ? 'active' : ''}`} onClick={() => setFilter('wrong')}>Wrong ({sub.wrong})</button>
-          <button className={`ftab ${filter === 'skipped' ? 'active' : ''}`} onClick={() => setFilter('skipped')}>Skipped ({sub.skipped})</button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)' }}>
+        
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ fontSize: '18px', fontWeight: 600 }}>Question-wise Analysis</div>
+            {(() => {
+                // 🔥 DYNAMIC COUNT CALCULATION BASED ON ACTIVE SECTION
+                const secDetails = sub.details.filter(d => sectionFilter === 'all_sections' || d.q.section === sectionFilter || (!d.q.section && sectionFilter === (test.sections?.[0])));
+                const countAll = secDetails.length;
+                const countCorrect = secDetails.filter(d => d.status === 'correct' || d.status === 'partial').length;
+                const countWrong = secDetails.filter(d => d.status === 'wrong').length;
+                const countSkipped = secDetails.filter(d => d.status === 'skipped' || d.status === 'submitted' || d.status === 'evaluated').length;
+                
+                return (
+                    <div className="filter-tabs" style={{ marginBottom: 0 }}>
+                      <button className={`ftab ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>All ({countAll})</button>
+                      <button className={`ftab ${filter === 'correct' ? 'active' : ''}`} onClick={() => setFilter('correct')}>Correct ({countCorrect})</button>
+                      <button className={`ftab ${filter === 'wrong' ? 'active' : ''}`} onClick={() => setFilter('wrong')}>Wrong ({countWrong})</button>
+                      <button className={`ftab ${filter === 'skipped' ? 'active' : ''}`} onClick={() => setFilter('skipped')}>Skipped ({countSkipped})</button>
+                    </div>
+                );
+            })()}
         </div>
+
+        {/* 🔥 NEW: Section Scrollable Pill Menu (Only shows if sections exist in this test) */}
+        {test.sections && test.sections.length > 0 && (
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '4px' }}>
+                <button 
+                    className="btn btn-sm" 
+                    style={{ whiteSpace: 'nowrap', fontWeight: 600, background: sectionFilter === 'all_sections' ? '#185FA5' : '#f1f5f9', color: sectionFilter === 'all_sections' ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
+                    onClick={() => setSectionFilter('all_sections')}
+                >
+                    All Sections
+                </button>
+                {test.sections.map((sec, idx) => (
+                    <button 
+                        key={idx} 
+                        className="btn btn-sm" 
+                        style={{ whiteSpace: 'nowrap', fontWeight: 600, background: sectionFilter === sec ? '#185FA5' : '#f1f5f9', color: sectionFilter === sec ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
+                        onClick={() => setSectionFilter(sec)}
+                    >
+                        {sec}
+                    </button>
+                ))}
+            </div>
+        )}
       </div>
 
       {/* Question Review Cards */}
       <div>
-        {sub.details.filter(d => filter === 'all' || d.status === filter || (filter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'))).map((d, i) => {
+        {sub.details.filter(d => {
+            // 🔥 Dono conditions (Status aur Section) match honi chahiye
+            let sMatch = filter === 'all' || d.status === filter || (filter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
+            let secMatch = sectionFilter === 'all_sections' || d.q.section === sectionFilter || (!d.q.section && sectionFilter === (test.sections?.[0]));
+            return sMatch && secMatch;
+        }).map((d, i) => {
            const q = d.q;
            const ans = d.ans;
            const originalQIdx = sub.details.indexOf(d);

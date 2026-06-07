@@ -222,8 +222,9 @@ export default function StudentPortal() {
 
         const safeName = name.trim();
         const safeRoll = roll.trim().toLowerCase();
+        const safeSubmissions = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions || {});
         
-        let existingSub = t.submissions?.find(s => s.name.trim().toLowerCase() === safeName.toLowerCase() && (s.roll || '').trim().toLowerCase() === safeRoll);
+        let existingSub = safeSubmissions.find(s => s && s.name && s.name.trim().toLowerCase() === safeName.toLowerCase() && (s.roll || '').trim().toLowerCase() === safeRoll);       
         if (existingSub) { setJoinError("Submission Received: You have already submitted this test."); setIsFetchingTest(false); return; }
 
         // Panic Refresh Check
@@ -730,10 +731,28 @@ export default function StudentPortal() {
 
                           if (secHTML.length === 0) return null;
 
+                          // 🔥 SECTION PROGRESS CALCULATION
+                          let secAttempted = 0;
+                          let secTotal = 0;
+                          activeTest.questions.forEach((qq, idx) => {
+                              if (qq.section === sec || (!qq.section && sec === activeTest.sections[0])) {
+                                  secTotal++;
+                                  let a = answers[idx];
+                                  if (a?.val !== null && (!Array.isArray(a?.val) || a?.val.length > 0)) {
+                                      secAttempted++;
+                                  }
+                              }
+                          });
+
                           return (
                               <div key={sec} style={{ marginBottom: '1rem' }}>
-                                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-secondary)', margin: '15px 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                      <i className="ti ti-folder"></i> {sec}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '15px 0 10px 0' }}>
+                                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                          <i className="ti ti-folder"></i> {sec}
+                                      </div>
+                                      <div style={{ fontSize: '11px', fontWeight: 700, background: secAttempted === secTotal ? '#EAF3DE' : '#E6F1FB', color: secAttempted === secTotal ? '#27500A' : '#185FA5', padding: '4px 8px', borderRadius: '12px', border: `1px solid ${secAttempted === secTotal ? '#C0DD97' : '#CECBF6'}` }}>
+                                          Attempted: {secAttempted}/{secTotal}
+                                      </div>
                                   </div>
                                   <div className="palette-grid">{secHTML}</div>
                               </div>
