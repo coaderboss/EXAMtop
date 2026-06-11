@@ -283,9 +283,8 @@ export default function ManageTests() {
 
   const saveNewKeyAndReevaluate = async () => {
     let updatedTest = { ...selectedTest, questions: tempQuestions };
-    
     if (updatedTest.submissions && updatedTest.submissions.length > 0) {
-      const neg = updatedTest.negMarking || 0;
+      const neg = Math.abs(Number(updatedTest.negMarking || 0));
       updatedTest.submissions.forEach(sub => {
         let newScore = 0, newCorrect = 0, newWrong = 0, newSkipped = 0;
         sub.details.forEach((d, i) => {
@@ -368,6 +367,57 @@ export default function ManageTests() {
       setModalType(null); setEvalOverrides({}); setAuditReason('');
       setSysAlert({ title: 'Saved', msg: 'Marks & Audit Log securely recorded.', type: 'success' });
     } catch (e) { setSysAlert({ title: 'Error', msg: 'Failed to save evaluation.', type: 'error' }); }
+  };
+
+ // 🔥 THE BULLETPROOF MAGIC RECALCULATE ENGINE (Fixed Skipped Logic)
+  const triggerMagicRecalculate = async () => {
+    let updatedTest = { ...selectedTest };
+    if (!updatedTest.submissions || updatedTest.submissions.length === 0) {
+      setSysAlert({ title: 'Empty', msg: 'No submissions to fix yet!', type: 'warning' });
+      return;
+    }
+
+    const neg = Math.abs(Number(updatedTest.negMarking || 0));
+
+    updatedTest.submissions.forEach(sub => {
+      let newScore = 0, newCorrect = 0, newWrong = 0, newSkipped = 0;
+      
+      sub.details.forEach(d => {
+        let q = d.q; 
+        let ans = d.ans || {};
+        let val = ans.val;
+
+        // 🔥 ASLI SKIPPED CHECK: null, undefined, khali string, -1, ya khali array = SKIPPED!
+        let isSkipped = val === null || val === undefined || val === '' || val === -1 || (Array.isArray(val) && val.length === 0);
+
+        if (isSkipped) {
+          d.status = 'skipped'; 
+          d.earned = 0; 
+          newSkipped++;
+        } else if (q.type === 'mcq') {
+          if (val === q.correct[0]) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; }
+          else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; }
+        } else if (q.type === 'msq') {
+          let userSel = Array.isArray(val) ? val : []; let corrSel = q.correct || [];
+          let hasWrongOption = userSel.some(x => !corrSel.includes(x)); 
+          let correctlySelected = userSel.filter(x => corrSel.includes(x)).length;
+          
+          if (hasWrongOption) { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; }
+          else if (correctlySelected === corrSel.length) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; }
+          else if (correctlySelected > 0) { let partialMarks = (q.marks / corrSel.length) * correctlySelected; d.earned = Math.round(partialMarks * 100) / 100; newScore += d.earned; newCorrect++; d.status = 'partial'; }
+          else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; }
+        } else if (q.type === 'integer') {
+          if (val === q.correctInt || String(val) === String(q.correctInt)) { newCorrect++; d.earned = q.marks; newScore += q.marks; d.status = 'correct'; }
+          else { newWrong++; d.earned = -neg; newScore -= neg; d.status = 'wrong'; }
+        } else { d.status = 'submitted'; d.earned = 0; newSkipped++; }
+      });
+      sub.score = Number(newScore.toFixed(2)); sub.correct = newCorrect; sub.wrong = newWrong; sub.skipped = newSkipped;
+    });
+
+    try {
+      await updateTestGlobal(updatedTest);
+      setSysAlert({ title: 'System Restored!', msg: `Skipped questions fixed! Scores recalculated for ${updatedTest.submissions.length} students.`, type: 'success' });
+    } catch (e) { setSysAlert({ title: 'Error', msg: 'Failed to recalculate scores.', type: 'error' }); }
   };
 
   const getLabel = (type) => ({ mcq: 'Single Correct', msq: 'Multi Correct', integer: 'Integer Type', subjective: 'Subjective' }[type] || type);
@@ -683,15 +733,19 @@ export default function ManageTests() {
               <div className="grid2">
                   <div className="card" style={{ borderRadius: '12px' }}>
                       <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-tool" style={{ color: '#185FA5' }}></i> Essential Tools</h3>
-                      <div className="grid2" style={{ marginBottom: '2rem' }}>
+                      <div className="grid2" style={{ marginBottom: '1rem' }}>
                           <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600 }} onClick={() => autoJoinLocalTest(selectedTest.code)}><i className="ti ti-player-play text-blue"></i> Demo Test</button>
                           <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600 }} onClick={() => printTestPaper(selectedTest)}><i className="ti ti-printer"></i> Print Paper</button>
                           <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#FAEEDA', color: '#854F0B', borderColor: '#FAC775' }} onClick={openEditKey}><i className="ti ti-key"></i> Edit Key</button>
                           <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#EEEDFE', color: '#3C3489', borderColor: '#CECBF6' }} onClick={() => setModalType('analytics')}><i className="ti ti-chart-pie"></i> Analytics</button>
                       </div>
+                      
+                      {/* 🔥 FIX 3: Magic Recalculate Button */}
+                      <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 700, background: '#FEF5E5', color: '#d97706', borderColor: '#fcd34d', marginBottom: '2rem' }} onClick={triggerMagicRecalculate}>
+                          <i className="ti ti-wand"></i> Fix Corrupted Scores (Remove Double-Negative)
+                      </button>
 
-                      <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-share" style={{ color: '#10B981' }}></i> 1-Click Share</h3>
-                      <div className="grid2">
+                      <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-share" style={{ color: '#10B981' }}></i> 1-Click Share</h3>                      <div className="grid2">
                           <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#dcf8c6', color: '#075e54', border: '1px solid #25d366' }} onClick={() => shareTest(selectedTest, 'whatsapp')}><i className="ti ti-brand-whatsapp" style={{ fontSize: '20px' }}></i> WhatsApp</button>
                           <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#e0f2fe', color: '#0284c7', border: '1px solid #38bdf8' }} onClick={() => shareTest(selectedTest, 'telegram')}><i className="ti ti-brand-telegram" style={{ fontSize: '20px' }}></i> Telegram</button>
                       </div>

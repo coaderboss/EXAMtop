@@ -360,7 +360,24 @@ export default function CreateTest() {
           </div>
           
           <div className="grid2" style={{ marginBottom: '1rem' }}>
-            <div><label>Negative Marking</label><input type="number" step="0.25" value={negMarking} onChange={e => setNegMarking(Number(e.target.value))} /></div>
+            <div>
+                <label>Negative Marking (Penalty per wrong answer)</label>
+                <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FCEBEB', color: '#A32D2D', border: '1px solid #cbd5e1', borderRight: 'none', borderRadius: '6px 0 0 6px', padding: '0 15px', fontSize: '18px', fontWeight: 900 }}>
+                        -
+                    </div>
+                    {/* Math.abs ensures only positive values are typed/saved, mobile keyboard friendly! */}
+                    <input 
+                        type="number" 
+                        step="0.25" 
+                        min="0" 
+                        value={Math.abs(negMarking)} 
+                        onChange={e => setNegMarking(Math.abs(Number(e.target.value)))} 
+                        style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }} 
+                        placeholder="e.g. 1 or 0.25" 
+                    />
+                </div>
+            </div>
             <div><label>Expiry Date & Time</label><input type="datetime-local" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} /></div>
           </div>
 

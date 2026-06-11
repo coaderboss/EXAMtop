@@ -375,23 +375,27 @@ export default function StudentPortal() {
     setShowConfirmModal(false); 
     setIsSubmitting(true); 
 
-    let score = 0, correct = 0, wrong = 0, skipped = 0;
-    const neg = activeTest.negMarking || 0;
+   let score = 0, correct = 0, wrong = 0, skipped = 0;
+   const neg = Math.abs(Number(activeTest.negMarking || 0));
 
     const details = activeTest.questions.map((q, i) => {
-      let ans = answers[i];
+      let ans = answers[i] || {};
+      let val = ans.val;
       let status = 'skipped';
       let earned = 0;
-      let hasVal = ans.val !== null && (!Array.isArray(ans.val) || ans.val.length > 0);
 
-      if (!hasVal) {
+      // 🔥 BULLETPROOF SKIPPED CHECK: Har tarah ke khali variables ko pakdega
+      let isSkipped = val === null || val === undefined || val === '' || val === -1 || (Array.isArray(val) && val.length === 0);
+
+      if (isSkipped) {
         skipped++;
+        status = 'skipped';
       } else if (q.type === 'mcq') {
         if (!q.correct || q.correct.length === 0) { status = 'submitted'; skipped++; } 
-        else if (ans.val === q.correct[0]) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } 
+        else if (val === q.correct[0]) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } 
         else { wrong++; earned = -neg; score -= neg; status = 'wrong'; }
       } else if (q.type === 'msq') {
-        let userSel = Array.isArray(ans.val) ? ans.val : [];
+        let userSel = Array.isArray(val) ? val : [];
         let corrSel = q.correct || [];
         if (corrSel.length === 0) { status = 'submitted'; skipped++; } 
         else {
@@ -407,7 +411,7 @@ export default function StudentPortal() {
         }
       } else if (q.type === 'integer') {
         if (q.correctInt === null || q.correctInt === undefined || q.correctInt === '') { status = 'submitted'; skipped++; } 
-        else if (ans.val === q.correctInt) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } 
+        else if (val === q.correctInt || String(val) === String(q.correctInt)) { correct++; earned = q.marks; score += q.marks; status = 'correct'; } 
         else { wrong++; earned = -neg; score -= neg; status = 'wrong'; }
       } else { skipped++; status = 'submitted'; }
 
@@ -567,7 +571,7 @@ export default function StudentPortal() {
                 <p style={{ marginBottom: '15px' }}><strong>Subject:</strong> {activeTest?.subject || 'N/A'}</p>
                 <ul style={{ marginLeft: '20px', color: 'var(--color-text-secondary)' }}>
                     <li style={{ marginBottom: '8px' }}><strong>Duration:</strong> {activeTest?.duration} Minutes</li>
-                    <li style={{ marginBottom: '8px' }}><strong>Total Marks:</strong> {activeTest?.totalMarks} (Negative: {activeTest?.negMarking ? '-' + activeTest?.negMarking : 'None'})</li>
+                    <li style={{ marginBottom: '8px' }}><strong>Total Marks:</strong> {activeTest?.totalMarks} (Negative: {activeTest?.negMarking ? '-' + Math.abs(activeTest?.negMarking) : 'None'})</li>
                     {activeTest?.antiCheat && <li style={{ marginBottom: '8px', color: '#A32D2D' }}><strong><i className="ti ti-shield-lock"></i> Tab-Switch Monitored:</strong> Changing tabs will auto-submit the exam.</li>}
                     {activeTest?.fullScreenMode && <li style={{ marginBottom: '8px', color: '#A32D2D' }}><strong><i className="ti ti-maximize"></i> Full-Screen Lock:</strong> Exiting full-screen will trigger a warning.</li>}
                 </ul>
