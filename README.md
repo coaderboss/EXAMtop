@@ -19,7 +19,7 @@
 
 Experience the complete lifecycle of ExamiTop—from exam creation to live student assessment and administrative Omni-Control.
 
-> **👉 [Access the Live Platform Here](https://your-deployed-link.vercel.app)**  
+> **👉 [Access the Live Platform Here](https://examitop.vercel.app)**  
 > *(Test both Examiner Vault and Student Terminal directly from your browser. No local installation required.)*
 
 ---
