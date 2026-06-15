@@ -1,6 +1,6 @@
 <div align="center">
   
-  # 🚀 ExamiTop Engine v2.0
+  # 🚀 ExamiTop Engine
   **Next-Generation Secure Assessment & Evaluation Platform**
 
   [![Status](https://img.shields.io/badge/Status-Live_&_Operational-10B981?style=for-the-badge&logo=opsgenie)](#live-demo)
