@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
 import { ref, get, update, set, remove } from 'firebase/database';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // 🔥 UTILITY: Safe Array Converter
 const safeArray = (data) => {
@@ -12,6 +13,10 @@ const safeArray = (data) => {
     if (Array.isArray(data)) return data.filter(Boolean);
     return Object.values(data).filter(Boolean);
 };
+
+// 🔥 SIMPLE & CLEAN ANIMATIONS
+const fadeUp = { hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
+const staggerContainer = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
 
 export default function GodMode() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
@@ -26,7 +31,7 @@ export default function GodMode() {
   const [currentBroadcast, setCurrentBroadcast] = useState('');
   
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false); // 🔥 For On-Demand User Loading
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false); 
 
   // System Modals & Views
   const [sysAlert, setSysAlert] = useState(null);
@@ -55,7 +60,7 @@ export default function GodMode() {
       }
   }, [activeTab, allTests]);
 
-  // 🔥 CORE DATA FETCH (Only fetch tests and stats on mount, NOT users)
+  // 🔥 CORE DATA FETCH
   const fetchGodData = async () => {
     setIsLoadingData(true);
     try {
@@ -85,7 +90,7 @@ export default function GodMode() {
     setIsLoadingData(false);
   };
 
-  // 🔥 NAYA FEATURE: ON-DEMAND USER FETCHING
+  // 🔥 ON-DEMAND USER FETCHING
   const fetchUsersOnDemand = async () => {
       setIsLoadingUsers(true);
       try {
@@ -117,83 +122,102 @@ export default function GodMode() {
   }, [currentUser, userRole, authLoading, router]);
   
   // ===============================================
-  // CHART RENDERING LOGIC
+  // CHART RENDERING LOGIC (Animation & Timing Fixed)
   // ===============================================
   const renderCharts = () => {
-      setTimeout(() => {
-          if (!document.getElementById('accuracyChart') || !document.getElementById('trendChart') || !window.Chart) return;
+      let attempts = 0;
+      
+      // Smart Checker: Check every 100ms if animation is complete and canvas is in DOM
+      const checkReady = setInterval(() => {
+          attempts++;
+          const accCanvas = document.getElementById('accuracyChart');
+          const trendCanvas = document.getElementById('trendChart');
           
-          let totalCorrect = 0, totalWrong = 0, totalSkipped = 0;
-          let testAttempts = {}; 
+          // Agar 20 attempts (2 seconds) tak canvas nahi mila toh loop rok do
+          if (attempts > 20) {
+              clearInterval(checkReady);
+              return;
+          }
 
-          allTests.forEach(t => {
-              safeArray(t.submissions).forEach(s => {
-                  totalCorrect += (s.correct || 0);
-                  totalWrong += (s.wrong || 0);
-                  totalSkipped += (s.skipped || 0);
-                  
-                  let dateStr = (s.time || "").split(',')[0].trim();
-                  if(dateStr) testAttempts[dateStr] = (testAttempts[dateStr] || 0) + 1;
+          // Jaise hi Script aur dono Canvas mil jayein, drawing start karo!
+          if (window.Chart && accCanvas && trendCanvas) {
+              clearInterval(checkReady); 
+              
+              let totalCorrect = 0, totalWrong = 0, totalSkipped = 0;
+              let testAttempts = {}; 
+
+              allTests.forEach(t => {
+                  safeArray(t.submissions).forEach(s => {
+                      totalCorrect += (s.correct || 0);
+                      totalWrong += (s.wrong || 0);
+                      totalSkipped += (s.skipped || 0);
+                      
+                      let dateStr = (s.time || "").split(',')[0].trim();
+                      if(dateStr) testAttempts[dateStr] = (testAttempts[dateStr] || 0) + 1;
+                  });
               });
-          });
 
-          if(window.accChartInstance) window.accChartInstance.destroy();
-          const ctxAcc = document.getElementById('accuracyChart').getContext('2d');
-          window.accChartInstance = new window.Chart(ctxAcc, {
-              type: 'doughnut',
-              data: {
-                  labels: ['Correct', 'Wrong', 'Skipped'],
-                  datasets: [{
-                      data: [totalCorrect, totalWrong, totalSkipped],
-                      backgroundColor: ['#10B981', '#A32D2D', '#64748b'],
-                      borderColor: '#0B0F19',
-                      borderWidth: 2
-                  }]
-              },
-              options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1' } } }, cutout: '70%' }
-          });
+              // Accuracy Chart
+              if(window.accChartInstance) window.accChartInstance.destroy();
+              const ctxAcc = accCanvas.getContext('2d');
+              window.accChartInstance = new window.Chart(ctxAcc, {
+                  type: 'doughnut',
+                  data: {
+                      labels: ['Correct', 'Wrong', 'Skipped'],
+                      datasets: [{
+                          data: [totalCorrect, totalWrong, totalSkipped],
+                          backgroundColor: ['#10B981', '#ef4444', '#334155'],
+                          borderColor: '#020617',
+                          borderWidth: 4
+                      }]
+                  },
+                  options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'monospace' } } } }, cutout: '75%' }
+              });
 
-          if(window.trendChartInstance) window.trendChartInstance.destroy();
-          const dates = Object.keys(testAttempts).slice(-7); 
-          const counts = dates.map(d => testAttempts[d]);
-          
-          const ctxTrend = document.getElementById('trendChart').getContext('2d');
-          window.trendChartInstance = new window.Chart(ctxTrend, {
-              type: 'line',
-              data: {
-                  labels: dates.length ? dates : ['No Data'],
-                  datasets: [{
-                      label: 'Submissions',
-                      data: counts.length ? counts : [0],
-                      borderColor: '#D4AF37',
-                      backgroundColor: 'rgba(212, 175, 55, 0.1)',
-                      borderWidth: 3,
-                      fill: true,
-                      tension: 0.4
-                  }]
-              },
-              options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', stepSize: 1 } }, x: { grid: { display: false }, ticks: { color: '#94a3b8' } } }, plugins: { legend: { display: false } } }
-          });
-      }, 100);
+              // Trend Chart
+              if(window.trendChartInstance) window.trendChartInstance.destroy();
+              const dates = Object.keys(testAttempts).slice(-7); 
+              const counts = dates.map(d => testAttempts[d]);
+              
+              const ctxTrend = trendCanvas.getContext('2d');
+              window.trendChartInstance = new window.Chart(ctxTrend, {
+                  type: 'line',
+                  data: {
+                      labels: dates.length ? dates : ['No Data'],
+                      datasets: [{
+                          label: 'Submissions',
+                          data: counts.length ? counts : [0],
+                          borderColor: '#f59e0b',
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                          borderWidth: 2,
+                          fill: true,
+                          tension: 0.4,
+                          pointBackgroundColor: '#f59e0b',
+                          pointRadius: 4
+                      }]
+                  },
+                  options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', stepSize: 1, font: { family: 'monospace' } } }, x: { grid: { display: false }, ticks: { color: '#64748b', font: { family: 'monospace' } } } }, plugins: { legend: { display: false } } }
+              });
+          }
+      }, 100); 
   };
-
 
   if (authLoading || (isLoadingData && userRole === 'admin')) {
     return (
-        <div className="spinner-container" style={{ paddingTop: '30vh', background: '#0B0F19', height: '100vh', width: '100vw', position: 'fixed', top: 0, left: 0, zIndex: 99999 }}>
-            <div className="spinner" style={{ borderColor: '#D4AF37', borderTopColor: 'transparent', width: '60px', height: '60px' }}></div>
-            <div style={{ color: '#D4AF37', fontWeight: 700, marginTop: '20px', letterSpacing: '2px' }}>AUTHENTICATING ROOT ACCESS...</div>
+        <div className="fixed inset-0 z-[99999] bg-[#0B0F19] flex flex-col items-center justify-center">
+            <div className="w-16 h-16 border-4 border-[#D4AF37] border-t-transparent rounded-full animate-spin"></div>
+            <div className="text-[#D4AF37] font-bold mt-6 tracking-[2px]">AUTHENTICATING ROOT ACCESS...</div>
         </div>
     );
   }
 
   if (!currentUser || userRole !== 'admin') {
     return (
-      <div style={{ textAlign: 'center', padding: '4rem', background: '#0B0F19', height: '100vh', color: '#fff' }}>
-        <i className="ti ti-shield-x" style={{ fontSize: '80px', color: '#ff4444', marginBottom: '1rem', animation: 'pulse 1s infinite' }}></i>
-        <h2 style={{ color: '#ff4444', fontWeight: 800, fontSize: '32px', letterSpacing: '2px' }}>SECURITY BREACH DETECTED</h2>
-        <p style={{ fontWeight: 600, color: '#94a3b8' }}>Your IP has been logged. Level-1 Admin clearance required.</p>
-        <button className="btn btn-danger" style={{ marginTop: '2rem', padding: '12px 30px', fontSize: '16px', fontWeight: 800, background: '#8B0000', border: 'none' }} onClick={() => router.push('/')}>Evacuate Sector</button>
+      <div className="min-h-screen bg-[#0B0F19] flex flex-col items-center justify-center p-6 text-center text-white">
+        <i className="ti ti-shield-x text-[80px] text-red-500 mb-4 animate-pulse"></i>
+        <h2 className="text-red-500 font-black text-3xl md:text-4xl tracking-[2px] mb-2">SECURITY BREACH DETECTED</h2>
+        <p className="font-semibold text-slate-400 mb-8">Your IP has been logged. Level-1 Admin clearance required.</p>
+        <button className="px-8 py-3 text-base font-black bg-[#8B0000] text-white rounded-lg hover:bg-red-900 transition-colors" onClick={() => router.push('/')}>Evacuate Sector</button>
       </div>
     );
   }
@@ -209,7 +233,7 @@ export default function GodMode() {
           setCurrentBroadcast(broadcastMsg);
           setBroadcastMsg('');
           setSysAlert({ title: 'Broadcast Live', msg: 'The entire platform will see this message.', type: 'success' });
-      } catch(e) { setSysAlert({ title: 'Database Locked', msg: 'Update your Firebase Realtime DB rules to allow writing to "platform_settings".', type: 'error' }); }
+      } catch(e) { setSysAlert({ title: 'Database Locked', msg: 'Update your Firebase Realtime DB rules.', type: 'error' }); }
   };
 
   const changeUserRole = async (uid, newRole, userName) => {
@@ -279,18 +303,15 @@ export default function GodMode() {
                   let newSubs = safeArray(t.submissions);
                   newSubs.splice(idx, 1); 
                   await set(ref(database, `tests/${t.dbKey}/submissions`), newSubs);
-                  
                   const updatedTest = { ...t, submissions: newSubs };
                   setViewingSubsFor(updatedTest);
                   setAllTests(prev => prev.map(test => test.dbKey === t.dbKey ? updatedTest : test));
-                  
                   setSysAlert({ title: 'Deleted', msg: `${sName}'s record removed.`, type: 'success' });
               } catch(e) { setSysAlert({ title: 'Error', msg: 'Failed to delete record.', type: 'error' }); }
           }
       });
   };
 
-  // 🔥 NAYA FEATURE: Admin Force Edit Name
   const adminChangeName = async (uid, currentName) => {
       const newName = prompt(`Enter new legal name for user (Current: ${currentName || 'N/A'}):`);
       if (newName && newName.trim() !== '') {
@@ -327,41 +348,41 @@ export default function GodMode() {
   radarFeed.reverse().slice(0, 8); 
 
   // ===============================================
-  // VIEW: INDIVIDUAL SUBMISSIONS LEDGER (God Mode)
+  // VIEW 1: INDIVIDUAL SUBMISSIONS LEDGER (God Mode)
   // ===============================================
   if (viewingSubsFor) {
       const subs = safeArray(viewingSubsFor.submissions);
       return (
-        <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
-            <button className="btn" style={{ marginBottom: '1.5rem', fontWeight: 800, color: '#D4AF37', background: '#0B0F19', border: '1px solid #D4AF37' }} onClick={() => { setViewingSubsFor(null); }}>
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="p-4 md:p-8 max-w-5xl mx-auto font-sans min-h-screen">
+            <button className="mb-6 px-4 py-2 font-black text-[#D4AF37] bg-[#0B0F19] border border-[#D4AF37] rounded-md hover:bg-slate-900 transition-colors flex items-center gap-2" onClick={() => { setViewingSubsFor(null); }}>
                 <i className="ti ti-arrow-left"></i> BACK TO VAULT
             </button>
             
-            <div className="card" style={{ padding: '2rem', border: '2px solid #8B0000', background: '#ffffff', borderRadius: '12px' }}>
-                <div style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '1.5rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div className="bg-white border-2 border-[#8B0000] rounded-xl p-5 md:p-8 shadow-sm">
+                <div className="border-b-2 border-slate-200 pb-6 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <h2 style={{ margin: '0 0 5px 0', color: '#0B0F19', fontWeight: 800, fontSize: '24px' }}>{viewingSubsFor.title}</h2>
-                        <p style={{ margin: 0, color: '#64748b', fontSize: '14px', fontWeight: 700 }}>ACCESS CODE: <span style={{ color: '#A32D2D' }}>{viewingSubsFor.code}</span></p>
+                        <h2 className="m-0 text-[#0B0F19] font-black text-2xl mb-1">{viewingSubsFor.title}</h2>
+                        <p className="m-0 text-slate-500 text-sm font-bold">ACCESS CODE: <span className="text-[#A32D2D]">{viewingSubsFor.code}</span></p>
                     </div>
-                    <div style={{ background: '#0B0F19', color: '#D4AF37', padding: '8px 16px', borderRadius: '8px', fontWeight: 800 }}>
+                    <div className="bg-[#0B0F19] text-[#D4AF37] px-4 py-2 rounded-lg font-black text-sm whitespace-nowrap">
                         TOTAL SUBMISSIONS: {subs.length}
                     </div>
                 </div>
 
                 {subs.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#94a3b8' }}>
-                        <i className="ti ti-ghost" style={{ fontSize: '56px', display: 'block', marginBottom: '1rem', opacity: 0.5 }}></i>
-                        <p style={{ fontWeight: 600, fontSize: '16px' }}>Vault empty. No submissions exist for this test.</p>
+                    <div className="text-center py-16 px-4 text-slate-400">
+                        <i className="ti ti-ghost text-6xl block mb-4 opacity-50"></i>
+                        <p className="font-semibold text-base">Vault empty. No submissions exist for this test.</p>
                     </div>
                 ) : (
-                    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+                    <div className="overflow-x-auto rounded-lg border border-slate-200 hide-scrollbar">
+                        <table className="w-full min-w-[700px] border-collapse text-left">
                             <thead>
-                                <tr style={{ background: '#0B0F19', color: '#D4AF37', textAlign: 'left' }}>
-                                    <th style={{ padding: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Student Identity</th>
-                                    <th style={{ padding: '16px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Timestamp</th>
-                                    <th style={{ padding: '16px', fontWeight: 700, textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>Score</th>
-                                    <th style={{ padding: '16px', fontWeight: 700, textAlign: 'right', textTransform: 'uppercase', letterSpacing: '1px' }}>God Action</th>
+                                <tr className="bg-[#0B0F19] text-[#D4AF37]">
+                                    <th className="p-4 font-bold uppercase tracking-wider text-sm">Student Identity</th>
+                                    <th className="p-4 font-bold uppercase tracking-wider text-sm">Timestamp</th>
+                                    <th className="p-4 font-bold uppercase tracking-wider text-sm text-center">Score</th>
+                                    <th className="p-4 font-bold uppercase tracking-wider text-sm text-right">God Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -369,21 +390,21 @@ export default function GodMode() {
                                     const pct = viewingSubsFor.totalMarks ? Math.round((s.score / viewingSubsFor.totalMarks) * 100) : 0;
                                     const hasCheated = safeArray(s.cheatLogs).length > 0;
                                     return (
-                                    <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', background: hasCheated ? '#fff0f0' : (idx % 2 === 0 ? '#fff' : '#f8fafc'), transition: '0.2s' }}>
-                                        <td style={{ padding: '16px' }}>
-                                            <div style={{ fontWeight: 800, color: '#0B0F19', fontSize: '15px', display:'flex', alignItems:'center', gap:'6px' }}>
+                                    <tr key={idx} className={`border-b border-slate-200 ${hasCheated ? 'bg-red-50' : 'even:bg-white odd:bg-slate-50'} hover:bg-slate-100 transition-colors`}>
+                                        <td className="p-4">
+                                            <div className="font-black text-[#0B0F19] text-[15px] flex items-center gap-1.5">
                                                 {s.name}
-                                                {hasCheated && <i className="ti ti-shield-x" style={{ color: '#A32D2D' }} title="Cheat Attempt Detected"></i>}
+                                                {hasCheated && <i className="ti ti-shield-x text-[#A32D2D]" title="Cheat Attempt Detected"></i>}
                                             </div>
-                                            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Roll: {s.roll || 'N/A'}</div>
+                                            <div className="text-xs text-slate-500 font-semibold mt-1">Roll: {s.roll || 'N/A'}</div>
                                         </td>
-                                        <td style={{ padding: '16px', fontSize: '13px', color: '#475569', fontWeight: 500 }}>{s.time}</td>
-                                        <td style={{ padding: '16px', textAlign: 'center' }}>
-                                            <div style={{ fontWeight: 900, color: '#185FA5', fontSize: '18px' }}>{s.score}</div>
-                                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{pct}%</div>
+                                        <td className="p-4 text-[13px] text-slate-600 font-medium">{s.time}</td>
+                                        <td className="p-4 text-center">
+                                            <div className="font-black text-[#185FA5] text-lg leading-none">{s.score}</div>
+                                            <div className="text-[11px] text-slate-400 font-bold mt-1">{pct}%</div>
                                         </td>
-                                        <td style={{ padding: '16px', textAlign: 'right' }}>
-                                            <button className="btn btn-sm btn-danger" style={{ padding: '8px 14px', fontWeight: 700, background: '#FCEBEB', color: '#A32D2D', border: '1px solid #F7C1C1' }} onClick={() => deleteIndividualSub(viewingSubsFor, idx, s.name)}>
+                                        <td className="p-4 text-right">
+                                            <button className="px-3 py-2 font-bold bg-[#FCEBEB] text-[#A32D2D] border border-[#F7C1C1] rounded-md hover:bg-red-100 transition-colors text-[13px] flex items-center justify-end gap-1.5 ml-auto" onClick={() => deleteIndividualSub(viewingSubsFor, idx, s.name)}>
                                                 <i className="ti ti-trash-x"></i> Purge
                                             </button>
                                         </td>
@@ -395,324 +416,335 @@ export default function GodMode() {
                 )}
             </div>
             
-            {sysConfirm && (
-                <div className="modal-bg" style={{ zIndex: 9999, background: 'rgba(11, 15, 25, 0.8)' }}>
-                    <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem', background: '#0B0F19', border: '2px solid #A32D2D', borderRadius: '16px' }}>
-                        <i className="ti ti-alert-triangle" style={{ fontSize: '48px', color: '#ff4444', marginBottom: '15px' }}></i>
-                        <h3 style={{ fontSize: '20px', marginBottom: '10px', color: '#fff', fontWeight: 800 }}>{sysConfirm.title}</h3>
-                        <p style={{ color: '#cbd5e1', marginBottom: '2rem', lineHeight: 1.5, fontWeight: 500 }}>{sysConfirm.msg}</p>
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                            <button className="btn" style={{ flex: 1, justifyContent: 'center', background: '#1e293b', color: '#fff', border: 'none' }} onClick={() => setSysConfirm(null)}>Abort</button>
-                            <button className="btn btn-danger" style={{ flex: 1, justifyContent: 'center', background: '#8B0000', color: '#fff', border: 'none', fontWeight: 800 }} onClick={() => { sysConfirm.action(); setSysConfirm(null); }}>Execute</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+            {/* Inline Confirm Modal */}
+            <AnimatePresence>
+                {sysConfirm && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] bg-[#0B0F19]/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-[#0B0F19] border-2 border-[#A32D2D] rounded-2xl p-6 md:p-8 max-w-sm w-full text-center shadow-xl">
+                            <i className="ti ti-alert-triangle text-5xl text-red-500 mb-4 block"></i>
+                            <h3 className="text-xl mb-3 text-white font-black">{sysConfirm.title}</h3>
+                            <p className="text-slate-300 mb-8 font-medium leading-relaxed">{sysConfirm.msg}</p>
+                            <div className="flex gap-3">
+                                <button className="flex-1 justify-center py-3 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700" onClick={() => setSysConfirm(null)}>Abort</button>
+                                <button className="flex-1 justify-center py-3 bg-[#8B0000] text-white font-black rounded-lg hover:bg-red-900" onClick={() => { sysConfirm.action(); setSysConfirm(null); }}>Execute</button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </motion.div>
       );
   }
 
   // ===============================================
-  // VIEW: MAIN GOD MODE DASHBOARD
+  // VIEW 2: MAIN GOD MODE DASHBOARD
   // ===============================================
   return (
-    <div style={{ padding: '2rem 1.5rem', maxWidth: '1200px', margin: '0 auto', animation: 'fadeIn 0.4s ease' }}>
+    <motion.div initial="hidden" animate="visible" variants={fadeUp} className="p-4 md:p-8 max-w-6xl mx-auto font-sans min-h-screen">
         
-        <div style={{ background: 'linear-gradient(135deg, #0B0F19 0%, #1a0b0b 100%)', borderRadius: '16px', padding: '2.5rem 2rem', color: '#fff', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', border: '1px solid #3f1515', boxShadow: '0 15px 35px rgba(139, 0, 0, 0.2)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <div style={{ width: '80px', height: '80px', background: 'rgba(212, 175, 55, 0.1)', border: '2px solid #D4AF37', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '38px', color: '#D4AF37', fontWeight: 800, boxShadow: 'inset 0 0 15px rgba(212,175,55,0.2)' }}>
+        {/* HEADER PANEL (Exact Original Design) */}
+        <div className="bg-gradient-to-br from-[#0B0F19] to-[#1a0b0b] rounded-2xl p-6 md:p-10 text-white mb-8 flex flex-col md:flex-row justify-between items-center gap-5 border border-[#3f1515] shadow-[0_15px_35px_rgba(139,0,0,0.2)]">
+            <div className="flex items-center gap-4 md:gap-5 w-full md:w-auto">
+                <div className="w-16 h-16 md:w-20 md:h-20 bg-[#D4AF37]/10 border-2 border-[#D4AF37] rounded-2xl flex items-center justify-center text-3xl md:text-[38px] text-[#D4AF37] font-black shadow-[inset_0_0_15px_rgba(212,175,55,0.2)] flex-shrink-0">
                     <i className="ti ti-crown"></i>
                 </div>
                 <div>
-                    <h2 style={{ margin: '0 0 5px 0', fontSize: '26px', fontWeight: 900, letterSpacing: '1px', color: '#ffffff' }}>OMNI-CONTROL CENTER</h2>
-                    <div style={{ fontSize: '13px', color: '#D4AF37', fontFamily: 'monospace', letterSpacing: '1px', fontWeight: 600 }}>
-                        <i className="ti ti-fingerprint"></i> UID: {currentUser.uid} &bull; ROOT CLEARANCE ACTIVE
+                    <h2 className="m-0 text-xl md:text-[26px] font-black tracking-wide text-white mb-1">OMNI-CONTROL CENTER</h2>
+                    <div className="text-[11px] md:text-[13px] text-[#D4AF37] font-mono tracking-wider font-semibold">
+                        <i className="ti ti-fingerprint mr-1"></i> UID: {currentUser.uid.substring(0,8)}... &bull; ROOT CLEARANCE ACTIVE
                     </div>
                 </div>
             </div>
-            <div style={{ display: 'flex', gap: '20px', textAlign: 'right', background: 'rgba(0,0,0,0.4)', padding: '15px 25px', borderRadius: '12px', border: '1px solid #333' }}>
+            <div className="flex gap-5 text-right bg-black/40 px-6 py-4 rounded-xl border border-[#333] w-full md:w-auto justify-center md:justify-end">
                 <div>
-                    <div style={{ fontSize: '32px', fontWeight: 900, color: '#D4AF37', textShadow: '0 0 10px rgba(212,175,55,0.3)' }}>{platformInstalls}</div>
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Global Installs</div>
+                    <div className="text-3xl md:text-[32px] font-black text-[#D4AF37] drop-shadow-[0_0_10px_rgba(212,175,55,0.3)] leading-none mb-1">{platformInstalls}</div>
+                    <div className="text-[11px] font-black text-slate-400 uppercase tracking-[1.5px]">Global Installs</div>
                 </div>
             </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '2rem', overflowX: 'auto', paddingBottom: '5px' }}>
-            <button className="btn btn-ghost" style={{ fontWeight: 800, padding: '12px 24px', borderRadius: '8px', color: activeTab === 'pulse' ? '#fff' : '#64748b', background: activeTab === 'pulse' ? '#8B0000' : 'transparent', transition: '0.3s' }} onClick={() => setActiveTab('pulse')}><i className="ti ti-activity-heartbeat"></i> System Pulse</button>
-            <button className="btn btn-ghost" style={{ fontWeight: 800, padding: '12px 24px', borderRadius: '8px', color: activeTab === 'analytics' ? '#fff' : '#64748b', background: activeTab === 'analytics' ? '#8B0000' : 'transparent', transition: '0.3s' }} onClick={() => setActiveTab('analytics')}><i className="ti ti-chart-pie"></i> Analytics</button>
-            <button className="btn btn-ghost" style={{ fontWeight: 800, padding: '12px 24px', borderRadius: '8px', color: activeTab === 'users' ? '#fff' : '#64748b', background: activeTab === 'users' ? '#8B0000' : 'transparent', transition: '0.3s' }} onClick={() => setActiveTab('users')}><i className="ti ti-users-group"></i> Citizen Matrix</button>
-            <button className="btn btn-ghost" style={{ fontWeight: 800, padding: '12px 24px', borderRadius: '8px', color: activeTab === 'tests' ? '#fff' : '#64748b', background: activeTab === 'tests' ? '#8B0000' : 'transparent', transition: '0.3s' }} onClick={() => setActiveTab('tests')}><i className="ti ti-database"></i> Global Vault</button>
+        {/* TABS (Mobile Scrollable) */}
+        <div className="flex overflow-x-auto gap-2 md:gap-3 mb-8 pb-2 hide-scrollbar">
+            {[
+                { id: 'pulse', icon: 'ti-activity-heartbeat', label: 'System Pulse' },
+                { id: 'analytics', icon: 'ti-chart-pie', label: 'Analytics' },
+                { id: 'users', icon: 'ti-users-group', label: 'Citizen Matrix' },
+                { id: 'tests', icon: 'ti-database', label: 'Global Vault' }
+            ].map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-shrink-0 px-4 md:px-6 py-3 font-black rounded-lg transition-colors flex items-center gap-2 text-sm md:text-base ${activeTab === tab.id ? 'bg-[#8B0000] text-white' : 'bg-transparent text-slate-500 hover:bg-slate-200'}`}>
+                    <i className={`ti ${tab.icon}`}></i> {tab.label}
+                </button>
+            ))}
         </div>
 
-        {/* ============================== */}
-        {/* TAB 1: PLATFORM PULSE          */}
-        {/* ============================== */}
-        {activeTab === 'pulse' && (
-            <div style={{ animation: 'fadeIn 0.3s' }}>
-                <div style={{ background: '#0B0F19', border: '1px solid #1e293b', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-                        <i className="ti ti-speakerphone" style={{ color: '#D4AF37', fontSize: '20px' }}></i>
-                        <h3 style={{ color: '#fff', margin: 0, fontSize: '16px', fontWeight: 700 }}>God Voice (Global Broadcast)</h3>
-                    </div>
-                    {currentBroadcast && (
-                        <div style={{ padding: '10px 15px', background: 'rgba(212, 175, 55, 0.1)', borderLeft: '4px solid #D4AF37', color: '#cbd5e1', fontSize: '14px', marginBottom: '1rem', fontStyle: 'italic' }}>
-                            <strong>Current Broadcast:</strong> "{currentBroadcast}"
-                        </div>
-                    )}
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        <input type="text" placeholder="Type an emergency message or system update for all users..." value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} style={{ flex: 1, padding: '12px 15px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '8px', outline: 'none', minWidth: '200px' }} />
-                        <button className="btn btn-primary" style={{ background: '#D4AF37', color: '#0B0F19', fontWeight: 800, border: 'none', padding: '12px 24px' }} onClick={updateGodVoice}>Send to All</button>
-                    </div>
-                </div>
-
-                <div className="grid4" style={{ marginBottom: '2rem' }}>
-                    <div className="card" style={{ padding: '2rem', textAlign: 'center', border: '1px solid #e2e8f0', background: '#fff' }}>
-                        <i className="ti ti-users" style={{ fontSize: '38px', color: '#185FA5', marginBottom: '15px' }}></i>
-                        <div style={{ fontSize: '42px', fontWeight: 900, color: '#0B0F19' }}>{allUsers.length > 0 ? allUsers.length : 'N/A'}</div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Citizens</div>
-                    </div>
-                    <div className="card" style={{ padding: '2rem', textAlign: 'center', border: '1px solid #e2e8f0', background: '#fff' }}>
-                        <i className="ti ti-files" style={{ fontSize: '38px', color: '#854F0B', marginBottom: '15px' }}></i>
-                        <div style={{ fontSize: '42px', fontWeight: 900, color: '#0B0F19' }}>{allTests.length}</div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Exams Forged</div>
-                    </div>
-                    <div className="card" style={{ padding: '2rem', textAlign: 'center', border: '1px solid #e2e8f0', background: '#fff' }}>
-                        <i className="ti ti-device-gamepad" style={{ fontSize: '38px', color: '#10B981', marginBottom: '15px' }}></i>
-                        <div style={{ fontSize: '42px', fontWeight: 900, color: '#0B0F19' }}>{liveExams}</div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Active Intakes</div>
-                    </div>
-                    <div className="card" style={{ padding: '2rem', textAlign: 'center', border: '1px solid #e2e8f0', background: '#fff' }}>
-                        <i className="ti ti-server" style={{ fontSize: '38px', color: '#3C3489', marginBottom: '15px' }}></i>
-                        <div style={{ fontSize: '42px', fontWeight: 900, color: '#0B0F19' }}>{totalSubsCount}</div>
-                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Submissions</div>
-                    </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-                    <div style={{ background: '#0B0F19', borderRadius: '12px', padding: '1.5rem', border: '1px solid #1e293b' }}>
-                        <h3 style={{ color: '#D4AF37', margin: '0 0 1rem 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-radar"></i> Live System Radar</h3>
-                        <div style={{ height: '250px', overflowY: 'auto', paddingRight: '5px' }}>
-                            {radarFeed.length > 0 ? radarFeed.map((feed, i) => (
-                                <div key={i} style={{ borderLeft: '2px solid #334155', paddingLeft: '12px', marginBottom: '15px', position: 'relative' }}>
-                                    <div style={{ width: '8px', height: '8px', background: '#10B981', borderRadius: '50%', position: 'absolute', left: '-5px', top: '4px' }}></div>
-                                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px', fontFamily: 'monospace' }}>[{feed.time}]</div>
-                                    <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.4 }}>{feed.msg}</div>
+        <AnimatePresence mode="wait">
+            <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                
+                {/* ============================== */}
+                {/* TAB 1: PLATFORM PULSE          */}
+                {/* ============================== */}
+                {activeTab === 'pulse' && (
+                    <div className="space-y-6 md:space-y-8">
+                        
+                        {/* God Voice */}
+                        <div className="bg-[#0B0F19] border border-slate-800 p-5 md:p-6 rounded-2xl">
+                            <div className="flex items-center gap-2 mb-4">
+                                <i className="ti ti-speakerphone text-[#D4AF37] text-xl"></i>
+                                <h3 className="text-white m-0 text-base font-bold">God Voice (Global Broadcast)</h3>
+                            </div>
+                            {currentBroadcast && (
+                                <div className="p-3 md:p-4 bg-[#D4AF37]/10 border-l-4 border-[#D4AF37] text-slate-300 text-sm mb-4 italic rounded-r-md">
+                                    <strong className="mr-1">Current Broadcast:</strong> "{currentBroadcast}"
                                 </div>
-                            )) : <div style={{ color: '#64748b', fontSize: '13px', fontStyle: 'italic' }}>No recent activity detected.</div>}
-                        </div>
-                    </div>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ background: '#FCEBEB', border: '1px solid #F7C1C1', borderRadius: '12px', padding: '1.5rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                                <h3 style={{ color: '#A32D2D', margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-shield-x"></i> Proctoring AI Module</h3>
-                                <div style={{ background: '#A32D2D', color: '#fff', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 800 }}>ACTIVE</div>
+                            )}
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <input type="text" placeholder="Type an emergency message or system update for all users..." value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)} className="flex-1 p-3 bg-slate-800 border border-slate-700 text-white rounded-lg outline-none min-w-[200px]" />
+                                <button className="px-6 py-3 bg-[#D4AF37] text-[#0B0F19] font-black rounded-lg border-none hover:bg-amber-400 transition-colors" onClick={updateGodVoice}>Send to All</button>
                             </div>
-                            <div style={{ fontSize: '36px', fontWeight: 900, color: '#A32D2D' }}>{cheatAttemptsCaught}</div>
-                            <div style={{ fontSize: '13px', color: '#791F1F', fontWeight: 600 }}>Total Cheat Violations Intercepted</div>
                         </div>
 
-                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.5rem' }}>
-                            <h3 style={{ color: '#0f172a', margin: '0 0 15px 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-database"></i> Database Quota Health</h3>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#475569', marginBottom: '8px', fontWeight: 600 }}>
-                                <span>Storage Nodes (Questions)</span>
-                                <span>{totalQuestionsInSystem} Units</span>
+                        {/* Exact Original White Stats Cards */}
+                        <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                            {[
+                                { icon: 'ti-users', color: '#185FA5', val: allUsers.length || 'N/A', label: 'Total Citizens' },
+                                { icon: 'ti-files', color: '#854F0B', val: allTests.length, label: 'Exams Forged' },
+                                { icon: 'ti-device-gamepad', color: '#10B981', val: liveExams, label: 'Active Intakes' },
+                                { icon: 'ti-server', color: '#3C3489', val: totalSubsCount, label: 'Total Submissions' }
+                            ].map((stat, i) => (
+                                <motion.div variants={fadeUp} key={i} className="bg-white border border-slate-200 p-6 md:p-8 rounded-2xl text-center">
+                                    <i className={`ti ${stat.icon} text-[38px] mb-4 block`} style={{ color: stat.color }}></i>
+                                    <div className="text-[32px] md:text-[42px] font-black text-[#0B0F19] leading-none mb-2">{stat.val}</div>
+                                    <div className="text-[11px] md:text-[13px] font-black text-slate-500 uppercase tracking-widest">{stat.label}</div>
+                                </motion.div>
+                            ))}
+                        </motion.div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+                            {/* Live System Radar (Original Colors) */}
+                            <div className="bg-[#0B0F19] rounded-2xl p-5 md:p-6 border border-slate-800">
+                                <h3 className="text-[#D4AF37] m-0 mb-4 text-base font-bold flex items-center gap-2"><i className="ti ti-radar"></i> Live System Radar</h3>
+                                <div className="h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {radarFeed.length > 0 ? radarFeed.map((feed, i) => (
+                                        <div key={i} className="border-l-2 border-slate-700 pl-3 mb-4 relative">
+                                            <div className="absolute w-2 h-2 bg-[#10B981] rounded-full -left-[5px] top-1"></div>
+                                            <div className="text-[11px] text-slate-500 mb-1 font-mono">[{feed.time}]</div>
+                                            <div className="text-[13px] text-slate-200 leading-relaxed">{feed.msg}</div>
+                                        </div>
+                                    )) : <div className="text-slate-500 text-[13px] italic">No recent activity detected.</div>}
+                                </div>
                             </div>
-                            <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{ width: `${Math.min(100, (totalQuestionsInSystem/5000)*100)}%`, background: '#185FA5', height: '100%' }}></div>
+                            
+                            {/* Analytics blocks (Original colors) */}
+                            <div className="flex flex-col gap-4 md:gap-6">
+                                <div className="bg-[#FCEBEB] border border-[#F7C1C1] rounded-2xl p-5 md:p-6">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h3 className="text-[#A32D2D] m-0 text-base font-bold flex items-center gap-2"><i className="ti ti-shield-x"></i> Proctoring AI Module</h3>
+                                        <span className="bg-[#A32D2D] text-white px-2.5 py-1 rounded-full text-xs font-black">ACTIVE</span>
+                                    </div>
+                                    <div className="text-[36px] font-black text-[#A32D2D] leading-none mb-2">{cheatAttemptsCaught}</div>
+                                    <div className="text-[13px] text-[#791F1F] font-bold">Total Cheat Violations Intercepted</div>
+                                </div>
+
+                                <div className="bg-[#f8fafc] border border-slate-200 rounded-2xl p-5 md:p-6">
+                                    <h3 className="text-[#0f172a] m-0 mb-4 text-base font-bold flex items-center gap-2"><i className="ti ti-database"></i> Database Quota Health</h3>
+                                    <div className="flex justify-between text-[13px] text-slate-600 font-bold mb-2">
+                                        <span>Storage Nodes (Questions)</span>
+                                        <span>{totalQuestionsInSystem} Units</span>
+                                    </div>
+                                    <div className="h-2 bg-slate-200 rounded-full overflow-hidden mb-2">
+                                        <div className="h-full bg-[#185FA5]" style={{ width: `${Math.min(100, (totalQuestionsInSystem/5000)*100)}%` }}></div>
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 text-right font-semibold">Free Tier Limit: ~5000</div>
+                                </div>
                             </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px', textAlign: 'right' }}>Free Tier Limit: ~5000</div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {/* ============================== */}
-        {/* TAB 2: GRAPHICAL ANALYTICS     */}
-        {/* ============================== */}
-        {activeTab === 'analytics' && (
-            <div style={{ animation: 'fadeIn 0.3s' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-                    <div className="card" style={{ background: '#0B0F19', border: '1px solid #1e293b' }}>
-                        <h3 style={{ color: '#fff', fontSize: '16px', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-target" style={{ color: '#D4AF37' }}></i> Global Platform Accuracy</h3>
-                        <div style={{ height: '300px', position: 'relative' }}>
-                            <canvas id="accuracyChart"></canvas>
-                        </div>
-                    </div>
-                    <div className="card" style={{ background: '#0B0F19', border: '1px solid #1e293b' }}>
-                        <h3 style={{ color: '#fff', fontSize: '16px', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-trending-up" style={{ color: '#D4AF37' }}></i> Recent Engagement (Last 7 Days)</h3>
-                        <div style={{ height: '300px', position: 'relative' }}>
-                            <canvas id="trendChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {/* ============================== */}
-        {/* TAB 3: USER MATRIX             */}
-        {/* ============================== */}
-        {activeTab === 'users' && (
-            <div className="card" style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h2 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>Citizen Registry</h2>
-                    <button className="btn btn-primary" onClick={fetchUsersOnDemand} disabled={isLoadingUsers}>
-                        {isLoadingUsers ? 'Fetching...' : <><i className="ti ti-download"></i> Load Users Matrix</>}
-                    </button>
-                </div>
-
-                {isLoadingUsers ? (
-                    <div style={{ textAlign: 'center', padding: '3rem 0' }}><div className="spinner"></div></div>
-                ) : allUsers.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '3rem 0', color: '#64748b' }}>Click "Load Users Matrix" to fetch database records.</div>
-                ) : (
-                    <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
-                            <thead>
-                                <tr style={{ background: '#0B0F19', color: '#D4AF37', textAlign: 'left' }}>
-                                    <th style={{ padding: '16px 20px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>Citizen Info</th>
-                                    <th style={{ padding: '16px 20px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>Email & UID</th>
-                                    <th style={{ padding: '16px 20px', fontWeight: 800, textAlign: 'center', letterSpacing: '1px', textTransform: 'uppercase' }}>Clearance Level</th>
-                                    <th style={{ padding: '16px 20px', fontWeight: 800, textAlign: 'right', letterSpacing: '1px', textTransform: 'uppercase' }}>God Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {allUsers.map((u, i) => (
-                                    <tr key={u.uid} style={{ borderBottom: '1px solid #e2e8f0', background: u.isBlocked ? '#fff0f0' : (i % 2 === 0 ? '#fff' : '#f8fafc'), opacity: u.isBlocked ? 0.7 : 1 }}>
-                                        <td style={{ padding: '16px 20px' }}>
-                                            <div style={{ fontWeight: 800, color: '#0B0F19', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                {/* 🔥 SHOWING LEGAL NAME HERE */}
-                                                {u.legalName || u.name || 'Unknown Entity'}
-                                                {u.isBlocked && <i className="ti ti-ban" style={{ color: '#A32D2D' }} title="Account Suspended"></i>}
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                                                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>{u.rollNo || u.examinerId || 'No ID'}</span>
-                                                {u.profileLocked ? <span className="badge b-green" style={{ fontSize: '10px' }}><i className="ti ti-lock"></i> Locked</span> : <span className="badge b-amber" style={{ fontSize: '10px' }}>Unverified</span>}
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: '16px 20px' }}>
-                                            <div style={{ fontSize: '14px', color: '#1e293b', fontWeight: 600 }}>{u.email}</div>
-                                            <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace', marginTop: '4px' }}>{u.uid}</div>
-                                        </td>
-                                        <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                                            {u.uid === currentUser.uid ? (
-                                                <span style={{ fontSize: '12px', color: '#D4AF37', fontWeight: 900, background: '#0B0F19', padding: '6px 12px', borderRadius: '6px', letterSpacing: '1px' }}><i className="ti ti-crown"></i> SYSTEM OWNER</span>
-                                            ) : (
-                                                <select 
-                                                    value={u.role || 'student'} 
-                                                    onChange={(e) => changeUserRole(u.uid, e.target.value, u.legalName || u.name || 'User')}
-                                                    style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, border: '1px solid #cbd5e1', background: u.role === 'admin' ? '#FCEBEB' : u.role === 'examiner' ? '#EAF3DE' : '#f1f5f9', color: u.role === 'admin' ? '#A32D2D' : u.role === 'examiner' ? '#3B6D11' : '#475569', cursor: 'pointer', outline: 'none' }}
-                                                >
-                                                    <option value="student">Student</option>
-                                                    <option value="examiner">Examiner</option>
-                                                    <option value="admin">Admin</option>
-                                                </select>
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                                            {u.uid !== currentUser.uid && (
-                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                                    {/* 🔥 FORCE EDIT NAME ACTION */}
-                                                    <button className="btn btn-sm" style={{ padding: '8px', background: '#fff', color: '#854F0B', border: '1px solid #FAC775' }} onClick={() => adminChangeName(u.uid, u.legalName || u.name)} title="Force Edit Name">
-                                                        <i className="ti ti-pencil" style={{ fontSize: '16px' }}></i>
-                                                    </button>
-                                                    
-                                                    <button className="btn btn-sm" style={{ padding: '8px', background: u.isBlocked ? '#EAF3DE' : '#fff5f5', color: u.isBlocked ? '#3B6D11' : '#A32D2D', border: `1px solid ${u.isBlocked ? '#C0DD97' : '#ffcdd2'}` }} onClick={() => toggleUserBlock(u.uid, u.isBlocked, u.legalName || u.name || 'User')} title={u.isBlocked ? "Unblock User" : "Suspend User"}>
-                                                        <i className={`ti ${u.isBlocked ? 'ti-user-check' : 'ti-user-off'}`} style={{ fontSize: '16px' }}></i>
-                                                    </button>
-                                                    
-                                                    <button className="btn btn-sm btn-danger" style={{ padding: '8px', background: '#8B0000', color: '#fff', border: 'none' }} onClick={() => eradicateUser(u.uid, u.legalName || u.name || 'User')} title="Permanently Eradicate">
-                                                        <i className="ti ti-trash-x" style={{ fontSize: '16px' }}></i>
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
                     </div>
                 )}
-            </div>
-        )}
 
-        {/* ============================== */}
-        {/* TAB 4: GLOBAL VAULT            */}
-        {/* ============================== */}
-        {activeTab === 'tests' && (
-            <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
-                        <thead>
-                            <tr style={{ background: '#0B0F19', color: '#D4AF37', textAlign: 'left' }}>
-                                <th style={{ padding: '16px 20px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>Unique Code</th>
-                                <th style={{ padding: '16px 20px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>Exam Title</th>
-                                <th style={{ padding: '16px 20px', fontWeight: 800, textAlign: 'center', letterSpacing: '1px', textTransform: 'uppercase' }}>Data Blocks</th>
-                                <th style={{ padding: '16px 20px', fontWeight: 800, textAlign: 'center', letterSpacing: '1px', textTransform: 'uppercase' }}>Status</th>
-                                <th style={{ padding: '16px 20px', fontWeight: 800, textAlign: 'right', letterSpacing: '1px', textTransform: 'uppercase' }}>God Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {allTests.map((t, i) => {
-                                const subs = safeArray(t.submissions);
-                                const subsCount = subs.length;
-                                return (
-                                <tr key={t.dbKey} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 0 ? '#fff' : '#f8fafc', transition: '0.2s' }}>
-                                    <td style={{ padding: '16px 20px', fontFamily: 'monospace', fontSize: '16px', color: '#A32D2D', fontWeight: 900, letterSpacing: '2px' }}>{t.code}</td>
-                                    <td style={{ padding: '16px 20px' }}>
-                                        <div style={{ fontWeight: 800, color: '#0B0F19', fontSize: '15px', marginBottom: '4px' }}>{t.title}</div>
-                                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>{t.totalMarks} Marks System</div>
-                                    </td>
-                                    <td style={{ padding: '16px 20px', fontWeight: 800, color: '#185FA5', textAlign: 'center', fontSize: '16px' }}>{subsCount}</td>
-                                    <td style={{ padding: '16px 20px', textAlign: 'center' }}>
-                                        {t.isActive !== false ? <span className="badge b-green" style={{ padding: '6px 12px', fontWeight: 800, letterSpacing: '1px' }}>LIVE</span> : <span className="badge b-gray" style={{ padding: '6px 12px', fontWeight: 800, letterSpacing: '1px' }}>CLOSED</span>}
-                                    </td>
-                                    <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                            <button className="btn btn-sm" style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 800, background: '#0B0F19', color: '#D4AF37', border: '1px solid #D4AF37' }} onClick={() => setViewingSubsFor(t)}>
-                                                <i className="ti ti-eye"></i> View Vault
-                                            </button>
-                                            <button className="btn btn-sm btn-danger" style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 800, background: '#8B0000', border: 'none', color: '#fff' }} onClick={() => deleteGlobalTest(t)}>
-                                                <i className="ti ti-flame"></i> Nuke
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )})}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        )}
-
-        {/* ALERTS & MODALS */}
-        {sysAlert && (
-            <div className="modal-bg" style={{ zIndex: 9999, background: 'rgba(11, 15, 25, 0.8)' }}>
-                <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem', background: '#0B0F19', border: `2px solid ${sysAlert.type === 'error' ? '#ff4444' : '#10B981'}`, borderRadius: '16px' }}>
-                    <i className={`ti ${sysAlert.type === 'error' ? 'ti-alert-octagon' : 'ti-circle-check'}`} style={{ fontSize: '48px', color: sysAlert.type === 'error' ? '#ff4444' : '#10B981', marginBottom: '15px' }}></i>
-                    <h3 style={{ fontSize: '20px', marginBottom: '10px', color: '#fff', fontWeight: 800 }}>{sysAlert.title}</h3>
-                    <p style={{ color: '#cbd5e1', marginBottom: '2rem', fontWeight: 500 }}>{sysAlert.msg}</p>
-                    <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', background: sysAlert.type === 'error' ? '#8B0000' : '#10B981', color: '#fff', border: 'none', fontWeight: 800, letterSpacing: '1px' }} onClick={() => setSysAlert(null)}>ACKNOWLEDGE</button>
-                </div>
-            </div>
-        )}
-
-        {sysConfirm && (
-            <div className="modal-bg" style={{ zIndex: 9999, background: 'rgba(11, 15, 25, 0.8)' }}>
-                <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem', background: '#0B0F19', border: '2px solid #ff4444', borderRadius: '16px' }}>
-                    <i className="ti ti-alert-triangle" style={{ fontSize: '48px', color: '#ff4444', marginBottom: '15px' }}></i>
-                    <h3 style={{ fontSize: '20px', marginBottom: '10px', color: '#fff', fontWeight: 800 }}>{sysConfirm.title}</h3>
-                    <p style={{ color: '#cbd5e1', marginBottom: '2rem', fontWeight: 500, lineHeight: 1.5 }}>{sysConfirm.msg}</p>
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                        <button className="btn" style={{ flex: 1, justifyContent: 'center', background: '#1e293b', color: '#fff', border: 'none', fontWeight: 700 }} onClick={() => setSysConfirm(null)}>ABORT</button>
-                        <button className="btn btn-danger" style={{ flex: 1, justifyContent: 'center', background: '#8B0000', color: '#fff', border: 'none', fontWeight: 800, letterSpacing: '1px' }} onClick={() => { sysConfirm.action(); setSysConfirm(null); }}>EXECUTE</button>
+                {/* ============================== */}
+                {/* TAB 2: GRAPHICAL ANALYTICS     */}
+                {/* ============================== */}
+                {activeTab === 'analytics' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+                        <div className="bg-[#0B0F19] border border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm">
+                            <h3 className="text-white text-base m-0 mb-6 font-bold flex items-center gap-2"><i className="ti ti-target text-[#D4AF37]"></i> Global Platform Accuracy</h3>
+                            <div className="h-[300px] relative w-full"><canvas id="accuracyChart"></canvas></div>
+                        </div>
+                        <div className="bg-[#0B0F19] border border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm">
+                            <h3 className="text-white text-base m-0 mb-6 font-bold flex items-center gap-2"><i className="ti ti-trending-up text-[#D4AF37]"></i> Recent Engagement (Last 7 Days)</h3>
+                            <div className="h-[300px] relative w-full"><canvas id="trendChart"></canvas></div>
+                        </div>
                     </div>
-                </div>
-            </div>
-        )}
+                )}
 
-    </div>
+                {/* ============================== */}
+                {/* TAB 3: USER MATRIX             */}
+                {/* ============================== */}
+                {activeTab === 'users' && (
+                    <motion.div className="bg-white border border-slate-200 p-4 md:p-6 rounded-2xl shadow-sm">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                            <h2 className="text-lg m-0 font-bold text-slate-900">Citizen Registry</h2>
+                            <button className="flex items-center justify-center gap-2 px-4 py-2 bg-[#185FA5] text-white font-medium rounded-md hover:bg-[#0C447C] transition-colors text-sm w-full sm:w-auto disabled:opacity-50" onClick={fetchUsersOnDemand} disabled={isLoadingUsers}>
+                                {isLoadingUsers ? 'Fetching...' : <><i className="ti ti-download"></i> Load Users Matrix</>}
+                            </button>
+                        </div>
+
+                        {isLoadingUsers ? (
+                            <div className="text-center py-12"><div className="w-8 h-8 border-4 border-[#185FA5] border-t-transparent rounded-full animate-spin mx-auto"></div></div>
+                        ) : allUsers.length === 0 ? (
+                            <div className="text-center py-12 text-slate-500 font-medium">Click "Load Users Matrix" to fetch database records.</div>
+                        ) : (
+                            <div className="overflow-x-auto border border-slate-200 rounded-lg hide-scrollbar">
+                                <table className="w-full min-w-[900px] text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-[#0B0F19] text-[#D4AF37] text-[13px] uppercase tracking-wide">
+                                            <th className="p-4 font-bold">Citizen Info</th>
+                                            <th className="p-4 font-bold">Email & UID</th>
+                                            <th className="p-4 font-bold text-center">Clearance Level</th>
+                                            <th className="p-4 font-bold text-right">God Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200">
+                                        {allUsers.map((u, i) => (
+                                            <tr key={u.uid} className={`${u.isBlocked ? 'bg-[#fff0f0] opacity-70' : 'even:bg-white odd:bg-slate-50'} hover:bg-slate-100 transition-colors`}>
+                                                <td className="p-4">
+                                                    <div className="font-black text-slate-900 text-base flex items-center gap-2">
+                                                        {u.legalName || u.name || 'Unknown Entity'}
+                                                        {u.isBlocked && <i className="ti ti-ban text-[#A32D2D]" title="Account Suspended"></i>}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1.5">
+                                                        <span className="text-[12px] text-slate-500 font-bold">{u.rollNo || u.examinerId || 'No ID'}</span>
+                                                        {u.profileLocked ? <span className="bg-[#EAF3DE] text-[#27500A] px-1.5 py-0.5 rounded text-[10px] font-bold border border-[#C0DD97] flex items-center gap-1"><i className="ti ti-lock"></i> Locked</span> : <span className="bg-[#FAEEDA] text-[#633806] px-1.5 py-0.5 rounded text-[10px] font-bold border border-[#FAC775]">Unverified</span>}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="text-[14px] text-slate-800 font-bold">{u.email}</div>
+                                                    <div className="text-[11px] text-slate-400 font-mono mt-1">{u.uid}</div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    {u.uid === currentUser.uid ? (
+                                                        <span className="inline-flex bg-[#0B0F19] text-[#D4AF37] text-[12px] font-black px-3 py-1.5 rounded-md tracking-wider"><i className="ti ti-crown mr-1"></i> SYSTEM OWNER</span>
+                                                    ) : (
+                                                        <select 
+                                                            value={u.role || 'student'} 
+                                                            onChange={(e) => changeUserRole(u.uid, e.target.value, u.legalName || u.name || 'User')}
+                                                            className={`p-2 rounded-lg text-[13px] font-bold border outline-none cursor-pointer text-center ${u.role === 'admin' ? 'bg-[#FCEBEB] text-[#A32D2D] border-[#F7C1C1]' : u.role === 'examiner' ? 'bg-[#EAF3DE] text-[#3B6D11] border-[#C0DD97]' : 'bg-slate-100 text-slate-600 border-slate-300'}`}
+                                                        >
+                                                            <option value="student">Student</option>
+                                                            <option value="examiner">Examiner</option>
+                                                            <option value="admin">Admin</option>
+                                                        </select>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    {u.uid !== currentUser.uid && (
+                                                        <div className="flex gap-2 justify-end flex-wrap">
+                                                            <button className="p-2 bg-white text-[#854F0B] border border-[#FAC775] rounded-md hover:bg-[#FAEEDA] transition-colors" onClick={() => adminChangeName(u.uid, u.legalName || u.name)} title="Force Edit Name">
+                                                                <i className="ti ti-pencil text-base"></i>
+                                                            </button>
+                                                            <button className={`p-2 border rounded-md transition-colors ${u.isBlocked ? 'bg-[#EAF3DE] text-[#3B6D11] border-[#C0DD97] hover:bg-[#dcefc8]' : 'bg-[#fff5f5] text-[#A32D2D] border-[#ffcdd2] hover:bg-[#f8d0d0]'}`} onClick={() => toggleUserBlock(u.uid, u.isBlocked, u.legalName || u.name || 'User')} title={u.isBlocked ? "Unblock User" : "Suspend User"}>
+                                                                <i className={`ti ${u.isBlocked ? 'ti-user-check' : 'ti-user-off'} text-base`}></i>
+                                                            </button>
+                                                            <button className="p-2 bg-[#8B0000] text-white rounded-md hover:bg-red-800 transition-colors border-none" onClick={() => eradicateUser(u.uid, u.legalName || u.name || 'User')} title="Permanently Eradicate">
+                                                                <i className="ti ti-trash-x text-base"></i>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+
+                {/* ============================== */}
+                {/* TAB 4: GLOBAL VAULT            */}
+                {/* ============================== */}
+                {activeTab === 'tests' && (
+                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden p-0">
+                        <div className="overflow-x-auto hide-scrollbar">
+                            <table className="w-full min-w-[900px] text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-[#0B0F19] text-[#D4AF37] text-[13px] uppercase tracking-wide">
+                                        <th className="p-4 font-bold">Unique Code</th>
+                                        <th className="p-4 font-bold">Exam Title</th>
+                                        <th className="p-4 font-bold text-center">Data Blocks</th>
+                                        <th className="p-4 font-bold text-center">Status</th>
+                                        <th className="p-4 font-bold text-right">God Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {allTests.map((t, i) => {
+                                        const subs = safeArray(t.submissions);
+                                        return (
+                                        <tr key={t.dbKey} className="even:bg-white odd:bg-slate-50 hover:bg-slate-100 transition-colors">
+                                            <td className="p-4 font-mono text-base text-[#A32D2D] font-black tracking-[2px]">{t.code}</td>
+                                            <td className="p-4">
+                                                <div className="font-black text-slate-900 text-[15px] mb-1">{t.title}</div>
+                                                <div className="text-xs text-slate-500 font-bold">{t.totalMarks} Marks System</div>
+                                            </td>
+                                            <td className="p-4 font-black text-[#185FA5] text-center text-lg">{subs.length}</td>
+                                            <td className="p-4 text-center">
+                                                {t.isActive !== false ? <span className="px-3 py-1.5 bg-[#EAF3DE] text-[#27500A] text-[11px] font-black rounded-full tracking-wide">LIVE</span> : <span className="px-3 py-1.5 bg-slate-200 text-slate-600 text-[11px] font-black rounded-full tracking-wide">CLOSED</span>}
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <div className="flex gap-2 justify-end flex-wrap">
+                                                    <button className="flex items-center gap-1 px-3 py-1.5 bg-[#0B0F19] text-[#D4AF37] border border-[#D4AF37] rounded-md font-bold text-[13px] hover:bg-slate-900 transition-colors" onClick={() => setViewingSubsFor(t)}>
+                                                        <i className="ti ti-eye"></i> View Vault
+                                                    </button>
+                                                    <button className="flex items-center gap-1 px-3 py-1.5 bg-[#8B0000] text-white border-none rounded-md font-bold text-[13px] hover:bg-red-800 transition-colors" onClick={() => deleteGlobalTest(t)}>
+                                                        <i className="ti ti-flame"></i> Nuke
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )})}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </motion.div>
+        </AnimatePresence>
+
+        {/* ALERTS & MODALS (Exact original style but animated) */}
+        <AnimatePresence>
+            {sysAlert && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] bg-[#0B0F19]/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className={`bg-[#0B0F19] border-2 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl ${sysAlert.type === 'error' ? 'border-[#ff4444]' : 'border-[#10B981]'}`}>
+                        <i className={`ti ${sysAlert.type === 'error' ? 'ti-alert-octagon text-[#ff4444]' : 'ti-circle-check text-[#10B981]'} text-5xl mb-4 block`}></i>
+                        <h3 className="text-[20px] text-white font-black mb-2">{sysAlert.title}</h3>
+                        <p className="text-slate-300 mb-8 font-medium text-[15px]">{sysAlert.msg}</p>
+                        <button className={`w-full py-3 font-black text-white rounded-lg tracking-wider transition-colors ${sysAlert.type === 'error' ? 'bg-[#8B0000] hover:bg-red-900' : 'bg-[#10B981] hover:bg-emerald-600'}`} onClick={() => setSysAlert(null)}>ACKNOWLEDGE</button>
+                    </motion.div>
+                </motion.div>
+            )}
+
+            {sysConfirm && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] bg-[#0B0F19]/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-[#0B0F19] border-2 border-[#ff4444] rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+                        <i className="ti ti-alert-triangle text-5xl text-[#ff4444] mb-4 block"></i>
+                        <h3 className="text-[20px] text-white font-black mb-3">{sysConfirm.title}</h3>
+                        <p className="text-slate-300 mb-8 font-medium leading-relaxed text-[15px]">{sysConfirm.msg}</p>
+                        <div className="flex gap-3">
+                            <button className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700" onClick={() => setSysConfirm(null)}>ABORT</button>
+                            <button className="flex-1 py-3 bg-[#8B0000] text-white font-black rounded-lg hover:bg-red-900 tracking-wider" onClick={() => { sysConfirm.action(); setSysConfirm(null); }}>EXECUTE</button>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        <style jsx global>{`
+            .hide-scrollbar::-webkit-scrollbar { display: none; }
+            .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+            .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        `}</style>
+    </motion.div>
   );
 }
