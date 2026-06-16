@@ -307,7 +307,7 @@ function Header() {
                                                     style={{ gridTemplateRows: isActive ? '1fr' : '0fr' }}
                                                 >
                                                     <div className="overflow-hidden">
-                                                        <div className="px-5 pb-5 pt-0 text-slate-600 dark:text-slate-300 text-[14px] leading-relaxed border-t border-blue-100 dark:border-slate-700/50 mt-1 pt-4">
+                                                        <div className="px-5 pb-5 text-slate-600 dark:text-slate-300 text-[14px] leading-relaxed border-t border-blue-100 dark:border-slate-700/50 mt-1 pt-4">
                                                             {tab.content}
                                                         </div>
                                                     </div>
