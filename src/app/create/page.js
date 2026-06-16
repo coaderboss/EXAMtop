@@ -191,14 +191,59 @@ export default function CreateTest() {
     setQList(newList);
   };
 
-  // --- JSON Import/Export ---
   const downloadTemplate = () => {
-    const t = JSON.stringify([{ section: 'Physics', type: 'mcq', text: 'Sample Question?', imgUrl: '', marks: 4, options: ['A', 'B', 'C', 'D'], correct: [0], explanation: 'Logic here' }], null, 2);
+    const t = JSON.stringify([
+      { 
+        section: 'Physics', 
+        type: 'mcq', 
+        text: 'Find the equivalent resistance in the given circuit:', 
+        figureType: 'image', // Universal Image Engine (URL or Base64 Text)
+        figureData: 'https://via.placeholder.com/400x150.png?text=Placeholder+Circuit+Diagram', 
+        marks: 4, 
+        options: ['2 Ohm', '4 Ohm', '6 Ohm', '8 Ohm'], 
+        correct: [1], 
+        explanation: 'Use parallel combination formula.' 
+      },
+      { 
+        section: 'Chemistry', 
+        type: 'mcq', 
+        text: 'Identify the functional groups present in this molecule (Aspirin):', 
+        figureType: 'smiles', // Chemistry SMILES Engine
+        figureData: 'CC(=O)OC1=CC=CC=C1C(=O)O', 
+        marks: 4, 
+        options: ['Ester and Carboxylic Acid', 'Alcohol and Ketone', 'Aldehyde and Ether', 'Amine and Amide'], 
+        correct: [0], 
+        explanation: 'Contains an acetyl group (ester) and a carboxylic acid group.' 
+      },
+      { 
+        section: 'Mathematics', 
+        type: 'mcq', 
+        text: 'Based on the geometric figure plotted below, identify the shape:', 
+        figureType: 'tikz', // Math/Geometry TikZ Engine
+        figureData: '\\draw (0,0) -- (4,0) -- (0,3) -- cycle; \\draw (0,0.3) -- (0.3,0.3) -- (0.3,0);', 
+        marks: 4, 
+        options: ['Equilateral Triangle', 'Isosceles Triangle', 'Right Angled Triangle', 'Scalene Triangle'], 
+        correct: [2], 
+        explanation: 'The square symbol in the corner confirms it is a right-angled triangle.' 
+      },
+      { 
+        section: 'General', 
+        type: 'mcq', 
+        text: 'Which of the following elements has the highest electronegativity?', 
+        figureType: 'none', // No Figure required
+        figureData: '', 
+        marks: 4, 
+        options: ['Oxygen', 'Fluorine', 'Chlorine', 'Nitrogen'], 
+        correct: [1], 
+        explanation: 'Fluorine is the most electronegative element in the periodic table.' 
+      }
+    ], null, 2);
+    
     const blob = new Blob([t], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'examitop_template.json';
+    a.download = 'examitop_universal_template.json';
     a.click();
   };
 
