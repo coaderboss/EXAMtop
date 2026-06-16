@@ -20,6 +20,7 @@ function Header() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [activeGuideTab, setActiveGuideTab] = useState(null); 
   
   // Profile States
   const [showProfile, setShowProfile] = useState(false);
@@ -101,32 +102,51 @@ function Header() {
       }
   };
 
-  // 🔥 HIGHLY DETAILED INSTRUCTIONS
+  /// 🔥 ADVANCED INTERACTIVE PAGE INSTRUCTIONS
   const getPageInstructions = () => {
     switch(pathname) {
         case '/student': return { 
-            title: 'Live Exam Engine Guide', 
-            content: <><p style={{ marginBottom: '10px' }}>Welcome to the Secure Exam Engine. This interface is heavily monitored to ensure fair play.</p><ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}><li><strong>Anti-Cheat Active:</strong> Do NOT switch tabs, minimize the browser, or exit full-screen mode. Doing so will trigger warnings and auto-submit your exam.</li><li><strong>Question Palette:</strong> Use the right-side grid to jump between questions. Colors indicate status (Blue = Answered, Yellow = Marked for Review).</li><li><strong>Timer:</strong> Keep an eye on the top-right clock. The paper will auto-submit when time is up.</li></ul></>
+            title: 'Live Exam Guidelines', 
+            basic: 'Take a deep breath! This interface is designed to be completely failure-proof. Focus on your exam without worrying about internet drops or glitches.',
+            tabs: [
+                { id: 'anti-cheat', icon: 'ti-shield-lock', title: 'Sentinel Proctoring', content: 'Our background daemon strictly monitors tab-switching and screen behavior. Stay in full-screen mode to avoid auto-submission warnings.' },
+                { id: 'offline', icon: 'ti-wifi-off', title: 'Zero-Connectivity Vault', content: 'Internet dropped? Keep solving! Your answers are securely locked in your device\'s local storage and will automatically sync the moment connection returns.' },
+                { id: 'palette', icon: 'ti-layout-grid', title: 'Smart Palette', content: 'Use the right-side grid to jump between questions. Blue means Answered, Yellow means Marked for Review, and Grey is Unvisited.' }
+            ]
         };
         case '/create': return { 
             title: 'Test Creator Masterclass', 
-            content: <><p style={{ marginBottom: '10px' }}>This is your canvas to build professional-grade assessments.</p><ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}><li><strong>Basic Config:</strong> Set strict limits using Duration, Total Marks, and Expiry Dates.</li><li><strong>Result Visibility:</strong> Choose 'Instant' if you want students to see their score immediately, or 'Manual' if you have subjective questions.</li><li><strong>MathJax Support:</strong> Type complex equations in question fields, and they will auto-render.</li></ul></>
+            basic: 'Design professional-grade assessments using our advanced Hybrid formatting engine.',
+            tabs: [
+                { id: 'hybrid', icon: 'ti-vector', title: 'Hybrid Figures Engine', content: 'Use the dropdown to attach Visuals! Select SMILES for auto-drawing Chemistry diagrams (e.g., c1ccccc1), or TikZ for Math geometry. Normal image upload is also fully supported offline.' },
+                { id: 'math', icon: 'ti-math-symbols', title: 'MathJax Support', content: 'Wrap your mathematical equations in $$ (e.g., $$x^2 + y^2$$) to instantly render crisp, vector-based math formulas in the question text.' },
+                { id: 'settings', icon: 'ti-adjustments', title: 'Smart Configuration', content: 'Set strict limits using Duration, Total Marks, and select Result Visibility (Instant vs Manual).' }
+            ]
         };
         case '/tests': return { 
             title: 'Examiner Vault Operations', 
-            content: <><p style={{ marginBottom: '10px' }}>Manage all your created tests and evaluate student submissions.</p><ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}><li><strong>Live/Closed Toggle:</strong> Instantly stop accepting new submissions.</li><li><strong>Smart Re-keying:</strong> Click "Edit Key", fix the answer, and instantly re-grade all past submissions.</li><li><strong>Manual Evaluation:</strong> Click "Evaluate" to override auto-graded marks.</li></ul></>
+            basic: 'Welcome to your Command Center. Manage intakes, monitor live submissions, and evaluate papers seamlessly with these advanced tools.',
+            tabs: [
+                { id: 'bulk', icon: 'ti-file-upload', title: 'Bulk Import Template', content: 'Download our universal JSON template. Define figureType as "image", "smiles", "tikz", or "none" to seamlessly build complex papers completely offline.' },
+                { id: 'rekey', icon: 'ti-wand', title: 'Magic Re-keying', content: 'Found a mistake in your question paper? Click "Edit Key", fix the correct option, and our engine will instantly auto-regrade hundreds of past student submissions in milliseconds.' },
+                { id: 'evaluate', icon: 'ti-pencil-check', title: 'Manual Evaluation', content: 'Click "Evaluate" on any submission to manually override marks or grade subjective questions. Every single mark change is securely recorded in an Immutable Audit Log.' },
+                { id: 'sections', icon: 'ti-layout-distribute-vertical', title: 'Sectional Analytics', content: 'Filter student performance by specific sections (e.g., Physics, Chemistry). Dive deep into class weaknesses, strengths, and question-level accuracy.' },
+                { id: 'proctoring', icon: 'ti-shield-half-filled', title: 'Integrity Radar (Anti-Cheat)', content: 'Every submission comes with a timestamped Proctoring Log. Instantly verify if a student switched tabs, minimized the window, or attempted to bypass the full-screen lockdown.' },
+                { id: 'export', icon: 'ti-file-spreadsheet', title: 'CSV Ledger Export', content: 'Generate a comprehensive Excel/CSV report of the entire batch in one click. Instantly download detailed metrics including Accuracy %, Total Score, Correct/Wrong counts, and Submission Timestamps.' },
+                { id: 'publish', icon: 'ti-share', title: 'Smart Publishing & Share', content: 'Control exactly when results go live using the "Publish Results Manually" toggle. Once ready, use the 1-Click WhatsApp/Telegram share buttons to broadcast the secure test link directly to your students.' }
+            ]
         };
         case '/arena': return { 
             title: 'Practice Arena Guide', 
-            content: <><p style={{ marginBottom: '10px' }}>Sharpen your logical building skills.</p><ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}><li><strong>General Mode:</strong> Pick a standard subject template.</li><li><strong>Gemini AI Mode:</strong> Enter any specific topic, and our AI will generate a custom mock test.</li></ul></>
-        };
-        case '/admin': return { 
-            title: 'God Mode Guide', 
-            content: <><p style={{ marginBottom: '10px', color: '#A32D2D', fontWeight: 'bold' }}>WARNING: You are in Root Access Mode.</p><ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}><li><strong>User Matrix:</strong> Change any user's role to Admin/Examiner.</li><li><strong>Global Vault:</strong> Delete individual submissions or nuke entire tests.</li><li><strong>Kill Switch:</strong> Instantly halt all active exams platform-wide.</li></ul></>
+            basic: 'Sharpen your logical building and problem-solving skills in a pressure-free environment.',
+            tabs: [
+                { id: 'gemini', icon: 'ti-sparkles', title: 'AI Mock Tests', content: 'Enter any specific engineering or academic topic, and our AI will dynamically generate a custom mock test tailored to your needs.' }
+            ]
         };
         default: return { 
-            title: 'ExamiTop Portal Overview', 
-            content: <><p style={{ marginBottom: '10px' }}>Welcome to the most secure assessment platform.</p><ul style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}><li>Use the top navigation bar to switch between tabs.</li><li>Click on your Profile icon to update details or logout.</li><li>Use the Settings (Gear) icon to toggle Dark Mode.</li></ul></>
+            title: 'ExamiTop Overview', 
+            basic: 'Welcome to the most secure, offline-capable assessment platform built for modern academic needs.',
+            tabs: []
         };
     }
   };
@@ -213,18 +233,100 @@ function Header() {
             
         </div>
 
-        {/* 🔥 DETAILED INFO MODAL */}
+       {/* 🔥 PREMIUM INTERACTIVE GUIDE MODAL (Tailwind + Animations) */}
         {showInfo && (
-            <div className="modal-bg" style={{ zIndex: 99999 }}>
-                <div className="modal-box" style={{ maxWidth: '550px', padding: '2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '2px solid var(--color-border-secondary)', paddingBottom: '10px' }}>
-                        <h3 style={{ margin: 0, color: '#185FA5', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '22px' }}><i className="ti ti-bulb"></i> {info.title}</h3>
-                        <button className="btn btn-sm btn-ghost" onClick={() => setShowInfo(false)}><i className="ti ti-x" style={{ fontSize: '20px' }}></i></button>
+            <div 
+                className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md" 
+                style={{ animation: 'fadeIn 0.3s ease-out forwards' }}
+                onClick={() => { setShowInfo(false); setActiveGuideTab(null); }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]" 
+                    style={{ animation: 'slideUpScale 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Premium Header */}
+                    <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                                <i className="ti ti-bulb text-2xl"></i>
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">
+                                {info.title}
+                            </h3>
+                        </div>
+                        <button 
+                            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 flex items-center justify-center text-slate-500 transition-colors" 
+                            onClick={() => { setShowInfo(false); setActiveGuideTab(null); }}
+                        >
+                            <i className="ti ti-x text-xl"></i>
+                        </button>
                     </div>
-                    <div style={{ background: 'var(--color-background-secondary)', padding: '1.5rem', borderRadius: '10px', border: '1px solid var(--color-border-secondary)', color: 'var(--color-text-primary)', fontSize: '15px', lineHeight: 1.6 }}>
-                        {info.content}
+
+                    {/* Scrollable Content Area */}
+                    <div className="p-6 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+                        <p className="text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed mb-6">
+                            {info.basic}
+                        </p>
+
+                        {info.tabs && info.tabs.length > 0 && (
+                            <div className="space-y-3">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 ml-1">Feature Breakdown</h4>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {info.tabs.map(tab => {
+                                        const isActive = activeGuideTab === tab.id;
+                                        return (
+                                            <div 
+                                                key={tab.id} 
+                                                className={`rounded-xl border transition-all duration-300 overflow-hidden cursor-pointer ${
+                                                    isActive 
+                                                    ? 'bg-blue-50/50 dark:bg-slate-800 border-blue-300 dark:border-blue-500/50 shadow-lg shadow-blue-500/10 md:col-span-2 ring-1 ring-blue-500/20' 
+                                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md'
+                                                }`}
+                                                onClick={() => setActiveGuideTab(isActive ? null : tab.id)}
+                                            >
+                                                {/* Tab Header */}
+                                                <div className="px-5 py-4 flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-300 ${isActive ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
+                                                            <i className={`ti ${tab.icon} text-lg`}></i>
+                                                        </div>
+                                                        <span className={`font-bold transition-colors duration-300 ${isActive ? 'text-blue-700 dark:text-blue-400 text-[15px]' : 'text-slate-700 dark:text-slate-300 text-[14px]'}`}>
+                                                            {tab.title}
+                                                        </span>
+                                                    </div>
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isActive ? 'bg-blue-200/50 dark:bg-blue-900/50' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                                                        <i className={`ti ti-chevron-down text-sm transition-transform duration-300 ${isActive ? 'rotate-180 text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}></i>
+                                                    </div>
+                                                </div>
+
+                                                {/* 🔥 Advanced CSS Grid Animation for Height */}
+                                                <div 
+                                                    className="grid transition-all duration-300 ease-in-out"
+                                                    style={{ gridTemplateRows: isActive ? '1fr' : '0fr' }}
+                                                >
+                                                    <div className="overflow-hidden">
+                                                        <div className="px-5 pb-5 pt-0 text-slate-600 dark:text-slate-300 text-[14px] leading-relaxed border-t border-blue-100 dark:border-slate-700/50 mt-1 pt-4">
+                                                            {tab.content}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                    <button className="btn btn-primary" style={{ width: '100%', marginTop: '1.5rem', padding: '14px', fontSize: '16px', justifyContent: 'center' }} onClick={() => setShowInfo(false)}>Understood</button>
+                    
+                    {/* Inline Animation Keyframes (No need to touch globals.css) */}
+                    <style dangerouslySetInnerHTML={{__html: `
+                        @keyframes slideUpScale {
+                            0% { opacity: 0; transform: translateY(20px) scale(0.95); }
+                            100% { opacity: 1; transform: translateY(0) scale(1); }
+                        }
+                    `}} />
                 </div>
             </div>
         )}
