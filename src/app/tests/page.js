@@ -5,8 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
-// 🔥 THE FIX: 'get' import add kiya gaya hai exact update/delete ke liye
 import { ref, set, update, remove, get } from 'firebase/database'; 
+import FigureRenderer from '../../components/FigureRenderer'; 
 
 export default function ManageTests() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
@@ -598,8 +598,17 @@ export default function ManageTests() {
                       
                       <div className="qr-body">
                          <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.25rem', fontWeight: 500 }} dangerouslySetInnerHTML={{ __html: q.text }}></div>           
-                         {q.imgUrl && <div style={{ marginBottom: '1.5rem' }}><img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} /></div>}
-                          
+                         
+                         {/* 🔥 THE FIX: Universal Hybrid Figure Renderer Added Here */}
+                         <FigureRenderer figureType={q.figureType} figureData={q.figureData} />
+                         
+                         {/* Fallback for legacy tests that only have imgUrl */}
+                         {!q.figureType && q.imgUrl && (
+                             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+                                 <img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} alt="Legacy Question Figure" />
+                             </div>
+                         )}
+                                                   
                           {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
                               let isUser = userSel.includes(j);
                               let isCorr = corrSel.includes(j);

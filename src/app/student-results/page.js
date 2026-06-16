@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 // 🔥 THE FIX: Imported direct Firebase functions
 import { database } from '../../lib/firebase';
 import { ref, get } from 'firebase/database';
+import FigureRenderer from '../../components/FigureRenderer'; 
 
 export default function StudentResults() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -391,8 +392,17 @@ export default function StudentResults() {
                 </div>
                 <div className="qr-body">
                     <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.5rem', color: 'var(--color-text-primary)', fontWeight: 500 }} dangerouslySetInnerHTML={{ __html: q.text }}></div>
-                    {q.imgUrl && <div style={{ marginBottom: '1.5rem' }}><img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} /></div>}
                     
+                    {/* 🔥 THE FIX: Universal Hybrid Figure Renderer Added Here */}
+                    <FigureRenderer figureType={q.figureType} figureData={q.figureData} />
+                    
+                    {/* Fallback for very old JSON imports that still use imgUrl */}
+                    {!q.figureType && q.imgUrl && (
+                         <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+                             <img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} alt="Legacy Question Figure" />
+                         </div>
+                    )}
+                                        
                     {/* MCQ / MSQ Options */}
                     {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
                         let isUser = userSel.includes(j);

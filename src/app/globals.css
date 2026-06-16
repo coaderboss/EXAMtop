@@ -49,10 +49,17 @@
 @keyframes fadeOut { to { opacity: 0; visibility: hidden; } }
 
 body {
-   font-family: var(--font-sans); background: var(--color-background-tertiary);
-    color: var(--color-text-primary); min-height: 100vh; font-size: 15px; }
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent; 
+    user-select: none; 
 
-/* Enhanced Header */
+     font-family: var(--font-sans); background: var(--color-background-tertiary);
+    color: var(--color-text-primary); min-height: 100vh; font-size: 15px;
+}
+input, textarea {
+  user-select: auto;
+   }
+
 .navbar {
    background: var(--color-background-primary);
    border-bottom: 1px solid var(--color-border-secondary); padding: 0 2rem;

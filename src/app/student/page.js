@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
 // 🔥 THE FIX: Added 'get' for Absolute Index Lookup during submission
 import { ref, push, set, get } from 'firebase/database'; 
+import SmilesViewer from '../../components/SmilesViewer';
 
 // 🔥 THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
@@ -641,8 +642,39 @@ export default function StudentPortal() {
               {/* StaticMath applied to Question Text */}
               <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
               
-              {currentQuestion?.imgUrl && (
-                  <div style={{ marginBottom: '1.5rem' }}><img src={currentQuestion.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} /></div>
+              {/* 🧬 HYBRID FIGURE ENGINE RENDERER (Clean Native Look) */}
+              {currentQuestion?.figureType && currentQuestion.figureType !== 'none' && currentQuestion.figureData && (
+                <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
+                    
+                    {/* 1 & 2: Base64 or URL Images */}
+                    {(currentQuestion.figureType === 'image' || currentQuestion.figureType === 'url') && (
+                        <img 
+                          src={currentQuestion.figureData} 
+                          alt="" 
+                          style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain' }} 
+                          onError={(e) => { e.target.style.display = 'none'; }} 
+                        />
+                    )}
+
+                    {/* 3: Chemistry SMILES Engine (Using Local Component) */}
+                    {currentQuestion.figureType === 'smiles' && (
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <SmilesViewer smilesCode={currentQuestion.figureData} width={280} height={280} />
+                        </div>
+                    )}
+
+                    {/* 4: Math TikZ Engine (Using Reliable UpMath SVG Renderer) */}
+                    {currentQuestion.figureType === 'tikz' && (
+                        <div style={{ display: 'flex', justifyContent: 'center', overflowX: 'auto', maxWidth: '100%' }}>
+                            <img 
+                              src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}')}`} 
+                              alt="Math Graphic" 
+                              style={{ maxWidth: '100%', objectFit: 'contain' }} 
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                        </div>
+                    )}
+                </div>
               )}
               
               <div>

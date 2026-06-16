@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
 import { ref, set, get } from 'firebase/database';
+import SmilesViewer from '../../components/SmilesViewer';
 
 export default function CreateTest() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
@@ -142,12 +143,11 @@ export default function CreateTest() {
   };
 
   const addDefaultQuestion = () => {
-    setQList([{ id: Date.now(), type: 'mcq', text: 'New Question', marks: 4, options: ['Opt A', 'Opt B', 'Opt C', 'Opt D'], correct: [0], correctInt: null, explanation: '', section: '' }]);
+    setQList([{ id: Date.now(), type: 'mcq', text: 'New Question', figureType: 'none', figureData: '', marks: 4, options: ['Opt A', 'Opt B', 'Opt C', 'Opt D'], correct: [0], correctInt: null, explanation: '', section: '' }]);
   };
 
-  // --- Question Manipulation Functions ---
   const addQ = (insertAfterIdx = null, type = 'mcq') => {
-    const newQ = { id: Date.now() + Math.random(), type, text: '', marks: 4, options: ['', '', '', ''], correct: [], correctInt: null, explanation: '', section: '' };
+    const newQ = { id: Date.now() + Math.random(), type, text: '', figureType: 'none', figureData: '', marks: 4, options: ['', '', '', ''], correct: [], correctInt: null, explanation: '', section: '' };
     let newList = [...qList];
     if (insertAfterIdx !== null) newList.splice(insertAfterIdx + 1, 0, newQ);
     else newList.push(newQ);
@@ -219,7 +219,8 @@ export default function CreateTest() {
             id: Date.now() + Math.random(),
             type: d.type || 'mcq',
             text: d.text || '',
-            imgUrl: d.imgUrl || '',
+            figureType: d.figureType || 'none', // Naya addition
+            figureData: d.figureData || '',     // Naya addition
             marks: d.marks || 4,
             options: d.options || ['', '', '', ''],
             correct: d.correct || [],
@@ -240,13 +241,29 @@ export default function CreateTest() {
       // 🔥 Error Alert Hatao
       setSysAlert({ title: 'Import Failed', msg: 'Invalid JSON file format. Please check your syntax.', type: 'error' });
     }
+   };
+   reader.readAsText(file);
+   e.target.value = '';
   };
-  reader.readAsText(file);
-  e.target.value = '';
-};
 
-  // --- Final Save Logic (Triggered on Button Click) ---
-  // --- Final Save Logic (Triggered on Button Click) ---
+  // 🔥 UNIVERSAL BASE64 IMAGE CONVERTER
+  const handleImageUpload = (e, qIndex) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+       setSysAlert({ title: 'File Too Large', msg: 'Please keep images under 2MB for seamless offline execution.', type: 'warning' });
+       return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      // Direct Base64 string ko figureData me dal diya
+      updateQ(qIndex, 'figureData', reader.result); 
+    };
+    reader.readAsDataURL(file);
+  };
+
   const saveTest = () => {
     // 🔥 Teeno Alerts ko SysAlert se replace kar diya
     if (!isOffline && !currentUser) { setSysAlert({ title: 'Authentication Error', msg: "Login Required! You need to log in to save this test to the cloud.", type: 'error' }); return; }
@@ -480,10 +497,67 @@ export default function CreateTest() {
               <textarea value={q.text} onChange={e => updateQ(i, 'text', e.target.value)} placeholder="Type your question here..." />
             </div>
 
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label><i className="ti ti-photo"></i> Question Image URL (Optional)</label>
-              <input type="text" value={q.imgUrl || ''} onChange={e => updateQ(i, 'imgUrl', e.target.value)} placeholder="Paste image link here" />
-              {q.imgUrl && <img src={q.imgUrl} alt="Preview" style={{ maxHeight: '160px', marginTop: '12px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} />}
+           {/* 🧬 HYBRID FIGURE ENGINE */}
+            <div style={{ marginBottom: '1.5rem', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <label style={{ fontWeight: 600, color: '#0f172a', margin: 0 }}>
+                  <i className="ti ti-vector"></i> Attach Figure / Diagram
+                </label>
+                
+                {/* Engine Selector */}
+                <select 
+                  value={q.figureType || 'none'} 
+                  onChange={(e) => { 
+                    updateQ(i, 'figureType', e.target.value); 
+                    updateQ(i, 'figureData', ''); // Engine badalne par purana data clear karo
+                  }}
+                  style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '13px', fontWeight: 600, border: '1px solid #185FA5', color: '#185FA5', background: '#fff' }}
+                >
+                  <option value="none">No Figure</option>
+                  <option value="image">Local Image (Base64)</option>
+                  <option value="url">Web Image (URL)</option>
+                  <option value="smiles">Chemistry (SMILES)</option>
+                  <option value="tikz">Math/Graph (TikZ)</option>
+                </select>
+              </div>
+
+              {/* Dynamic Inputs Based on Engine Selection */}
+              
+              {/* 1. Base64 Upload Engine */}
+              {q.figureType === 'image' && (
+                <div style={{ padding: '10px', background: '#fff', border: '1px dashed #cbd5e1', borderRadius: '6px', textAlign: 'center' }}>
+                  <label style={{ cursor: 'pointer', background: '#185FA5', color: '#fff', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: 600, display: 'inline-block' }}>
+                    <i className="ti ti-upload"></i> Upload Diagram from Device
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e, i)} />
+                  </label>
+                  {q.figureData && (
+                    <div style={{ marginTop: '12px', position: 'relative', display: 'inline-block' }}>
+                        <img src={q.figureData} alt="Preview" style={{ maxWidth: '100%', maxHeight: '150px', borderRadius: '6px', border: '1px solid #e2e8f0' }} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 2. Web URL Engine */}
+              {q.figureType === 'url' && (
+                <input type="text" value={q.figureData || ''} onChange={e => updateQ(i, 'figureData', e.target.value)} placeholder="Paste direct image link here (https://...)" />
+              )}
+
+              {/* 3. Chemistry SMILES Engine */}
+              {q.figureType === 'smiles' && (
+                <div>
+                  <div style={{ fontSize: '12px', color: '#475569', marginBottom: '8px' }}>Enter standard SMILES notation. Example: <strong>CC(=O)OC1=CC=CC=C1C(=O)O</strong></div>
+                  <input type="text" value={q.figureData || ''} onChange={e => updateQ(i, 'figureData', e.target.value)} placeholder="e.g. c1ccccc1" style={{ border: '1px solid #3B6D11' }} />
+                </div>
+              )}
+
+              {/* 4. Math/Physics TikZ Engine */}
+              {q.figureType === 'tikz' && (
+                <div>
+                  <div style={{ fontSize: '12px', color: '#475569', marginBottom: '8px' }}>Enter raw TikZ/LaTeX code for geometry and physics circuits.</div>
+                  <textarea value={q.figureData || ''} onChange={e => updateQ(i, 'figureData', e.target.value)} placeholder="\begin{tikzpicture} ... \end{tikzpicture}" style={{ fontFamily: 'monospace', fontSize: '13px', border: '1px solid #854F0B', minHeight: '80px' }} />
+                </div>
+              )}
             </div>
 
             {q.type === 'mcq' && (
