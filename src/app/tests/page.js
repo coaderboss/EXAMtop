@@ -43,6 +43,38 @@ export default function ManageTests() {
   // --- SYSTEM POPUP STATES ---
   const [sysAlert, setSysAlert] = useState(null); // { title, msg, type }
   const [sysConfirm, setSysConfirm] = useState(null); // { title, msg, action }
+  const baseTests = isOffline ? localTests : [...(tests || []), ...localTests];
+
+  // 🔥 FIX 1: THE AMNESIA CURE (State Memory on Refresh)
+  useEffect(() => {
+    // 1. Mount hote hi purana state uthao
+    const savedTestId = sessionStorage.getItem('examitop_activeTestId');
+    const savedTab = sessionStorage.getItem('examitop_activeTab');
+    const savedEvalIdx = sessionStorage.getItem('examitop_evalSubIdx');
+
+    if (savedTestId && isMounted) {
+      // Offline aur Online dono arrays me test dhundho
+      const t = baseTests.find(x => x.id === savedTestId);
+      if (t) {
+        setSelectedTest(t);
+        if (savedTab) setActiveTab(savedTab);
+        if (savedEvalIdx && savedEvalIdx !== 'null' && t.submissions) {
+          setEvaluateSub({ sub: t.submissions[parseInt(savedEvalIdx)], test: t, sIdx: parseInt(savedEvalIdx) });
+        }
+      }
+    }
+  }, [isMounted, baseTests]); // BaseTests load hone par trigger hoga
+
+  useEffect(() => {
+    // 2. Jaise hi kuch change ho, memory me save kar do
+    if (selectedTest) sessionStorage.setItem('examitop_activeTestId', selectedTest.id);
+    else sessionStorage.removeItem('examitop_activeTestId');
+
+    sessionStorage.setItem('examitop_activeTab', activeTab);
+
+    if (evaluateSub) sessionStorage.setItem('examitop_evalSubIdx', evaluateSub.sIdx);
+    else sessionStorage.removeItem('examitop_evalSubIdx');
+  }, [selectedTest, activeTab, evaluateSub]);
 
   // 1. Fetch Local Tests and Offline Status on Mount
   useEffect(() => {
@@ -107,7 +139,6 @@ export default function ManageTests() {
   }
 
   // 🔥 THE FIX 2: Kyunki ab 'tests' me pehle se hi sirf is examiner ke tests hain, humein filter lagane ki zaroorat nahi
-  const baseTests = isOffline ? localTests : [...tests, ...localTests];
   const myTests = baseTests.filter(t => t.id !== undoData?.test?.id);
   
   // 🔥 THE FIX 3: SAFE UPDATER (Firebase Index Matcher)
@@ -244,13 +275,26 @@ export default function ManageTests() {
     const doc = iframe.contentWindow.document;
     doc.open();
     
+    // 🔥 FIX 2: BULLETPROOF MATHJAX & IMAGE SYNC ENGINE
     const mathJaxScript = `
         <script>
             window.MathJax = {
+                tex: { 
+                    inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], 
+                    displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] 
+                },
                 startup: {
                     pageReady: () => {
                         return MathJax.startup.defaultPageReady().then(() => {
-                            setTimeout(() => { window.print(); }, 800);
+                            // Math render hone ke baad check karo saari images aayi ya nahi
+                            const images = Array.from(document.images);
+                            Promise.all(images.map(img => {
+                                if (img.complete) return Promise.resolve();
+                                return new Promise(resolve => { img.onload = img.onerror = resolve; });
+                            })).then(() => {
+                                // Ek dum solid render hone ke baad hi print ka popup do
+                                setTimeout(() => { window.print(); }, 500);
+                            });
                         });
                     }
                 }
@@ -993,48 +1037,73 @@ export default function ManageTests() {
             </div>
 
             {myTests.length === 0 ? (
-                <div className="card" style={{ textAlign: 'center', padding: '4rem 1rem', border: '1px dashed #cbd5e1', background: 'transparent' }}>
-                    <i className="ti ti-folder-off" style={{ fontSize: '56px', color: '#cbd5e1', marginBottom: '1rem', display: 'block' }}></i>
-                    <h3 style={{ color: '#475569', fontSize: '20px', marginBottom: '8px' }}>Vault is Empty</h3>
-                    <p style={{ color: '#94a3b8', fontSize: '15px' }}>You haven't created any tests yet. Go to the 'Create' tab to build your first exam.</p>
+                /* 🔥 PROPER EMPTY STATE UI */
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-10 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center min-h-[350px]">
+                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-5">
+                        <i className="ti ti-folder-off text-4xl text-slate-400"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-2">Your Vault is Empty</h3>
+                    <p className="text-slate-500 max-w-md mx-auto mb-8 text-sm leading-relaxed">
+                        You haven't created any assessments yet. Click the button below to start building your first secure test.
+                    </p>
+                    <button 
+                        className="btn btn-primary" 
+                        style={{ padding: '12px 24px', fontWeight: 600, fontSize: '15px' }} 
+                        onClick={() => router.push('/create')}
+                    >
+                        <i className="ti ti-plus"></i> Create New Test
+                    </button>
                 </div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {myTests.map((t, i) => {
                         const isLive = t.isActive !== false;
                         const subCount = t.submissions ? t.submissions.length : 0;
+                        
                         return (
-                            <div key={i} className="card mobile-card-stack" style={{ cursor: 'pointer', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: `4px solid ${t.isLocal ? '#f59e0b' : (isLive ? '#10B981' : '#cbd5e1')}` }} onClick={() => setSelectedTest(t)}>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                                        <h3 style={{ margin: 0, color: '#0f172a', fontSize: '18px', fontWeight: 700 }}>{t.title}</h3>
+                           <div 
+                                key={i} 
+                                className="test-entry" 
+                                style={{ 
+                                    cursor: 'pointer', 
+                                    borderLeft: t.isLocal ? '4px solid #f59e0b' : (isLive ? '4px solid #3B6D11' : '4px solid #cbd5e1'),
+                                    
+                                    // 🔥 THE MAGIC ENTRANCE ANIMATION
+                                    opacity: 0,
+                                    animation: `staggerSlide 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards`,
+                                    animationDelay: `${i * 0.12}s` // Ye har card ko 0.12 second ke gap se layega
+                                }}
+                                onClick={() => setSelectedTest(t)}
+                            >
+                                <div style={{ flex: 1, minWidth: 0 }}> {/* minWidth 0 zaroori hai mobile me text wrap ke liye */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>{t.title}</h3>
                                         
-                                        {t.isLocal && <span className="badge b-amber"><i className="ti ti-device-floppy"></i> Local Device</span>}
+                                        {t.isLocal && <span className="badge b-amber"><i className="ti ti-device-floppy"></i> Local Data</span>}
                                         
                                         {isLive && !t.isLocal ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#d1fae5', padding: '4px 10px', borderRadius: '20px' }}>
-                                                <span style={{ display: 'block', width: '8px', height: '8px', background: '#10B981', borderRadius: '50%', boxShadow: '0 0 8px #10B981', animation: 'pulse 1.5s infinite' }}></span>
-                                                <span style={{ color: '#065f46', fontWeight: 700, fontSize: '12px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Live</span>
-                                            </div>
+                                            <span className="badge b-green" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px' }}>
+                                                <span style={{ width: '8px', height: '8px', background: '#27500A', borderRadius: '50%', animation: 'pulse 1s infinite' }}></span> Live
+                                            </span>
                                         ) : (!t.isLocal && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', padding: '4px 10px', borderRadius: '20px' }}>
-                                                <span style={{ display: 'block', width: '8px', height: '8px', background: '#94a3b8', borderRadius: '50%' }}></span>
-                                                <span style={{ color: '#64748b', fontWeight: 600, fontSize: '12px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Closed</span>
-                                            </div>
+                                            <span className="badge b-gray" style={{ padding: '4px 10px' }}>Closed</span>
                                         ))}
                                     </div>
-                                    <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '12px', fontWeight: 500 }}>
-                                        <i className="ti ti-book"></i> {t.subject || 'General'} &nbsp;&bull;&nbsp; <i className="ti ti-list-numbers"></i> {t.questions?.length || 0} Qs &nbsp;&bull;&nbsp; <i className="ti ti-clock"></i> {t.duration} Mins
+                                    
+                                    <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)', fontWeight: 500, display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-book text-lg"></i> {t.subject || 'General'}</span>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-list-numbers text-lg"></i> {t.questions?.length || 0} Qs</span>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-clock text-lg"></i> {t.duration} Mins</span>
                                     </div>
+                                    
                                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                        <span className="badge b-blue" style={{ fontFamily: 'monospace', fontSize: '14px', padding: '6px 12px', background: '#EEEDFE', color: '#3C3489', border: '1px solid #CECBF6' }}><i className="ti ti-hash"></i> {t.code}</span>
-                                        <span className="badge b-gray" style={{ padding: '6px 12px' }}><i className="ti ti-users"></i> {subCount} Submissions</span>
+                                        <span className="badge b-purple" style={{ fontFamily: 'monospace', letterSpacing: '0.5px', padding: '6px 12px', fontSize: '13px' }}><i className="ti ti-hash text-lg"></i> {t.code}</span>
+                                        <span className="badge b-gray" style={{ padding: '6px 12px', fontSize: '13px' }}><i className="ti ti-users text-lg"></i> {subCount} Submissions</span>
                                     </div>
                                 </div>
-                                <div className="mobile-chevron" style={{ paddingLeft: '20px', color: '#185FA5' }}>
-                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#E6F1FB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <i className="ti ti-chevron-right" style={{ fontSize: '20px' }}></i>
-                                    </div>
+                                
+                                <div className="hide-mobile" style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <i className="ti ti-chevron-right" style={{ fontSize: '24px' }}></i>
                                 </div>
                             </div>
                         );
