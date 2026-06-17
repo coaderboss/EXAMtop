@@ -75,7 +75,18 @@ function Header() {
       router.push('/');
   };
 
-  // 🔥 PROFILE SAVE & DELETE FIX
+  // 🔥 THE TOAST HELPER FUNCTION
+  const showToast = (msg, type = 'success') => {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = type === 'success' ? `<i class="ti ti-check" style="font-size:18px;"></i> ${msg}` : `<i class="ti ti-alert-triangle" style="font-size:18px;"></i> ${msg}`;
+      container.appendChild(toast);
+      setTimeout(() => { if (container.contains(toast)) toast.remove(); }, 3000);
+  };
+
+  // 🔥 PROFILE SAVE FIX (Removed alert)
   const saveProfile = async () => {
       if (!currentUser) return;
       try {
@@ -84,12 +95,16 @@ function Header() {
               phone: profileData.phone
           });
           setIsEditingProfile(false);
-          alert("Profile updated successfully!");
-      } catch (e) { alert("Failed to update profile."); }
+          showToast("Profile updated successfully!", "success"); // Premium Toast
+      } catch (e) { 
+          showToast("Failed to update profile.", "error"); 
+      }
   };
 
+  // 🔥 DELETE ACCOUNT FIX (Replaced alert with toast, kept confirm as it's a DANGER zone)
   const deleteAccount = async () => {
-      if (confirm("DANGER: Are you absolutely sure you want to permanently delete your account? All your data will be lost.")) {
+      // Confirm browser wala hi theek hai yahan taaki galti se delete na ho
+      if (window.confirm("DANGER: Are you absolutely sure you want to permanently delete your account? All your data will be lost.")) {
           try {
               await remove(ref(database, `users/${currentUser.uid}`));
               if(currentUser.delete) await currentUser.delete();
@@ -97,8 +112,10 @@ function Header() {
               
               setShowProfile(false);
               router.push('/');
-              alert("Account deleted successfully.");
-          } catch (e) { alert("Failed to delete account. You may need to re-login first."); }
+              showToast("Account deleted successfully.", "success");
+          } catch (e) { 
+              showToast("Failed to delete account. Re-login first.", "error"); 
+          }
       }
   };
 
