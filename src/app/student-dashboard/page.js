@@ -15,6 +15,15 @@ export default function StudentDashboard() {
   const [myHistory, setMyHistory] = useState([]);
   const [fetchingResults, setFetchingResults] = useState(true);
 
+  const [animateGraph, setAnimateGraph] = useState(false); // 🔥 Animation Trigger State
+
+  // Jaise hi data load hoga, ye 100ms baad animation shuru kar dega
+  useEffect(() => {
+      if (!fetchingResults && myHistory.length > 0) {
+          setTimeout(() => setAnimateGraph(true), 150);
+      }
+  }, [fetchingResults, myHistory]);
+
   // 🔥 THE FIX: Smart Database Query (Only fetch when dashboard opens)
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -145,26 +154,70 @@ export default function StudentDashboard() {
                 </div>
             </div>
 
-            {/* 🔥 NEW FEATURE: Performance Trend Chart */}
-            <div className="card" style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '12px', background: 'linear-gradient(to right, #ffffff, #f8fafc)' }}>
-                <h3 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
-                    <i className="ti ti-activity" style={{ color: '#185FA5' }}></i> Recent Performance Trend (Last 10 Tests)
+            {/* 🔥 UPGRADED PREMIUM FEATURE: Animated Performance Trend Chart */}
+            <div className="card" style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '16px', background: 'var(--color-background-primary)', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', border: '1px solid var(--color-border-secondary)' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '2rem', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-primary)' }}>
+                    <div style={{ background: '#E6F1FB', padding: '6px', borderRadius: '8px', display: 'flex', color: '#185FA5' }}>
+                        <i className="ti ti-chart-bar" style={{ fontSize: '18px' }}></i>
+                    </div>
+                    Recent Performance Trend
                 </h3>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '120px', paddingBottom: '10px', borderBottom: '1px solid #e2e8f0', overflowX: 'auto', scrollbarWidth: 'none' }}>
-                    {recentTrend.map((h, i) => {
-                        let pct = Math.round((h.score / h.totalMarks) * 100);
-                        let barColor = pct >= 75 ? '#3B6D11' : pct >= 40 ? '#854F0B' : '#A32D2D';
-                        let barBg = pct >= 75 ? '#EAF3DE' : pct >= 40 ? '#FAEEDA' : '#FCEBEB';
-                        return (
-                            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', minWidth: '40px', flex: 1 }}>
-                                <div style={{ fontSize: '11px', fontWeight: 700, color: barColor }}>{pct}%</div>
-                                <div style={{ width: '100%', maxWidth: '30px', height: `${Math.max(pct, 5)}%`, background: barBg, border: `1px solid ${barColor}`, borderRadius: '4px 4px 0 0', transition: 'height 0.5s ease' }}></div>
-                            </div>
-                        );
-                    })}
+                
+                {/* Graph Container with Hide-Scroll for Mobile */}
+                <div className="hide-scroll" style={{ width: '100%', overflowX: 'auto', paddingBottom: '10px' }}>
+                    {/* The Chart Area */}
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', height: '160px', minWidth: '400px', borderBottom: '2px solid var(--color-border-secondary)', padding: '0 10px' }}>
+                       {recentTrend.map((h, i) => {
+                            // 🔥 FIX: Prevent NaN if totalMarks is 0 or undefined
+                            let validScore = h.score || 0;
+                            let validTotal = h.totalMarks || 0;
+                            let pct = validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;
+
+                            let isExcellent = pct >= 75;
+                            let isAverage = pct >= 40 && pct < 75;
+                            
+                            let barColor = isExcellent ? '#3B6D11' : isAverage ? '#854F0B' : '#A32D2D';
+                            let barBg = isExcellent ? '#EAF3DE' : isAverage ? '#FAEEDA' : '#FCEBEB';
+                            let barHoverBg = isExcellent ? '#dcefc8' : isAverage ? '#f8e4c2' : '#fad4d4';
+
+                            return (
+                                // 🔥 BUG FIX: height: '100%' and justifyContent: 'flex-end' makes it a real column
+                                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', flex: 1, height: '100%', position: 'relative', group: 'true' }}>
+                                    
+                                    {/* Percentage Label (Fades in) */}
+                                    <div style={{ 
+                                        fontSize: '12px', fontWeight: 800, color: barColor, marginBottom: '8px',
+                                        opacity: animateGraph ? 1 : 0, transform: animateGraph ? 'translateY(0)' : 'translateY(10px)',
+                                        transition: `all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) ${i * 0.05}s` 
+                                    }}>
+                                        {pct}%
+                                    </div>
+                                    
+                                    {/* 🔥 THE ANIMATED BAR */}
+                                    <div 
+                                        style={{ 
+                                            width: '100%', maxWidth: '36px', 
+                                            height: animateGraph ? `${Math.max(pct, 5)}%` : '0%', // Starts from 0%
+                                            background: barBg, 
+                                            border: `1px solid ${barColor}`, borderBottom: 'none',
+                                            borderRadius: '6px 6px 0 0', 
+                                            transition: `height 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${i * 0.05}s`, // Sleek stagger animation
+                                            cursor: 'pointer'
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.background = barHoverBg; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.transition = 'all 0.2s'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.background = barBg; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                        title={`Score: ${h.score}/${h.totalMarks} (${h.testTitle})`} // Quick Tooltip on hover
+                                    ></div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b', marginTop: '8px', fontWeight: 600, textTransform: 'uppercase' }}>
-                    <span>Older</span><span>Newer</span>
+                
+                {/* Axis Labels */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', padding: '0 5px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-arrow-left"></i> Older Tests</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>Newer Tests <i className="ti ti-arrow-right"></i></span>
                 </div>
             </div>
 
@@ -174,25 +227,34 @@ export default function StudentDashboard() {
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {myHistory.slice().reverse().map((h, index) => {
-                    let pct = Math.round((h.score / h.totalMarks) * 100);
+                    // 🔥 FIX: Safe math for Ledger percentages
+                    let validScore = h.score || 0;
+                    let validTotal = h.totalMarks || 0;
+                    let pct = validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;
+                    
+                    // 🔥 FIX: Safe math for Accuracy (handles missing data properly)
+                    let corr = h.correct || 0;
+                    let wrng = h.wrong || 0;
+                    let accPct = (corr + wrng) > 0 ? Math.round((corr / (corr + wrng)) * 100) : 0;
+
                     return (
-                        <div key={index} className="test-entry" style={{ alignItems: 'center', padding: '1rem 1.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                        <div key={index} className="test-entry" style={{ alignItems: 'center', padding: '1rem 1.5rem', background: 'var(--color-background-primary)', border: '1px solid var(--color-border-secondary)', borderRadius: '12px' }}>
                             <div className="te-meta">
-                                <div style={{ fontWeight: 600, fontSize: '16px', color: '#0f172a' }}>
-                                    {h.testTitle} <span className="badge b-gray" style={{ fontSize: '11px', marginLeft: '8px' }}>Code: {h.testCode}</span>
+                                <div style={{ fontWeight: 600, fontSize: '16px', color: 'var(--color-text-primary)' }}>
+                                    {h.testTitle || 'Unnamed Test'} <span className="badge b-gray" style={{ fontSize: '11px', marginLeft: '8px' }}>Code: {h.testCode || 'N/A'}</span>
                                 </div>
-                                <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>Attempted on: {h.time}</div>
+                                <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>Attempted on: {h.time || 'Unknown Time'}</div>
                             </div>
                             <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                                 <div style={{ textAlign: 'right' }} className="hide-mobile">
                                     <div style={{ fontWeight: 600, color: '#185FA5', fontSize: '16px' }}>
-                                        {h.score} <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--color-text-secondary)' }}>/ {h.totalMarks}</span>
+                                        {validScore} <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--color-text-secondary)' }}>/ {validTotal}</span>
                                     </div>
                                     <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                                        Accuracy: {h.correct + h.wrong > 0 ? Math.round((h.correct / (h.correct + h.wrong)) * 100) : 0}%
+                                        Accuracy: {accPct}%
                                     </div>
                                 </div>
-                                <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: pct >= 75 ? '#EAF3DE' : pct >= 40 ? '#FAEEDA' : '#FCEBEB', color: pct >= 75 ? '#27500A' : pct >= 40 ? '#633806' : '#791F1F', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px', border: `2px solid ${pct >= 75 ? '#C0DD97' : pct >= 40 ? '#FAC775' : '#F7C1C1'}` }}>
+                                <div style={{ width: '46px', height: '46px', flexShrink: 0, borderRadius: '50%', background: pct >= 75 ? '#EAF3DE' : pct >= 40 ? '#FAEEDA' : '#FCEBEB', color: pct >= 75 ? '#27500A' : pct >= 40 ? '#633806' : '#791F1F', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px', border: `2px solid ${pct >= 75 ? '#C0DD97' : pct >= 40 ? '#FAC775' : '#F7C1C1'}` }}>
                                     {pct}%
                                 </div>
                             </div>

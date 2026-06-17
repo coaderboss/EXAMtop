@@ -803,58 +803,56 @@ export default function StudentPortal() {
               </div>
             </div>
             
-            <div className={`sidebar-panel ${!isMobilePaletteOpen ? 'hide-mobile' : ''}`} style={isMobilePaletteOpen ? { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, margin: 0, borderRadius: '20px 20px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.15)' } : {}}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1rem 0' }}>
-                  <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Question Palette</div>
-                  {isMobilePaletteOpen && <button className="btn btn-ghost" style={{ padding: 0 }} onClick={() => setIsMobilePaletteOpen(false)}><i className="ti ti-x" style={{ fontSize: '24px' }}></i></button>}
+           <div className={`sidebar-panel ${!isMobilePaletteOpen ? 'hide-mobile' : ''}`} style={isMobilePaletteOpen ? { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, margin: 0, borderRadius: '24px 24px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.15)', padding: '20px' } : {}}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1.25rem 0' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Question Palette</div>
+                  {isMobilePaletteOpen && <button className="btn btn-ghost" style={{ padding: '4px 8px' }} onClick={() => setIsMobilePaletteOpen(false)}><i className="ti ti-x" style={{ fontSize: '24px' }}></i></button>}
               </div>
-              <div className="legend-row">
+              
+              <div className="legend-row" style={{ padding: '0 4px', marginBottom: '1.25rem' }}>
                 <div className="leg"><div className="leg-dot" style={{ background: 'var(--color-background-primary)', border: '1px solid var(--color-border-primary)' }}></div>Unvisited</div>
                 <div className="leg"><div className="leg-dot" style={{ background: '#185FA5' }}></div>Answered</div>
                 <div className="leg"><div className="leg-dot" style={{ background: '#FAC775' }}></div>Marked</div>
               </div>
               
-              <div style={{ maxHeight: '50vh', overflowY: 'auto', paddingRight: '5px' }}>
+              {/* 🔥 FIX: Added padding (0 10px) to prevent edge touching & hide-scroll for smooth swipe */}
+              <div className="hide-scroll" style={{ maxHeight: '55vh', overflowY: 'auto', padding: '4px 10px', margin: '0 -10px' }}>
                   {activeTest?.sections && activeTest.sections.length > 0 ? (
                       activeTest.sections.map(sec => {
-                          let localQNum = 1;
-                          let secHTML = activeTest.questions.map((qq, i) => {
+                          
+                          // 🔥 OPTIMIZATION: Removed Double Loop. Calculating HTML and Stats in a single pass!
+                          let secAttempted = 0;
+                          let secTotal = 0;
+                          let secHTML = [];
+
+                          activeTest.questions.forEach((qq, i) => {
                               if (qq.section === sec || (!qq.section && sec === activeTest.sections[0])) {
+                                  secTotal++;
                                   let a = answers[i];
                                   let isDone = a?.val !== null && (!Array.isArray(a?.val) || a.val.length > 0);
+                                  
+                                  if (isDone) secAttempted++; // Increment attempted count
+                                  
                                   let cls = (a?.marked && isDone) ? 'p-both' : a?.marked ? 'p-marked' : isDone ? 'p-answered' : 'p-unanswered';
-                                  let currentNum = localQNum++; 
-                                  return (
+                                  
+                                  secHTML.push(
                                       <button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => changeQuestion(i)}>
-                                          {currentNum}
+                                          {secTotal} {/* localQNum is basically secTotal at this point */}
                                       </button>
                                   );
                               }
-                              return null;
-                          }).filter(Boolean); 
-
-                          if (secHTML.length === 0) return null;
-
-                          // 🔥 SECTION PROGRESS CALCULATION
-                          let secAttempted = 0;
-                          let secTotal = 0;
-                          activeTest.questions.forEach((qq, idx) => {
-                              if (qq.section === sec || (!qq.section && sec === activeTest.sections[0])) {
-                                  secTotal++;
-                                  let a = answers[idx];
-                                  if (a?.val !== null && (!Array.isArray(a?.val) || a?.val.length > 0)) {
-                                      secAttempted++;
-                                  }
-                              }
                           });
 
+                          // If section is empty, don't render it
+                          if (secTotal === 0) return null;
+
                           return (
-                              <div key={sec} style={{ marginBottom: '1rem' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '15px 0 10px 0' }}>
-                                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                              <div key={sec} style={{ marginBottom: '1.5rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 12px 0' }}>
+                                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                           <i className="ti ti-folder"></i> {sec}
                                       </div>
-                                      <div style={{ fontSize: '11px', fontWeight: 700, background: secAttempted === secTotal ? '#EAF3DE' : '#E6F1FB', color: secAttempted === secTotal ? '#27500A' : '#185FA5', padding: '4px 8px', borderRadius: '12px', border: `1px solid ${secAttempted === secTotal ? '#C0DD97' : '#CECBF6'}` }}>
+                                      <div style={{ fontSize: '11px', fontWeight: 700, background: secAttempted === secTotal ? '#EAF3DE' : '#E6F1FB', color: secAttempted === secTotal ? '#27500A' : '#185FA5', padding: '4px 10px', borderRadius: '12px', border: `1px solid ${secAttempted === secTotal ? '#C0DD97' : '#CECBF6'}` }}>
                                           Attempted: {secAttempted}/{secTotal}
                                       </div>
                                   </div>
@@ -877,6 +875,11 @@ export default function StudentPortal() {
                       </div>
                   )}
               </div>
+              <div className="divider" style={{ margin: '1rem 0' }}></div>
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontWeight: 700, padding: '14px', fontSize: '15px' }} onClick={confirmAndSubmit}><i className="ti ti-send"></i> Submit Final Test</button>
+            </div>
+            
+          <div>
               <div className="divider"></div>
               <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontWeight: 600, padding: '12px' }} onClick={confirmAndSubmit}><i className="ti ti-send"></i> Submit Final Test</button>
             </div>
