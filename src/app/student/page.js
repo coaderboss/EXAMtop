@@ -195,6 +195,46 @@ export default function StudentPortal() {
     };
   }, [step, activeTest]);
 
+  // 🔥 5. THE ULTIMATE EXAM TRAP (Blocks Pull-to-refresh & Back Button)
+  useEffect(() => {
+    if (step !== 'exam') return;
+
+    // A. Back Button Escape Trap (Fake History Push)
+    window.history.pushState(null, "", window.location.href);
+    const handlePopState = (e) => {
+        window.history.pushState(null, "", window.location.href); // Wapas trap me push karo
+        setSysModal({ type: 'error', msg: "SECURITY LOCK: You cannot go back during an active exam. You must submit the test to exit." });
+    };
+    window.addEventListener('popstate', handlePopState);
+
+    // B. Pull-to-Refresh Blocker (JS Level Strict Block)
+    let touchStartY = 0;
+    const handleTouchStart = (e) => { touchStartY = e.touches[0].clientY; };
+    const handleTouchMove = (e) => {
+        const touchY = e.touches[0].clientY;
+        const touchDiff = touchY - touchStartY;
+        // Agar user ekdum top par hai aur neeche kheench raha hai -> BLOCK IT!
+        if (touchDiff > 0 && window.scrollY === 0) {
+            if (e.cancelable) e.preventDefault();
+        }
+    };
+    
+    // C. Tab Close / Browser Exit Warning
+    const handleBeforeUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
+
+    // Events Attach (passive: false is MUST to allow preventDefault)
+    document.addEventListener('touchstart', handleTouchStart, { passive: false });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+        window.removeEventListener('popstate', handlePopState);
+        document.removeEventListener('touchstart', handleTouchStart);
+        document.removeEventListener('touchmove', handleTouchMove);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [step]);
+
 
   // --- 🔥 UPDATED JOIN LOGIC (On-Demand Smart Fetch) ---
   const handleJoinTest = async () => {
@@ -685,7 +725,16 @@ export default function StudentPortal() {
                   {currentQuestion?.type === 'mcq' && currentQuestion.options.map((opt, j) => (
                       <button key={j} className={`opt-btn ${answers[curQ]?.val === j ? 'sel' : ''}`} onClick={() => pickMCQ(curQ, j)}>
                           <div className="olabel">{answers[curQ]?.val === j ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                          <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px' }} />
+                          {/* 🔥 Smart Option Renderer: Handles SMILES and Long Equations */}
+                          <div className="hide-scroll" style={{ width: '100%', maxWidth: '100%', padding: '2px 0' }}>
+                            {opt.startsWith('[smiles]') ? (
+                                <div style={{ pointerEvents: 'none' }}>
+                                    <SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} />
+                                </div>
+                            ) : (
+                                <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px', whiteSpace: 'normal', wordBreak: 'break-word' }} />
+                            )}
+                         </div>
                       </button>
                   ))}
                   
@@ -694,7 +743,16 @@ export default function StudentPortal() {
                       return (
                           <button key={j} className={`opt-btn ${isSelected ? 'sel' : ''}`} onClick={() => pickMSQ(curQ, j)}>
                               <div className="olabel" style={{ borderRadius: '4px' }}>{isSelected ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                              <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px' }} />
+                              {/* 🔥 Smart Option Renderer: Handles SMILES and Long Equations */}
+                              <div className="hide-scroll" style={{ width: '100%', maxWidth: '100%', padding: '2px 0' }}>
+                              {opt.startsWith('[smiles]') ? (
+                              <div style={{ pointerEvents: 'none' }}>
+                              <SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} />
+                               </div>
+                             ) : (
+                             <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px', whiteSpace: 'normal', wordBreak: 'break-word' }} />
+                              )}
+                            </div>
                           </button>
                       );
                   })}

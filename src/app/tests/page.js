@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
 import { ref, set, update, remove, get } from 'firebase/database'; 
 import FigureRenderer from '../../components/FigureRenderer'; 
+import SmilesViewer from '../../components/SmilesViewer';
 
 export default function ManageTests() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
@@ -596,11 +597,16 @@ export default function ManageTests() {
                           <span style={{ marginLeft: 'auto', fontSize: '14px', fontWeight: 600 }}>Earned: {d.earned || 0} / {q.marks}</span>
                       </div>
                       
-                      <div className="qr-body">
-                         <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.25rem', fontWeight: 500 }} dangerouslySetInnerHTML={{ __html: q.text }}></div>           
+                      {/* 🔥 OVERFLOW FIX: Strict maxWidth aur hide-scroll laga diya */}
+                      <div className="qr-body hide-scroll" style={{ maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
                          
-                         {/* 🔥 THE FIX: Universal Hybrid Figure Renderer Added Here */}
-                         <FigureRenderer figureType={q.figureType} figureData={q.figureData} />
+                         {/* 🔥 TEXT OVERFLOW FIX: wordBreak aur whiteSpace laga diya taaki lamba question break ho jaye */}
+                         <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.25rem', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} dangerouslySetInnerHTML={{ __html: q.text }}></div>           
+                         
+                         {/* Universal Hybrid Figure Renderer Wrapper */}
+                         <div className="hide-scroll" style={{ maxWidth: '100%', minWidth: 0 }}>
+                             <FigureRenderer figureType={q.figureType} figureData={q.figureData} />
+                         </div>
                          
                          {/* Fallback for legacy tests that only have imgUrl */}
                          {!q.figureType && q.imgUrl && (
@@ -618,17 +624,30 @@ export default function ManageTests() {
                               else if (!isCorr && isUser) { cls = 'wrong'; borderStyle = { borderColor: '#A32D2D', background: '#FCEBEB' }; }
 
                               return (
-                                  <div key={j} className={`qr-opt ${cls}`} style={borderStyle}>
+                                  // 🔥 FIX 1: hide-scroll and maxWidth added to prevent outer div overflow
+                                  <div key={j} className={`qr-opt ${cls} hide-scroll`} style={{ ...borderStyle, maxWidth: '100%' }}>
                                       <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, flexShrink: 0, background: 'rgba(255,255,255,0.7)' }}>{String.fromCharCode(65 + j)}</div>
-                                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0' }}>
-                                          <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400 }} dangerouslySetInnerHTML={{ __html: o }}></div>
+                                      
+                                      {/* 🔥 FIX 2: minWidth: 0 is CRITICAL for flexbox to allow inner scrolling without expanding the parent */}
+                                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0', minWidth: 0 }} className="hide-scroll">
+                                          
+                                          {/* 🔥 FIX 3: Smart SMILES Renderer inside Option */}
+                                          {o.startsWith('[smiles]') ? (
+                                              <div style={{ pointerEvents: 'none' }}>
+                                                  <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
+                                              </div>
+                                          ) : (
+                                              <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400, whiteSpace: 'normal', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: o }}></div>
+                                          )}
+
                                           {(isUser || isCorr) && (
-                                              <div style={{ display: 'flex', gap: '6px' }}>
+                                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                                                   {isUser && <span style={{ fontSize: '11px', background: '#185FA5', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Student Picked</span>}
                                                   {isCorr && <span style={{ fontSize: '11px', background: '#3B6D11', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Correct Key</span>}
                                               </div>
                                           )}
                                       </div>
+                                      
                                       {isCorr && isUser && <i className="ti ti-check" style={{ fontSize: '22px', color: '#3B6D11', flexShrink: 0 }}></i>}
                                       {isUser && !isCorr && <i className="ti ti-x" style={{ fontSize: '22px', color: '#A32D2D', flexShrink: 0 }}></i>}
                                   </div>

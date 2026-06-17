@@ -926,3 +926,13 @@ mjx-container[display="true"]::-webkit-scrollbar {
 .math-scroll-box::-webkit-scrollbar-thumb:hover {
     background: rgba(24, 95, 165, 0.8);
 }
+
+/* 🔥 INVISIBLE SCROLLBAR (Native App Feel) */
+.hide-scroll {
+    overflow-x: auto;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+}
+.hide-scroll::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Edge, Opera */
+}
