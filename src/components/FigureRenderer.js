@@ -5,8 +5,8 @@ export default function FigureRenderer({ figureType, figureData }) {
     if (!figureType || figureType === 'none' || !figureData) return null;
 
     return (
-        <div style={{ marginBottom: '1.5rem', marginTop: '1rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
-            
+        <div style={{ marginBottom: '1.5rem', marginTop: '1rem', display: 'flex', justifyContent: 'center', width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>            
+
             {/* 1 & 2: Base64 or URL Images */}
             {(figureType === 'image' || figureType === 'url') && (
                 <img 

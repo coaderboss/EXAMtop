@@ -44,9 +44,11 @@ export default function SmilesViewer({ smilesCode, width = 300, height = 300 }) 
     }
   }, [smilesCode, width, height, isLoaded]);
 
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', background: '#fff', borderRadius: '8px', padding: '10px', border: '1px solid #cbd5e1' }}>
-        <canvas ref={canvasRef} />
+ return (
+    // 🔥 FIX: Added maxWidth: 100% and overflowX: auto so it never breaks the mobile screen
+    <div style={{ display: 'flex', justifyContent: 'center', background: '#fff', borderRadius: '8px', padding: '10px', border: '1px solid #cbd5e1', maxWidth: '100%', overflowX: 'auto' }}>
+        {/* 🔥 FIX: Added style to canvas so it shrinks on small phones */}
+        <canvas ref={canvasRef} style={{ maxWidth: '100%', height: 'auto' }} />
     </div>
   );
 }
