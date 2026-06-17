@@ -257,7 +257,7 @@ export default function StudentPortal() {
     }
   };
 
- // --- SMART SHUFFLE ALGORITHM ---
+ // --- 🔥 UPGRADED SMART SHUFFLE ALGORITHM ---
   const applySmartShuffle = (test) => {
     if (!test.shuffleOpts) return test;
     
@@ -265,33 +265,37 @@ export default function StudentPortal() {
     
     clonedTest.questions = clonedTest.questions.map(q => {
         if ((q.type === 'mcq' || q.type === 'msq') && q.options) {
-            let standardOpts = [];
-            let fixedOpts = []; // To hold 'All of the above' etc.
             
-            q.options.forEach((opt, idx) => {
-                let lowerOpt = opt.toLowerCase().replace(/<[^>]*>?/gm, '').trim(); // Remove HTML tags to check text
-                if (lowerOpt.includes('all of') || lowerOpt.includes('none of') || lowerOpt.includes('both ') || lowerOpt.includes('only ')) {
-                    fixedOpts.push({ text: opt, originalIdx: idx });
-                } else {
-                    standardOpts.push({ text: opt, originalIdx: idx });
-                }
+            // 1. Pehle check karo ki kya kisi bhi option me position-dependent text hai?
+            const hasFixedOption = q.options.some(opt => {
+                let lowerOpt = opt.toLowerCase().replace(/<[^>]*>?/gm, '').trim();
+                return lowerOpt.includes('all of') || 
+                       lowerOpt.includes('none of') || 
+                       lowerOpt.includes('both ') || 
+                       lowerOpt.includes('only ');
             });
 
-            // Fisher-Yates Shuffle for standard options
+            // 2. Agar koi position-dependent option hai, toh is question ko SHUFFLE MAT KARO!
+            if (hasFixedOption) {
+                return q; // Wapas bhej do as it is
+            }
+
+            // 3. Agar normal options hain (e.g., Apple, Banana, Orange), tabhi shuffle karo
+            let standardOpts = q.options.map((opt, idx) => ({ text: opt, originalIdx: idx }));
+
+            // Fisher-Yates Shuffle for all options
             for (let i = standardOpts.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [standardOpts[i], standardOpts[j]] = [standardOpts[j], standardOpts[i]];
             }
 
-            // Merge shuffled standard options with fixed options at the end
-            let finalOpts = [...standardOpts, ...fixedOpts];
-            q.options = finalOpts.map(o => o.text);
+            q.options = standardOpts.map(o => o.text);
             
             // 🔥 CRITICAL: Remap the correct answers index
             let newCorrectArray = [];
             if (q.correct) {
                 q.correct.forEach(cIdx => {
-                    let newIdx = finalOpts.findIndex(o => o.originalIdx === cIdx);
+                    let newIdx = standardOpts.findIndex(o => o.originalIdx === cIdx);
                     if(newIdx !== -1) newCorrectArray.push(newIdx);
                 });
             }
