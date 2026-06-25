@@ -27,6 +27,8 @@ export default function ManageTests() {
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'subs'
   const [searchQuery, setSearchQuery] = useState('');
   const [undoData, setUndoData] = useState(null); // For Delete Undo timer
+  const [vaultSearchQuery, setVaultSearchQuery] = useState(''); 
+  const [sortBy, setSortBy] = useState('newest'); 
   
   // --- MODALS & SUB-VIEWS ---
   const [modalType, setModalType] = useState(null); // 'analytics' | 'editKey' | 'audit'
@@ -47,13 +49,11 @@ export default function ManageTests() {
 
   // 🔥 FIX 1: THE AMNESIA CURE (State Memory on Refresh)
   useEffect(() => {
-    // 1. Mount hote hi purana state uthao
     const savedTestId = sessionStorage.getItem('examitop_activeTestId');
     const savedTab = sessionStorage.getItem('examitop_activeTab');
     const savedEvalIdx = sessionStorage.getItem('examitop_evalSubIdx');
 
     if (savedTestId && isMounted) {
-      // Offline aur Online dono arrays me test dhundho
       const t = baseTests.find(x => x.id === savedTestId);
       if (t) {
         setSelectedTest(t);
@@ -121,8 +121,57 @@ export default function ManageTests() {
     }
   }, [currentUser, userRole, authLoading, isMounted, isOffline, router]);
 
+  // 🔥 FIX 1: Premium Skeleton Loader (Replaces the boring spinner)
   if (authLoading || !isMounted || (!isOffline && (loadingData || isInitialLoad))) {
-    return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div><div>Loading Vault...</div></div>;
+    return (
+        <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+            {/* Page Header Skeleton */}
+            <div style={{ marginBottom: '1.5rem' }}>
+                <div className="skeleton" style={{ width: '220px', height: '32px', marginBottom: '8px', borderRadius: '8px' }}></div>
+                <div className="skeleton" style={{ width: '100%', maxWidth: '400px', height: '20px', borderRadius: '6px' }}></div>
+            </div>
+
+            {/* Search & Sort Panel Skeleton */}
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                <div className="skeleton" style={{ flex: '1', minWidth: '250px', height: '45px', borderRadius: '10px' }}></div>
+                <div className="skeleton" style={{ width: '160px', height: '45px', borderRadius: '10px' }}></div>
+            </div>
+
+            {/* Skeleton Cards List (3 dummy cards dikhayega) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {[1, 2, 3].map((n) => (
+                    <div key={n} style={{ 
+                        padding: '1.25rem 1rem', 
+                        background: 'var(--color-background-primary)', 
+                        borderRadius: '12px', 
+                        border: '1px solid var(--color-border-secondary)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                    }}>
+                        <div style={{ flex: 1 }}>
+                            {/* Title & Badge */}
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+                                <div className="skeleton" style={{ width: '180px', height: '24px', borderRadius: '6px' }}></div>
+                                <div className="skeleton" style={{ width: '60px', height: '24px', borderRadius: '12px' }}></div>
+                            </div>
+                            {/* Meta Info (Qs, Mins) */}
+                            <div style={{ display: 'flex', gap: '15px', marginBottom: '12px' }}>
+                                <div className="skeleton" style={{ width: '80px', height: '16px' }}></div>
+                                <div className="skeleton" style={{ width: '80px', height: '16px' }}></div>
+                                <div className="skeleton" style={{ width: '80px', height: '16px' }}></div>
+                            </div>
+                            {/* Tags */}
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <div className="skeleton" style={{ width: '100px', height: '24px', borderRadius: '20px' }}></div>
+                                <div className="skeleton" style={{ width: '100px', height: '24px', borderRadius: '20px' }}></div>
+                            </div>
+                        </div>
+                        {/* Right Arrow Skeleton (Hidden on Mobile) */}
+                        <div className="hide-mobile skeleton" style={{ width: '38px', height: '38px', borderRadius: '50%' }}></div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
   }
 
   if (!isOffline && (!currentUser || (userRole !== 'examiner' && userRole !== 'admin'))) {
@@ -1031,13 +1080,13 @@ export default function ManageTests() {
         // VIEW 1: MASTER VAULT (List of Tests)
         // ==========================================
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
-            <div className="page-header">
+            <div className="page-header" style={{ marginBottom: '1.5rem' }}>
                 <div className="page-title">My Tests Vault</div>
                 <div className="page-sub">Manage your assessments, control intakes, and review results.</div>
             </div>
 
             {myTests.length === 0 ? (
-                /* 🔥 PROPER EMPTY STATE UI */
+                /* 🔥 PROPER EMPTY STATE UI (Jab ek bhi test na banaya ho) */
                 <div className="bg-white dark:bg-slate-900 rounded-2xl p-10 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center min-h-[350px]">
                     <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-5">
                         <i className="ti ti-folder-off text-4xl text-slate-400"></i>
@@ -1055,60 +1104,132 @@ export default function ManageTests() {
                     </button>
                 </div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {myTests.map((t, i) => {
-                        const isLive = t.isActive !== false;
-                        const subCount = t.submissions ? t.submissions.length : 0;
+                <>
+                    {/* 🔥 SEARCH & SORT CONTROL PANEL */}
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        {/* Instant Word Search */}
+                        <div style={{ position: 'relative', flex: '1', minWidth: '250px' }}>
+                            <i className="ti ti-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '18px' }}></i>
+                            <input 
+                                type="text" 
+                                placeholder="Search test name, code, or subject..." 
+                                value={vaultSearchQuery}
+                                onChange={(e) => setVaultSearchQuery(e.target.value)}
+                                style={{ padding: '12px 12px 12px 40px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '15px' }}
+                            />
+                        </div>
                         
-                        return (
-                           <div 
-                                key={i} 
-                                className="test-entry" 
-                                style={{ 
-                                    cursor: 'pointer', 
-                                    borderLeft: t.isLocal ? '4px solid #f59e0b' : (isLive ? '4px solid #3B6D11' : '4px solid #cbd5e1'),
-                                    
-                                    // 🔥 THE MAGIC ENTRANCE ANIMATION
-                                    opacity: 0,
-                                    animation: `staggerSlide 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards`,
-                                    animationDelay: `${i * 0.12}s` // Ye har card ko 0.12 second ke gap se layega
-                                }}
-                                onClick={() => setSelectedTest(t)}
+                        {/* Premium Sorting Dropdown */}
+                        <div style={{ position: 'relative', minWidth: '160px' }}>
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                style={{ padding: '12px 36px 12px 16px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '14px', fontWeight: 600, appearance: 'none', cursor: 'pointer', color: 'var(--color-text-primary)' }}
                             >
-                                <div style={{ flex: 1, minWidth: 0 }}> {/* minWidth 0 zaroori hai mobile me text wrap ke liye */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>{t.title}</h3>
-                                        
-                                        {t.isLocal && <span className="badge b-amber"><i className="ti ti-device-floppy"></i> Local Data</span>}
-                                        
-                                        {isLive && !t.isLocal ? (
-                                            <span className="badge b-green" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px' }}>
-                                                <span style={{ width: '8px', height: '8px', background: '#27500A', borderRadius: '50%', animation: 'pulse 1s infinite' }}></span> Live
-                                            </span>
-                                        ) : (!t.isLocal && (
-                                            <span className="badge b-gray" style={{ padding: '4px 10px' }}>Closed</span>
-                                        ))}
-                                    </div>
-                                    
-                                    <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)', fontWeight: 500, display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-book text-lg"></i> {t.subject || 'General'}</span>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-list-numbers text-lg"></i> {t.questions?.length || 0} Qs</span>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-clock text-lg"></i> {t.duration} Mins</span>
-                                    </div>
-                                    
-                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                        <span className="badge b-purple" style={{ fontFamily: 'monospace', letterSpacing: '0.5px', padding: '6px 12px', fontSize: '13px' }}><i className="ti ti-hash text-lg"></i> {t.code}</span>
-                                        <span className="badge b-gray" style={{ padding: '6px 12px', fontSize: '13px' }}><i className="ti ti-users text-lg"></i> {subCount} Submissions</span>
-                                    </div>
-                                </div>
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="alphabetical">Name (A - Z)</option>
+                            </select>
+                            <i className="ti ti-sort-descending" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }}></i>
+                        </div>
+                    </div>
+
+                    {/* 🔥 FILTERING, SORTING & RENDERING ENGINE */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {(() => {
+                            // 1. Filter by Search Query
+                            let filtered = myTests.filter(t => {
+                                if (!vaultSearchQuery) return true;
+                                const sq = vaultSearchQuery.toLowerCase();
+                                return (t.title?.toLowerCase().includes(sq) || t.code?.toLowerCase().includes(sq) || t.subject?.toLowerCase().includes(sq));
+                            });
+
+                            // 2. 🔥 THE FIX: Bulletproof Sort Logic (Prevents TypeErrors on Numbers)
+                            filtered.sort((a, b) => {
+                                // String() laga diya taaki agar id number ho toh bhi localeCompare crash na kare
+                                const idA = String(a.id || '');
+                                const idB = String(b.id || '');
                                 
-                                <div className="hide-mobile" style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <i className="ti ti-chevron-right" style={{ fontSize: '24px' }}></i>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                                if (sortBy === 'newest') return idB.localeCompare(idA); 
+                                if (sortBy === 'oldest') return idA.localeCompare(idB); 
+                                if (sortBy === 'alphabetical') {
+                                    return String(a.title || '').toLowerCase().localeCompare(String(b.title || '').toLowerCase());
+                                }
+                                return 0;
+                            });
+                            // 3. No Results Found UI
+                            if (filtered.length === 0) {
+                                return (
+                                    <div style={{ textAlign: 'center', padding: '3rem 1rem', background: 'var(--color-background-primary)', borderRadius: '12px', border: '1px solid var(--color-border-secondary)' }}>
+                                        <i className="ti ti-search-off" style={{ fontSize: '48px', color: '#cbd5e1', display: 'block', marginBottom: '1rem' }}></i>
+                                        <h4 style={{ color: '#475569', marginBottom: '5px', fontSize: '18px' }}>No tests found</h4>
+                                        <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '1rem' }}>We couldn't find any tests matching "{vaultSearchQuery}".</p>
+                                        <button className="btn btn-ghost" onClick={() => setVaultSearchQuery('')}>Clear Search</button>
+                                    </div>
+                                );
+                            }
+
+                            // 4. Render Sorted & Filtered Cards
+                            return filtered.map((t, i) => {
+                                const isLive = t.isActive !== false;
+                                const subCount = t.submissions ? t.submissions.length : 0;
+                                
+                                return (
+                                    <div 
+                                        key={t.id || i} 
+                                        className="test-entry" 
+                                        style={{ 
+                                            cursor: 'pointer', 
+                                            borderLeft: t.isLocal ? '4px solid #f59e0b' : (isLive ? '4px solid #3B6D11' : '4px solid #cbd5e1'),
+                                            opacity: 0,
+                                            animation: `staggerSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards`,
+                                            animationDelay: `${(i > 10 ? 10 : i) * 0.06}s`, // Max delay cap for performance
+                                            padding: '1.25rem 1rem', // 🔥 Compact Mobile Padding
+                                            marginBottom: 0,
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            gap: '12px'
+                                        }}
+                                        onClick={() => setSelectedTest(t)}
+                                    >
+                                        <div style={{ flex: 1, minWidth: '220px' }}> 
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>{t.title}</h3>
+                                                
+                                                {t.isLocal && <span className="badge b-amber" style={{ padding: '2px 8px', fontSize: '11px' }}><i className="ti ti-device-floppy"></i> Local</span>}
+                                                
+                                                {isLive && !t.isLocal ? (
+                                                    <span className="badge b-green" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', fontSize: '11px' }}>
+                                                        <span style={{ width: '6px', height: '6px', background: '#27500A', borderRadius: '50%', animation: 'pulse 1s infinite' }}></span> Live
+                                                    </span>
+                                                ) : (!t.isLocal && (
+                                                    <span className="badge b-gray" style={{ padding: '2px 8px', fontSize: '11px' }}>Closed</span>
+                                                ))}
+                                            </div>
+                                            
+                                            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontWeight: 500, display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-book text-base"></i> {t.subject || 'General'}</span>
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-list-numbers text-base"></i> {t.questions?.length || 0} Qs</span>
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-clock text-base"></i> {t.duration} Mins</span>
+                                            </div>
+                                            
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span className="badge b-purple" style={{ fontFamily: 'monospace', letterSpacing: '0.5px', padding: '4px 10px', fontSize: '12px' }}><i className="ti ti-hash text-base"></i> {t.code}</span>
+                                                <span className="badge b-gray" style={{ padding: '4px 10px', fontSize: '12px' }}><i className="ti ti-users text-base"></i> {subCount} Subs</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="hide-mobile" style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <i className="ti ti-chevron-right" style={{ fontSize: '20px' }}></i>
+                                        </div>
+                                    </div>
+                                );
+                            });
+                        })()}
+                    </div>
+                </>
             )}
         </div>
       )}

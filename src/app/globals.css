@@ -948,3 +948,16 @@ mjx-container[display="true"]::-webkit-scrollbar {
       transform: translateY(0) scale(1); 
   }
 }
+
+/* 🔥 PREMIUM SKELETON SHIMMER EFFECT */
+@keyframes shimmer {
+    0% { background-position: -1000px 0; }
+    100% { background-position: 1000px 0; }
+}
+.skeleton {
+    background: var(--color-border-secondary);
+    background-image: linear-gradient(90deg, var(--color-border-secondary) 0px, var(--color-border-primary) 40px, var(--color-border-secondary) 80px);
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite linear forwards;
+    border-radius: 4px;
+}

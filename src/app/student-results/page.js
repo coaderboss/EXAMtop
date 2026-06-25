@@ -168,9 +168,36 @@ export default function StudentResults() {
     return () => clearTimeout(timer);
 }, [selectedResult, filter, sectionFilter]);
 
-  // 🔥 THE FIX: Using 'fetchingResults' instead of 'loadingData'
+  // 🔥 THE FIX 1: Premium Skeleton Loader for Student Results
   if (authLoading || fetchingResults) {
-    return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div><div>Fetching Results...</div></div>;
+    return (
+        <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+            {/* Header Skeleton */}
+            <div style={{ marginBottom: '2rem' }}>
+                <div className="skeleton" style={{ width: '250px', height: '36px', marginBottom: '8px', borderRadius: '8px' }}></div>
+                <div className="skeleton" style={{ width: '380px', height: '18px', borderRadius: '6px', maxWidth: '100%' }}></div>
+            </div>
+
+            {/* Result Cards Skeleton */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {[1, 2, 3, 4].map(n => (
+                    <div key={n} style={{ padding: '1.25rem 1.5rem', background: 'var(--color-background-primary)', borderRadius: '12px', border: '1px solid var(--color-border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                <div className="skeleton" style={{ width: '200px', height: '24px', borderRadius: '6px' }}></div>
+                                <div className="skeleton" style={{ width: '70px', height: '20px', borderRadius: '12px' }}></div>
+                            </div>
+                            <div className="skeleton" style={{ width: '150px', height: '16px', marginBottom: '10px', borderRadius: '4px' }}></div>
+                            <div className="skeleton" style={{ width: '100px', height: '18px', borderRadius: '4px' }}></div>
+                        </div>
+                        <div>
+                            <div className="skeleton" style={{ width: '120px', height: '36px', borderRadius: '6px' }}></div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
   }
 
   if (!currentUser) {
@@ -192,34 +219,61 @@ export default function StudentResults() {
   if (!selectedResult) {
     return (
       <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', animation: 'fadeIn 0.3s ease' }}>
-        <div className="page-header">
+        <div className="page-header" style={{ marginBottom: '1.5rem' }}>
           <div className="page-title">My Past Results</div>
           <div className="page-sub">Review your evaluated papers, correct answers, and examiner remarks.</div>
         </div>
 
         {myHistory.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--color-text-secondary)' }}>
-            <i className="ti ti-file-off" style={{ fontSize: '48px', display: 'block', marginBottom: '1rem', opacity: 0.5 }}></i>
-            <div style={{ fontSize: '16px', fontWeight: 500 }}>No results found.</div>
+          /* 🔥 PREMIUM EMPTY STATE */
+          <div style={{ background: 'var(--color-background-primary)', borderRadius: '16px', padding: '3rem 2rem', textAlign: 'center', border: '2px dashed var(--color-border-secondary)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '350px' }}>
+             <div style={{ width: '80px', height: '80px', background: 'var(--color-background-secondary)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                 <i className="ti ti-file-off" style={{ fontSize: '36px', color: '#94a3b8' }}></i>
+             </div>
+             <h3 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '8px' }}>No Results Yet</h3>
+             <p style={{ color: 'var(--color-text-secondary)', maxWidth: '400px', margin: '0 auto 1.5rem', fontSize: '14px', lineHeight: 1.6 }}>
+                 You haven't received any evaluated results. Complete an assessment and wait for your examiner to publish the report.
+             </p>
+             <button className="btn btn-primary" onClick={() => router.push('/student')}>
+                <i className="ti ti-pencil"></i> Go to Active Exams
+             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {myHistory.map((h, idx) => (
-              <div key={idx} className="test-entry" style={{ alignItems: 'center', padding: '1.25rem 1.5rem' }}>
-                <div className="te-meta">
-                  <div style={{ fontWeight: 600, fontSize: '16px' }}>
-                    {h.test.title} <span className="badge b-gray" style={{ fontSize: '11px', marginLeft: '8px' }}>Code: {h.test.code}</span>
+              /* 🔥 UPGRADED ANIMATED CARDS */
+              <div 
+                key={idx} 
+                className="test-entry" 
+                style={{ 
+                    alignItems: 'center', 
+                    padding: '1.25rem 1.5rem',
+                    opacity: 0,
+                    animation: `staggerSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards`,
+                    animationDelay: `${idx * 0.08}s`,
+                    borderLeft: h.canView ? '4px solid #185FA5' : '4px solid #f59e0b'
+                }}
+              >
+                <div className="te-meta" style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: '18px', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    {h.test.title} 
+                    <span className="badge b-purple" style={{ fontSize: '12px', padding: '4px 10px', fontFamily: 'monospace' }}><i className="ti ti-hash text-base"></i> {h.test.code}</span>
                   </div>
-                  <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '6px' }}>Submitted: {h.sub.time}</div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#185FA5', marginTop: '6px' }}>Score: {h.sub.score}/{h.test.totalMarks}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ti ti-calendar-time"></i> Submitted: {h.sub.time}
+                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#185FA5', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="ti ti-target"></i> Score: {h.sub.score} / {h.test.totalMarks}
+                  </div>
                 </div>
-                <div>
+                
+                <div style={{ flexShrink: 0, marginLeft: '15px' }}>
                   {h.canView ? (
-                    <button className="btn btn-primary btn-sm" onClick={() => setSelectedResult(h)}>
-                      <i className="ti ti-eye"></i> Review Paper
+                    <button className="btn btn-primary" style={{ padding: '10px 16px', fontWeight: 600 }} onClick={() => setSelectedResult(h)}>
+                      <i className="ti ti-eye"></i> View Report
                     </button>
                   ) : (
-                    <span className="badge b-amber" style={{ fontSize: '13px', padding: '6px 12px' }}>
+                    <span className="badge b-amber" style={{ fontSize: '13px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <i className="ti ti-lock"></i> Pending Release
                     </span>
                   )}

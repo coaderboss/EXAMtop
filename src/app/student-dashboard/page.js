@@ -67,11 +67,73 @@ export default function StudentDashboard() {
     fetchDashboardData();
   }, [currentUser]);
 
+  // 🔥 THE FIX: Premium Student Dashboard Skeleton Loader
   if (authLoading || fetchingResults) {
     return (
-      <div className="spinner-container" style={{ paddingTop: '10vh' }}>
-        <div className="spinner"></div>
-        <div style={{ fontWeight: 500, color: 'var(--color-text-secondary)' }}>Loading Analytics...</div>
+      <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        {/* 1. Header Skeleton */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '2rem' }}>
+          <div>
+            <div className="skeleton" style={{ width: '280px', height: '34px', marginBottom: '8px', borderRadius: '8px' }}></div>
+            <div className="skeleton" style={{ width: '350px', height: '18px', borderRadius: '6px', maxWidth: '100%' }}></div>
+          </div>
+          <div className="skeleton hide-mobile" style={{ width: '160px', height: '38px', borderRadius: '30px' }}></div>
+        </div>
+
+        {/* 2. Top Stats Grid Skeleton (4 Cards) */}
+        <div className="grid4" style={{ marginBottom: '1.5rem' }}>
+            {[1, 2, 3, 4].map(n => (
+                <div key={n} className="stat-card" style={{ padding: '1.5rem 1.25rem', borderColor: 'transparent' }}>
+                    <div className="skeleton" style={{ width: '45px', height: '32px', margin: '0 auto 10px', borderRadius: '6px' }}></div>
+                    <div className="skeleton" style={{ width: '110px', height: '14px', margin: '0 auto', borderRadius: '4px' }}></div>
+                </div>
+            ))}
+        </div>
+
+        {/* 3. The Graph Card Skeleton */}
+        <div className="card" style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '16px', height: '290px', display: 'flex', flexDirection: 'column', borderColor: 'transparent' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2rem' }}>
+                <div className="skeleton" style={{ width: '32px', height: '32px', borderRadius: '8px' }}></div>
+                <div className="skeleton" style={{ width: '210px', height: '22px', borderRadius: '6px' }}></div>
+            </div>
+            {/* Fake Graph Bars with Staggered Heights */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', flex: 1, borderBottom: '2px solid var(--color-border-secondary)' }}>
+                {[30, 60, 40, 80, 50, 90, 45, 75, 60, 95].map((h, i) => (
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                        <div className="skeleton" style={{ width: '24px', height: '12px', marginBottom: '8px', borderRadius: '4px' }}></div>
+                        <div className="skeleton" style={{ width: '100%', maxWidth: '36px', height: `${h}%`, borderRadius: '6px 6px 0 0' }}></div>
+                    </div>
+                ))}
+            </div>
+            {/* X-Axis Labels */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px' }}>
+                <div className="skeleton" style={{ width: '80px', height: '14px', borderRadius: '4px' }}></div>
+                <div className="skeleton" style={{ width: '80px', height: '14px', borderRadius: '4px' }}></div>
+            </div>
+        </div>
+
+        {/* 4. Past Ledger Title & List Skeleton */}
+        <div className="skeleton" style={{ width: '180px', height: '24px', marginBottom: '1rem', borderRadius: '6px' }}></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {[1, 2, 3].map(n => (
+                <div key={n} className="test-entry" style={{ padding: '1.25rem 1.5rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderColor: 'transparent' }}>
+                    <div>
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+                            <div className="skeleton" style={{ width: '160px', height: '22px', borderRadius: '6px' }}></div>
+                            <div className="skeleton" style={{ width: '60px', height: '22px', borderRadius: '12px' }}></div>
+                        </div>
+                        <div className="skeleton" style={{ width: '130px', height: '14px', borderRadius: '4px' }}></div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <div className="hide-mobile" style={{ textAlign: 'right' }}>
+                            <div className="skeleton" style={{ width: '70px', height: '22px', marginBottom: '6px', borderRadius: '4px', marginLeft: 'auto' }}></div>
+                            <div className="skeleton" style={{ width: '90px', height: '14px', borderRadius: '4px' }}></div>
+                        </div>
+                        <div className="skeleton" style={{ width: '46px', height: '46px', borderRadius: '50%' }}></div>
+                    </div>
+                </div>
+            ))}
+        </div>
       </div>
     );
   }
