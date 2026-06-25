@@ -1079,14 +1079,20 @@ export default function ManageTests() {
         // ==========================================
         // VIEW 1: MASTER VAULT (List of Tests)
         // ==========================================
-        <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
-            <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-                <div className="page-title">My Tests Vault</div>
-                <div className="page-sub">Manage your assessments, control intakes, and review results.</div>
+       <div style={{ padding: '1.5rem 1rem', paddingBottom: '40vh', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
+            
+            {/* 🔥 1. MODERN COMPACT HEADER */}
+            <div style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <i className="ti ti-vault" style={{ color: '#185FA5', fontSize: '24px' }}></i> My Tests Vault
+                </h2>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+                    Manage assessments, control intakes, and review results.
+                </p>
             </div>
 
             {myTests.length === 0 ? (
-                /* 🔥 PROPER EMPTY STATE UI (Jab ek bhi test na banaya ho) */
+                /* Empty State UI */
                 <div className="bg-white dark:bg-slate-900 rounded-2xl p-10 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center min-h-[350px]">
                     <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-5">
                         <i className="ti ti-folder-off text-4xl text-slate-400"></i>
@@ -1095,42 +1101,46 @@ export default function ManageTests() {
                     <p className="text-slate-500 max-w-md mx-auto mb-8 text-sm leading-relaxed">
                         You haven't created any assessments yet. Click the button below to start building your first secure test.
                     </p>
-                    <button 
-                        className="btn btn-primary" 
-                        style={{ padding: '12px 24px', fontWeight: 600, fontSize: '15px' }} 
-                        onClick={() => router.push('/create')}
-                    >
+                    <button className="btn btn-primary" style={{ padding: '12px 24px', fontWeight: 600, fontSize: '15px' }} onClick={() => router.push('/create')}>
                         <i className="ti ti-plus"></i> Create New Test
                     </button>
                 </div>
             ) : (
                 <>
-                    {/* 🔥 SEARCH & SORT CONTROL PANEL */}
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        {/* Instant Word Search */}
-                        <div style={{ position: 'relative', flex: '1', minWidth: '250px' }}>
-                            <i className="ti ti-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '18px' }}></i>
+                    {/* 🔥 2. INLINE SEARCH & SORT PANEL (MOBILE OPTIMIZED) */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '1.25rem', width: '100%' }}>
+                        
+                        {/* Instant Search Bar (Flex 1 - Takes remaining space) */}
+                        <div style={{ position: 'relative', flex: 1 }}>
+                            <i className="ti ti-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}></i>
                             <input 
                                 type="text" 
-                                placeholder="Search test name, code, or subject..." 
+                                placeholder="Search tests..." 
                                 value={vaultSearchQuery}
                                 onChange={(e) => setVaultSearchQuery(e.target.value)}
-                                style={{ padding: '12px 12px 12px 40px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '15px' }}
+                                onFocus={(e) => {
+                                    const inputY = e.target.getBoundingClientRect().top + window.scrollY;
+                                    setTimeout(() => {
+                                        window.scrollTo({ top: inputY - 20, behavior: 'smooth' });
+                                    }, 300); 
+                                }}
+                                style={{ padding: '10px 10px 10px 36px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '14px', color: 'var(--color-text-primary)' }}
                             />
                         </div>
                         
-                        {/* Premium Sorting Dropdown */}
-                        <div style={{ position: 'relative', minWidth: '160px' }}>
+                        {/* Premium Compact Dropdown (Fixed width so it never wraps) */}
+                        <div style={{ position: 'relative', width: '110px', flexShrink: 0 }}>
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                style={{ padding: '12px 36px 12px 16px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '14px', fontWeight: 600, appearance: 'none', cursor: 'pointer', color: 'var(--color-text-primary)' }}
+                                style={{ padding: '10px 24px 10px 10px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '13px', fontWeight: 600, appearance: 'none', cursor: 'pointer', color: 'var(--color-text-primary)' }}
                             >
-                                <option value="newest">Newest First</option>
-                                <option value="oldest">Oldest First</option>
-                                <option value="alphabetical">Name (A - Z)</option>
+                                {/* Shorter option names to fit perfectly on phones */}
+                                <option value="newest">Newest</option>
+                                <option value="oldest">Oldest</option>
+                                <option value="alphabetical">A - Z</option>
                             </select>
-                            <i className="ti ti-sort-descending" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }}></i>
+                            <i className="ti ti-sort-descending" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', fontSize: '16px' }}></i>
                         </div>
                     </div>
 
