@@ -16,7 +16,7 @@ function Header() {
   const router = useRouter();
   
   
-  // Modals & Theme State
+// Modals & Theme State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -27,6 +27,41 @@ function Header() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({ college: '', phone: '' });
   const settingsRef = useRef(null);
+
+  // 🔥 CLEAN SHUTTER STATES & REFS (Koi purana setLastScrollY nahi bacha)
+  const [isNavVisible, setIsNavVisible] = useState(true);
+  const lastScrollY = useRef(0); 
+  const scrollTimeout = useRef(null); 
+
+// 🔥 ULTRA-SMOOTH FLICKER-PROOF SCROLL ENGINE (No Timeout Delays)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleScroll = () => {
+        const currentScrollY = window.scrollY;
+
+        // Top page bounce protection for mobile
+        if (currentScrollY <= 50) {
+            setIsNavVisible(true);
+            lastScrollY.current = currentScrollY;
+            return;
+        }
+
+        const distance = currentScrollY - lastScrollY.current;
+
+        // 🚫 Threshold filter: 15px se zyada scroll hote hi instantly action lega bina delay ke
+        if (distance > 15) {
+            setIsNavVisible(false); // Smooth Hide
+            lastScrollY.current = currentScrollY;
+        } else if (distance < -15) {
+            setIsNavVisible(true);  // Smooth Show
+            lastScrollY.current = currentScrollY;
+        }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -241,11 +276,30 @@ function Header() {
             </div>
 
               {userRole && userRole !== 'guest' && pathname !== '/onboarding' && (
-                   <div id="dynamic-nav-wrapper" style={{ background: 'var(--color-background-secondary)', overflowX: 'auto', borderBottom: '1px solid var(--color-border-secondary)', scrollbarWidth: 'none' }}>
-                   <div className="nav-tabs" id="dynamic-nav-tabs" style={{ display: 'flex', gap: '8px', padding: '10px 20px', width: 'max-content', margin: '0 auto' }}>
-                  {renderNavTabs()}
-            </div>
-            </div>
+                <div 
+                    id="dynamic-nav-wrapper" 
+                    style={{ 
+                        background: 'var(--color-background-secondary)', 
+                        borderBottom: '1px solid var(--color-border-secondary)', 
+                        
+                        // 🔥 THE ULTRA-SMOOTH TRANSITION: Fluid iOS Curve
+                        transition: 'max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease-out, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+                        maxHeight: isNavVisible ? '50px' : '0px',
+                        opacity: isNavVisible ? 1 : 0,
+                        transform: isNavVisible ? 'translateY(0)' : 'translateY(-4px)',
+                        
+                        // 🔥 Jhatka Fix: Dono ko static lock rakha hai taaki layout jump na mare
+                        overflowX: 'auto',
+                        overflowY: 'hidden', 
+                        scrollbarWidth: 'none',
+                        position: 'relative',
+                        zIndex: 90
+                    }}
+                >
+                    <div className="nav-tabs" id="dynamic-nav-tabs" style={{ display: 'flex', gap: '8px', padding: '10px 20px', width: 'max-content', margin: '0 auto' }}>
+                        {renderNavTabs()}
+                    </div>
+                </div>
             )}
             
         </div>

@@ -29,6 +29,7 @@ export default function ManageTests() {
   const [undoData, setUndoData] = useState(null); // For Delete Undo timer
   const [vaultSearchQuery, setVaultSearchQuery] = useState(''); 
   const [sortBy, setSortBy] = useState('newest'); 
+  const searchRef = typeof window !== 'undefined' ? require('react').useRef(null) : null; 
   
   // --- MODALS & SUB-VIEWS ---
   const [modalType, setModalType] = useState(null); // 'analytics' | 'editKey' | 'audit'
@@ -46,6 +47,18 @@ export default function ManageTests() {
   const [sysAlert, setSysAlert] = useState(null); // { title, msg, type }
   const [sysConfirm, setSysConfirm] = useState(null); // { title, msg, action }
   const baseTests = isOffline ? localTests : [...(tests || []), ...localTests];
+
+  // 🔥 FIX: Press '/' to focus Search Bar automatically
+  typeof require('react').useEffect(() => {
+    const handleSlashKey = (e) => {
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            searchRef?.current?.focus();
+        }
+    };
+    window.addEventListener('keydown', handleSlashKey);
+    return () => window.removeEventListener('keydown', handleSlashKey);
+  }, [searchRef]);
 
   // 🔥 FIX 1: THE AMNESIA CURE (State Memory on Refresh)
   useEffect(() => {
@@ -1107,38 +1120,34 @@ export default function ManageTests() {
                 </div>
             ) : (
                 <>
-                    {/* 🔥 2. INLINE SEARCH & SORT PANEL (MOBILE OPTIMIZED) */}
+                    {/* 🔥 Inline Search & Sort Panel */}
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '1.25rem', width: '100%' }}>
                         
-                        {/* Instant Search Bar (Flex 1 - Takes remaining space) */}
+                        {/* Instant Search Bar */}
                         <div style={{ position: 'relative', flex: 1 }}>
                             <i className="ti ti-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}></i>
                             <input 
+                                ref={searchRef} // 🔥 Added Ref for keyboard focus
                                 type="text" 
-                                placeholder="Search tests..." 
+                                placeholder="Search tests... (Press '/')" // Indicator for PC users
                                 value={vaultSearchQuery}
                                 onChange={(e) => setVaultSearchQuery(e.target.value)}
-                                onFocus={(e) => {
-                                    const inputY = e.target.getBoundingClientRect().top + window.scrollY;
-                                    setTimeout(() => {
-                                        window.scrollTo({ top: inputY - 20, behavior: 'smooth' });
-                                    }, 300); 
-                                }}
                                 style={{ padding: '10px 10px 10px 36px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '14px', color: 'var(--color-text-primary)' }}
                             />
                         </div>
                         
-                        {/* Premium Compact Dropdown (Fixed width so it never wraps) */}
+                        {/* Premium Dropdown with Integrated Status Filters */}
                         <div style={{ position: 'relative', width: '110px', flexShrink: 0 }}>
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
                                 style={{ padding: '10px 24px 10px 10px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '13px', fontWeight: 600, appearance: 'none', cursor: 'pointer', color: 'var(--color-text-primary)' }}
                             >
-                                {/* Shorter option names to fit perfectly on phones */}
                                 <option value="newest">Newest</option>
                                 <option value="oldest">Oldest</option>
                                 <option value="alphabetical">A - Z</option>
+                                <option value="live">🟢 Live</option> {/* 🔥 Status option added */}
+                                <option value="closed">⚪ Closed</option> {/* 🔥 Status option added */}
                             </select>
                             <i className="ti ti-sort-descending" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', fontSize: '16px' }}></i>
                         </div>
@@ -1147,26 +1156,32 @@ export default function ManageTests() {
                     {/* 🔥 FILTERING, SORTING & RENDERING ENGINE */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {(() => {
-                            // 1. Filter by Search Query
+                            // 1. Filter by Search Query AND Dropdown Status
                             let filtered = myTests.filter(t => {
-                                if (!vaultSearchQuery) return true;
                                 const sq = vaultSearchQuery.toLowerCase();
-                                return (t.title?.toLowerCase().includes(sq) || t.code?.toLowerCase().includes(sq) || t.subject?.toLowerCase().includes(sq));
+                                const matchesSearch = !vaultSearchQuery || (t.title?.toLowerCase().includes(sq) || t.code?.toLowerCase().includes(sq) || t.subject?.toLowerCase().includes(sq));
+                                
+                                const isLive = t.isActive !== false;
+                                let matchesStatus = true;
+                                if (sortBy === 'live') matchesStatus = isLive;
+                                if (sortBy === 'closed') matchesStatus = !isLive;
+                                
+                                return matchesSearch && matchesStatus;
                             });
 
-                            // 2. 🔥 THE FIX: Bulletproof Sort Logic (Prevents TypeErrors on Numbers)
+                            // 2. Sort Logic (Handles fallback inner chronological order for live/closed status)
                             filtered.sort((a, b) => {
-                                // String() laga diya taaki agar id number ho toh bhi localeCompare crash na kare
                                 const idA = String(a.id || '');
                                 const idB = String(b.id || '');
                                 
-                                if (sortBy === 'newest') return idB.localeCompare(idA); 
+                                if (sortBy === 'newest' || sortBy === 'live' || sortBy === 'closed') return idB.localeCompare(idA); 
                                 if (sortBy === 'oldest') return idA.localeCompare(idB); 
                                 if (sortBy === 'alphabetical') {
                                     return String(a.title || '').toLowerCase().localeCompare(String(b.title || '').toLowerCase());
                                 }
                                 return 0;
                             });
+
                             // 3. No Results Found UI
                             if (filtered.length === 0) {
                                 return (
