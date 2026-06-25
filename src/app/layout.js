@@ -28,47 +28,72 @@ function Header() {
   const [profileData, setProfileData] = useState({ college: '', phone: '' });
   const settingsRef = useRef(null);
 
-  // 🔥 CLEAN SHUTTER STATES & REFS (Koi purana setLastScrollY nahi bacha)
+  // 🔥 1. CLEAN SHUTTER STATES & REFS
   const [isNavVisible, setIsNavVisible] = useState(true);
   const lastScrollY = useRef(0); 
-  const scrollTimeout = useRef(null); 
+  const isAnimating = useRef(false); // 🔥 FIX: Layout Jump Lock (Fake scroll ko rokne ke liye)
+  const navState = useRef(true);     // 🔥 FIX: Direct memory state
 
-// 🔥 ULTRA-SMOOTH FLICKER-PROOF SCROLL ENGINE (No Timeout Delays)
+  // 🔥 2. ANTI-FLICKER SCROLL ENGINE (With Animation Lock & Short-Page Guard)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const handleScroll = () => {
         const currentScrollY = window.scrollY;
+        // Total kitna scroll ho sakta hai wo nikala
+        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
 
-        // Top page bounce protection for mobile
-        if (currentScrollY <= 50) {
-            setIsNavVisible(true);
+        // 🛡️ GUARD 1: SHORT PAGE PROTECTION
+        // Agar page me thik se scroll karne ki jagah hi nahi hai, toh chhedo hi mat
+        if (maxScroll < 150) {
+            if (!navState.current) { 
+                navState.current = true; 
+                setIsNavVisible(true); 
+            }
+            return;
+        }
+
+        // 🛡️ GUARD 2: TOP BOUNCE PROTECTION 
+        // Ekdum top par hamesha dikhao (Mobile bounce fix)
+        if (currentScrollY <= 60) {
+            if (!navState.current) { 
+                navState.current = true; 
+                setIsNavVisible(true); 
+            }
             lastScrollY.current = currentScrollY;
+            return;
+        }
+
+        // 🛡️ GUARD 3: THE ANIMATION LOCK 
+        // Jab navbar band/khul raha ho, uske layout jump (fake scroll) ko puri tarah ignore karo
+        if (isAnimating.current) {
+            lastScrollY.current = currentScrollY; // Base update karte raho taaki lock khulte hi jhatka na lage
             return;
         }
 
         const distance = currentScrollY - lastScrollY.current;
 
-        // 🚫 Threshold filter: 15px se zyada scroll hote hi instantly action lega bina delay ke
-        if (distance > 15) {
-            setIsNavVisible(false); // Smooth Hide
-            lastScrollY.current = currentScrollY;
-        } else if (distance < -15) {
-            setIsNavVisible(true);  // Smooth Show
-            lastScrollY.current = currentScrollY;
+        // 🛡️ SMART THRESHOLD TRIGGERS (20px ka solid finger swipe chahiye)
+        if (distance > 20 && navState.current) {
+            // Scroll Down -> Hide
+            isAnimating.current = true;
+            navState.current = false;
+            setIsNavVisible(false);
+            setTimeout(() => { isAnimating.current = false; }, 400); // 400ms ka strict lock
+
+        } else if (distance < -20 && !navState.current) {
+            // Scroll Up -> Show
+            isAnimating.current = true;
+            navState.current = true;
+            setIsNavVisible(true);
+            setTimeout(() => { isAnimating.current = false; }, 400); // 400ms ka strict lock
         }
+        
+        lastScrollY.current = currentScrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (settingsRef.current && !settingsRef.current.contains(event.target)) setIsSettingsOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {

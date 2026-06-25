@@ -666,9 +666,10 @@ export default function StudentPortal() {
           )}
 
           <div className="test-layout" style={{ marginTop: '1rem' }}>
-            <div className="q-area q-area-content" style={{ opacity: 0 }}>
+            {/* 🔥 FIX: Main container se 'q-area-content' aur opacity hata di */}
+            <div className="q-area"> 
               
-              {/* SMART SPACE-SAVING HEADER FOR MOBILE */}
+              {/* SMART SPACE-SAVING HEADER FOR MOBILE (Ye fade nahi hoga) */}
               <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)', paddingBottom: '0.75rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -683,95 +684,83 @@ export default function StudentPortal() {
                 </div>
               </div>
               
-              {/* StaticMath applied to Question Text */}
-              <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
-              
-              {/* 🧬 HYBRID FIGURE ENGINE RENDERER (Clean Native Look) */}
-              {currentQuestion?.figureType && currentQuestion.figureType !== 'none' && currentQuestion.figureData && (
-                <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
-                    
-                    {/* 1 & 2: Base64 or URL Images */}
-                    {(currentQuestion.figureType === 'image' || currentQuestion.figureType === 'url') && (
-                        <img 
-                          src={currentQuestion.figureData} 
-                          alt="" 
-                          style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain' }} 
-                          onError={(e) => { e.target.style.display = 'none'; }} 
-                        />
-                    )}
-
-                    {/* 3: Chemistry SMILES Engine (Using Local Component) */}
-                    {currentQuestion.figureType === 'smiles' && (
-                        <div style={{ display: 'flex', justifyContent: 'center' }}>
-                            <SmilesViewer smilesCode={currentQuestion.figureData} width={280} height={280} />
-                        </div>
-                    )}
-
-                    {/* 4: Math TikZ Engine (Using Reliable UpMath SVG Renderer) */}
-                    {currentQuestion.figureType === 'tikz' && (
-                        <div style={{ display: 'flex', justifyContent: 'center', overflowX: 'auto', maxWidth: '100%' }}>
-                            <img 
-                              src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}')}`} 
-                              alt="Math Graphic" 
-                              style={{ maxWidth: '100%', objectFit: 'contain' }} 
-                              onError={(e) => { e.target.style.display = 'none'; }}
-                            />
-                        </div>
-                    )}
-                </div>
-              )}
-              
-              <div>
-                  {currentQuestion?.type === 'mcq' && currentQuestion.options.map((opt, j) => (
-                      <button key={j} className={`opt-btn ${answers[curQ]?.val === j ? 'sel' : ''}`} onClick={() => pickMCQ(curQ, j)}>
-                          <div className="olabel">{answers[curQ]?.val === j ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                          {/* 🔥 Smart Option Renderer: Handles SMILES and Long Equations */}
-                          <div className="hide-scroll" style={{ width: '100%', maxWidth: '100%', padding: '2px 0' }}>
-                            {opt.startsWith('[smiles]') ? (
-                                <div style={{ pointerEvents: 'none' }}>
-                                    <SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} />
-                                </div>
-                            ) : (
-                                <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px', whiteSpace: 'normal', wordBreak: 'break-word' }} />
-                            )}
-                         </div>
-                      </button>
-                  ))}
+              {/* 🔥 THE NEW FADING WRAPPER: Sirf Question aur Options fade honge */}
+              <div className="q-area-content" style={{ opacity: 0 }}>
                   
-                  {currentQuestion?.type === 'msq' && currentQuestion.options.map((opt, j) => {
-                      const isSelected = Array.isArray(answers[curQ]?.val) && answers[curQ].val.includes(j);
-                      return (
-                          <button key={j} className={`opt-btn ${isSelected ? 'sel' : ''}`} onClick={() => pickMSQ(curQ, j)}>
-                              <div className="olabel" style={{ borderRadius: '4px' }}>{isSelected ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                              {/* 🔥 Smart Option Renderer: Handles SMILES and Long Equations */}
-                              <div className="hide-scroll" style={{ width: '100%', maxWidth: '100%', padding: '2px 0' }}>
-                              {opt.startsWith('[smiles]') ? (
-                              <div style={{ pointerEvents: 'none' }}>
-                              <SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} />
-                               </div>
-                             ) : (
-                             <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px', whiteSpace: 'normal', wordBreak: 'break-word' }} />
-                              )}
+                  {/* StaticMath applied to Question Text */}
+                  <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
+                  
+                  {/* 🧬 HYBRID FIGURE ENGINE RENDERER */}
+                  {currentQuestion?.figureType && currentQuestion.figureType !== 'none' && currentQuestion.figureData && (
+                    <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
+                        
+                        {(currentQuestion.figureType === 'image' || currentQuestion.figureType === 'url') && (
+                            <img src={currentQuestion.figureData} alt="" style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                        )}
+
+                        {currentQuestion.figureType === 'smiles' && (
+                            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                <SmilesViewer smilesCode={currentQuestion.figureData} width={280} height={280} />
                             </div>
+                        )}
+
+                        {currentQuestion.figureType === 'tikz' && (
+                            <div style={{ display: 'flex', justifyContent: 'center', overflowX: 'auto', maxWidth: '100%' }}>
+                                <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" style={{ maxWidth: '100%', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                            </div>
+                        )}
+                    </div>
+                  )}
+                  
+                  {/* OPTIONS AREA */}
+                  <div>
+                      {currentQuestion?.type === 'mcq' && currentQuestion.options.map((opt, j) => (
+                          <button key={j} className={`opt-btn ${answers[curQ]?.val === j ? 'sel' : ''}`} onClick={() => pickMCQ(curQ, j)}>
+                              <div className="olabel">{answers[curQ]?.val === j ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
+                              <div className="hide-scroll" style={{ width: '100%', maxWidth: '100%', padding: '2px 0' }}>
+                                {opt.startsWith('[smiles]') ? (
+                                    <div style={{ pointerEvents: 'none' }}><SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} /></div>
+                                ) : (
+                                    <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px', whiteSpace: 'normal', wordBreak: 'break-word' }} />
+                                )}
+                             </div>
                           </button>
-                      );
-                  })}
+                      ))}
+                      
+                      {currentQuestion?.type === 'msq' && currentQuestion.options.map((opt, j) => {
+                          const isSelected = Array.isArray(answers[curQ]?.val) && answers[curQ].val.includes(j);
+                          return (
+                              <button key={j} className={`opt-btn ${isSelected ? 'sel' : ''}`} onClick={() => pickMSQ(curQ, j)}>
+                                  <div className="olabel" style={{ borderRadius: '4px' }}>{isSelected ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
+                                  <div className="hide-scroll" style={{ width: '100%', maxWidth: '100%', padding: '2px 0' }}>
+                                  {opt.startsWith('[smiles]') ? (
+                                    <div style={{ pointerEvents: 'none' }}><SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} /></div>
+                                 ) : (
+                                    <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px', whiteSpace: 'normal', wordBreak: 'break-word' }} />
+                                  )}
+                                </div>
+                              </button>
+                          );
+                      })}
 
-                  {currentQuestion?.type === 'integer' && (
-                      <div style={{ marginBottom: '1rem' }}>
-                          <label style={{ fontSize: '15px' }}>Enter your integer answer below:</label>
-                          <input type="number" value={answers[curQ]?.val !== null ? answers[curQ].val : ''} onChange={(e) => pickInt(curQ, e.target.value)} style={{ maxWidth: '250px', fontSize: '20px', fontWeight: 600, textAlign: 'center', padding: '12px' }} placeholder="0" />
-                      </div>
-                  )}
+                      {currentQuestion?.type === 'integer' && (
+                          <div style={{ marginBottom: '1rem' }}>
+                              <label style={{ fontSize: '15px' }}>Enter your integer answer below:</label>
+                              <input type="number" value={answers[curQ]?.val !== null ? answers[curQ].val : ''} onChange={(e) => pickInt(curQ, e.target.value)} style={{ maxWidth: '250px', fontSize: '20px', fontWeight: 600, textAlign: 'center', padding: '12px' }} placeholder="0" />
+                          </div>
+                      )}
 
-                  {currentQuestion?.type === 'subjective' && (
-                      <div style={{ marginBottom: '1rem' }}>
-                          <label style={{ fontSize: '15px' }}>Type your descriptive answer below:</label>
-                          <textarea value={answers[curQ]?.val || ''} onChange={(e) => pickSubj(curQ, e.target.value)} style={{ minHeight: '160px', fontSize: '15px' }} placeholder="Write your detailed answer here..."></textarea>
-                      </div>
-                  )}
-              </div>
+                      {currentQuestion?.type === 'subjective' && (
+                          <div style={{ marginBottom: '1rem' }}>
+                              <label style={{ fontSize: '15px' }}>Type your descriptive answer below:</label>
+                              <textarea value={answers[curQ]?.val || ''} onChange={(e) => pickSubj(curQ, e.target.value)} style={{ minHeight: '160px', fontSize: '15px' }} placeholder="Write your detailed answer here..."></textarea>
+                          </div>
+                      )}
+                  </div>
+              </div> 
+              {/* 🔥 END OF FADING WRAPPER */}
 
+              {/* ACTION BUTTONS (Ye ab bahar hain, fade nahi honge) */}
               <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
                 <button className="btn btn-sm" onClick={() => toggleMark(curQ)} style={answers[curQ]?.marked ? { color: '#633806', borderColor: '#FAC775', background: '#FAEEDA', fontWeight: 600 } : {}}>
                   <i className="ti ti-bookmark"></i> {answers[curQ]?.marked ? 'Unmark' : 'Mark for Review'}
@@ -781,7 +770,7 @@ export default function StudentPortal() {
                 )}
               </div>
               
-              {/* BOTTOM NAVIGATION ACTIONS (Sticky on Mobile) */}
+              {/* BOTTOM NAVIGATION ACTIONS (Ye ab bahar hain, ekdum solid rahenge) */}
               <div className="mobile-sticky-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '2rem' }}>
                   <button className="btn" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ - 1)} disabled={curQ === 0}>
                       <i className="ti ti-arrow-left"></i> <span className="hide-mobile">Prev</span>
