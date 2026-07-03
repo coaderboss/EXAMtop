@@ -48,6 +48,56 @@ export default function ManageTests() {
   const [sysConfirm, setSysConfirm] = useState(null); // { title, msg, action }
   const baseTests = isOffline ? localTests : [...(tests || []), ...localTests];
 
+  // --- 🔥 EVALUATION NAV SHUTTER STATES ---
+  const [isEvalNavVisible, setIsEvalNavVisible] = useState(true);
+  const evalLastScrollY = useRef(0);
+  const isEvalAnimating = useRef(false);
+  const evalNavState = useRef(true);
+
+  // 🔥 EVALUATION SCROLL SHUTTER ENGINE
+  useEffect(() => {
+      if (typeof window === 'undefined') return;
+      const handleScroll = () => {
+          if (!evaluateSub) return; // Sirf Evaluate page par chalega
+          
+          const currentScrollY = window.scrollY;
+          
+          // Top bounce protection
+          if (currentScrollY <= 70) {
+              if (!evalNavState.current) {
+                  evalNavState.current = true;
+                  setIsEvalNavVisible(true);
+              }
+              evalLastScrollY.current = currentScrollY;
+              return;
+          }
+
+          // Animation Layout Lock (Flicker Rokne Ke Liye)
+          if (isEvalAnimating.current) {
+              evalLastScrollY.current = currentScrollY;
+              return;
+          }
+
+          const distance = currentScrollY - evalLastScrollY.current;
+          
+          if (distance > 20 && evalNavState.current) {
+              isEvalAnimating.current = true;
+              evalNavState.current = false;
+              setIsEvalNavVisible(false);
+              setTimeout(() => { isEvalAnimating.current = false; }, 400); // Strict Lock
+          } else if (distance < -20 && !evalNavState.current) {
+              isEvalAnimating.current = true;
+              evalNavState.current = true;
+              setIsEvalNavVisible(true);
+              setTimeout(() => { isEvalAnimating.current = false; }, 400); // Strict Lock
+          }
+          evalLastScrollY.current = currentScrollY;
+      };
+
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      return () => window.removeEventListener('scroll', handleScroll);
+  }, [evaluateSub]);
+
   // 🔥 FIX: Press '/' to focus Search Bar automatically
   typeof require('react').useEffect(() => {
     const handleSlashKey = (e) => {
@@ -528,6 +578,20 @@ export default function ManageTests() {
   };
 
   const getLabel = (type) => ({ mcq: 'Single Correct', msq: 'Multi Correct', integer: 'Integer Type', subjective: 'Subjective' }[type] || type);
+  
+  const deleteSubmission = async (sIdx, subName) => {
+    if (window.confirm(`Are you sure you want to permanently delete the submission for "${subName}"? (Use this to remove Demo/Dummy tests)`)) {
+        try {
+            let updatedTest = { ...selectedTest };
+            updatedTest.submissions = updatedTest.submissions.filter((_, idx) => idx !== sIdx);
+            
+            await updateTestGlobal(updatedTest);
+            setSysAlert({ title: 'Deleted', msg: 'Demo submission removed successfully.', type: 'success' });
+        } catch (e) {
+            setSysAlert({ title: 'Error', msg: 'Failed to delete submission.', type: 'error' });
+        }
+    }
+  };
 
   return (
     <>
@@ -537,10 +601,45 @@ export default function ManageTests() {
         // ==========================================
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
           
-          <div style={{ position: 'sticky', top: '70px', background: '#fff', zIndex: 90, padding: '15px 0', borderBottom: '1px solid var(--color-border-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              {/* 🔥 FIX: setEvalSectionFilter reset added here */}
-              <button className="btn btn-ghost" style={{ fontWeight: 600, padding: 0 }} onClick={() => { setEvaluateSub(null); setEvalOverrides({}); setEvalSectionFilter('all_sections'); }}><i className="ti ti-arrow-left"></i> Back to Submissions</button>
-              <button className="btn btn-success" style={{ fontWeight: 600 }} onClick={() => setModalType('audit')}><i className="ti ti-device-floppy"></i> Save Evaluation</button>
+          {/* 🔥 SMART SCROLL SHUTTER FOR EVALUATION NAVBAR */}
+          <div style={{ 
+              position: 'sticky', 
+              top: isEvalNavVisible ? '60px' : '-100px', // Animates Up/Down
+              background: 'rgba(255, 255, 255, 0.90)', 
+              backdropFilter: 'blur(12px)',
+              zIndex: 90, 
+              padding: '12px 15px', 
+              margin: '0 -15px', // Edges tak khinchne ke liye (Mobile Optimized)
+              borderBottom: '1px solid rgba(0,0,0,0.05)', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              transition: 'top 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease',
+              opacity: isEvalNavVisible ? 1 : 0,
+              boxShadow: isEvalNavVisible ? '0 4px 25px rgba(0,0,0,0.06)' : 'none'
+          }}>
+              {/* Left Side: Back Button */}
+              <button 
+                  className="btn btn-ghost" 
+                  style={{ fontWeight: 600, padding: '8px 12px', background: '#f1f5f9' }} 
+                  onClick={() => { setEvaluateSub(null); setEvalOverrides({}); setEvalSectionFilter('all_sections'); }}
+              >
+                  <i className="ti ti-arrow-left"></i> <span className="hide-mobile" style={{ marginLeft: '4px' }}>Back</span>
+              </button>
+              
+              {/* Center Label (Mobile pe chhip jayega space bachane ke liye) */}
+              <div className="hide-mobile" style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  Evaluation Mode
+              </div>
+
+              {/* Right Side: Save Button */}
+              <button 
+                  className="btn btn-success" 
+                  style={{ fontWeight: 600, padding: '8px 16px', boxShadow: '0 4px 15px rgba(59,109,17,0.2)' }} 
+                  onClick={() => setModalType('audit')}
+              >
+                  <i className="ti ti-device-floppy"></i> Save <span className="hide-mobile" style={{ marginLeft: '4px' }}>Evaluation</span>
+              </button>
           </div>
 
           <div className="result-hero" style={{ background: '#114B87', borderRadius: '12px', padding: '2rem 1.5rem', textAlign: 'center', color: '#fff', margin: '1.5rem 0', boxShadow: '0 10px 25px rgba(24,95,165,0.2)' }}>
@@ -944,7 +1043,22 @@ export default function ManageTests() {
                                       ) : (
                                           <div style={{ textAlign: 'right' }}><div style={{ fontSize: '15px', fontWeight: 700, color: '#f59e0b', marginBottom: '2px' }}><i className="ti ti-clock"></i> Pending</div><div style={{ fontSize: '11px', color: '#94a3b8' }}>Needs Check</div></div>
                                       )}
-                                      <button className="btn btn-primary" style={{ padding: '8px 14px', fontWeight: 600, borderRadius: '8px', whiteSpace: 'nowrap' }} onClick={() => { setEvaluateSub({ sub: s, test: selectedTest, sIdx }); setEvalFilter('all'); }}><i className="ti ti-eye"></i> Evaluate</button>
+                                      
+                                      <div style={{ display: 'flex', gap: '8px' }}>
+                                          <button className="btn btn-primary" style={{ padding: '8px 14px', fontWeight: 600, borderRadius: '8px', whiteSpace: 'nowrap' }} onClick={() => { setEvaluateSub({ sub: s, test: selectedTest, sIdx }); setEvalFilter('all'); }}><i className="ti ti-eye"></i> Evaluate</button>
+                                          
+                                          {/* 🔥 SECURITY FIX: Button sirf Admin ko ya Examiner ke khud ke demo test par dikhega */}
+                                          {(userRole === 'admin' || s.uid === currentUser?.uid || s.email === currentUser?.email) && (
+                                              <button 
+                                                  className="btn btn-ghost" 
+                                                  style={{ padding: '8px 12px', color: '#A32D2D', border: '1px solid #F7C1C1', background: '#FCEBEB', borderRadius: '8px' }}
+                                                  title="Delete this demo submission"
+                                                  onClick={() => deleteSubmission(sIdx, s.name)}
+                                              >
+                                                  <i className="ti ti-trash" style={{ margin: 0, fontSize: '18px' }}></i>
+                                              </button>
+                                          )}
+                                      </div>
                                   </div>
 
                               </div>

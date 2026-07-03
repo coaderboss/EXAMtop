@@ -518,16 +518,21 @@ export default function StudentPortal() {
       }
 
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(e => {});
-      setIsSubmitting(false);
 
       if (activeTest.resultVis === 'manual') {
           setSysModal({
               type: 'success',
               msg: 'Test Submitted Successfully! Your answers have been saved securely. Examiner will declare results later.',
-              action: () => router.push('/student-dashboard')
+              action: () => {
+                  try { router.push('/student-dashboard'); } 
+                  catch (e) { window.location.href = '/student-dashboard'; }
+              }
           });
       } else {
-          router.push('/student-results'); 
+          setTimeout(() => {
+              try { router.push('/student-results'); } 
+              catch (e) { window.location.href = '/student-results'; }
+          }, 1500);
       }
 
     } catch (error) {
@@ -547,14 +552,32 @@ export default function StudentPortal() {
   };
 
 
-  // --- 🔥 UPDATED LOADING UI (Removed blocking global load) ---
+ // --- 🔥 PREMIUM SUBMISSION UI (With Moving 2D Orbit) ---
   if (!isMounted || authLoading || isSubmitting || isFetchingTest) {
     return (
-      <div className="spinner-container" style={{ paddingTop: '10vh' }}>
-        <div className="spinner"></div>
-        <div style={{ fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-          {isSubmitting ? 'Securely evaluating and saving paper...' : isFetchingTest ? 'Locating Exam...' : 'Loading Portal...'}
-        </div>
+      <div style={{ height: '100vh', width: '100vw', position: 'fixed', top: 0, left: 0, background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
+        {isSubmitting ? (
+            <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease' }}>
+                {/* 🔥 The Sci-Fi Moving Wrapper */}
+                <div className="animation-wrapper">
+                    <div className="orbit-ring"></div>
+                    <div className="premium-success">
+                        <svg className="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                            <path d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+                        </svg>
+                    </div>
+                </div>
+                <h2 style={{ fontSize: '26px', color: '#0f172a', marginBottom: '8px', fontWeight: 800, letterSpacing: '-0.5px' }}>Submission Secured</h2>
+                <p style={{ color: 'var(--color-text-secondary)', fontWeight: 600, fontSize: '15px' }}>Encrypting and transferring your responses...</p>
+            </div>
+        ) : (
+            <div style={{ textAlign: 'center' }}>
+                <div className="spinner" style={{ margin: '0 auto 1.5rem auto', width: '50px', height: '50px', borderWidth: '4px' }}></div>
+                <div style={{ fontWeight: 700, color: 'var(--color-text-secondary)', fontSize: '16px' }}>
+                    {isFetchingTest ? 'Decrypting Exam Vault...' : 'Initializing Portal...'}
+                </div>
+            </div>
+        )}
       </div>
     );
   }
@@ -665,11 +688,12 @@ export default function StudentPortal() {
               </div>
           )}
 
-          <div className="test-layout" style={{ marginTop: '1rem' }}>
-            {/* 🔥 FIX: Main container se 'q-area-content' aur opacity hata di */}
-            <div className="q-area"> 
+        <div className="test-layout" style={{ marginTop: '1rem' }}>
+            
+            {/* 🔥 FIX 1: 'q-area' ko Flex container banaya taaki height lock rahe aur bottom nav na uchhale */}
+            <div className="q-area" style={{ display: 'flex', flexDirection: 'column', minHeight: '65vh' }}> 
               
-              {/* SMART SPACE-SAVING HEADER FOR MOBILE (Ye fade nahi hoga) */}
+              {/* SMART SPACE-SAVING HEADER FOR MOBILE */}
               <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)', paddingBottom: '0.75rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -684,8 +708,8 @@ export default function StudentPortal() {
                 </div>
               </div>
               
-              {/* 🔥 THE NEW FADING WRAPPER: Sirf Question aur Options fade honge */}
-              <div className="q-area-content" style={{ opacity: 0 }}>
+              {/* 🔥 FIX 2: 'flex: 1' added so this area takes all available space, pushing bottom buttons down */}
+              <div className="q-area-content" style={{ opacity: 0, flex: 1 }}>
                   
                   {/* StaticMath applied to Question Text */}
                   <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
@@ -758,9 +782,9 @@ export default function StudentPortal() {
                       )}
                   </div>
               </div> 
-              {/* 🔥 END OF FADING WRAPPER */}
+              {/* END OF FADING WRAPPER */}
 
-              {/* ACTION BUTTONS (Ye ab bahar hain, fade nahi honge) */}
+              {/* ACTION BUTTONS */}
               <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
                 <button className="btn btn-sm" onClick={() => toggleMark(curQ)} style={answers[curQ]?.marked ? { color: '#633806', borderColor: '#FAC775', background: '#FAEEDA', fontWeight: 600 } : {}}>
                   <i className="ti ti-bookmark"></i> {answers[curQ]?.marked ? 'Unmark' : 'Mark for Review'}
@@ -770,8 +794,8 @@ export default function StudentPortal() {
                 )}
               </div>
               
-              {/* BOTTOM NAVIGATION ACTIONS (Ye ab bahar hain, ekdum solid rahenge) */}
-              <div className="mobile-sticky-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '2rem' }}>
+              {/* BOTTOM NAVIGATION ACTIONS */}
+              <div className="mobile-sticky-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '1.5rem' }}>
                   <button className="btn" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ - 1)} disabled={curQ === 0}>
                       <i className="ti ti-arrow-left"></i> <span className="hide-mobile">Prev</span>
                   </button>
@@ -792,6 +816,7 @@ export default function StudentPortal() {
               </div>
             </div>
             
+           {/* SIDEBAR PALETTE */}
            <div className={`sidebar-panel ${!isMobilePaletteOpen ? 'hide-mobile' : ''}`} style={isMobilePaletteOpen ? { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, margin: 0, borderRadius: '24px 24px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.15)', padding: '20px' } : {}}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1.25rem 0' }}>
                   <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Question Palette</div>
@@ -804,12 +829,9 @@ export default function StudentPortal() {
                 <div className="leg"><div className="leg-dot" style={{ background: '#FAC775' }}></div>Marked</div>
               </div>
               
-              {/* 🔥 FIX: Added padding (0 10px) to prevent edge touching & hide-scroll for smooth swipe */}
               <div className="hide-scroll" style={{ maxHeight: '55vh', overflowY: 'auto', padding: '4px 10px', margin: '0 -10px' }}>
                   {activeTest?.sections && activeTest.sections.length > 0 ? (
                       activeTest.sections.map(sec => {
-                          
-                          // 🔥 OPTIMIZATION: Removed Double Loop. Calculating HTML and Stats in a single pass!
                           let secAttempted = 0;
                           let secTotal = 0;
                           let secHTML = [];
@@ -820,19 +842,18 @@ export default function StudentPortal() {
                                   let a = answers[i];
                                   let isDone = a?.val !== null && (!Array.isArray(a?.val) || a.val.length > 0);
                                   
-                                  if (isDone) secAttempted++; // Increment attempted count
+                                  if (isDone) secAttempted++;
                                   
                                   let cls = (a?.marked && isDone) ? 'p-both' : a?.marked ? 'p-marked' : isDone ? 'p-answered' : 'p-unanswered';
                                   
                                   secHTML.push(
                                       <button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => changeQuestion(i)}>
-                                          {secTotal} {/* localQNum is basically secTotal at this point */}
+                                          {secTotal}
                                       </button>
                                   );
                               }
                           });
 
-                          // If section is empty, don't render it
                           if (secTotal === 0) return null;
 
                           return (
@@ -866,12 +887,7 @@ export default function StudentPortal() {
               </div>
               <div className="divider" style={{ margin: '1rem 0' }}></div>
               <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontWeight: 700, padding: '14px', fontSize: '15px' }} onClick={confirmAndSubmit}><i className="ti ti-send"></i> Submit Final Test</button>
-            </div>
-            
-          <div>
-              <div className="divider"></div>
-              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontWeight: 600, padding: '12px' }} onClick={confirmAndSubmit}><i className="ti ti-send"></i> Submit Final Test</button>
-            </div>
+            </div>            
           </div>
 
           {/* 🔥 VIRTUAL ROUGH PAD (Floating) */}
