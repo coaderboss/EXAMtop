@@ -41,7 +41,7 @@ export async function POST(req) {
 
         const rawText = data.candidates[0].content.parts[0].text;
         
-        // 🔥 FIX: Safety net for AI's unpredictable JSON formatting
+        //  FIX: Safety net for AI's unpredictable JSON formatting
         try {
             // Agar Gemini ne markdown tags bhej diye, toh unko clean karna
             const cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();

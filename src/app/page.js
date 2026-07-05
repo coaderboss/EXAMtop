@@ -51,7 +51,7 @@ export default function HomePage() {
     </div>
   );
 
-  // 🔥 ANIMATION VARIANTS
+  //  ANIMATION VARIANTS
   const slideUp = { hidden: { opacity: 0, y: 50 }, visible: { opacity: 1, y: 0, transition: { type: "spring", bounce: 0.4, duration: 0.8 } } };
   const popIn = { hidden: { opacity: 0, scale: 0.9 }, visible: { opacity: 1, scale: 1, transition: { type: "spring", bounce: 0.5, duration: 0.8 } } };
   const staggerContainer = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.15 } } };
@@ -143,7 +143,7 @@ export default function HomePage() {
 
           <div className="flex flex-col lg:flex-row gap-8 md:gap-12">
             
-            {/* 🔥 FIX: Mobile par ye lambe list ki jagah Horizontal swipable tabs banenge */}
+            {/*  FIX: Mobile par ye lambe list ki jagah Horizontal swipable tabs banenge */}
             <div className="lg:w-1/3 flex flex-row lg:flex-col gap-3 md:gap-4 overflow-x-auto pb-4 lg:pb-0 snap-x hide-scrollbar scroll-smooth">
               {Object.keys(engineFeatures).map((key) => (
                 <motion.button key={key} onClick={() => setActiveTab(key)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className={`min-w-[80vw] sm:min-w-[300px] lg:min-w-full snap-center p-4 md:p-6 rounded-2xl text-left border-2 transition-all duration-300 flex-shrink-0 ${activeTab === key ? `bg-white shadow-xl lg:border-l-8 lg:border-t-2 border-t-8` : `bg-transparent border-transparent hover:bg-white hover:border-[#e2e8f0] hover:shadow-sm`}`} style={{ borderColor: activeTab === key ? engineFeatures[key].color : 'transparent' }}>

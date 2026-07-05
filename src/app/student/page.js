@@ -5,11 +5,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
-// 🔥 THE FIX: Added 'get' for Absolute Index Lookup during submission
+//  THE FIX: Added 'get' for Absolute Index Lookup during submission
 import { ref, push, set, get } from 'firebase/database'; 
 import SmilesViewer from '../../components/SmilesViewer';
 
-// 🔥 THE MASTER FIX: MathJax React Re-render Protector
+//  THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
   if (isBlock) return <div className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
   return <span className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
@@ -17,12 +17,12 @@ const StaticMath = memo(({ html, isBlock, style, className }) => {
 
 export default function StudentPortal() {
   const { currentUser, loading: authLoading } = useAuth();
-  // 🔥 THE FIX: Imported fetchSingleTest from DataContext
+  //  THE FIX: Imported fetchSingleTest from DataContext
   const { fetchSingleTest } = useData(); 
   const router = useRouter();
 
   const [isMounted, setIsMounted] = useState(false);
-  const [isFetchingTest, setIsFetchingTest] = useState(false); // 🔥 For Smart Loading
+  const [isFetchingTest, setIsFetchingTest] = useState(false); //  For Smart Loading
 
   // --- SCREEN STATES ---
   const [step, setStep] = useState('join'); // join, instructions, exam, offline_saved
@@ -64,7 +64,7 @@ export default function StudentPortal() {
     if (currentUser && currentUser.displayName) setName(currentUser.displayName);
   }, [currentUser]);
 
-  // 🔥 1. MathJax Auto-Renderer (Smooth Fade-In)
+  //  1. MathJax Auto-Renderer (Smooth Fade-In)
   useEffect(() => {
     const renderMath = async () => {
       if (step === 'exam' && typeof window !== 'undefined' && window.MathJax) {
@@ -94,7 +94,7 @@ export default function StudentPortal() {
     return () => { if (header) header.style.display = ''; };
   }, [step]);
 
-  // 🔥 2. AUTO-SAVE DRAFT (Panic Refresh Protection + ENCRYPTION)
+  //  2. AUTO-SAVE DRAFT (Panic Refresh Protection + ENCRYPTION)
   useEffect(() => {
     if (step === 'exam' && activeTest && answers.length > 0) {
         const safeName = name.trim() || 'guest';
@@ -112,7 +112,7 @@ export default function StudentPortal() {
     }
   }, [answers, curQ, step, activeTest, name, roll]);
 
-  // 🔥 3. AUTO-SYNC OFFLINE SUBMISSIONS (Updated for Safe Indexing)
+  //  3. AUTO-SYNC OFFLINE SUBMISSIONS (Updated for Safe Indexing)
   useEffect(() => {
     const handleOnline = async () => {
         let pending = JSON.parse(localStorage.getItem('examitop_pending_subs') || '[]');
@@ -135,7 +135,7 @@ export default function StudentPortal() {
     return () => window.removeEventListener('online', handleOnline);
   }, []);
 
-  // 🔥 4. ENTERPRISE ANTI-CHEAT ENGINE (Keyboard Ninja Blocker)
+  //  4. ENTERPRISE ANTI-CHEAT ENGINE (Keyboard Ninja Blocker)
   useEffect(() => {
     if (step !== 'exam' || !activeTest?.antiCheat) return;
 
@@ -195,7 +195,7 @@ export default function StudentPortal() {
     };
   }, [step, activeTest]);
 
-  // 🔥 5. THE ULTIMATE EXAM TRAP (Blocks Pull-to-refresh & Back Button)
+  //  5. THE ULTIMATE EXAM TRAP (Blocks Pull-to-refresh & Back Button)
   useEffect(() => {
     if (step !== 'exam') return;
 
@@ -236,7 +236,7 @@ export default function StudentPortal() {
   }, [step]);
 
 
-  // --- 🔥 UPDATED JOIN LOGIC (On-Demand Smart Fetch) ---
+  // ---  UPDATED JOIN LOGIC (On-Demand Smart Fetch) ---
   const handleJoinTest = async () => {
     setJoinError(''); 
     if (!name.trim()) { setJoinError('Please enter your full name.'); return; }
@@ -297,7 +297,7 @@ export default function StudentPortal() {
     }
   };
 
- // --- 🔥 UPGRADED SMART SHUFFLE ALGORITHM ---
+ // ---  UPGRADED SMART SHUFFLE ALGORITHM ---
   const applySmartShuffle = (test) => {
     if (!test.shuffleOpts) return test;
     
@@ -331,7 +331,7 @@ export default function StudentPortal() {
 
             q.options = standardOpts.map(o => o.text);
             
-            // 🔥 CRITICAL: Remap the correct answers index
+            //  CRITICAL: Remap the correct answers index
             let newCorrectArray = [];
             if (q.correct) {
                 q.correct.forEach(cIdx => {
@@ -363,7 +363,7 @@ export default function StudentPortal() {
         warningsRef.current = draftToResume.warnings || 0;
         cheatLogsRef.current = draftToResume.cheatLogs || [];
     } else {
-        // 🔥 Apply Smart Shuffle before initializing answers
+        //  Apply Smart Shuffle before initializing answers
         const shuffledTest = applySmartShuffle(activeTest);
         setActiveTest(shuffledTest); // Set the shuffled test as the active one
 
@@ -411,7 +411,7 @@ export default function StudentPortal() {
   const confirmAndSubmit = () => { isActionLockedRef.current = true; setShowConfirmModal(true); };
   const cancelSubmit = () => { setShowConfirmModal(false); setTimeout(() => { isActionLockedRef.current = false; }, 500); };
 
-  // --- 🔥 UPDATED SECURE SUBMISSION LOGIC (Safe Index Lookup) ---
+  // ---  UPDATED SECURE SUBMISSION LOGIC (Safe Index Lookup) ---
   const handleFinalSubmit = async () => {
     if (!activeTest || step !== 'exam') return;
     
@@ -429,7 +429,7 @@ export default function StudentPortal() {
       let status = 'skipped';
       let earned = 0;
 
-      // 🔥 BULLETPROOF SKIPPED CHECK: Har tarah ke khali variables ko pakdega
+      //  BULLETPROOF SKIPPED CHECK: Har tarah ke khali variables ko pakdega
       let isSkipped = val === null || val === undefined || val === '' || val === -1 || (Array.isArray(val) && val.length === 0);
 
       if (isSkipped) {
@@ -463,7 +463,7 @@ export default function StudentPortal() {
       return { q, ans, status, earned };
     });
 
-   // 🔥 NAYA: Time Taken Calculation (Total time in seconds - Time left in seconds)
+   //  NAYA: Time Taken Calculation (Total time in seconds - Time left in seconds)
     const totalSecondsGiven = activeTest.duration ? activeTest.duration * 60 : 0;
     const secondsSpent = totalSecondsGiven > 0 ? (totalSecondsGiven - timeLeft) : 0;
     const timeTakenStr = formatTime(secondsSpent);
@@ -477,13 +477,13 @@ export default function StudentPortal() {
       time: new Date().toLocaleString('en-IN'),
       totalMarks: activeTest.totalMarks,
       cheatLogs: cheatLogsRef.current,
-      timeTaken: timeTakenStr // 🔥 Ab bache ka total time database me safely jayega!
+      timeTaken: timeTakenStr //  Ab bache ka total time database me safely jayega!
     };
 
     // Clean up draft safely
     localStorage.removeItem(`exam_draft_${activeTest.id}_${name.trim() || 'guest'}_${roll.trim().toLowerCase() || 'noroll'}`);
 
-    // 🔥 OFFLINE SAFE VAULT SYNC LOGIC
+    //  OFFLINE SAFE VAULT SYNC LOGIC
     if (!navigator.onLine && !activeTest.isLocal) {
         let pending = JSON.parse(localStorage.getItem('examitop_pending_subs') || '[]');
         pending.push({ testId: activeTest.id, sub: finalSub });
@@ -506,7 +506,7 @@ export default function StudentPortal() {
               localStorage.setItem('examitop_offline_tests', JSON.stringify(localTests));
           }
       } else {
-          // 🔥 Absolute Index Lookup to avoid mis-submitting to wrong test
+          //  Absolute Index Lookup to avoid mis-submitting to wrong test
           const snapshot = await get(ref(database, 'tests'));
           const allTests = snapshot.val() || [];
           const tIndex = allTests.findIndex(x => x && x.id === activeTest.id);
@@ -552,13 +552,13 @@ export default function StudentPortal() {
   };
 
 
- // --- 🔥 PREMIUM SUBMISSION UI (With Moving 2D Orbit) ---
+ // ---  PREMIUM SUBMISSION UI (With Moving 2D Orbit) ---
   if (!isMounted || authLoading || isSubmitting || isFetchingTest) {
     return (
       <div style={{ height: '100vh', width: '100vw', position: 'fixed', top: 0, left: 0, background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
         {isSubmitting ? (
             <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease' }}>
-                {/* 🔥 The Sci-Fi Moving Wrapper */}
+                {/*  The Sci-Fi Moving Wrapper */}
                 <div className="animation-wrapper">
                     <div className="orbit-ring"></div>
                     <div className="premium-success">
@@ -690,7 +690,7 @@ export default function StudentPortal() {
 
         <div className="test-layout" style={{ marginTop: '1rem' }}>
             
-            {/* 🔥 FIX 1: 'q-area' ko Flex container banaya taaki height lock rahe aur bottom nav na uchhale */}
+            {/*  FIX 1: 'q-area' ko Flex container banaya taaki height lock rahe aur bottom nav na uchhale */}
             <div className="q-area" style={{ display: 'flex', flexDirection: 'column', minHeight: '65vh' }}> 
               
               {/* SMART SPACE-SAVING HEADER FOR MOBILE */}
@@ -708,7 +708,7 @@ export default function StudentPortal() {
                 </div>
               </div>
               
-              {/* 🔥 FIX 2: 'flex: 1' added so this area takes all available space, pushing bottom buttons down */}
+              {/*  FIX 2: 'flex: 1' added so this area takes all available space, pushing bottom buttons down */}
               <div className="q-area-content" style={{ opacity: 0, flex: 1 }}>
                   
                   {/* StaticMath applied to Question Text */}
@@ -890,7 +890,7 @@ export default function StudentPortal() {
             </div>            
           </div>
 
-          {/* 🔥 VIRTUAL ROUGH PAD (Floating) */}
+          {/*  VIRTUAL ROUGH PAD (Floating) */}
           {showRoughPad && (
               <div style={{ position: 'fixed', bottom: '90px', right: '20px', width: '300px', height: '350px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '12px', zIndex: 999, display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
                   <div style={{ background: '#185FA5', color: '#fff', padding: '10px 15px', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -951,7 +951,7 @@ export default function StudentPortal() {
           </div>
       )}
 
-      {/* 🔥 CUSTOM SYSTEM MODALS */}
+      {/*  CUSTOM SYSTEM MODALS */}
       {sysModal && (
           <div className="modal-bg" style={{ zIndex: 999999 }}>
               <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem', border: `2px solid ${sysModal.type === 'error' ? '#A32D2D' : '#3B6D11'}`, borderRadius: '16px' }}>

@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
             const userData = snapshot.val();
             setUserRole(userData.role);
             
-            // 🔥 THE MASTER OVERRIDE: Ab puri app me 'displayName' ki jagah legalName dikhega
+            //  THE MASTER OVERRIDE: Ab puri app me 'displayName' ki jagah legalName dikhega
             setCurrentUser({
                 uid: user.uid,
                 email: user.email,
@@ -88,7 +88,7 @@ export const AuthProvider = ({ children }) => {
         legalName = userData.legalName;
       }
 
-      // 🔥 Force Override
+      //  Force Override
       setCurrentUser({
           uid: user.uid,
           email: user.email,
@@ -98,7 +98,7 @@ export const AuthProvider = ({ children }) => {
       });
       setUserRole(finalRole);
 
-      // 🔥 SMART REDIRECT: Admin ko aur verify ho chuke logo ko seedha unki jagah bhejo
+      //  SMART REDIRECT: Admin ko aur verify ho chuke logo ko seedha unki jagah bhejo
       setTimeout(() => {
         // Admin ko onboarding nahi dikhana hai
         if (!isLocked && finalRole !== 'guest' && finalRole !== 'admin') {

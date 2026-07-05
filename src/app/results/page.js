@@ -54,7 +54,7 @@ export default function GlobalResults() {
     setSearchedTest(t);
   };
 
-  // 🔥 FIX 1: Handle Enter Key Press for Search
+  //  FIX 1: Handle Enter Key Press for Search
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       handleSearch();
@@ -73,14 +73,14 @@ export default function GlobalResults() {
       const wrng = s.wrong || 0;
       const accuracy = corr + wrng > 0 ? Math.round((corr / (corr + wrng)) * 100) : 0;
       
-      // 🔥 FIX 2: Prevent CSV breaking if name contains quotes/commas
+      //  FIX 2: Prevent CSV breaking if name contains quotes/commas
       const safeName = (s.name || 'Unknown').replace(/"/g, '""');
       const safeRoll = (s.roll || 'N/A').replace(/"/g, '""');
       
       csv += `${idx + 1},"${safeName}","${safeRoll}",${s.score || 0},${accuracy},"${s.time || 'N/A'}"\n`;
     });
 
-    // 🔥 FIX 3: Safe Filename Generation (Removes special chars)
+    //  FIX 3: Safe Filename Generation (Removes special chars)
     const safeTitle = searchedTest.title.replace(/[^a-zA-Z0-9]/g, "_");
     
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -110,7 +110,7 @@ export default function GlobalResults() {
                     placeholder="e.g. A1B2C3" 
                     value={searchCode} 
                     onChange={e => setSearchCode(e.target.value.toUpperCase())}
-                    onKeyDown={handleKeyDown} // 🔥 Added Enter Key Support
+                    onKeyDown={handleKeyDown} //  Added Enter Key Support
                     maxLength="6"
                     style={{ fontSize: '20px', letterSpacing: '4px', textAlign: 'center', fontWeight: 700, textTransform: 'uppercase', width: '200px', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)' }} 
                 />
@@ -139,7 +139,7 @@ export default function GlobalResults() {
                 {!searchedTest.submissions || searchedTest.submissions.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>No data available to generate a leaderboard.</div>
                 ) : (
-                    // 🔥 FIX 4: Added hide-scroll for clean mobile view
+                    //  FIX 4: Added hide-scroll for clean mobile view
                     <div className="hide-scroll" style={{ overflowX: 'auto', width: '100%' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
                             <thead>
@@ -157,7 +157,7 @@ export default function GlobalResults() {
                                     const accuracy = corr + wrng > 0 ? Math.round((corr / (corr + wrng)) * 100) : 0;
                                     const isTop3 = idx < 3;
                                     
-                                    // 🔥 FIX 5: Dark Mode Compatible Colors using rgba
+                                    //  FIX 5: Dark Mode Compatible Colors using rgba
                                     const rowBg = isTop3 
                                         ? (idx === 0 ? 'rgba(217, 119, 6, 0.08)' : idx === 1 ? 'rgba(100, 116, 139, 0.08)' : 'rgba(180, 83, 9, 0.08)') 
                                         : 'var(--color-background-primary)';

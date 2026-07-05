@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
-// 🔥 THE FIX: Imported direct Firebase functions
+//  THE FIX: Imported direct Firebase functions
 import { database } from '../../lib/firebase';
 import { ref, get } from 'firebase/database';
 import FigureRenderer from '../../components/FigureRenderer'; 
@@ -20,10 +20,10 @@ export default function StudentResults() {
   // State to toggle between List View and Detailed View
   const [selectedResult, setSelectedResult] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'correct', 'wrong', 'skipped'
-  const [sectionFilter, setSectionFilter] = useState('all_sections'); // 🔥 NAYA: Section Filter
+  const [sectionFilter, setSectionFilter] = useState('all_sections'); //  NAYA: Section Filter
   
    
-  // 🔥 THE FIX: Fetch results ON-DEMAND only when this page is opened
+  //  THE FIX: Fetch results ON-DEMAND only when this page is opened
   useEffect(() => {
     const fetchStudentHistory = async () => {
       if (!currentUser) {
@@ -45,7 +45,7 @@ export default function StudentResults() {
                 if (t.submissions) {
                     const subsArray = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions);
                     subsArray.filter(Boolean).forEach((s) => {
-                        // 🔥 STRICT MATCH LOGIC
+                        //  STRICT MATCH LOGIC
                         let isExactMatch = (s.uid && currentUser.uid && s.uid === currentUser.uid) || 
                                            (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase());
 
@@ -69,7 +69,7 @@ export default function StudentResults() {
     fetchStudentHistory();
   }, [currentUser]);
 
-  // 🔥 PREMIUM EXAMITOP CERTIFICATE GENERATOR (1-Page Fix)
+  //  PREMIUM EXAMITOP CERTIFICATE GENERATOR (1-Page Fix)
   const generateCertificate = () => {
     const { test, sub } = selectedResult;
     const pct = Math.round((sub.score / test.totalMarks) * 100);
@@ -168,7 +168,7 @@ export default function StudentResults() {
     return () => clearTimeout(timer);
 }, [selectedResult, filter, sectionFilter]);
 
-  // 🔥 THE FIX 1: Premium Skeleton Loader for Student Results
+  //  THE FIX 1: Premium Skeleton Loader for Student Results
   if (authLoading || fetchingResults) {
     return (
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
@@ -225,7 +225,7 @@ export default function StudentResults() {
         </div>
 
         {myHistory.length === 0 ? (
-          /* 🔥 PREMIUM EMPTY STATE */
+          /*  PREMIUM EMPTY STATE */
           <div style={{ background: 'var(--color-background-primary)', borderRadius: '16px', padding: '3rem 2rem', textAlign: 'center', border: '2px dashed var(--color-border-secondary)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '350px' }}>
              <div style={{ width: '80px', height: '80px', background: 'var(--color-background-secondary)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
                  <i className="ti ti-file-off" style={{ fontSize: '36px', color: '#94a3b8' }}></i>
@@ -241,7 +241,7 @@ export default function StudentResults() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {myHistory.map((h, idx) => (
-              /* 🔥 UPGRADED ANIMATED CARDS */
+              /*  UPGRADED ANIMATED CARDS */
               <div 
                 key={idx} 
                 className="test-entry" 
@@ -376,7 +376,7 @@ export default function StudentResults() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ fontSize: '18px', fontWeight: 600 }}>Question-wise Analysis</div>
             {(() => {
-                // 🔥 DYNAMIC COUNT CALCULATION BASED ON ACTIVE SECTION
+                //  DYNAMIC COUNT CALCULATION BASED ON ACTIVE SECTION
                 const secDetails = sub.details.filter(d => sectionFilter === 'all_sections' || d.q.section === sectionFilter || (!d.q.section && sectionFilter === (test.sections?.[0])));
                 const countAll = secDetails.length;
                 const countCorrect = secDetails.filter(d => d.status === 'correct' || d.status === 'partial').length;
@@ -394,7 +394,7 @@ export default function StudentResults() {
             })()}
         </div>
 
-        {/* 🔥 NEW: Section Scrollable Pill Menu (Only shows if sections exist in this test) */}
+        {/*  NEW: Section Scrollable Pill Menu (Only shows if sections exist in this test) */}
         {test.sections && test.sections.length > 0 && (
             <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '4px' }}>
                 <button 
@@ -421,7 +421,7 @@ export default function StudentResults() {
       {/* Question Review Cards */}
       <div>
         {sub.details.filter(d => {
-            // 🔥 Dono conditions (Status aur Section) match honi chahiye
+            //  Dono conditions (Status aur Section) match honi chahiye
             let sMatch = filter === 'all' || d.status === filter || (filter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
             let secMatch = sectionFilter === 'all_sections' || d.q.section === sectionFilter || (!d.q.section && sectionFilter === (test.sections?.[0]));
             return sMatch && secMatch;
@@ -445,10 +445,10 @@ export default function StudentResults() {
                     <span style={{ fontWeight: 600, fontSize: '15px' }}>Question {originalQIdx + 1} &mdash; {getLabel(q.type)}</span>
                     <span style={{ marginLeft: 'auto', fontSize: '14px', fontWeight: 600, background: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: '12px' }}>{statusLabel} &nbsp; {earnedStr} marks</span>
                 </div>
-                {/* 🔥 OVERFLOW FIX: Strict maxWidth aur hide-scroll laga diya */}
+                {/*  OVERFLOW FIX: Strict maxWidth aur hide-scroll laga diya */}
                 <div className="qr-body hide-scroll" style={{ maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
                     
-                    {/* 🔥 TEXT OVERFLOW FIX: wordBreak aur whiteSpace laga diya */}
+                    {/*  TEXT OVERFLOW FIX: wordBreak aur whiteSpace laga diya */}
                     <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.5rem', color: 'var(--color-text-primary)', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} dangerouslySetInnerHTML={{ __html: q.text }}></div>
                     
                     {/* Universal Hybrid Figure Renderer Wrapper */}
@@ -474,14 +474,14 @@ export default function StudentResults() {
                         else if (!isCorr && isUser) { cls = 'wrong'; borderStyle = { borderColor: '#A32D2D', background: '#FCEBEB' }; }
 
                         return (
-                            // 🔥 FIX 1: hide-scroll and maxWidth to prevent outer div overflow
+                            //  FIX 1: hide-scroll and maxWidth to prevent outer div overflow
                             <div key={j} className={`qr-opt ${cls} hide-scroll`} style={{ ...borderStyle, maxWidth: '100%' }}>
                                 <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, flexShrink: 0, background: 'rgba(255,255,255,0.7)' }}>{String.fromCharCode(65 + j)}</div>
                                 
-                                {/* 🔥 FIX 2: minWidth: 0 is CRITICAL for flexbox to not stretch the screen */}
+                                {/*  FIX 2: minWidth: 0 is CRITICAL for flexbox to not stretch the screen */}
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0', minWidth: 0 }} className="hide-scroll">
                                     
-                                    {/* 🔥 FIX 3: Smart SMILES Renderer inside Option */}
+                                    {/*  FIX 3: Smart SMILES Renderer inside Option */}
                                     {o.startsWith('[smiles]') ? (
                                         <div style={{ pointerEvents: 'none' }}>
                                             <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />

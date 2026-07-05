@@ -28,13 +28,13 @@ function Header() {
   const [profileData, setProfileData] = useState({ college: '', phone: '' });
   const settingsRef = useRef(null);
 
-  // 🔥 1. CLEAN SHUTTER STATES & REFS
+  //  1. CLEAN SHUTTER STATES & REFS
   const [isNavVisible, setIsNavVisible] = useState(true);
   const lastScrollY = useRef(0); 
-  const isAnimating = useRef(false); // 🔥 FIX: Layout Jump Lock (Fake scroll ko rokne ke liye)
-  const navState = useRef(true);     // 🔥 FIX: Direct memory state
+  const isAnimating = useRef(false); //  FIX: Layout Jump Lock (Fake scroll ko rokne ke liye)
+  const navState = useRef(true);     //  FIX: Direct memory state
 
-  // 🔥 2. ANTI-FLICKER SCROLL ENGINE (With Animation Lock & Short-Page Guard)
+  //  2. ANTI-FLICKER SCROLL ENGINE (With Animation Lock & Short-Page Guard)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -117,7 +117,7 @@ function Header() {
     setIsSettingsOpen(false); 
   };
 
-  // 🔥 LOGIN REDIRECT FIX
+  //  LOGIN REDIRECT FIX
   const handleLogin = async (role) => {
       try {
           await loginWithGoogle(role);
@@ -135,7 +135,7 @@ function Header() {
       router.push('/');
   };
 
-  // 🔥 THE TOAST HELPER FUNCTION
+  //  THE TOAST HELPER FUNCTION
   const showToast = (msg, type = 'success') => {
       const container = document.getElementById('toast-container');
       if (!container) return;
@@ -146,7 +146,7 @@ function Header() {
       setTimeout(() => { if (container.contains(toast)) toast.remove(); }, 3000);
   };
 
-  // 🔥 PROFILE SAVE FIX (Removed alert)
+  //  PROFILE SAVE FIX (Removed alert)
   const saveProfile = async () => {
       if (!currentUser) return;
       try {
@@ -161,7 +161,7 @@ function Header() {
       }
   };
 
-  // 🔥 DELETE ACCOUNT FIX (Replaced alert with toast, kept confirm as it's a DANGER zone)
+  //  DELETE ACCOUNT FIX (Replaced alert with toast, kept confirm as it's a DANGER zone)
   const deleteAccount = async () => {
       // Confirm browser wala hi theek hai yahan taaki galti se delete na ho
       if (window.confirm("DANGER: Are you absolutely sure you want to permanently delete your account? All your data will be lost.")) {
@@ -179,7 +179,7 @@ function Header() {
       }
   };
 
-  /// 🔥 ADVANCED INTERACTIVE PAGE INSTRUCTIONS
+  ///  ADVANCED INTERACTIVE PAGE INSTRUCTIONS
   const getPageInstructions = () => {
     switch(pathname) {
         case '/student': return { 
@@ -307,13 +307,13 @@ function Header() {
                         background: 'var(--color-background-secondary)', 
                         borderBottom: '1px solid var(--color-border-secondary)', 
                         
-                        // 🔥 THE ULTRA-SMOOTH TRANSITION: Fluid iOS Curve
+                        //  THE ULTRA-SMOOTH TRANSITION: Fluid iOS Curve
                         transition: 'max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease-out, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
                         maxHeight: isNavVisible ? '50px' : '0px',
                         opacity: isNavVisible ? 1 : 0,
                         transform: isNavVisible ? 'translateY(0)' : 'translateY(-4px)',
                         
-                        // 🔥 Jhatka Fix: Dono ko static lock rakha hai taaki layout jump na mare
+                        //  Jhatka Fix: Dono ko static lock rakha hai taaki layout jump na mare
                         overflowX: 'auto',
                         overflowY: 'hidden', 
                         scrollbarWidth: 'none',
@@ -329,7 +329,7 @@ function Header() {
             
         </div>
 
-       {/* 🔥 PREMIUM INTERACTIVE GUIDE MODAL (Tailwind + Animations) */}
+       {/*  PREMIUM INTERACTIVE GUIDE MODAL (Tailwind + Animations) */}
         {showInfo && (
             <div 
                 className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md" 
@@ -397,7 +397,7 @@ function Header() {
                                                     </div>
                                                 </div>
 
-                                                {/* 🔥 Advanced CSS Grid Animation for Height */}
+                                                {/*  Advanced CSS Grid Animation for Height */}
                                                 <div 
                                                     className="grid transition-all duration-300 ease-in-out"
                                                     style={{ gridTemplateRows: isActive ? '1fr' : '0fr' }}
@@ -432,11 +432,11 @@ function Header() {
             <div 
                 className="modal-bg" 
                 style={{ zIndex: 99999, padding: '20px' }} 
-                onClick={() => { setShowProfile(false); setIsEditingProfile(false); }} // 🔥 Click outside to close
+                onClick={() => { setShowProfile(false); setIsEditingProfile(false); }} //  Click outside to close
             >
                 <div 
                     className="modal-box" 
-                    onClick={(e) => e.stopPropagation()} // 🔥 Prevent closing when clicking inside the box
+                    onClick={(e) => e.stopPropagation()} //  Prevent closing when clicking inside the box
                     style={{ maxWidth: '420px', width: '100%', padding: 0, borderRadius: '20px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: 'none' }}
                 >
                     {/* Header Banner */}
@@ -491,7 +491,7 @@ function Header() {
                                     </button>
                                 </div>
 
-                                {/* 🔥 The Danger Zone (Hidden safely at the bottom) */}
+                                {/*  The Danger Zone (Hidden safely at the bottom) */}
                                 <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px dashed #cbd5e1' }}>
                                     <button 
                                         style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', transition: 'color 0.2s' }} 
@@ -538,7 +538,7 @@ export default function RootLayout({ children }) {
         <meta name="theme-color" content="#185FA5" />
         <link rel="apple-touch-icon" href="/logo.png" />
         
-        {/* 🔥 FIX 1: MathJax Configuration (Isko batana padta hai ki $ math hai) */}
+        {/*  FIX 1: MathJax Configuration (Isko batana padta hai ki $ math hai) */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -552,7 +552,7 @@ export default function RootLayout({ children }) {
           }}
         />
         
-        {/* 🔥 FIX 2: Standard HTML Script tag (Next.js tag use nahi kar rahe taaki delay na ho) */}
+        {/*  FIX 2: Standard HTML Script tag (Next.js tag use nahi kar rahe taaki delay na ho) */}
         <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async />
       </head>
       

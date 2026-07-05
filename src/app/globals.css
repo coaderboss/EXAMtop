@@ -749,7 +749,7 @@ textarea { min-height: 80px; resize: vertical; }
         color: #475569 !important;
     }
     
-    /* 🔥 MAGIC FIX: Convert 'Live Accepting' to a Top-Right Dot */
+    /*  MAGIC FIX: Convert 'Live Accepting' to a Top-Right Dot */
     .mobile-badge-wrap { 
         position: absolute !important; 
         top: 22px !important; 
@@ -790,12 +790,12 @@ textarea { min-height: 80px; resize: vertical; }
     .mobile-sub-actions button { padding: 8px 12px !important; font-size: 13px !important; flex-shrink: 0 !important; } 
 /* 4. The Back Button Fix (Native App Style, Non-Floating) */
     #student-result {
-        padding-top: 0 !important; /* 🔥 Student ke liye faltu space saaf */
-        margin-top: 0 !important;  /* 🔥 Upar ka gap pehle jaisa normal */
+        padding-top: 0 !important; /*  Student ke liye faltu space saaf */
+        margin-top: 0 !important;  /*  Upar ka gap pehle jaisa normal */
     }
 
     #floating-eval-back-btn {
-        position: static !important; /* 🔥 Hawa me float nahi karega, page ka hissa ban jayega */
+        position: static !important; /*  Hawa me float nahi karega, page ka hissa ban jayega */
         display: inline-flex !important;
         background: transparent !important;
         border: none !important;
@@ -817,7 +817,7 @@ textarea { min-height: 80px; resize: vertical; }
     }
 }
 
-/* 🔥 MATHJAX MOBILE OVERFLOW FIX (SMART VERSION) 🔥 */
+/*  MATHJAX MOBILE OVERFLOW FIX (SMART VERSION)  */
 .qr-body, .q-area, .test-layout {
     max-width: 100%;
     overflow-wrap: break-word;
@@ -927,7 +927,7 @@ mjx-container[display="true"]::-webkit-scrollbar {
     background: rgba(24, 95, 165, 0.8);
 }
 
-/* 🔥 INVISIBLE SCROLLBAR (Native App Feel) */
+/*  INVISIBLE SCROLLBAR (Native App Feel) */
 .hide-scroll {
     overflow-x: auto;
     scrollbar-width: none; /* Firefox */
@@ -937,7 +937,7 @@ mjx-container[display="true"]::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Edge, Opera */
 }
 
-/* 🔥 THE PREMIUM STAGGERED ENTRANCE ANIMATION */
+/*  THE PREMIUM STAGGERED ENTRANCE ANIMATION */
 @keyframes staggerSlide {
   from { 
       opacity: 0; 
@@ -949,7 +949,7 @@ mjx-container[display="true"]::-webkit-scrollbar {
   }
 }
 
-/* 🔥 PREMIUM SKELETON SHIMMER EFFECT */
+/*  PREMIUM SKELETON SHIMMER EFFECT */
 @keyframes shimmer {
     0% { background-position: -1000px 0; }
     100% { background-position: 1000px 0; }
@@ -962,7 +962,7 @@ mjx-container[display="true"]::-webkit-scrollbar {
     border-radius: 4px;
 }
 
-/* 🔥 SCI-FI 2D MOVING ELEMENTS */
+/*  SCI-FI 2D MOVING ELEMENTS */
 .animation-wrapper {
     position: relative;
     width: 110px;

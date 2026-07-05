@@ -15,7 +15,7 @@ const firebaseConfig = {
 };
 
 
-// 🔥 SMART INITIALIZATION: Next.js server-side aur client-side dono jagah chalta hai.
+//  SMART INITIALIZATION: Next.js server-side aur client-side dono jagah chalta hai.
 // Ye check karta hai ki agar Firebase pehle se chalu hai, toh dobara start na kare (Memory Leak bachata hai).
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const database = getDatabase(app);

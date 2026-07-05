@@ -11,7 +11,7 @@ import SmilesViewer from '../../components/SmilesViewer';
 
 export default function ManageTests() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
-  // 🔥 THE FIX: Naye On-Demand fetch functions ko destructure kiya hai
+  //  THE FIX: Naye On-Demand fetch functions ko destructure kiya hai
   const { tests, setTests, loadingData, fetchMyTests } = useData();
   const router = useRouter();
 
@@ -20,7 +20,7 @@ export default function ManageTests() {
   const [isOffline, setIsOffline] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  const [isInitialLoad, setIsInitialLoad] = useState(true); // 🔥 THE MAKKHAN FIX
+  const [isInitialLoad, setIsInitialLoad] = useState(true); //  THE MAKKHAN FIX
   
   // --- CORE STATE ---
   const [selectedTest, setSelectedTest] = useState(null);
@@ -33,6 +33,7 @@ export default function ManageTests() {
   
   // --- MODALS & SUB-VIEWS ---
   const [modalType, setModalType] = useState(null); // 'analytics' | 'editKey' | 'audit'
+  const [editSettingsData, setEditSettingsData] = useState({});
   const [evaluateSub, setEvaluateSub] = useState(null); // Manual evaluation screen
   
   // --- EDIT KEY & EVALUATION STATE ---
@@ -40,7 +41,7 @@ export default function ManageTests() {
   const [evalOverrides, setEvalOverrides] = useState({});
   const [auditReason, setAuditReason] = useState('');
   const [evalFilter, setEvalFilter] = useState('all'); 
-  const [evalSectionFilter, setEvalSectionFilter] = useState('all_sections'); // 🔥 NAYA: Examiner Section Filter
+  const [evalSectionFilter, setEvalSectionFilter] = useState('all_sections'); // NAYA: Examiner Section Filter
   
 
   // --- SYSTEM POPUP STATES ---
@@ -48,31 +49,36 @@ export default function ManageTests() {
   const [sysConfirm, setSysConfirm] = useState(null); // { title, msg, action }
   const baseTests = isOffline ? localTests : [...(tests || []), ...localTests];
 
-  // --- 🔥 EVALUATION NAV SHUTTER STATES ---
+  // EVALUATION NAV SHUTTER STATES ---
   const [isEvalNavVisible, setIsEvalNavVisible] = useState(true);
   const evalLastScrollY = useRef(0);
   const isEvalAnimating = useRef(false);
   const evalNavState = useRef(true);
 
-  // 🔥 EVALUATION SCROLL SHUTTER ENGINE
+  // EVALUATION SCROLL SHUTTER ENGINE
   useEffect(() => {
       if (typeof window === 'undefined') return;
       const handleScroll = () => {
-          if (!evaluateSub) return; // Sirf Evaluate page par chalega
+          if (!evaluateSub) return; 
           
+          // Seedha Navbar ka HTML element uthaya
+          const navEl = document.getElementById('eval-shutter-nav');
+          if (!navEl) return;
+
           const currentScrollY = window.scrollY;
           
           // Top bounce protection
           if (currentScrollY <= 70) {
               if (!evalNavState.current) {
                   evalNavState.current = true;
-                  setIsEvalNavVisible(true);
+                  navEl.style.top = '60px';
+                  navEl.style.opacity = '1';
+                  navEl.style.boxShadow = '0 4px 25px rgba(0,0,0,0.06)';
               }
               evalLastScrollY.current = currentScrollY;
               return;
           }
 
-          // Animation Layout Lock (Flicker Rokne Ke Liye)
           if (isEvalAnimating.current) {
               evalLastScrollY.current = currentScrollY;
               return;
@@ -81,15 +87,22 @@ export default function ManageTests() {
           const distance = currentScrollY - evalLastScrollY.current;
           
           if (distance > 20 && evalNavState.current) {
+              // Scroll Down -> Hide (Direct DOM Style Update)
               isEvalAnimating.current = true;
               evalNavState.current = false;
-              setIsEvalNavVisible(false);
-              setTimeout(() => { isEvalAnimating.current = false; }, 400); // Strict Lock
+              navEl.style.top = '-100px';
+              navEl.style.opacity = '0';
+              navEl.style.boxShadow = 'none';
+              setTimeout(() => { isEvalAnimating.current = false; }, 400); 
+              
           } else if (distance < -20 && !evalNavState.current) {
+              // Scroll Up -> Show (Direct DOM Style Update)
               isEvalAnimating.current = true;
               evalNavState.current = true;
-              setIsEvalNavVisible(true);
-              setTimeout(() => { isEvalAnimating.current = false; }, 400); // Strict Lock
+              navEl.style.top = '60px';
+              navEl.style.opacity = '1';
+              navEl.style.boxShadow = '0 4px 25px rgba(0,0,0,0.06)';
+              setTimeout(() => { isEvalAnimating.current = false; }, 400); 
           }
           evalLastScrollY.current = currentScrollY;
       };
@@ -98,7 +111,7 @@ export default function ManageTests() {
       return () => window.removeEventListener('scroll', handleScroll);
   }, [evaluateSub]);
 
-  // 🔥 FIX: Press '/' to focus Search Bar automatically
+  //  FIX: Press '/' to focus Search Bar automatically
   typeof require('react').useEffect(() => {
     const handleSlashKey = (e) => {
         if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
@@ -110,7 +123,7 @@ export default function ManageTests() {
     return () => window.removeEventListener('keydown', handleSlashKey);
   }, [searchRef]);
 
-  // 🔥 FIX 1: THE AMNESIA CURE (State Memory on Refresh)
+  //  FIX 1: THE AMNESIA CURE (State Memory on Refresh)
   useEffect(() => {
     const savedTestId = sessionStorage.getItem('examitop_activeTestId');
     const savedTab = sessionStorage.getItem('examitop_activeTab');
@@ -149,7 +162,7 @@ export default function ManageTests() {
     }
   }, [selectedTest]);
 
-  // 🔥 THE FIX 1: Sirf apne tests fetch karo (With Anti-Flicker Logic)
+  //  THE FIX 1: Sirf apne tests fetch karo (With Anti-Flicker Logic)
   useEffect(() => {
       if (isMounted && !isOffline && currentUser?.uid && (userRole === 'examiner' || userRole === 'admin')) {
           fetchMyTests(currentUser.uid).finally(() => setIsInitialLoad(false));
@@ -158,23 +171,43 @@ export default function ManageTests() {
       }
   }, [isMounted, isOffline, currentUser, userRole]);
 
-  // 2. MathJax Auto-Renderer
+  // 2. MathJax Auto-Renderer (ULTIMATE BULLETPROOF FIX)
   useEffect(() => {
-    const renderMath = async () => {
-        if (typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
+    let isSubscribed = true;
+    
+    const renderMath = () => {
+        if (!isSubscribed) return;
+        if (typeof window !== 'undefined' && window.MathJax) {
             try {
-                window.MathJax.typesetClear();
-                await window.MathJax.typesetPromise();
+                // Step 1: Internal cache clear karo taaki purane elements ko skip na kare
+                if (window.MathJax.typesetClear) window.MathJax.typesetClear();
+                
+                // Step 2: Force full page re-scan safely
+                if (window.MathJax.typesetPromise) {
+                    window.MathJax.typesetPromise().catch(err => console.log('MathJax Promise Error:', err));
+                } else {
+                    window.MathJax.typeset();
+                }
             } catch (err) {
-                console.log('MathJax Error:', err);
+                console.error('MathJax Error:', err);
             }
         }
     };
-    const timer = setTimeout(renderMath, 100);
-    return () => clearTimeout(timer);
+
+    // Phase 1 (150ms): Quick tab switching aur chhote filters ke liye
+    const timer1 = setTimeout(() => { requestAnimationFrame(renderMath); }, 150);
+    
+    // Phase 2 (600ms): Heavy DOM (Evaluate Page ke poore 75 questions) ke safe render ke liye
+    const timer2 = setTimeout(() => { requestAnimationFrame(renderMath); }, 600);
+
+    return () => {
+        isSubscribed = false;
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+    };
   }, [selectedTest, evaluateSub, evalFilter, evalSectionFilter, modalType, activeTab]);
   
-  // 🔥 AUTO-KICK BOUNCER
+  //  AUTO-KICK BOUNCER
   useEffect(() => {
       if (isMounted && !authLoading && !isOffline && (!currentUser || (userRole !== 'examiner' && userRole !== 'admin'))) {
           const kickTimer = setTimeout(() => {
@@ -184,7 +217,7 @@ export default function ManageTests() {
     }
   }, [currentUser, userRole, authLoading, isMounted, isOffline, router]);
 
-  // 🔥 FIX 1: Premium Skeleton Loader (Replaces the boring spinner)
+  //  FIX 1: Premium Skeleton Loader (Replaces the boring spinner)
   if (authLoading || !isMounted || (!isOffline && (loadingData || isInitialLoad))) {
     return (
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
@@ -250,10 +283,10 @@ export default function ManageTests() {
     );
   }
 
-  // 🔥 THE FIX 2: Kyunki ab 'tests' me pehle se hi sirf is examiner ke tests hain, humein filter lagane ki zaroorat nahi
+  //  THE FIX 2: Kyunki ab 'tests' me pehle se hi sirf is examiner ke tests hain, humein filter lagane ki zaroorat nahi
   const myTests = baseTests.filter(t => t.id !== undoData?.test?.id);
   
-  // 🔥 THE FIX 3: SAFE UPDATER (Firebase Index Matcher)
+  //  THE FIX 3: SAFE UPDATER (Firebase Index Matcher)
   const updateTestGlobal = async (updatedTest) => {
     if (updatedTest.isLocal) {
         let currentLocal = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
@@ -283,7 +316,7 @@ export default function ManageTests() {
     } catch (e) { setSysAlert({ title: 'Error', msg: 'Error toggling status.', type: 'error' }); }
   };
 
-  // 🔥 THE FIX 4: SAFE DELETER (Cross-Check Delete)
+  //  THE FIX 4: SAFE DELETER (Cross-Check Delete)
   const triggerDelete = (t) => {
     setSysConfirm({
         title: 'Delete Test?',
@@ -387,7 +420,7 @@ export default function ManageTests() {
     const doc = iframe.contentWindow.document;
     doc.open();
     
-    // 🔥 FIX 2: BULLETPROOF MATHJAX & IMAGE SYNC ENGINE
+    //  FIX 2: BULLETPROOF MATHJAX & IMAGE SYNC ENGINE
     const mathJaxScript = `
         <script>
             window.MathJax = {
@@ -436,6 +469,31 @@ export default function ManageTests() {
       else n[i].correct.push(val);
     } else if (type === 'integer') n[i].correctInt = val;
     setTempQuestions(n);
+  };
+
+  const openEditSettings = () => {
+      setEditSettingsData({
+          duration: selectedTest.duration || 60,
+          negMarking: selectedTest.negMarking || 0,
+          resultVis: selectedTest.resultVis || 'manual'
+      });
+      setModalType('editSettings');
+  };
+
+  const saveTestSettings = async () => {
+      try {
+          let updatedTest = { 
+              ...selectedTest, 
+              duration: Number(editSettingsData.duration),
+              negMarking: Number(editSettingsData.negMarking),
+              resultVis: editSettingsData.resultVis
+          };
+          await updateTestGlobal(updatedTest);
+          setModalType(null);
+          setSysAlert({ title: 'Success', msg: 'Test settings updated successfully.', type: 'success' });
+      } catch (e) {
+          setSysAlert({ title: 'Error', msg: 'Failed to update settings.', type: 'error' });
+      }
   };
 
   const saveNewKeyAndReevaluate = async () => {
@@ -526,7 +584,7 @@ export default function ManageTests() {
     } catch (e) { setSysAlert({ title: 'Error', msg: 'Failed to save evaluation.', type: 'error' }); }
   };
 
- // 🔥 THE BULLETPROOF MAGIC RECALCULATE ENGINE (Fixed Skipped Logic)
+ //  THE BULLETPROOF MAGIC RECALCULATE ENGINE (Fixed Skipped Logic)
   const triggerMagicRecalculate = async () => {
     let updatedTest = { ...selectedTest };
     if (!updatedTest.submissions || updatedTest.submissions.length === 0) {
@@ -544,7 +602,7 @@ export default function ManageTests() {
         let ans = d.ans || {};
         let val = ans.val;
 
-        // 🔥 ASLI SKIPPED CHECK: null, undefined, khali string, -1, ya khali array = SKIPPED!
+        //  ASLI SKIPPED CHECK: null, undefined, khali string, -1, ya khali array = SKIPPED!
         let isSkipped = val === null || val === undefined || val === '' || val === -1 || (Array.isArray(val) && val.length === 0);
 
         if (isSkipped) {
@@ -601,10 +659,12 @@ export default function ManageTests() {
         // ==========================================
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
           
-          {/* 🔥 SMART SCROLL SHUTTER FOR EVALUATION NAVBAR */}
-          <div style={{ 
+          {/*  SMART SCROLL SHUTTER FOR EVALUATION NAVBAR */}
+          <div 
+              id="eval-shutter-nav"
+              style={{ 
               position: 'sticky', 
-              top: isEvalNavVisible ? '60px' : '-100px', // Animates Up/Down
+              top: '60px', // Initial State
               background: 'rgba(255, 255, 255, 0.90)', 
               backdropFilter: 'blur(12px)',
               zIndex: 90, 
@@ -614,9 +674,9 @@ export default function ManageTests() {
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center',
-              transition: 'top 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease',
-              opacity: isEvalNavVisible ? 1 : 0,
-              boxShadow: isEvalNavVisible ? '0 4px 25px rgba(0,0,0,0.06)' : 'none'
+              transition: 'top 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, box-shadow 0.3s ease',
+              opacity: 1, // Initial State
+              boxShadow: '0 4px 25px rgba(0,0,0,0.06)' // Initial State
           }}>
               {/* Left Side: Back Button */}
               <button 
@@ -651,7 +711,7 @@ export default function ManageTests() {
                   <div style={{ fontSize: '42px', fontWeight: 700, marginBottom: '4px', lineHeight: 1 }}>{evaluateSub.sub.score}</div>
                   <div style={{ fontSize: '14px', opacity: 0.9, fontWeight: 600 }}>/ {evaluateSub.test.totalMarks}</div>
               </div>
-              {/* 🔥 FIX: Centered Premium Percentage Badge */}
+              {/*  FIX: Centered Premium Percentage Badge */}
               <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
                   <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.25)', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 16px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', letterSpacing: '0.5px' }}>
                       <i className="ti ti-target"></i> {((evaluateSub.sub.score / evaluateSub.test.totalMarks) * 100).toFixed(1)}% Accuracy
@@ -678,7 +738,7 @@ export default function ManageTests() {
               </div>
           </div>
 
-          {/* 🔥 NAYA: Performance Overview Graph */}
+          {/*  NAYA: Performance Overview Graph */}
           <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
               <h3 style={{ margin: '0 0 1rem 0', fontSize: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <i className="ti ti-chart-donut"></i> Performance Breakdown
@@ -696,7 +756,7 @@ export default function ManageTests() {
               </div>
           </div>
 
-          {/* 🔥 FIX: Integrity & Time Analytics Box (With Ultimate Data Catcher) */}
+          {/*  FIX: Integrity & Time Analytics Box (With Ultimate Data Catcher) */}
           <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem', borderLeft: '4px solid #f59e0b', background: '#FEF5E5' }}>
               <h3 style={{ margin: '0 0 1rem 0', fontSize: '16px', color: '#854F0B', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <i className="ti ti-shield-half-filled"></i> Integrity & Session Analytics
@@ -713,7 +773,7 @@ export default function ManageTests() {
                   <div style={{ flex: 2, minWidth: '250px' }}>
                       <div style={{ fontSize: '13px', color: '#b45309', marginBottom: '6px', fontWeight: 600 }}>Proctoring Alerts / Logs</div>
                       {(() => {
-                          // 🔥 ULTIMATE FALLBACK: Har possible naam check karo jisme student ne logs save kiye ho
+                          //  ULTIMATE FALLBACK: Har possible naam check karo jisme student ne logs save kiye ho
                            const logs = evaluateSub.sub.cheatLogs || evaluateSub.sub.antiCheatLogs || evaluateSub.sub.logs || evaluateSub.sub.events || evaluateSub.sub.warnings || [];                          if (logs.length > 0) {
                               return (
                                   <div style={{ maxHeight: '120px', overflowY: 'auto', background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
@@ -740,7 +800,7 @@ export default function ManageTests() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)' }}>              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>Question-wise Analysis</h3>
                   {(() => {
-                      // 🔥 DYNAMIC COUNT CALCULATION BASED ON ACTIVE SECTION (EXAMINER)
+                      //  DYNAMIC COUNT CALCULATION BASED ON ACTIVE SECTION (EXAMINER)
                       const secDetails = evaluateSub.sub.details.filter(d => evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0])));
                       const countAll = secDetails.length;
                       const countCorrect = secDetails.filter(d => d.status === 'correct' || d.status === 'partial').length;
@@ -758,7 +818,7 @@ export default function ManageTests() {
                   })()}
               </div>
 
-              {/* 🔥 NEW: Section Scrollable Pill Menu for Examiner */}
+              {/*  NEW: Section Scrollable Pill Menu for Examiner */}
               {evaluateSub.test.sections && evaluateSub.test.sections.length > 0 && (
                   <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '4px' }}>
                       <button 
@@ -783,7 +843,7 @@ export default function ManageTests() {
           </div>
 
           {evaluateSub.sub.details.filter(d => {
-              // 🔥 Dono conditions (Status aur Section) match honi chahiye
+              //  Dono conditions (Status aur Section) match honi chahiye
               let sMatch = evalFilter === 'all' || d.status === evalFilter || (evalFilter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
               let secMatch = evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0]));
               return sMatch && secMatch;
@@ -802,10 +862,10 @@ export default function ManageTests() {
                           <span style={{ marginLeft: 'auto', fontSize: '14px', fontWeight: 600 }}>Earned: {d.earned || 0} / {q.marks}</span>
                       </div>
                       
-                      {/* 🔥 OVERFLOW FIX: Strict maxWidth aur hide-scroll laga diya */}
+                      {/*  OVERFLOW FIX: Strict maxWidth aur hide-scroll laga diya */}
                       <div className="qr-body hide-scroll" style={{ maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
                          
-                         {/* 🔥 TEXT OVERFLOW FIX: wordBreak aur whiteSpace laga diya taaki lamba question break ho jaye */}
+                         {/*  TEXT OVERFLOW FIX: wordBreak aur whiteSpace laga diya taaki lamba question break ho jaye */}
                          <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.25rem', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} dangerouslySetInnerHTML={{ __html: q.text }}></div>           
                          
                          {/* Universal Hybrid Figure Renderer Wrapper */}
@@ -829,14 +889,14 @@ export default function ManageTests() {
                               else if (!isCorr && isUser) { cls = 'wrong'; borderStyle = { borderColor: '#A32D2D', background: '#FCEBEB' }; }
 
                               return (
-                                  // 🔥 FIX 1: hide-scroll and maxWidth added to prevent outer div overflow
+                                  //  FIX 1: hide-scroll and maxWidth added to prevent outer div overflow
                                   <div key={j} className={`qr-opt ${cls} hide-scroll`} style={{ ...borderStyle, maxWidth: '100%' }}>
                                       <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, flexShrink: 0, background: 'rgba(255,255,255,0.7)' }}>{String.fromCharCode(65 + j)}</div>
                                       
-                                      {/* 🔥 FIX 2: minWidth: 0 is CRITICAL for flexbox to allow inner scrolling without expanding the parent */}
+                                      {/*  FIX 2: minWidth: 0 is CRITICAL for flexbox to allow inner scrolling without expanding the parent */}
                                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0', minWidth: 0 }} className="hide-scroll">
                                           
-                                          {/* 🔥 FIX 3: Smart SMILES Renderer inside Option */}
+                                          {/*  FIX 3: Smart SMILES Renderer inside Option */}
                                           {o.startsWith('[smiles]') ? (
                                               <div style={{ pointerEvents: 'none' }}>
                                                   <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
@@ -972,11 +1032,26 @@ export default function ManageTests() {
                           <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#FAEEDA', color: '#854F0B', borderColor: '#FAC775' }} onClick={openEditKey}><i className="ti ti-key"></i> Edit Key</button>
                           <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#EEEDFE', color: '#3C3489', borderColor: '#CECBF6' }} onClick={() => setModalType('analytics')}><i className="ti ti-chart-pie"></i> Analytics</button>
                       </div>
+
+                      {/*  NAYA: Configuration Card */}
+                  <div className="card" style={{ borderRadius: '12px' }}>
+                      <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-adjustments" style={{ color: '#854F0B' }}></i> Configuration</h3>
                       
-                      {/* 🔥 FIX 3: Magic Recalculate Button */}
-                      <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 700, background: '#FEF5E5', color: '#d97706', borderColor: '#fcd34d', marginBottom: '2rem' }} onClick={triggerMagicRecalculate}>
-                          <i className="ti ti-wand"></i> Fix Corrupted Scores (Remove Double-Negative)
+                      <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 700, marginBottom: '12px', background: '#FEF5E5', color: '#d97706', borderColor: '#fcd34d' }} onClick={openEditSettings}>
+                          <i className="ti ti-edit"></i> Edit Time & Settings
                       </button>
+                      
+                      <div style={{ fontSize: '14px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Duration:</strong> <span>{selectedTest.duration} Mins</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Neg. Marking:</strong> <span>{selectedTest.negMarking || 0} Marks</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Results:</strong> <span>{selectedTest.resultVis === 'instant' ? 'Instant' : 'Manual'}</span></div>
+                      </div>
+                  </div>
+                      
+                      {/*  FIX 3: Magic Recalculate Button */}
+                      {/* <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 700, background: '#FEF5E5', color: '#d97706', borderColor: '#fcd34d', marginBottom: '2rem' }} onClick={triggerMagicRecalculate}>
+                          <i className="ti ti-wand"></i> Fix Corrupted Scores (Remove Double-Negative)
+                      </button> */}
 
                       <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-share" style={{ color: '#10B981' }}></i> 1-Click Share</h3>                      <div className="grid2">
                           <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#dcf8c6', color: '#075e54', border: '1px solid #25d366' }} onClick={() => shareTest(selectedTest, 'whatsapp')}><i className="ti ti-brand-whatsapp" style={{ fontSize: '20px' }}></i> WhatsApp</button>
@@ -1047,7 +1122,7 @@ export default function ManageTests() {
                                       <div style={{ display: 'flex', gap: '8px' }}>
                                           <button className="btn btn-primary" style={{ padding: '8px 14px', fontWeight: 600, borderRadius: '8px', whiteSpace: 'nowrap' }} onClick={() => { setEvaluateSub({ sub: s, test: selectedTest, sIdx }); setEvalFilter('all'); }}><i className="ti ti-eye"></i> Evaluate</button>
                                           
-                                          {/* 🔥 SECURITY FIX: Button sirf Admin ko ya Examiner ke khud ke demo test par dikhega */}
+                                          {/*  SECURITY FIX: Button sirf Admin ko ya Examiner ke khud ke demo test par dikhega */}
                                           {(userRole === 'admin' || s.uid === currentUser?.uid || s.email === currentUser?.email) && (
                                               <button 
                                                   className="btn btn-ghost" 
@@ -1078,7 +1153,10 @@ export default function ManageTests() {
                       <div style={{ maxHeight: '50vh', overflowY: 'auto', paddingRight: '10px', marginBottom: '1.5rem' }}>
                           {tempQuestions.map((q, i) => (
                               <div key={i} style={{ marginBottom: '1.25rem', padding: '12px', border: '1px solid var(--color-border-secondary)', borderRadius: '8px', background: 'var(--color-background-secondary)' }}>
-                                  <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>Q{i + 1}: {q.text}</div>
+                                  <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '8px', display: 'flex', gap: '6px' }}>
+                                    <span style={{ flexShrink: 0 }}>Q{i + 1}:</span>
+                                    <span dangerouslySetInnerHTML={{ __html: q.text }}></span>
+                                  </div>
                                   
                                   {q.type === 'mcq' && (
                                       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -1118,6 +1196,32 @@ export default function ManageTests() {
                       <div style={{ display: 'flex', gap: '10px' }}>
                           <button className="btn" style={{ flex: 1, padding: '12px', fontWeight: 600 }} onClick={() => setModalType(null)}>Cancel</button>
                           <button className="btn btn-primary" style={{ flex: 2, background: '#854F0B', borderColor: '#854F0B', padding: '12px', fontWeight: 600 }} onClick={saveNewKeyAndReevaluate}><i className="ti ti-refresh"></i> Update & Auto-Grade All</button>
+                      </div>
+                  </div>
+              </div>
+          )}
+
+          {/*  NAYA: EDIT SETTINGS MODAL */}
+          {modalType === 'editSettings' && (
+              <div className="modal-bg" style={{ zIndex: 1000 }}>
+                  <div className="modal-box" style={{ maxWidth: '400px' }}>
+                      <h3 style={{ marginBottom: '1.5rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-adjustments"></i> Edit Test Config</h3>
+                      
+                      <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Duration (Minutes)</label>
+                      <input type="number" value={editSettingsData.duration} onChange={e => setEditSettingsData({...editSettingsData, duration: e.target.value})} style={{ width: '100%', padding: '12px', marginBottom: '1.25rem', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
+                      
+                      <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Negative Marking (Absolute Value)</label>
+                      <input type="number" step="0.25" value={editSettingsData.negMarking} onChange={e => setEditSettingsData({...editSettingsData, negMarking: e.target.value})} style={{ width: '100%', padding: '12px', marginBottom: '1.25rem', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
+
+                      <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Result Visibility</label>
+                      <select value={editSettingsData.resultVis} onChange={e => setEditSettingsData({...editSettingsData, resultVis: e.target.value})} style={{ width: '100%', padding: '12px', marginBottom: '2rem', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none', background: '#fff' }}>
+                          <option value="manual">Manual (Publish Later)</option>
+                          <option value="instant">Instant (Show after submit)</option>
+                      </select>
+
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                          <button className="btn" style={{ flex: 1, padding: '12px', fontWeight: 600, justifyContent: 'center' }} onClick={() => setModalType(null)}>Cancel</button>
+                          <button className="btn btn-primary" style={{ flex: 1, padding: '12px', fontWeight: 600, justifyContent: 'center' }} onClick={saveTestSettings}><i className="ti ti-device-floppy"></i> Save Config</button>
                       </div>
                   </div>
               </div>
@@ -1208,7 +1312,7 @@ export default function ManageTests() {
         // ==========================================
        <div style={{ padding: '1.5rem 1rem', paddingBottom: '40vh', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
             
-            {/* 🔥 1. MODERN COMPACT HEADER */}
+            {/*  1. MODERN COMPACT HEADER */}
             <div style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <i className="ti ti-vault" style={{ color: '#185FA5', fontSize: '24px' }}></i> My Tests Vault
@@ -1234,14 +1338,14 @@ export default function ManageTests() {
                 </div>
             ) : (
                 <>
-                    {/* 🔥 Inline Search & Sort Panel */}
+                    {/*  Inline Search & Sort Panel */}
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '1.25rem', width: '100%' }}>
                         
                         {/* Instant Search Bar */}
                         <div style={{ position: 'relative', flex: 1 }}>
                             <i className="ti ti-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}></i>
                             <input 
-                                ref={searchRef} // 🔥 Added Ref for keyboard focus
+                                ref={searchRef} //  Added Ref for keyboard focus
                                 type="text" 
                                 placeholder="Search tests... (Press '/')" // Indicator for PC users
                                 value={vaultSearchQuery}
@@ -1260,14 +1364,14 @@ export default function ManageTests() {
                                 <option value="newest">Newest</option>
                                 <option value="oldest">Oldest</option>
                                 <option value="alphabetical">A - Z</option>
-                                <option value="live">🟢 Live</option> {/* 🔥 Status option added */}
-                                <option value="closed">⚪ Closed</option> {/* 🔥 Status option added */}
+                                <option value="live">🟢 Live</option> {/*  Status option added */}
+                                <option value="closed">⚪ Closed</option> {/*  Status option added */}
                             </select>
                             <i className="ti ti-sort-descending" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', fontSize: '16px' }}></i>
                         </div>
                     </div>
 
-                    {/* 🔥 FILTERING, SORTING & RENDERING ENGINE */}
+                    {/*  FILTERING, SORTING & RENDERING ENGINE */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {(() => {
                             // 1. Filter by Search Query AND Dropdown Status
@@ -1323,7 +1427,7 @@ export default function ManageTests() {
                                             opacity: 0,
                                             animation: `staggerSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards`,
                                             animationDelay: `${(i > 10 ? 10 : i) * 0.06}s`, // Max delay cap for performance
-                                            padding: '1.25rem 1rem', // 🔥 Compact Mobile Padding
+                                            padding: '1.25rem 1rem', //  Compact Mobile Padding
                                             marginBottom: 0,
                                             display: 'flex',
                                             flexWrap: 'wrap',
@@ -1373,7 +1477,7 @@ export default function ManageTests() {
         </div>
       )}
 
-      {/* 🔥 ROOT LEVEL SYSTEM POPUPS */}
+      {/*  ROOT LEVEL SYSTEM POPUPS */}
       
       {undoData && (
           <div style={{ position: 'fixed', bottom: '30px', right: '30px', background: '#334155', color: '#fff', padding: '16px 24px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', zIndex: 9999, animation: 'slideUp 0.3s ease' }}>

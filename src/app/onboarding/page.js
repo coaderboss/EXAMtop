@@ -29,7 +29,7 @@ export default function Onboarding() {
 
   const handleLockProfile = async () => {
     setError('');
-    // 🔥 FIX: Roll Number strictness hatadi gayi hai
+    //  FIX: Roll Number strictness hatadi gayi hai
     if (!legalName.trim()) { setError('Official Full Name is required.'); return; }
     if (userRole === 'examiner' && !identifier.trim()) { setError('Institution/College name is required for Examiners.'); return; }
 
@@ -76,7 +76,7 @@ export default function Onboarding() {
         </div>
 
         <div style={{ textAlign: 'left', marginBottom: '2.5rem' }}>
-          {/* 🔥 FIX: Changed Label to reflect Optional status */}
+          {/*  FIX: Changed Label to reflect Optional status */}
           <label style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>{userRole === 'student' ? 'Student ID / Roll Number (Optional)' : 'Institution / College Name *'}</label>
           <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder={userRole === 'student' ? "e.g. 2024CS001" : "e.g. UIET Kanpur"} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #cbd5e1', fontSize: '16px', marginTop: '6px', textTransform: userRole === 'student' ? 'uppercase' : 'none' }} />
         </div>

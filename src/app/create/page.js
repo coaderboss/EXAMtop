@@ -47,7 +47,7 @@ export default function CreateTest() {
 
   const [toastMsg, setToastMsg] = useState('');
   
-  // 🔥 DRAFT CHECK ON MOUNT
+  //  DRAFT CHECK ON MOUNT
   useEffect(() => {
     const offlineStatus = localStorage.getItem('isOfflineMode') === 'true';
     setIsOffline(offlineStatus);
@@ -69,7 +69,7 @@ export default function CreateTest() {
     }
   }, [currentUser]);
 
-  // 🔥 MATHJAX AUTO-RENDERER
+  //  MATHJAX AUTO-RENDERER
   useEffect(() => {
     if (typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
       window.MathJax.typesetClear();
@@ -77,7 +77,7 @@ export default function CreateTest() {
     }
   }, [qList]);
 
-  // 🔥 AUTO-SAVE DRAFT (Every 5 Secs)
+  //  AUTO-SAVE DRAFT (Every 5 Secs)
   useEffect(() => {
     const interval = setInterval(() => {
       if (title.trim() === '' && qList.length === 0) return;
@@ -279,11 +279,11 @@ export default function CreateTest() {
         setSections(Array.from(importedSections).join(', '));
       setQList([...qList, ...mappedData]);
       
-      // 🔥 Alert Hatao, SysModal Lagao
+      //  Alert Hatao, SysModal Lagao
       setSysAlert({ title: 'Import Successful', msg: `${data.length} questions mapped from JSON.`, type: 'success' });
       
     } catch (ex) { 
-      // 🔥 Error Alert Hatao
+      //  Error Alert Hatao
       setSysAlert({ title: 'Import Failed', msg: 'Invalid JSON file format. Please check your syntax.', type: 'error' });
     }
    };
@@ -291,7 +291,7 @@ export default function CreateTest() {
    e.target.value = '';
   };
 
-  // 🔥 UNIVERSAL BASE64 IMAGE CONVERTER
+  //  UNIVERSAL BASE64 IMAGE CONVERTER
   const handleImageUpload = (e, qIndex) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -310,12 +310,12 @@ export default function CreateTest() {
   };
 
   const saveTest = () => {
-    // 🔥 Teeno Alerts ko SysAlert se replace kar diya
+    //  Teeno Alerts ko SysAlert se replace kar diya
     if (!isOffline && !currentUser) { setSysAlert({ title: 'Authentication Error', msg: "Login Required! You need to log in to save this test to the cloud.", type: 'error' }); return; }
     if (!title.trim()) { setSysAlert({ title: 'Missing Field', msg: 'Please enter a test title before saving.', type: 'warning' }); return; }
     if (!qList.length) { setSysAlert({ title: 'Empty Test', msg: 'Please add at least one question to the test.', type: 'warning' }); return; }
 
-    // 🔥 Strict Evaluation Key Validation (Isko bhi SysAlert kar diya)
+    //  Strict Evaluation Key Validation (Isko bhi SysAlert kar diya)
     for (let i = 0; i < qList.length; i++) {
         const q = qList[i];
         if (q.type === 'mcq' || q.type === 'msq') {
@@ -663,7 +663,7 @@ export default function CreateTest() {
         </button>
       </div>
 
-      {/* 🔥 Premium Custom Draft Recovery Modal */}
+      {/*  Premium Custom Draft Recovery Modal */}
       {pendingDraft && (
           <div className="modal-bg" style={{ zIndex: 9999 }}>
               <div className="modal-box" style={{ maxWidth: '420px', textAlign: 'center', padding: '2rem' }}>
@@ -681,7 +681,7 @@ export default function CreateTest() {
               </div>
           </div>
       )}
-      {/* 🔥 Premium Marks Mismatch Modal */}
+      {/*  Premium Marks Mismatch Modal */}
       {mismatchModal && (
           <div className="modal-bg" style={{ zIndex: 9999 }}>
               <div className="modal-box" style={{ maxWidth: '420px', textAlign: 'center', padding: '2rem' }}>
@@ -700,7 +700,7 @@ export default function CreateTest() {
               </div>
           </div>
       )}
-      {/* 🔥 The Universal System Alert Modal */}
+      {/*  The Universal System Alert Modal */}
       {sysAlert && (
           <div className="modal-bg" style={{ zIndex: 9999 }}>
               <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2rem' }}>

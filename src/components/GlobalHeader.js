@@ -57,7 +57,7 @@ export default function GlobalHeader() {
     setIsSettingsOpen(false); 
   };
 
-  // 🔥 THE FIX: Login Redirect Logic
+  //  THE FIX: Login Redirect Logic
   const handleLogin = async (role) => {
       try {
           await loginWithGoogle(role);
@@ -76,7 +76,7 @@ export default function GlobalHeader() {
       router.push('/');
   };
 
-  // 🔥 THE FIX: Profile Management & Deletion
+  //  THE FIX: Profile Management & Deletion
   const saveProfile = async () => {
       if (!currentUser) return;
       try {
@@ -105,7 +105,7 @@ export default function GlobalHeader() {
       }
   };
 
-  // 🔥 THE FIX: Highly Detailed 'i' Button Guides
+  //  THE FIX: Highly Detailed 'i' Button Guides
   const getPageInstructions = () => {
     switch(pathname) {
         case '/student': return { 
@@ -187,7 +187,7 @@ export default function GlobalHeader() {
             <>
                 <Link href="/student-dashboard" className={`nav-tab ${pathname === '/student-dashboard' ? 'active' : ''}`}><i className="ti ti-chart-pie"></i> Dashboard</Link>
                 <Link href="/student" className={`nav-tab ${pathname === '/student' ? 'active' : ''}`}><i className="ti ti-school"></i> Join Test</Link>
-                {/* 🔥 THE FIX: Arena Tab Restored */}
+                {/*  THE FIX: Arena Tab Restored */}
                 <Link href="/arena" className={`nav-tab ${pathname === '/arena' ? 'active' : ''}`}><i className="ti ti-swords"></i> Practice Arena</Link>
                 <Link href="/student-results" className={`nav-tab ${pathname === '/student-results' ? 'active' : ''}`}><i className="ti ti-history"></i> My Results</Link>
             </>
@@ -275,7 +275,7 @@ export default function GlobalHeader() {
             )}
         </div>
 
-        {/* 🔥 DETAILED INFO MODAL */}
+        {/*  DETAILED INFO MODAL */}
         {showInfo && (
             <div className="modal-bg" style={{ zIndex: 99999 }}>
                 <div className="modal-box" style={{ maxWidth: '550px', padding: '2rem' }}>
@@ -291,7 +291,7 @@ export default function GlobalHeader() {
             </div>
         )}
 
-        {/* 🔥 ADVANCED PROFILE MODAL */}
+        {/*  ADVANCED PROFILE MODAL */}
         {showProfile && currentUser && (
             <div className="modal-bg" style={{ zIndex: 99999 }}>
                 <div className="modal-box" style={{ maxWidth: '450px', padding: '2.5rem 2rem', textAlign: 'center' }}>

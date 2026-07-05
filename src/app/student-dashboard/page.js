@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
-// 🔥 THE FIX: Direct Firebase DB imports for On-Demand Fetching
+//  THE FIX: Direct Firebase DB imports for On-Demand Fetching
 import { database } from '../../lib/firebase';
 import { ref, get } from 'firebase/database';
 
@@ -15,7 +15,7 @@ export default function StudentDashboard() {
   const [myHistory, setMyHistory] = useState([]);
   const [fetchingResults, setFetchingResults] = useState(true);
 
-  const [animateGraph, setAnimateGraph] = useState(false); // 🔥 Animation Trigger State
+  const [animateGraph, setAnimateGraph] = useState(false); //  Animation Trigger State
 
   // Jaise hi data load hoga, ye 100ms baad animation shuru kar dega
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function StudentDashboard() {
       }
   }, [fetchingResults, myHistory]);
 
-  // 🔥 THE FIX: Smart Database Query (Only fetch when dashboard opens)
+  //  THE FIX: Smart Database Query (Only fetch when dashboard opens)
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!currentUser) {
@@ -67,7 +67,7 @@ export default function StudentDashboard() {
     fetchDashboardData();
   }, [currentUser]);
 
-  // 🔥 THE FIX: Premium Student Dashboard Skeleton Loader
+  //  THE FIX: Premium Student Dashboard Skeleton Loader
   if (authLoading || fetchingResults) {
     return (
       <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
@@ -164,7 +164,7 @@ export default function StudentDashboard() {
   let overallAccuracy = (totalCorrect + totalWrong) > 0 ? Math.round((totalCorrect / (totalCorrect + totalWrong)) * 100) : 0;
   let overallPercentage = totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 0;
 
-  // 🔥 THE ULTRA GOOD IDEA: Rank & Trend Logic
+  //  THE ULTRA GOOD IDEA: Rank & Trend Logic
   let rankTitle = "Starter"; let rankColor = "#64748b"; let rankIcon = "ti-star";
   if (totalTests > 0) {
       if (overallPercentage >= 85) { rankTitle = "Elite Scholar"; rankColor = "#d4af37"; rankIcon = "ti-award"; }
@@ -216,7 +216,7 @@ export default function StudentDashboard() {
                 </div>
             </div>
 
-            {/* 🔥 UPGRADED PREMIUM FEATURE: Animated Performance Trend Chart */}
+            {/*  UPGRADED PREMIUM FEATURE: Animated Performance Trend Chart */}
             <div className="card" style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '16px', background: 'var(--color-background-primary)', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', border: '1px solid var(--color-border-secondary)' }}>
                 <h3 style={{ marginTop: 0, marginBottom: '2rem', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-primary)' }}>
                     <div style={{ background: '#E6F1FB', padding: '6px', borderRadius: '8px', display: 'flex', color: '#185FA5' }}>
@@ -230,7 +230,7 @@ export default function StudentDashboard() {
                     {/* The Chart Area */}
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', height: '160px', minWidth: '400px', borderBottom: '2px solid var(--color-border-secondary)', padding: '0 10px' }}>
                        {recentTrend.map((h, i) => {
-                            // 🔥 FIX: Prevent NaN if totalMarks is 0 or undefined
+                            //  FIX: Prevent NaN if totalMarks is 0 or undefined
                             let validScore = h.score || 0;
                             let validTotal = h.totalMarks || 0;
                             let pct = validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;
@@ -243,7 +243,7 @@ export default function StudentDashboard() {
                             let barHoverBg = isExcellent ? '#dcefc8' : isAverage ? '#f8e4c2' : '#fad4d4';
 
                             return (
-                                // 🔥 BUG FIX: height: '100%' and justifyContent: 'flex-end' makes it a real column
+                                //  BUG FIX: height: '100%' and justifyContent: 'flex-end' makes it a real column
                                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', flex: 1, height: '100%', position: 'relative', group: 'true' }}>
                                     
                                     {/* Percentage Label (Fades in) */}
@@ -255,7 +255,7 @@ export default function StudentDashboard() {
                                         {pct}%
                                     </div>
                                     
-                                    {/* 🔥 THE ANIMATED BAR */}
+                                    {/*  THE ANIMATED BAR */}
                                     <div 
                                         style={{ 
                                             width: '100%', maxWidth: '36px', 
@@ -289,12 +289,12 @@ export default function StudentDashboard() {
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {myHistory.slice().reverse().map((h, index) => {
-                    // 🔥 FIX: Safe math for Ledger percentages
+                    //  FIX: Safe math for Ledger percentages
                     let validScore = h.score || 0;
                     let validTotal = h.totalMarks || 0;
                     let pct = validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;
                     
-                    // 🔥 FIX: Safe math for Accuracy (handles missing data properly)
+                    //  FIX: Safe math for Accuracy (handles missing data properly)
                     let corr = h.correct || 0;
                     let wrng = h.wrong || 0;
                     let accPct = (corr + wrng) > 0 ? Math.round((corr / (corr + wrng)) * 100) : 0;

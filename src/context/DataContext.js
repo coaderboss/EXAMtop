@@ -11,7 +11,7 @@ export const DataProvider = ({ children }) => {
     const [tests, setTests] = useState([]); 
     const [loadingData, setLoadingData] = useState(false);
 
-    // 🔥 1. EXAMINER VAULT FETCH (Sirf logged-in examiner ke tests laayega)
+    //  1. EXAMINER VAULT FETCH (Sirf logged-in examiner ke tests laayega)
     const fetchMyTests = async (uid) => {
         if (!uid) return;
         setLoadingData(true);
@@ -43,7 +43,7 @@ export const DataProvider = ({ children }) => {
         }
     };
 
-    // 🔥 2. STUDENT JOIN FETCH (Sirf join code wale test ka 1 page data laayega)
+    //  2. STUDENT JOIN FETCH (Sirf join code wale test ka 1 page data laayega)
     const fetchSingleTest = async (code) => {
         try {
             // QUERY: Sirf specific Code match karo

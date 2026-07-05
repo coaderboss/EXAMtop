@@ -7,14 +7,14 @@ import { database } from '../../lib/firebase';
 import { ref, get, update, set, remove } from 'firebase/database';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// 🔥 UTILITY: Safe Array Converter
+//  UTILITY: Safe Array Converter
 const safeArray = (data) => {
     if (!data) return [];
     if (Array.isArray(data)) return data.filter(Boolean);
     return Object.values(data).filter(Boolean);
 };
 
-// 🔥 SIMPLE & CLEAN ANIMATIONS
+//  SIMPLE & CLEAN ANIMATIONS
 const fadeUp = { hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
 const staggerContainer = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
 
@@ -60,7 +60,7 @@ export default function GodMode() {
       }
   }, [activeTab, allTests]);
 
-  // 🔥 CORE DATA FETCH
+  //  CORE DATA FETCH
   const fetchGodData = async () => {
     setIsLoadingData(true);
     try {
@@ -90,7 +90,7 @@ export default function GodMode() {
     setIsLoadingData(false);
   };
 
-  // 🔥 ON-DEMAND USER FETCHING
+  //  ON-DEMAND USER FETCHING
   const fetchUsersOnDemand = async () => {
       setIsLoadingUsers(true);
       try {
@@ -111,7 +111,7 @@ export default function GodMode() {
       if (userRole === 'admin') fetchGodData();
   }, [userRole]);
   
-  // 🔥 AUTO-KICK BOUNCER
+  //  AUTO-KICK BOUNCER
   useEffect(() => {
       if (!authLoading && (!currentUser || userRole !== 'admin')) {
           const kickTimer = setTimeout(() => {
