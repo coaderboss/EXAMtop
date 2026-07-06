@@ -5,11 +5,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
-//  THE FIX: Added 'get' for Absolute Index Lookup during submission
 import { ref, push, set, get } from 'firebase/database'; 
 import SmilesViewer from '../../components/SmilesViewer';
 
-//  THE MASTER FIX: MathJax React Re-render Protector
+// THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
   if (isBlock) return <div className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
   return <span className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
@@ -17,15 +16,14 @@ const StaticMath = memo(({ html, isBlock, style, className }) => {
 
 export default function StudentPortal() {
   const { currentUser, loading: authLoading } = useAuth();
-  //  THE FIX: Imported fetchSingleTest from DataContext
   const { fetchSingleTest } = useData(); 
   const router = useRouter();
 
   const [isMounted, setIsMounted] = useState(false);
-  const [isFetchingTest, setIsFetchingTest] = useState(false); //  For Smart Loading
+  const [isFetchingTest, setIsFetchingTest] = useState(false);
 
   // --- SCREEN STATES ---
-  const [step, setStep] = useState('join'); // join, instructions, exam, offline_saved
+  const [step, setStep] = useState('join');
   const [isSubmitting, setIsSubmitting] = useState(false); 
   const [showConfirmModal, setShowConfirmModal] = useState(false); 
   const [draftToResume, setDraftToResume] = useState(null); 
@@ -43,11 +41,14 @@ export default function StudentPortal() {
   const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState(false);
   const [showRoughPad, setShowRoughPad] = useState(false);
   const [roughText, setRoughText] = useState('');
+  
+  // 🔥 NAYA: Figure Loading State (For TikZ & Images)
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   // --- CUSTOM POPUPS & ALERTS ---
   const [joinError, setJoinError] = useState(''); 
   const [cheatWarning, setCheatWarning] = useState(null); 
-  const [sysModal, setSysModal] = useState(null); // { type: 'success'|'error'|'info', msg: '', action: ()=>{} }
+  const [sysModal, setSysModal] = useState(null);
   
   // --- REFS ---
   const timerRef = useRef(null);
@@ -59,12 +60,16 @@ export default function StudentPortal() {
 
   useEffect(() => { setIsMounted(true); }, []);
 
-  // Auto-fill student name
   useEffect(() => {
     if (currentUser && currentUser.displayName) setName(currentUser.displayName);
   }, [currentUser]);
 
-  //  1. MathJax Auto-Renderer (Smooth Fade-In)
+  // Reset image loader when question changes
+  useEffect(() => {
+    setImgLoaded(false);
+  }, [curQ]);
+
+  // 1. MathJax Auto-Renderer
   useEffect(() => {
     const renderMath = async () => {
       if (step === 'exam' && typeof window !== 'undefined' && window.MathJax) {
@@ -94,7 +99,38 @@ export default function StudentPortal() {
     return () => { if (header) header.style.display = ''; };
   }, [step]);
 
-  //  2. AUTO-SAVE DRAFT (Panic Refresh Protection + ENCRYPTION)
+  // 🔥 NAYA: Keyboard Navigation Engine (Arrows & 1,2,3,4)
+  useEffect(() => {
+    if (step !== 'exam' || !activeTest) return;
+    
+    const handleKeyDown = (e) => {
+        // Prevent triggering if typing in Roughpad or Inputs
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            if (curQ < activeTest.questions.length - 1) changeQuestion(curQ + 1);
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            if (curQ > 0) changeQuestion(curQ - 1);
+        } else if (['1', '2', '3', '4'].includes(e.key)) {
+            e.preventDefault();
+            const qType = activeTest.questions[curQ]?.type;
+            const optIdx = parseInt(e.key) - 1;
+            
+            if (qType === 'mcq' && activeTest.questions[curQ]?.options[optIdx]) {
+                pickMCQ(curQ, optIdx);
+            } else if (qType === 'msq' && activeTest.questions[curQ]?.options[optIdx]) {
+                pickMSQ(curQ, optIdx);
+            }
+        }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [step, curQ, activeTest, answers]); 
+
+  // 2. AUTO-SAVE DRAFT
   useEffect(() => {
     if (step === 'exam' && activeTest && answers.length > 0) {
         const safeName = name.trim() || 'guest';
@@ -112,14 +148,13 @@ export default function StudentPortal() {
     }
   }, [answers, curQ, step, activeTest, name, roll]);
 
-  //  3. AUTO-SYNC OFFLINE SUBMISSIONS (Updated for Safe Indexing)
+  // 3. AUTO-SYNC OFFLINE SUBMISSIONS
   useEffect(() => {
     const handleOnline = async () => {
         let pending = JSON.parse(localStorage.getItem('examitop_pending_subs') || '[]');
         if (pending.length > 0) {
             for (let p of pending) {
                 try {
-                    // Safe Index Lookup
                     const snapshot = await get(ref(database, 'tests'));
                     const allTests = snapshot.val() || [];
                     const tIndex = allTests.findIndex(x => x && x.id === p.testId);
@@ -135,14 +170,14 @@ export default function StudentPortal() {
     return () => window.removeEventListener('online', handleOnline);
   }, []);
 
-  //  4. ENTERPRISE ANTI-CHEAT ENGINE (Keyboard Ninja Blocker)
+  // 4. ENTERPRISE ANTI-CHEAT ENGINE
   useEffect(() => {
     if (step !== 'exam' || !activeTest?.antiCheat) return;
 
     const triggerCheat = (reason) => {
         if (isActionLockedRef.current) return;
         const now = Date.now();
-        if (now - lastWarningTimeRef.current < 3000) return; // Cooldown
+        if (now - lastWarningTimeRef.current < 3000) return; 
         
         lastWarningTimeRef.current = now;
         warningsRef.current += 1;
@@ -195,34 +230,29 @@ export default function StudentPortal() {
     };
   }, [step, activeTest]);
 
-  //  5. THE ULTIMATE EXAM TRAP (Blocks Pull-to-refresh & Back Button)
+  // 5. THE ULTIMATE EXAM TRAP
   useEffect(() => {
     if (step !== 'exam') return;
 
-    // A. Back Button Escape Trap (Fake History Push)
     window.history.pushState(null, "", window.location.href);
     const handlePopState = (e) => {
-        window.history.pushState(null, "", window.location.href); // Wapas trap me push karo
+        window.history.pushState(null, "", window.location.href); 
         setSysModal({ type: 'error', msg: "SECURITY LOCK: You cannot go back during an active exam. You must submit the test to exit." });
     };
     window.addEventListener('popstate', handlePopState);
 
-    // B. Pull-to-Refresh Blocker (JS Level Strict Block)
     let touchStartY = 0;
     const handleTouchStart = (e) => { touchStartY = e.touches[0].clientY; };
     const handleTouchMove = (e) => {
         const touchY = e.touches[0].clientY;
         const touchDiff = touchY - touchStartY;
-        // Agar user ekdum top par hai aur neeche kheench raha hai -> BLOCK IT!
         if (touchDiff > 0 && window.scrollY === 0) {
             if (e.cancelable) e.preventDefault();
         }
     };
     
-    // C. Tab Close / Browser Exit Warning
     const handleBeforeUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
 
-    // Events Attach (passive: false is MUST to allow preventDefault)
     document.addEventListener('touchstart', handleTouchStart, { passive: false });
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -236,23 +266,21 @@ export default function StudentPortal() {
   }, [step]);
 
 
-  // ---  UPDATED JOIN LOGIC (On-Demand Smart Fetch) ---
+  // --- JOIN LOGIC ---
   const handleJoinTest = async () => {
     setJoinError(''); 
     if (!name.trim()) { setJoinError('Please enter your full name.'); return; }
     if (!code.trim()) { setJoinError('Please enter the 6-digit test code.'); return; }
 
-    setIsFetchingTest(true); // Spin loader strictly for verification phase
+    setIsFetchingTest(true); 
     
     try {
         const codeUpper = code.trim().toUpperCase();
         let t = null;
 
-        // Offline tests array me check karo
         const localTests = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
         t = localTests.find(x => x.code === codeUpper);
 
-        // Agar locally nahi mila, toh cloud se sirf ek document mangwao (Zero Data Leak)
         if (!t) {
             t = await fetchSingleTest(codeUpper);
         }
@@ -268,7 +296,6 @@ export default function StudentPortal() {
         let existingSub = safeSubmissions.find(s => s && s.name && s.name.trim().toLowerCase() === safeName.toLowerCase() && (s.roll || '').trim().toLowerCase() === safeRoll);       
         if (existingSub) { setJoinError("Submission Received: You have already submitted this test."); setIsFetchingTest(false); return; }
 
-        // Panic Refresh Check
         const draftStr = localStorage.getItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
         if (draftStr) {
             try {
@@ -297,16 +324,14 @@ export default function StudentPortal() {
     }
   };
 
- // ---  UPGRADED SMART SHUFFLE ALGORITHM ---
   const applySmartShuffle = (test) => {
     if (!test.shuffleOpts) return test;
     
-    let clonedTest = JSON.parse(JSON.stringify(test)); // Deep copy to avoid mutating original
+    let clonedTest = JSON.parse(JSON.stringify(test)); 
     
     clonedTest.questions = clonedTest.questions.map(q => {
         if ((q.type === 'mcq' || q.type === 'msq') && q.options) {
             
-            // 1. Pehle check karo ki kya kisi bhi option me position-dependent text hai?
             const hasFixedOption = q.options.some(opt => {
                 let lowerOpt = opt.toLowerCase().replace(/<[^>]*>?/gm, '').trim();
                 return lowerOpt.includes('all of') || 
@@ -315,15 +340,10 @@ export default function StudentPortal() {
                        lowerOpt.includes('only ');
             });
 
-            // 2. Agar koi position-dependent option hai, toh is question ko SHUFFLE MAT KARO!
-            if (hasFixedOption) {
-                return q; // Wapas bhej do as it is
-            }
+            if (hasFixedOption) return q; 
 
-            // 3. Agar normal options hain (e.g., Apple, Banana, Orange), tabhi shuffle karo
             let standardOpts = q.options.map((opt, idx) => ({ text: opt, originalIdx: idx }));
 
-            // Fisher-Yates Shuffle for all options
             for (let i = standardOpts.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [standardOpts[i], standardOpts[j]] = [standardOpts[j], standardOpts[i]];
@@ -331,7 +351,6 @@ export default function StudentPortal() {
 
             q.options = standardOpts.map(o => o.text);
             
-            //  CRITICAL: Remap the correct answers index
             let newCorrectArray = [];
             if (q.correct) {
                 q.correct.forEach(cIdx => {
@@ -356,16 +375,14 @@ export default function StudentPortal() {
     }
 
     if (draftToResume) {
-        // ... (Keep existing draft resume logic)
         setAnswers(draftToResume.answers);
         setCurQ(draftToResume.curQ);
         endTimeRef.current = draftToResume.endTime;
         warningsRef.current = draftToResume.warnings || 0;
         cheatLogsRef.current = draftToResume.cheatLogs || [];
     } else {
-        //  Apply Smart Shuffle before initializing answers
         const shuffledTest = applySmartShuffle(activeTest);
-        setActiveTest(shuffledTest); // Set the shuffled test as the active one
+        setActiveTest(shuffledTest); 
 
         const initialAnswers = shuffledTest.questions.map(() => ({ val: null, marked: false }));
         setAnswers(initialAnswers);
@@ -411,7 +428,7 @@ export default function StudentPortal() {
   const confirmAndSubmit = () => { isActionLockedRef.current = true; setShowConfirmModal(true); };
   const cancelSubmit = () => { setShowConfirmModal(false); setTimeout(() => { isActionLockedRef.current = false; }, 500); };
 
-  // ---  UPDATED SECURE SUBMISSION LOGIC (Safe Index Lookup) ---
+  // --- SECURE SUBMISSION LOGIC ---
   const handleFinalSubmit = async () => {
     if (!activeTest || step !== 'exam') return;
     
@@ -429,7 +446,6 @@ export default function StudentPortal() {
       let status = 'skipped';
       let earned = 0;
 
-      //  BULLETPROOF SKIPPED CHECK: Har tarah ke khali variables ko pakdega
       let isSkipped = val === null || val === undefined || val === '' || val === -1 || (Array.isArray(val) && val.length === 0);
 
       if (isSkipped) {
@@ -463,7 +479,6 @@ export default function StudentPortal() {
       return { q, ans, status, earned };
     });
 
-   //  NAYA: Time Taken Calculation (Total time in seconds - Time left in seconds)
     const totalSecondsGiven = activeTest.duration ? activeTest.duration * 60 : 0;
     const secondsSpent = totalSecondsGiven > 0 ? (totalSecondsGiven - timeLeft) : 0;
     const timeTakenStr = formatTime(secondsSpent);
@@ -477,13 +492,12 @@ export default function StudentPortal() {
       time: new Date().toLocaleString('en-IN'),
       totalMarks: activeTest.totalMarks,
       cheatLogs: cheatLogsRef.current,
-      timeTaken: timeTakenStr //  Ab bache ka total time database me safely jayega!
+      timeTaken: timeTakenStr 
     };
 
-    // Clean up draft safely
     localStorage.removeItem(`exam_draft_${activeTest.id}_${name.trim() || 'guest'}_${roll.trim().toLowerCase() || 'noroll'}`);
 
-    //  OFFLINE SAFE VAULT SYNC LOGIC
+    // OFFLINE VAULT SYNC LOGIC
     if (!navigator.onLine && !activeTest.isLocal) {
         let pending = JSON.parse(localStorage.getItem('examitop_pending_subs') || '[]');
         pending.push({ testId: activeTest.id, sub: finalSub });
@@ -495,7 +509,6 @@ export default function StudentPortal() {
         return;
     }
 
-    // Normal Submission
     try {
       if (activeTest.isLocal) {
           let localTests = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
@@ -506,7 +519,6 @@ export default function StudentPortal() {
               localStorage.setItem('examitop_offline_tests', JSON.stringify(localTests));
           }
       } else {
-          //  Absolute Index Lookup to avoid mis-submitting to wrong test
           const snapshot = await get(ref(database, 'tests'));
           const allTests = snapshot.val() || [];
           const tIndex = allTests.findIndex(x => x && x.id === activeTest.id);
@@ -552,13 +564,11 @@ export default function StudentPortal() {
   };
 
 
- // ---  PREMIUM SUBMISSION UI (With Moving 2D Orbit) ---
   if (!isMounted || authLoading || isSubmitting || isFetchingTest) {
     return (
       <div style={{ height: '100vh', width: '100vw', position: 'fixed', top: 0, left: 0, background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
         {isSubmitting ? (
             <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease' }}>
-                {/*  The Sci-Fi Moving Wrapper */}
                 <div className="animation-wrapper">
                     <div className="orbit-ring"></div>
                     <div className="premium-success">
@@ -582,7 +592,6 @@ export default function StudentPortal() {
     );
   }
 
-  // --- OFFLINE VAULT UI ---
   if (step === 'offline_saved') {
       return (
           <div style={{ textAlign: 'center', marginTop: '5rem', padding: '2rem', maxWidth: '500px', margin: '5rem auto' }}>
@@ -596,7 +605,6 @@ export default function StudentPortal() {
       );
   }
 
-  // --- STATS CALCULATION ---
   const answeredQs = answers.filter(a => a?.val !== null && (!Array.isArray(a?.val) || a?.val.length > 0)).length;
   const markedQs = answers.filter(a => a?.marked).length;
   const remainingQs = activeTest?.questions ? activeTest.questions.length - answeredQs : 0;
@@ -690,7 +698,6 @@ export default function StudentPortal() {
 
         <div className="test-layout" style={{ marginTop: '1rem' }}>
             
-            {/*  FIX 1: 'q-area' ko Flex container banaya taaki height lock rahe aur bottom nav na uchhale */}
             <div className="q-area" style={{ display: 'flex', flexDirection: 'column', minHeight: '65vh' }}> 
               
               {/* SMART SPACE-SAVING HEADER FOR MOBILE */}
@@ -708,18 +715,33 @@ export default function StudentPortal() {
                 </div>
               </div>
               
-              {/*  FIX 2: 'flex: 1' added so this area takes all available space, pushing bottom buttons down */}
               <div className="q-area-content" style={{ opacity: 0, flex: 1 }}>
                   
                   {/* StaticMath applied to Question Text */}
                   <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
                   
-                  {/* 🧬 HYBRID FIGURE ENGINE RENDERER */}
+                  {/* 🔥 NAYA: HYBRID FIGURE ENGINE RENDERER (With Cache-Busting Loaders) */}
                   {currentQuestion?.figureType && currentQuestion.figureType !== 'none' && currentQuestion.figureData && (
                     <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
                         
                         {(currentQuestion.figureType === 'image' || currentQuestion.figureType === 'url') && (
-                            <img src={currentQuestion.figureData} alt="" style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                            <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center', minHeight: !imgLoaded ? '150px' : 'auto' }}>
+                                {!imgLoaded && (
+                                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
+                                        <div className="spinner" style={{ width: '24px', height: '24px', borderWidth: '3px' }}></div>
+                                        <span style={{ fontSize: '12px', fontWeight: 600 }}>Loading Image...</span>
+                                    </div>
+                                )}
+                                <img 
+                                    key={`img-${curQ}`} 
+                                    src={currentQuestion.figureData} 
+                                    alt="" 
+                                    ref={el => { if(el && el.complete) setImgLoaded(true); }} /* 🔥 CACHE FIX */
+                                    style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
+                                    onLoad={() => setImgLoaded(true)} 
+                                    onError={(e) => { e.target.style.display = 'none'; setImgLoaded(true); }} 
+                                />
+                            </div>
                         )}
 
                         {currentQuestion.figureType === 'smiles' && (
@@ -729,8 +751,22 @@ export default function StudentPortal() {
                         )}
 
                         {currentQuestion.figureType === 'tikz' && (
-                            <div style={{ display: 'flex', justifyContent: 'center', overflowX: 'auto', maxWidth: '100%' }}>
-                                <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" style={{ maxWidth: '100%', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                            <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', overflowX: 'auto', maxWidth: '100%', minHeight: !imgLoaded ? '150px' : 'auto' }}>
+                                {!imgLoaded && (
+                                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
+                                        <div className="spinner" style={{ width: '24px', height: '24px', borderWidth: '3px' }}></div>
+                                        <span style={{ fontSize: '12px', fontWeight: 600 }}>Drawing Figure...</span>
+                                    </div>
+                                )}
+                                <img 
+                                    key={`tikz-${curQ}`}
+                                    src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}')}`} 
+                                    alt="Math Graphic" 
+                                    ref={el => { if(el && el.complete) setImgLoaded(true); }} /* 🔥 CACHE FIX */
+                                    style={{ maxWidth: '100%', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
+                                    onLoad={() => setImgLoaded(true)} 
+                                    onError={(e) => { e.target.style.display = 'none'; setImgLoaded(true); }} 
+                                />
                             </div>
                         )}
                     </div>
@@ -782,7 +818,6 @@ export default function StudentPortal() {
                       )}
                   </div>
               </div> 
-              {/* END OF FADING WRAPPER */}
 
               {/* ACTION BUTTONS */}
               <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
@@ -816,8 +851,8 @@ export default function StudentPortal() {
               </div>
             </div>
             
-           {/* SIDEBAR PALETTE */}
-           <div className={`sidebar-panel ${!isMobilePaletteOpen ? 'hide-mobile' : ''}`} style={isMobilePaletteOpen ? { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, margin: 0, borderRadius: '24px 24px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.15)', padding: '20px' } : {}}>
+           {/* 🔥 NAYA: SIDEBAR PALETTE (FLEXIBLE HEIGHT FIX FOR MOBILE) */}
+           <div className={`sidebar-panel ${!isMobilePaletteOpen ? 'hide-mobile' : ''}`} style={isMobilePaletteOpen ? { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, margin: 0, borderRadius: '24px 24px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.15)', padding: '20px', display: 'flex', flexDirection: 'column', maxHeight: '85vh', background: 'var(--color-background-primary)' } : {}}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1.25rem 0' }}>
                   <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Question Palette</div>
                   {isMobilePaletteOpen && <button className="btn btn-ghost" style={{ padding: '4px 8px' }} onClick={() => setIsMobilePaletteOpen(false)}><i className="ti ti-x" style={{ fontSize: '24px' }}></i></button>}
@@ -829,7 +864,7 @@ export default function StudentPortal() {
                 <div className="leg"><div className="leg-dot" style={{ background: '#FAC775' }}></div>Marked</div>
               </div>
               
-              <div className="hide-scroll" style={{ maxHeight: '55vh', overflowY: 'auto', padding: '4px 10px', margin: '0 -10px' }}>
+              <div className="hide-scroll" style={{ flex: isMobilePaletteOpen ? 1 : 'none', maxHeight: isMobilePaletteOpen ? 'none' : '55vh', overflowY: 'auto', padding: '4px 10px', margin: '0 -10px' }}>
                   {activeTest?.sections && activeTest.sections.length > 0 ? (
                       activeTest.sections.map(sec => {
                           let secAttempted = 0;
@@ -890,7 +925,7 @@ export default function StudentPortal() {
             </div>            
           </div>
 
-          {/*  VIRTUAL ROUGH PAD (Floating) */}
+          {/* VIRTUAL ROUGH PAD (Floating) */}
           {showRoughPad && (
               <div style={{ position: 'fixed', bottom: '90px', right: '20px', width: '300px', height: '350px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '12px', zIndex: 999, display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
                   <div style={{ background: '#185FA5', color: '#fff', padding: '10px 15px', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -951,7 +986,7 @@ export default function StudentPortal() {
           </div>
       )}
 
-      {/*  CUSTOM SYSTEM MODALS */}
+      {/* CUSTOM SYSTEM MODALS */}
       {sysModal && (
           <div className="modal-bg" style={{ zIndex: 999999 }}>
               <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem', border: `2px solid ${sysModal.type === 'error' ? '#A32D2D' : '#3B6D11'}`, borderRadius: '16px' }}>
