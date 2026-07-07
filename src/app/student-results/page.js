@@ -1,13 +1,18 @@
 // src/app/student-results/page.js
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react'; 
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
-//  THE FIX: Imported direct Firebase functions
 import { database } from '../../lib/firebase';
 import { ref, get } from 'firebase/database';
 import FigureRenderer from '../../components/FigureRenderer'; 
 import SmilesViewer from '../../components/SmilesViewer';
+
+// 🔥 THE MASTER FIX: MathJax React Re-render Protector
+const StaticMath = memo(({ html, isBlock, style, className }) => {
+  if (isBlock) return <div className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
+  return <span className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
+});
 
 export default function StudentResults() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -21,6 +26,21 @@ export default function StudentResults() {
   const [selectedResult, setSelectedResult] = useState(null);
   const [filter, setFilter] = useState('all'); // 'all', 'correct', 'wrong', 'skipped'
   const [sectionFilter, setSectionFilter] = useState('all_sections'); //  NAYA: Section Filter
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+      if (typeof window === 'undefined') return;
+      const handleScroll = () => {
+          // 400px se zyada scroll hone par arrow popup hoga
+          setShowScrollTop(window.scrollY > 400);
+      };
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   
    
   //  THE FIX: Fetch results ON-DEMAND only when this page is opened
@@ -448,8 +468,8 @@ export default function StudentResults() {
                 {/*  OVERFLOW FIX: Strict maxWidth aur hide-scroll laga diya */}
                 <div className="qr-body hide-scroll" style={{ maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
                     
-                    {/*  TEXT OVERFLOW FIX: wordBreak aur whiteSpace laga diya */}
-                    <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.5rem', color: 'var(--color-text-primary)', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} dangerouslySetInnerHTML={{ __html: q.text }}></div>
+                    {/* 🔥 FIX: MathJax Protector applied to Question Text */}
+                    <StaticMath isBlock={true} html={q.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.5rem', color: 'var(--color-text-primary)', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} />
                     
                     {/* Universal Hybrid Figure Renderer Wrapper */}
                     <div className="hide-scroll" style={{ maxWidth: '100%', minWidth: 0 }}>
@@ -481,13 +501,13 @@ export default function StudentResults() {
                                 {/*  FIX 2: minWidth: 0 is CRITICAL for flexbox to not stretch the screen */}
                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0', minWidth: 0 }} className="hide-scroll">
                                     
-                                    {/*  FIX 3: Smart SMILES Renderer inside Option */}
+                                    {/* MathJax Protector applied to Options */}
                                     {o.startsWith('[smiles]') ? (
                                         <div style={{ pointerEvents: 'none' }}>
                                             <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
                                         </div>
                                     ) : (
-                                        <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400, whiteSpace: 'normal', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: o }}></div>
+                                        <StaticMath isBlock={true} html={o} style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400, whiteSpace: 'normal', wordBreak: 'break-word' }} />
                                     )}
 
                                     {(isUser || isCorr) && (
@@ -532,7 +552,8 @@ export default function StudentResults() {
                     {q.explanation && (
                         <div style={{ padding: '1rem', background: '#E6F1FB', borderRadius: '8px', borderLeft: '4px solid #185FA5', marginTop: '1.5rem', marginBottom: '1rem' }}>
                             <strong style={{ color: '#114B87', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Solution & Explanation:</strong>
-                            <div className="math-scroll-box" style={{ fontSize: '14px', color: '#114B87', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
+                            {/* 🔥 FIX: MathJax Protector applied to Explanation */}
+                            <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" style={{ fontSize: '14px', color: '#114B87', lineHeight: 1.6 }} />
                         </div>
                     )}
                     
@@ -549,6 +570,37 @@ export default function StudentResults() {
            );
         })}
       </div>
+
+      {/* 🔥 PREMIUM FLOATING SCROLL TO TOP BUTTON */}
+      {showScrollTop && (
+          <button 
+              onClick={scrollToTop}
+              title="Back to Top"
+              style={{ 
+                  position: 'fixed', 
+                  bottom: '30px', 
+                  right: '30px', 
+                  zIndex: 9998, 
+                  width: '50px', 
+                  height: '50px', 
+                  borderRadius: '50%', 
+                  background: 'linear-gradient(135deg, #185FA5, #3C3489)', 
+                  color: '#fff', 
+                  border: 'none', 
+                  boxShadow: '0 10px 25px rgba(24,95,165,0.4)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  cursor: 'pointer', 
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  animation: 'fadeIn 0.3s ease'
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 15px 30px rgba(24,95,165,0.5)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 10px 25px rgba(24,95,165,0.4)'; }}
+          >
+              <i className="ti ti-arrow-up" style={{ fontSize: '24px' }}></i>
+          </button>
+      )}
     </div>
   );
 }

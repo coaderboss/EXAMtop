@@ -1,6 +1,6 @@
 // src/app/tests/page.js
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react'; // 🔥 FIX: memo import kiya
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter } from 'next/navigation';
@@ -8,6 +8,12 @@ import { database } from '../../lib/firebase';
 import { ref, set, update, remove, get } from 'firebase/database'; 
 import FigureRenderer from '../../components/FigureRenderer'; 
 import SmilesViewer from '../../components/SmilesViewer';
+
+// 🔥 THE MASTER FIX: MathJax React Re-render Protector
+const StaticMath = memo(({ html, isBlock, style, className }) => {
+  if (isBlock) return <div className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
+  return <span className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
+});
 
 export default function ManageTests() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
@@ -48,6 +54,7 @@ export default function ManageTests() {
   // --- SYSTEM POPUP STATES ---
   const [sysAlert, setSysAlert] = useState(null); // { title, msg, type }
   const [sysConfirm, setSysConfirm] = useState(null); // { title, msg, action }
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const baseTests = isOffline ? localTests : [...(tests || []), ...localTests];
 
   // EVALUATION NAV SHUTTER STATES ---
@@ -171,6 +178,20 @@ export default function ManageTests() {
           setIsInitialLoad(false);
       }
   }, [isMounted, isOffline, currentUser, userRole]);
+
+  useEffect(() => {
+      if (typeof window === 'undefined') return;
+      const handleScroll = () => {
+          // Agar 400px se zyada scroll ho gaya hai, toh arrow dikhao
+          setShowScrollTop(window.scrollY > 400);
+      };
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
  // 2. MathJax Auto-Renderer (ULTIMATE BULLETPROOF FIX)
   useEffect(() => {
@@ -916,8 +937,8 @@ export default function ManageTests() {
                       {/*  OVERFLOW FIX: Strict maxWidth aur hide-scroll laga diya */}
                       <div className="qr-body hide-scroll" style={{ maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
                          
-                         {/*  TEXT OVERFLOW FIX: wordBreak aur whiteSpace laga diya taaki lamba question break ho jaye */}
-                         <div style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.25rem', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} dangerouslySetInnerHTML={{ __html: q.text }}></div>           
+                         {/* 🔥 FIX: MathJax Protector applied to Question Text */}
+                         <StaticMath isBlock={true} html={q.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.25rem', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} />           
                          
                          {/* Universal Hybrid Figure Renderer Wrapper */}
                          <div className="hide-scroll" style={{ maxWidth: '100%', minWidth: 0 }}>
@@ -947,13 +968,13 @@ export default function ManageTests() {
                                       {/*  FIX 2: minWidth: 0 is CRITICAL for flexbox to allow inner scrolling without expanding the parent */}
                                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0', minWidth: 0 }} className="hide-scroll">
                                           
-                                          {/*  FIX 3: Smart SMILES Renderer inside Option */}
+                                          {/* MathJax Protector applied to Options */}
                                           {o.startsWith('[smiles]') ? (
                                               <div style={{ pointerEvents: 'none' }}>
                                                   <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
                                               </div>
                                           ) : (
-                                              <div style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400, whiteSpace: 'normal', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: o }}></div>
+                                              <StaticMath isBlock={true} html={o} style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400, whiteSpace: 'normal', wordBreak: 'break-word' }} />
                                           )}
 
                                           {(isUser || isCorr) && (
@@ -993,7 +1014,8 @@ export default function ManageTests() {
                           {q.explanation && (
                               <div style={{ padding: '1rem', background: '#F8FAFC', borderRadius: '8px', borderLeft: '4px solid #475569', marginTop: '1.5rem', marginBottom: '1rem' }}>
                                   <strong style={{ color: '#334155', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Correct Explanation / Logic:</strong>
-                                  <div className="math-scroll-box" style={{ fontSize: '14px', color: '#334155', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: q.explanation }}></div>
+                                  {/* 🔥 FIX: MathJax Protector applied to Explanation */}
+                                  <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" style={{ fontSize: '14px', color: '#334155', lineHeight: 1.6 }} />
                               </div>
                           )}
 
@@ -1243,7 +1265,8 @@ export default function ManageTests() {
                               <div key={i} style={{ marginBottom: '1.25rem', padding: '12px', border: '1px solid var(--color-border-secondary)', borderRadius: '8px', background: 'var(--color-background-secondary)' }}>
                                   <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '8px', display: 'flex', gap: '6px' }}>
                                     <span style={{ flexShrink: 0 }}>Q{i + 1}:</span>
-                                    <span dangerouslySetInnerHTML={{ __html: q.text }}></span>
+                                    {/* 🔥 FIX: MathJax Protector applied to Edit Key Modal */}
+                                    <StaticMath isBlock={false} html={q.text} />
                                   </div>
                                   
                                   {q.type === 'mcq' && (
@@ -1678,6 +1701,37 @@ export default function ManageTests() {
                   </div>
               </div>
           </div>
+      )}
+
+      {/* 🔥 NAYA: PREMIUM FLOATING SCROLL TO TOP BUTTON */}
+      {showScrollTop && (
+          <button 
+              onClick={scrollToTop}
+              title="Back to Top"
+              style={{ 
+                  position: 'fixed', 
+                  bottom: '30px', 
+                  right: '30px', 
+                  zIndex: 9998, 
+                  width: '50px', 
+                  height: '50px', 
+                  borderRadius: '50%', 
+                  background: 'linear-gradient(135deg, #185FA5, #3C3489)', 
+                  color: '#fff', 
+                  border: 'none', 
+                  boxShadow: '0 10px 25px rgba(24,95,165,0.4)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  cursor: 'pointer', 
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  animation: 'fadeIn 0.3s ease'
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 15px 30px rgba(24,95,165,0.5)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 10px 25px rgba(24,95,165,0.4)'; }}
+          >
+              <i className="ti ti-arrow-up" style={{ fontSize: '24px' }}></i>
+          </button>
       )}
     </>
   );

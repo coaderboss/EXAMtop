@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, memo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { database } from '../../lib/firebase';
 import { ref, push, set, get } from 'firebase/database'; 
 import SmilesViewer from '../../components/SmilesViewer';
@@ -18,9 +18,11 @@ export default function StudentPortal() {
   const { currentUser, loading: authLoading } = useAuth();
   const { fetchSingleTest } = useData(); 
   const router = useRouter();
+  const searchParams = useSearchParams(); // 🔥 NAYA: URL Params Reader
 
   const [isMounted, setIsMounted] = useState(false);
   const [isFetchingTest, setIsFetchingTest] = useState(false);
+  const autoJoinTriggered = useRef(false); // 🔥 Prevent infinite loop
 
   // --- SCREEN STATES ---
   const [step, setStep] = useState('join');
@@ -60,9 +62,39 @@ export default function StudentPortal() {
 
   useEffect(() => { setIsMounted(true); }, []);
 
+  // 🔥 Profile Details Auto-Fill
   useEffect(() => {
-    if (currentUser && currentUser.displayName) setName(currentUser.displayName);
+    if (currentUser) {
+        if (currentUser.displayName) setName(currentUser.displayName);
+        if (currentUser.rollNo || currentUser.examinerId) {
+            setRoll(currentUser.rollNo || currentUser.examinerId || '');
+        }
+    }
   }, [currentUser]);
+
+  // 🔥 THE AUTO-JOIN SENSOR (URL Reader)
+  useEffect(() => {
+      if (isMounted && !authLoading && searchParams) {
+          const autoJoinFlag = searchParams.get('autoJoin');
+          const urlCode = searchParams.get('code');
+          
+          if (autoJoinFlag === 'true' && urlCode && !autoJoinTriggered.current) {
+              autoJoinTriggered.current = true; // Lock laga diya taaki baar baar na chale
+              
+              // Ensure immediate variables (state might take a millisecond to update)
+              const immediateName = currentUser?.displayName || name;
+              const immediateRoll = currentUser?.rollNo || currentUser?.examinerId || roll;
+              
+              setCode(urlCode);
+              
+              // URL se params hata do taaki refresh pe dubara trigger na ho
+              window.history.replaceState({}, document.title, "/student");
+              
+              // Trigger Main Join Function
+              handleJoinTest(urlCode, immediateName, immediateRoll);
+          }
+      }
+  }, [isMounted, authLoading, searchParams, currentUser]);
 
   // Reset image loader when question changes
   useEffect(() => {
@@ -266,16 +298,22 @@ export default function StudentPortal() {
   }, [step]);
 
 
-  // --- JOIN LOGIC ---
-  const handleJoinTest = async () => {
+  /// --- JOIN LOGIC ---
+  const handleJoinTest = async (overrideCode = null, overrideName = null, overrideRoll = null) => {
+    
+    // Resolve Variables (Agar direct aaya hai toh wo use karo, warna input state)
+    const finalCode = (typeof overrideCode === 'string' ? overrideCode : code) || '';
+    const finalName = (typeof overrideName === 'string' ? overrideName : name) || '';
+    const finalRoll = (typeof overrideRoll === 'string' ? overrideRoll : roll) || '';
+
     setJoinError(''); 
-    if (!name.trim()) { setJoinError('Please enter your full name.'); return; }
-    if (!code.trim()) { setJoinError('Please enter the 6-digit test code.'); return; }
+    if (!finalName.trim()) { setJoinError('Please enter your full name.'); return; }
+    if (!finalCode.trim()) { setJoinError('Please enter the 6-digit test code.'); return; }
 
     setIsFetchingTest(true); 
     
     try {
-        const codeUpper = code.trim().toUpperCase();
+        const codeUpper = finalCode.trim().toUpperCase();
         let t = null;
 
         const localTests = JSON.parse(localStorage.getItem('examitop_offline_tests') || '[]');
@@ -289,8 +327,8 @@ export default function StudentPortal() {
         if (t.isActive === false) { setJoinError("Intake Closed: The examiner is no longer accepting submissions."); setIsFetchingTest(false); return; }
         if (t.expiryDate && new Date() > new Date(t.expiryDate)) { setJoinError("Exam Expired: The deadline has passed."); setIsFetchingTest(false); return; }
 
-        const safeName = name.trim();
-        const safeRoll = roll.trim().toLowerCase();
+        const safeName = finalName.trim(); // 🔥 FIX
+        const safeRoll = finalRoll.trim().toLowerCase(); // 🔥 FIX
         const safeSubmissions = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions || {});
         
         let existingSub = safeSubmissions.find(s => s && s.name && s.name.trim().toLowerCase() === safeName.toLowerCase() && (s.roll || '').trim().toLowerCase() === safeRoll);       
