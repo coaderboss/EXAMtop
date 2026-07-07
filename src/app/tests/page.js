@@ -49,6 +49,7 @@ export default function ManageTests() {
   const [evalFilter, setEvalFilter] = useState('all'); 
   const [evalSectionFilter, setEvalSectionFilter] = useState('all_sections'); // NAYA: Examiner Section Filter
   const [followerCount, setFollowerCount] = useState(0);
+  const [isEvalMathReady, setIsEvalMathReady] = useState(true);
   
 
   // --- SYSTEM POPUP STATES ---
@@ -118,6 +119,19 @@ export default function ManageTests() {
       window.addEventListener('scroll', handleScroll, { passive: true });
       return () => window.removeEventListener('scroll', handleScroll);
   }, [evaluateSub]);
+
+  // Smart Wrappers: Parda girao (hide), thoda wait karo, fir state change karo
+  const changeEvalStatus = (newFilter) => {
+      if (newFilter === evalFilter) return;
+      setIsEvalMathReady(false); // 1. Drop Shutter
+      setTimeout(() => setEvalFilter(newFilter), 50); // 2. Change data behind the scenes
+  };
+
+  const changeEvalSection = (newSec) => {
+      if (newSec === evalSectionFilter) return;
+      setIsEvalMathReady(false); // 1. Drop Shutter
+      setTimeout(() => setEvalSectionFilter(newSec), 50); // 2. Change data behind the scenes
+  };
 
   //  FIX: Press '/' to focus Search Bar automatically
   typeof require('react').useEffect(() => {
@@ -193,7 +207,7 @@ export default function ManageTests() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
- // 2. MathJax Auto-Renderer (ULTIMATE BULLETPROOF FIX)
+ // 2. MathJax Auto-Renderer (ULTIMATE BULLETPROOF FIX WITH FADE-IN)
   useEffect(() => {
     let isSubscribed = true;
     
@@ -201,31 +215,36 @@ export default function ManageTests() {
         if (!isSubscribed) return;
         if (typeof window !== 'undefined' && window.MathJax) {
             try {
-                // Defensive Check 1: Agar function exist karta hai tabhi chalao
                 if (typeof window.MathJax.typesetClear === 'function') {
                     window.MathJax.typesetClear();
                 }
-                
-                // Defensive Check 2: Promise vs Sync typeset
                 if (typeof window.MathJax.typesetPromise === 'function') {
-                    window.MathJax.typesetPromise().catch(err => console.log('MathJax Promise Error:', err));
+                    // Promise ke resolve hone ke baad parda uthao
+                    window.MathJax.typesetPromise().then(() => {
+                        if (isSubscribed) setIsEvalMathReady(true);
+                    }).catch(err => {
+                        console.log('MathJax Error:', err);
+                        if (isSubscribed) setIsEvalMathReady(true); // Fallback
+                    });
                 } else if (typeof window.MathJax.typeset === 'function') {
                     window.MathJax.typeset();
+                    setIsEvalMathReady(true);
                 }
             } catch (err) {
                 console.error('MathJax Error:', err);
+                setIsEvalMathReady(true);
             }
+        } else {
+            setIsEvalMathReady(true);
         }
     };
 
-    // Two-Phase Trigger
-    const timer1 = setTimeout(() => { requestAnimationFrame(renderMath); }, 150);
-    const timer2 = setTimeout(() => { requestAnimationFrame(renderMath); }, 600);
+    // React ko DOM render karne ka time do, fir MathJax chalao
+    const timer1 = setTimeout(() => { requestAnimationFrame(renderMath); }, 50);
 
     return () => {
         isSubscribed = false;
         clearTimeout(timer1);
-        clearTimeout(timer2);
     };
   }, [selectedTest, evaluateSub, evalFilter, evalSectionFilter, modalType, activeTab]);
 
@@ -881,22 +900,22 @@ export default function ManageTests() {
 
                       return (
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              <button className="btn btn-sm" style={{ background: evalFilter === 'all' ? '#185FA5' : '#fff', color: evalFilter === 'all' ? '#fff' : '#64748b', border: evalFilter === 'all' ? 'none' : '1px solid #cbd5e1', borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('all')}>All ({countAll})</button>
-                              <button className="btn btn-sm" style={{ background: evalFilter === 'correct' ? '#fff' : '#fff', color: evalFilter === 'correct' ? '#3B6D11' : '#64748b', border: `1px solid ${evalFilter === 'correct' ? '#3B6D11' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('correct')}>Correct ({countCorrect})</button>
-                              <button className="btn btn-sm" style={{ background: evalFilter === 'wrong' ? '#fff' : '#fff', color: evalFilter === 'wrong' ? '#A32D2D' : '#64748b', border: `1px solid ${evalFilter === 'wrong' ? '#A32D2D' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('wrong')}>Wrong ({countWrong})</button>
-                              <button className="btn btn-sm" style={{ background: evalFilter === 'skipped' ? '#fff' : '#fff', color: evalFilter === 'skipped' ? '#64748b' : '#64748b', border: `1px solid ${evalFilter === 'skipped' ? '#94a3b8' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => setEvalFilter('skipped')}>Pending/Skipped ({countSkipped})</button>
+                              <button className="btn btn-sm" style={{ background: evalFilter === 'all' ? '#185FA5' : '#fff', color: evalFilter === 'all' ? '#fff' : '#64748b', border: evalFilter === 'all' ? 'none' : '1px solid #cbd5e1', borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => changeEvalStatus('all')}>All ({countAll})</button>
+                              <button className="btn btn-sm" style={{ background: evalFilter === 'correct' ? '#fff' : '#fff', color: evalFilter === 'correct' ? '#3B6D11' : '#64748b', border: `1px solid ${evalFilter === 'correct' ? '#3B6D11' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => changeEvalStatus('correct')}>Correct ({countCorrect})</button>
+                              <button className="btn btn-sm" style={{ background: evalFilter === 'wrong' ? '#fff' : '#fff', color: evalFilter === 'wrong' ? '#A32D2D' : '#64748b', border: `1px solid ${evalFilter === 'wrong' ? '#A32D2D' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => changeEvalStatus('wrong')}>Wrong ({countWrong})</button>
+                              <button className="btn btn-sm" style={{ background: evalFilter === 'skipped' ? '#fff' : '#fff', color: evalFilter === 'skipped' ? '#64748b' : '#64748b', border: `1px solid ${evalFilter === 'skipped' ? '#94a3b8' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => changeEvalStatus('skipped')}>Pending/Skipped ({countSkipped})</button>
                           </div>
                       );
                   })()}
               </div>
 
-              {/*  NEW: Section Scrollable Pill Menu for Examiner */}
+              {/* NEW: Section Scrollable Pill Menu for Examiner */}
               {evaluateSub.test.sections && evaluateSub.test.sections.length > 0 && (
                   <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '4px' }}>
                       <button 
                           className="btn btn-sm" 
                           style={{ whiteSpace: 'nowrap', fontWeight: 600, background: evalSectionFilter === 'all_sections' ? '#185FA5' : '#f1f5f9', color: evalSectionFilter === 'all_sections' ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
-                          onClick={() => setEvalSectionFilter('all_sections')}
+                          onClick={() => changeEvalSection('all_sections')}
                       >
                           All Sections
                       </button>
@@ -905,7 +924,7 @@ export default function ManageTests() {
                               key={idx} 
                               className="btn btn-sm" 
                               style={{ whiteSpace: 'nowrap', fontWeight: 600, background: evalSectionFilter === sec ? '#185FA5' : '#f1f5f9', color: evalSectionFilter === sec ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
-                              onClick={() => setEvalSectionFilter(sec)}
+                              onClick={() => changeEvalSection(sec)}
                           >
                               {sec}
                           </button>
@@ -914,8 +933,15 @@ export default function ManageTests() {
               )}
           </div>
 
-          {evaluateSub.sub.details.filter(d => {
-              //  Dono conditions (Status aur Section) match honi chahiye
+          {/* 🔥 PREMIUM SHUTTER WRAPPER: Fade and slight slide up animation */}
+          <div style={{ 
+              opacity: isEvalMathReady ? 1 : 0, 
+              transform: isEvalMathReady ? 'translateY(0)' : 'translateY(10px)', 
+              transition: 'opacity 0.2s ease-in-out, transform 0.2s ease-in-out', 
+              minHeight: '50vh' 
+             }}>
+              {evaluateSub.sub.details.filter(d => {
+                //  Dono conditions (Status aur Section) match honi chahiye
               let sMatch = evalFilter === 'all' || d.status === evalFilter || (evalFilter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
               let secMatch = evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0]));
               return sMatch && secMatch;
@@ -1047,6 +1073,7 @@ export default function ManageTests() {
                   </div>
               );
           })}
+          </div> 
 
           {modalType === 'audit' && (
               <div className="modal-bg" style={{ zIndex: 1000 }}>

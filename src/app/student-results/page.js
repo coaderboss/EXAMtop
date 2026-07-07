@@ -27,6 +27,7 @@ export default function StudentResults() {
   const [filter, setFilter] = useState('all'); // 'all', 'correct', 'wrong', 'skipped'
   const [sectionFilter, setSectionFilter] = useState('all_sections'); //  NAYA: Section Filter
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isMathReady, setIsMathReady] = useState(true);
 
   useEffect(() => {
       if (typeof window === 'undefined') return;
@@ -171,7 +172,20 @@ export default function StudentResults() {
     iframe.contentWindow.onafterprint = () => { setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 1000); };
   };
 
-  // MathJax Auto-Renderer for detailed view
+ // Smart Filter Changers (Pehle hide karte hain, fir filter badalte hain)
+  const changeStatusFilter = (newFilter) => {
+      if (newFilter === filter) return;
+      setIsMathReady(false); // Parda girao
+      setTimeout(() => setFilter(newFilter), 30); // 30ms baad naya data laao
+  };
+
+  const changeSectionFilter = (newSec) => {
+      if (newSec === sectionFilter) return;
+      setIsMathReady(false); // Parda girao
+      setTimeout(() => setSectionFilter(newSec), 30); // 30ms baad naya data laao
+  };
+  
+  // MathJax Auto-Renderer with Fade-In
   useEffect(() => {
     const renderMath = async () => {
         if (selectedResult && typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
@@ -180,13 +194,16 @@ export default function StudentResults() {
                 await window.MathJax.typesetPromise();
             } catch (err) {
                 console.log('MathJax Error:', err);
+            } finally {
+                setIsMathReady(true); // 🔥 Parda uthao (Fade in)
             }
+        } else {
+            setIsMathReady(true); // Agar mathjax fail ho toh bhi atakna nahi chahiye
         }
     };
-    // 100ms delay ensures JSON text is painted before scanning
-    const timer = setTimeout(renderMath, 100);
+    const timer = setTimeout(renderMath, 20); // Super fast trigger
     return () => clearTimeout(timer);
-}, [selectedResult, filter, sectionFilter]);
+  }, [selectedResult, filter, sectionFilter]);
 
   //  THE FIX 1: Premium Skeleton Loader for Student Results
   if (authLoading || fetchingResults) {
@@ -405,22 +422,22 @@ export default function StudentResults() {
                 
                 return (
                     <div className="filter-tabs" style={{ marginBottom: 0 }}>
-                      <button className={`ftab ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>All ({countAll})</button>
-                      <button className={`ftab ${filter === 'correct' ? 'active' : ''}`} onClick={() => setFilter('correct')}>Correct ({countCorrect})</button>
-                      <button className={`ftab ${filter === 'wrong' ? 'active' : ''}`} onClick={() => setFilter('wrong')}>Wrong ({countWrong})</button>
-                      <button className={`ftab ${filter === 'skipped' ? 'active' : ''}`} onClick={() => setFilter('skipped')}>Skipped ({countSkipped})</button>
+                      <button className={`ftab ${filter === 'all' ? 'active' : ''}`} onClick={() => changeStatusFilter('all')}>All ({countAll})</button>
+                      <button className={`ftab ${filter === 'correct' ? 'active' : ''}`} onClick={() => changeStatusFilter('correct')}>Correct ({countCorrect})</button>
+                      <button className={`ftab ${filter === 'wrong' ? 'active' : ''}`} onClick={() => changeStatusFilter('wrong')}>Wrong ({countWrong})</button>
+                      <button className={`ftab ${filter === 'skipped' ? 'active' : ''}`} onClick={() => changeStatusFilter('skipped')}>Skipped ({countSkipped})</button>
                     </div>
                 );
             })()}
         </div>
 
-        {/*  NEW: Section Scrollable Pill Menu (Only shows if sections exist in this test) */}
+        {/*  NEW: Section Scrollable Pill Menu */}
         {test.sections && test.sections.length > 0 && (
             <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '4px' }}>
                 <button 
                     className="btn btn-sm" 
                     style={{ whiteSpace: 'nowrap', fontWeight: 600, background: sectionFilter === 'all_sections' ? '#185FA5' : '#f1f5f9', color: sectionFilter === 'all_sections' ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
-                    onClick={() => setSectionFilter('all_sections')}
+                    onClick={() => changeSectionFilter('all_sections')}
                 >
                     All Sections
                 </button>
@@ -429,7 +446,7 @@ export default function StudentResults() {
                         key={idx} 
                         className="btn btn-sm" 
                         style={{ whiteSpace: 'nowrap', fontWeight: 600, background: sectionFilter === sec ? '#185FA5' : '#f1f5f9', color: sectionFilter === sec ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
-                        onClick={() => setSectionFilter(sec)}
+                        onClick={() => changeSectionFilter(sec)}
                     >
                         {sec}
                     </button>
@@ -438,8 +455,8 @@ export default function StudentResults() {
         )}
       </div>
 
-      {/* Question Review Cards */}
-      <div>
+      {/* Question Review Cards (With Shutter Fade Effect) */}
+      <div style={{ opacity: isMathReady ? 1 : 0, transition: 'opacity 0.25s ease-in', minHeight: '50vh' }}>
         {sub.details.filter(d => {
             //  Dono conditions (Status aur Section) match honi chahiye
             let sMatch = filter === 'all' || d.status === filter || (filter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
