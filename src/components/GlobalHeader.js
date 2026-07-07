@@ -187,10 +187,12 @@ export default function GlobalHeader() {
             <>
                 <Link href="/student-dashboard" className={`nav-tab ${pathname === '/student-dashboard' ? 'active' : ''}`}><i className="ti ti-chart-pie"></i> Dashboard</Link>
                 <Link href="/student" className={`nav-tab ${pathname === '/student' ? 'active' : ''}`}><i className="ti ti-school"></i> Join Test</Link>
-                {/*  THE FIX: Arena Tab Restored */}
+                <Link href="/student/radar" className={`nav-tab ${pathname === '/student/radar' ? 'active' : ''}`}>
+                    <i className="ti ti-radar"></i> <span className="hide-mobile">My Educators</span>
+                </Link>
                 <Link href="/arena" className={`nav-tab ${pathname === '/arena' ? 'active' : ''}`}><i className="ti ti-swords"></i> Practice Arena</Link>
-                <Link href="/student-results" className={`nav-tab ${pathname === '/student-results' ? 'active' : ''}`}><i className="ti ti-history"></i> My Results</Link>
-            </>
+                <Link href="/student-results" className={`nav-tab ${pathname === '/student-results' ? 'active' : ''}`}><i className="ti ti-history"></i> My Results</Link>   
+          </>
         );
     } else if (userRole === 'examiner') {
         return (

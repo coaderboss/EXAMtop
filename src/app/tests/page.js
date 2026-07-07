@@ -42,6 +42,7 @@ export default function ManageTests() {
   const [auditReason, setAuditReason] = useState('');
   const [evalFilter, setEvalFilter] = useState('all'); 
   const [evalSectionFilter, setEvalSectionFilter] = useState('all_sections'); // NAYA: Examiner Section Filter
+  const [followerCount, setFollowerCount] = useState(0);
   
 
   // --- SYSTEM POPUP STATES ---
@@ -171,7 +172,7 @@ export default function ManageTests() {
       }
   }, [isMounted, isOffline, currentUser, userRole]);
 
-  // 2. MathJax Auto-Renderer (ULTIMATE BULLETPROOF FIX)
+ // 2. MathJax Auto-Renderer (ULTIMATE BULLETPROOF FIX)
   useEffect(() => {
     let isSubscribed = true;
     
@@ -179,13 +180,15 @@ export default function ManageTests() {
         if (!isSubscribed) return;
         if (typeof window !== 'undefined' && window.MathJax) {
             try {
-                // Step 1: Internal cache clear karo taaki purane elements ko skip na kare
-                if (window.MathJax.typesetClear) window.MathJax.typesetClear();
+                // Defensive Check 1: Agar function exist karta hai tabhi chalao
+                if (typeof window.MathJax.typesetClear === 'function') {
+                    window.MathJax.typesetClear();
+                }
                 
-                // Step 2: Force full page re-scan safely
-                if (window.MathJax.typesetPromise) {
+                // Defensive Check 2: Promise vs Sync typeset
+                if (typeof window.MathJax.typesetPromise === 'function') {
                     window.MathJax.typesetPromise().catch(err => console.log('MathJax Promise Error:', err));
-                } else {
+                } else if (typeof window.MathJax.typeset === 'function') {
                     window.MathJax.typeset();
                 }
             } catch (err) {
@@ -194,10 +197,8 @@ export default function ManageTests() {
         }
     };
 
-    // Phase 1 (150ms): Quick tab switching aur chhote filters ke liye
+    // Two-Phase Trigger
     const timer1 = setTimeout(() => { requestAnimationFrame(renderMath); }, 150);
-    
-    // Phase 2 (600ms): Heavy DOM (Evaluate Page ke poore 75 questions) ke safe render ke liye
     const timer2 = setTimeout(() => { requestAnimationFrame(renderMath); }, 600);
 
     return () => {
@@ -206,16 +207,29 @@ export default function ManageTests() {
         clearTimeout(timer2);
     };
   }, [selectedTest, evaluateSub, evalFilter, evalSectionFilter, modalType, activeTab]);
-  
-  //  AUTO-KICK BOUNCER
+
+  // Fetch Followers Count on Mount
   useEffect(() => {
-      if (isMounted && !authLoading && !isOffline && (!currentUser || (userRole !== 'examiner' && userRole !== 'admin'))) {
-          const kickTimer = setTimeout(() => {
-              router.replace('/');
-            }, 3000); 
-        return () => clearTimeout(kickTimer);
-    }
-  }, [currentUser, userRole, authLoading, isMounted, isOffline, router]);
+      if (currentUser?.uid && (userRole === 'examiner' || userRole === 'admin')) {
+          const fetchFollowers = async () => {
+              try {
+                  const snap = await get(ref(database, 'users'));
+                  const allUsers = snap.val() || {};
+                  let count = 0;
+                  // Har student ka account check karo ki unke 'followed' array me is teacher ka UID hai ya nahi
+                  Object.values(allUsers).forEach(u => {
+                      if (u.followed && u.followed.includes(currentUser.uid)) {
+                          count++;
+                      }
+                  });
+                  setFollowerCount(count);
+              } catch (e) {
+                  console.error("Error fetching followers", e);
+              }
+          };
+          fetchFollowers();
+      }
+  }, [currentUser, userRole]);
 
   //  FIX 1: Premium Skeleton Loader (Replaces the boring spinner)
   if (authLoading || !isMounted || (!isOffline && (loadingData || isInitialLoad))) {
@@ -312,7 +326,29 @@ export default function ManageTests() {
   // --- DASHBOARD ACTIONS ---
   const toggleTestStatus = async (t) => {
     try {
-      await updateTestGlobal({ ...t, isActive: !t.isActive });
+      // 1. Pehle check karo test ka current asali status kya hai
+      const now = Date.now();
+      const closeTime = t.closeDate ? new Date(t.closeDate).getTime() : null;
+      const openTime = t.openDate ? new Date(t.openDate).getTime() : null;
+      
+      let currentStatus = 'live';
+      if (t.isActive === false || (closeTime && now > closeTime)) currentStatus = 'closed';
+      else if (openTime && now < openTime) currentStatus = 'upcoming';
+
+      let updatedTest = { ...t };
+
+      if (currentStatus === 'live') {
+          // Agar abhi LIVE hai, toh manual close karo
+          updatedTest.isActive = false;
+      } else {
+          // Agar CLOSED ya UPCOMING hai, toh FORCE OPEN karo
+          updatedTest.isActive = true;
+          // 🔥 MAGIC: Jo bhi time lock lagaga tha, usko mita do taaki test turant khul jaye
+          if (closeTime && now > closeTime) updatedTest.closeDate = ''; 
+          if (openTime && now < openTime) updatedTest.openDate = '';   
+      }
+
+      await updateTestGlobal(updatedTest);
     } catch (e) { setSysAlert({ title: 'Error', msg: 'Error toggling status.', type: 'error' }); }
   };
 
@@ -471,11 +507,16 @@ export default function ManageTests() {
     setTempQuestions(n);
   };
 
-  const openEditSettings = () => {
+ const openEditSettings = () => {
       setEditSettingsData({
           duration: selectedTest.duration || 60,
           negMarking: selectedTest.negMarking || 0,
-          resultVis: selectedTest.resultVis || 'manual'
+          resultVis: selectedTest.resultVis || 'manual',
+          radarVisible: selectedTest.radarVisible || false, 
+          radarNote: selectedTest.radarNote || '',
+          openDate: selectedTest.openDate || '',
+          // 🔥 NAYA: Close Date ka state
+          closeDate: selectedTest.closeDate || ''
       });
       setModalType('editSettings');
   };
@@ -486,11 +527,21 @@ export default function ManageTests() {
               ...selectedTest, 
               duration: Number(editSettingsData.duration),
               negMarking: Number(editSettingsData.negMarking),
-              resultVis: editSettingsData.resultVis
+              resultVis: editSettingsData.resultVis,
+              radarVisible: editSettingsData.radarVisible,
+              radarNote: editSettingsData.radarNote,
+              openDate: editSettingsData.openDate,
+              // 🔥 NAYA: Close Date save kar rahe hain
+              closeDate: editSettingsData.closeDate
           };
+          
+          if (new Date(editSettingsData.closeDate) > new Date()) {
+              updatedTest.isActive = true;
+          }
+
           await updateTestGlobal(updatedTest);
           setModalType(null);
-          setSysAlert({ title: 'Success', msg: 'Test settings updated successfully.', type: 'success' });
+          setSysAlert({ title: 'Success', msg: 'Test config & schedule updated.', type: 'success' });
       } catch (e) {
           setSysAlert({ title: 'Error', msg: 'Failed to update settings.', type: 'error' });
       }
@@ -1011,9 +1062,30 @@ export default function ManageTests() {
                           {selectedTest.isLocal && <span className="badge b-amber" style={{ marginLeft: '10px' }}><i className="ti ti-device-floppy"></i> Local Data</span>}
                       </p>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: selectedTest.isActive !== false ? '#d1fae5' : '#f1f5f9', padding: '8px 16px', borderRadius: '30px', fontSize: '14px', fontWeight: 700, color: selectedTest.isActive !== false ? '#065f46' : '#475569', border: `1px solid ${selectedTest.isActive !== false ? '#34d399' : '#cbd5e1'}` }}>
-                      {selectedTest.isActive !== false ? <><span style={{ width: '10px', height: '10px', background: '#10B981', borderRadius: '50%', animation: 'pulse 1s infinite' }}></span> Live Accepting</> : <><span style={{ width: '10px', height: '10px', background: '#94a3b8', borderRadius: '50%' }}></span> Intake Locked</>}
-                  </div>
+                  
+                  {/* 🔥 SMART UI BADGE (Live, Scheduled, or Closed) */}
+                  {(() => {
+                      const stNow = Date.now();
+                      const stClose = selectedTest.closeDate ? new Date(selectedTest.closeDate).getTime() : null;
+                      const stOpen = selectedTest.openDate ? new Date(selectedTest.openDate).getTime() : null;
+                      
+                      let stStatus = 'live';
+                      if (selectedTest.isActive === false || (stClose && stNow > stClose)) stStatus = 'closed';
+                      else if (stOpen && stNow < stOpen) stStatus = 'upcoming';
+
+                      return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', 
+                              background: stStatus === 'live' ? '#d1fae5' : (stStatus === 'upcoming' ? '#fef3c7' : '#f1f5f9'), 
+                              color: stStatus === 'live' ? '#065f46' : (stStatus === 'upcoming' ? '#92400e' : '#475569'), 
+                              border: `1px solid ${stStatus === 'live' ? '#34d399' : (stStatus === 'upcoming' ? '#fbbf24' : '#cbd5e1')}`, 
+                              padding: '8px 16px', borderRadius: '30px', fontSize: '14px', fontWeight: 700 
+                          }}>
+                              {stStatus === 'live' && <><span style={{ width: '10px', height: '10px', background: '#10B981', borderRadius: '50%', animation: 'pulse 1s infinite' }}></span> Live Accepting</>}
+                              {stStatus === 'upcoming' && <><i className="ti ti-clock" style={{ fontSize: '16px' }}></i> Scheduled</>}
+                              {stStatus === 'closed' && <><span style={{ width: '10px', height: '10px', background: '#94a3b8', borderRadius: '50%' }}></span> Intake Closed</>}
+                          </div>
+                      );
+                  })()}
               </div>
           </div>
 
@@ -1061,9 +1133,25 @@ export default function ManageTests() {
 
                   <div className="card" style={{ borderRadius: '12px' }}>
                       <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-settings" style={{ color: '#64748b' }}></i> Access Controls</h3>
-                      <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: '15px', marginBottom: '12px', background: selectedTest.isActive !== false ? '#FCEBEB' : '#EAF3DE', color: selectedTest.isActive !== false ? '#A32D2D' : '#3B6D11', borderColor: selectedTest.isActive !== false ? '#A32D2D' : '#3B6D11', fontWeight: 700 }} onClick={() => toggleTestStatus(selectedTest)}>
-                          <i className={`ti ${selectedTest.isActive !== false ? 'ti-lock' : 'ti-door-enter'}`}></i> {selectedTest.isActive !== false ? 'Close Exam Intake' : 'Open Exam Intake'}
-                      </button>
+                      
+                      {/* 🔥 SMART MANUAL OVERRIDE BUTTON */}
+                      {(() => {
+                          const now = Date.now();
+                          const closeTime = selectedTest.closeDate ? new Date(selectedTest.closeDate).getTime() : null;
+                          const openTime = selectedTest.openDate ? new Date(selectedTest.openDate).getTime() : null;
+                          
+                          let currentStatus = 'live';
+                          if (selectedTest.isActive === false || (closeTime && now > closeTime)) currentStatus = 'closed';
+                          else if (openTime && now < openTime) currentStatus = 'upcoming';
+                          
+                          const isLive = currentStatus === 'live';
+
+                          return (
+                              <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: '15px', marginBottom: '12px', background: isLive ? '#FCEBEB' : '#EAF3DE', color: isLive ? '#A32D2D' : '#3B6D11', borderColor: isLive ? '#A32D2D' : '#3B6D11', fontWeight: 700 }} onClick={() => toggleTestStatus(selectedTest)}>
+                                  <i className={`ti ${isLive ? 'ti-lock' : 'ti-door-enter'}`}></i> {isLive ? 'Close Exam Intake' : 'Force Open Intake Now'}
+                              </button>
+                          );
+                      })()}
                       
                       {!selectedTest.released && selectedTest.resultVis === 'manual' && (
                           <button className="btn btn-success" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 600, marginBottom: '12px' }} onClick={() => publishResults(selectedTest)}>
@@ -1201,23 +1289,60 @@ export default function ManageTests() {
               </div>
           )}
 
-          {/*  NAYA: EDIT SETTINGS MODAL */}
+         {/* 🔥 UPGRADED EDIT SETTINGS MODAL */}
           {modalType === 'editSettings' && (
               <div className="modal-bg" style={{ zIndex: 1000 }}>
-                  <div className="modal-box" style={{ maxWidth: '400px' }}>
-                      <h3 style={{ marginBottom: '1.5rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-adjustments"></i> Edit Test Config</h3>
+                  <div className="modal-box" style={{ maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+                      <h3 style={{ marginBottom: '1.5rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <i className="ti ti-adjustments"></i> Exam Configuration
+                      </h3>
                       
-                      <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Duration (Minutes)</label>
-                      <input type="number" value={editSettingsData.duration} onChange={e => setEditSettingsData({...editSettingsData, duration: e.target.value})} style={{ width: '100%', padding: '12px', marginBottom: '1.25rem', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
-                      
-                      <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Negative Marking (Absolute Value)</label>
-                      <input type="number" step="0.25" value={editSettingsData.negMarking} onChange={e => setEditSettingsData({...editSettingsData, negMarking: e.target.value})} style={{ width: '100%', padding: '12px', marginBottom: '1.25rem', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
+                      <div className="grid2" style={{ gap: '15px', marginBottom: '15px' }}>
+                          <div>
+                              <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Duration (Mins)</label>
+                              <input type="number" value={editSettingsData.duration} onChange={e => setEditSettingsData({...editSettingsData, duration: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
+                          </div>
+                          <div>
+                              <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Negative Marking</label>
+                              <input type="number" step="0.25" value={editSettingsData.negMarking} onChange={e => setEditSettingsData({...editSettingsData, negMarking: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
+                          </div>
+                      </div>
 
+                      {/* 🔥 WAPAS AAYA HUA RESULT VISIBILITY DROPDOWN */}
                       <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Result Visibility</label>
-                      <select value={editSettingsData.resultVis} onChange={e => setEditSettingsData({...editSettingsData, resultVis: e.target.value})} style={{ width: '100%', padding: '12px', marginBottom: '2rem', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none', background: '#fff' }}>
+                      <select value={editSettingsData.resultVis} onChange={e => setEditSettingsData({...editSettingsData, resultVis: e.target.value})} style={{ width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none', background: '#fff' }}>
                           <option value="manual">Manual (Publish Later)</option>
                           <option value="instant">Instant (Show after submit)</option>
                       </select>
+
+                      {/* 🔥 NAYA: START & END TIME GRID */}
+                      <div className="grid2" style={{ gap: '15px', marginBottom: '1.5rem' }}>
+                          <div>
+                              <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Schedule Start (Open)</label>
+                              <input type="datetime-local" value={editSettingsData.openDate} onChange={e => setEditSettingsData({...editSettingsData, openDate: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
+                          </div>
+                          <div>
+                              <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Auto-Close Intake</label>
+                              <input type="datetime-local" value={editSettingsData.closeDate} onChange={e => setEditSettingsData({...editSettingsData, closeDate: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
+                          </div>
+                      </div>
+
+                      <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                              <div style={{ fontWeight: 700, color: '#185FA5', fontSize: '14px' }}><i className="ti ti-radar"></i> Show on Student Radar?</div>
+                              <label className="toggle">
+                                  <input type="checkbox" checked={editSettingsData.radarVisible} onChange={e => setEditSettingsData({...editSettingsData, radarVisible: e.target.checked})} />
+                                  <span className="tog-slider"></span>
+                              </label>
+                          </div>
+                          <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 10px 0' }}>If OFF, students won't see this test even if they follow you. (Keeps test hidden as Draft).</p>
+                          
+                          {editSettingsData.radarVisible && (
+                              <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Message / Note for Students (Optional)</label>
+                                  <textarea value={editSettingsData.radarNote} onChange={e => setEditSettingsData({...editSettingsData, radarNote: e.target.value})} placeholder="e.g. Bring your calculators..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', minHeight: '60px', resize: 'vertical' }}></textarea>
+                              </div>
+                          )}
+                      </div>
 
                       <div style={{ display: 'flex', gap: '10px' }}>
                           <button className="btn" style={{ flex: 1, padding: '12px', fontWeight: 600, justifyContent: 'center' }} onClick={() => setModalType(null)}>Cancel</button>
@@ -1312,14 +1437,27 @@ export default function ManageTests() {
         // ==========================================
        <div style={{ padding: '1.5rem 1rem', paddingBottom: '40vh', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
             
-            {/*  1. MODERN COMPACT HEADER */}
-            <div style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <i className="ti ti-vault" style={{ color: '#185FA5', fontSize: '24px' }}></i> My Tests Vault
-                </h2>
-                <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
-                    Manage assessments, control intakes, and review results.
-                </p>
+            {/* 🔥 MODERN ULTRA-COMPACT HEADER (NO-WRAP MOBILE FIX) */}
+            <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '8px' }}>
+                
+                {/* Left Side: Title & Subtitle (With Truncation for small screens) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, minWidth: 0 }}>
+                    <h2 style={{ margin: 0, fontSize: 'clamp(18px, 5vw, 22px)', fontWeight: 800, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <i className="ti ti-vault" style={{ color: '#185FA5', fontSize: 'clamp(20px, 5vw, 24px)', flexShrink: 0 }}></i> 
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>My Tests Vault</span>
+                    </h2>
+                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-text-secondary)', lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Manage assessments, control intakes, and review results.
+                    </p>
+                </div>
+                
+                {/* 🔥 SLEEK FOLLOWERS PILL (Micro-sized & Locked) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f8fafc', border: '1px solid #cbd5e1', padding: '4px 10px', borderRadius: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', flexShrink: 0 }}>
+                    <i className="ti ti-users" style={{ fontSize: '15px', color: '#185FA5' }}></i>
+                    <div style={{ fontSize: '13px', color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        <span style={{ color: '#0f172a', fontWeight: 800 }}>{followerCount}</span> <span className="hide-mobile">Followers</span>
+                    </div>
+                </div>
             </div>
 
             {myTests.length === 0 ? (
@@ -1414,7 +1552,15 @@ export default function ManageTests() {
 
                             // 4. Render Sorted & Filtered Cards
                             return filtered.map((t, i) => {
-                                const isLive = t.isActive !== false;
+                                // 🔥 NAYA TIME-BASED STATUS LOGIC
+                                const now = Date.now();
+                                const closeTime = t.closeDate ? new Date(t.closeDate).getTime() : null;
+                                const openTime = t.openDate ? new Date(t.openDate).getTime() : null;
+                                
+                                let status = 'live';
+                                if (t.isActive === false || (closeTime && now > closeTime)) status = 'closed';
+                                else if (openTime && now < openTime) status = 'upcoming';
+
                                 const subCount = t.submissions ? t.submissions.length : 0;
                                 
                                 return (
@@ -1423,11 +1569,12 @@ export default function ManageTests() {
                                         className="test-entry" 
                                         style={{ 
                                             cursor: 'pointer', 
-                                            borderLeft: t.isLocal ? '4px solid #f59e0b' : (isLive ? '4px solid #3B6D11' : '4px solid #cbd5e1'),
+                                            // 🔥 Status ke hisaab se border color change
+                                            borderLeft: t.isLocal ? '4px solid #f59e0b' : (status === 'live' ? '4px solid #3B6D11' : (status === 'upcoming' ? '4px solid #f59e0b' : '4px solid #cbd5e1')),
                                             opacity: 0,
                                             animation: `staggerSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards`,
-                                            animationDelay: `${(i > 10 ? 10 : i) * 0.06}s`, // Max delay cap for performance
-                                            padding: '1.25rem 1rem', //  Compact Mobile Padding
+                                            animationDelay: `${(i > 10 ? 10 : i) * 0.06}s`, 
+                                            padding: '1.25rem 1rem', 
                                             marginBottom: 0,
                                             display: 'flex',
                                             flexWrap: 'wrap',
@@ -1443,13 +1590,18 @@ export default function ManageTests() {
                                                 
                                                 {t.isLocal && <span className="badge b-amber" style={{ padding: '2px 8px', fontSize: '11px' }}><i className="ti ti-device-floppy"></i> Local</span>}
                                                 
-                                                {isLive && !t.isLocal ? (
+                                                {/* 🔥 Status ke hisaab se Badge */}
+                                                {!t.isLocal && status === 'live' && (
                                                     <span className="badge b-green" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', fontSize: '11px' }}>
                                                         <span style={{ width: '6px', height: '6px', background: '#27500A', borderRadius: '50%', animation: 'pulse 1s infinite' }}></span> Live
                                                     </span>
-                                                ) : (!t.isLocal && (
+                                                )}
+                                                {!t.isLocal && status === 'upcoming' && (
+                                                    <span className="badge b-amber" style={{ padding: '2px 8px', fontSize: '11px' }}>Scheduled</span>
+                                                )}
+                                                {!t.isLocal && status === 'closed' && (
                                                     <span className="badge b-gray" style={{ padding: '2px 8px', fontSize: '11px' }}>Closed</span>
-                                                ))}
+                                                )}
                                             </div>
                                             
                                             <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontWeight: 500, display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '10px' }}>
