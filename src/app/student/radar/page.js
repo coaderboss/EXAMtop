@@ -213,7 +213,7 @@ export default function EducatorRadar() {
                     <i className="ti ti-hash" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#185FA5', fontSize: '18px' }}></i>
                     <input 
                         type="text" 
-                        placeholder="Enter Code (e.g. EXT-1TIR)" 
+                        placeholder="Enter Code (e.g. EXT-XXXX)" 
                         value={searchId}
                         onChange={(e) => {
                             setSearchId(e.target.value.toUpperCase());
