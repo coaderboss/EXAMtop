@@ -515,8 +515,9 @@ export default function ManageTests() {
           radarVisible: selectedTest.radarVisible || false, 
           radarNote: selectedTest.radarNote || '',
           openDate: selectedTest.openDate || '',
-          // 🔥 NAYA: Close Date ka state
-          closeDate: selectedTest.closeDate || ''
+          closeDate: selectedTest.closeDate || '',
+          // 🔥 NAYA: Direct Entry default OFF
+          directEntry: selectedTest.directEntry || false
       });
       setModalType('editSettings');
   };
@@ -531,13 +532,12 @@ export default function ManageTests() {
               radarVisible: editSettingsData.radarVisible,
               radarNote: editSettingsData.radarNote,
               openDate: editSettingsData.openDate,
-              // 🔥 NAYA: Close Date save kar rahe hain
-              closeDate: editSettingsData.closeDate
+              closeDate: editSettingsData.closeDate,
+              // 🔥 NAYA: Save Direct Entry setting
+              directEntry: editSettingsData.directEntry
           };
           
-          if (new Date(editSettingsData.closeDate) > new Date()) {
-              updatedTest.isActive = true;
-          }
+          if (new Date(editSettingsData.closeDate) > new Date()) updatedTest.isActive = true;
 
           await updateTestGlobal(updatedTest);
           setModalType(null);
@@ -1342,6 +1342,19 @@ export default function ManageTests() {
                                   <textarea value={editSettingsData.radarNote} onChange={e => setEditSettingsData({...editSettingsData, radarNote: e.target.value})} placeholder="e.g. Bring your calculators..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', minHeight: '60px', resize: 'vertical' }}></textarea>
                               </div>
                           )}
+                      </div>
+
+                      <div style={{ background: '#ecfdf5', padding: '15px', borderRadius: '10px', border: '1px solid #a7f3d0', marginBottom: '1.5rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                              <div style={{ fontWeight: 700, color: '#059669', fontSize: '14px' }}><i className="ti ti-bolt"></i> Enable Direct Entry</div>
+                              <label className="toggle">
+                                  <input type="checkbox" checked={editSettingsData.directEntry} onChange={e => setEditSettingsData({...editSettingsData, directEntry: e.target.checked})} />
+                                  <span className="tog-slider"></span>
+                              </label>
+                          </div>
+                          <p style={{ fontSize: '12px', color: '#065f46', margin: 0, opacity: 0.8 }}>
+                              If ON, students who saved their Roll Number in profile can join instantly without entering the exam code. (Default: OFF)
+                          </p>
                       </div>
 
                       <div style={{ display: 'flex', gap: '10px' }}>

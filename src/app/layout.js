@@ -25,7 +25,7 @@ function Header() {
   // Profile States
   const [showProfile, setShowProfile] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [profileData, setProfileData] = useState({ college: '', phone: '' });
+  const [profileData, setProfileData] = useState({ college: '', phone: '', rollNo: '' });
   const settingsRef = useRef(null);
 
   //  1. CLEAN SHUTTER STATES & REFS
@@ -145,17 +145,18 @@ function Header() {
       container.appendChild(toast);
       setTimeout(() => { if (container.contains(toast)) toast.remove(); }, 3000);
   };
-
-  //  PROFILE SAVE FIX (Removed alert)
+   
+  // 🔥 PROFILE SAVE FUNCTION (Jo miss ho gaya tha)
   const saveProfile = async () => {
       if (!currentUser) return;
       try {
           await update(ref(database, `users/${currentUser.uid}`), {
               college: profileData.college,
-              phone: profileData.phone
+              phone: profileData.phone,
+              rollNo: profileData.rollNo
           });
           setIsEditingProfile(false);
-          showToast("Profile updated successfully!", "success"); // Premium Toast
+          showToast("Profile updated successfully!", "success");
       } catch (e) { 
           showToast("Failed to update profile.", "error"); 
       }
@@ -489,9 +490,17 @@ function Header() {
                                 
                                 <div style={{ display: 'flex', gap: '12px' }}>
                                     <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: '14px', fontWeight: 600, background: '#f1f5f9', color: '#475569', border: 'none' }} onClick={() => setShowProfile(false)}>Close</button>
-                                    <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '14px', fontWeight: 600, boxShadow: '0 4px 15px rgba(24,95,165,0.2)' }} onClick={() => setIsEditingProfile(true)}>
-                                        <i className="ti ti-edit"></i> Edit Details
-                                    </button>
+                                    <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '14px', fontWeight: 600, boxShadow: '0 4px 15px rgba(24,95,165,0.2)' }} onClick={() => {
+                                    // 🔥 Data pre-fill karo edit dabane par
+                                    setProfileData({
+                                        college: currentUser.college || '',
+                                        phone: currentUser.phone || '',
+                                        rollNo: currentUser.rollNo || ''
+                                    });
+                                    setIsEditingProfile(true);
+                                 }}>
+                                    <i className="ti ti-edit"></i> Edit Details
+                                   </button>
                                 </div>
 
                                 {/*  The Danger Zone (Hidden safely at the bottom) */}
@@ -508,6 +517,8 @@ function Header() {
                             </>
                         ) : (
                             <div style={{ textAlign: 'left', animation: 'fadeIn 0.3s ease' }}>
+                                <label style={{ fontSize: '13px', fontWeight: 700, color: '#475569', marginBottom: '6px', display: 'block' }}>Roll Number / Exam ID <span style={{color: '#A32D2D'}}>*</span></label>
+                                <input type="text" placeholder="e.g. 2104540100" value={profileData.rollNo} onChange={e => setProfileData({...profileData, rollNo: e.target.value})} style={{ marginBottom: '16px', width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', outline: 'none', transition: 'border 0.2s' }} onFocus={(e) => e.target.style.borderColor = '#185FA5'} onBlur={(e) => e.target.style.borderColor = '#e2e8f0'} />
                                 <label style={{ fontSize: '13px', fontWeight: 700, color: '#475569', marginBottom: '6px', display: 'block' }}>Institution / College Name</label>
                                 <input type="text" placeholder="e.g. UIET Kanpur" value={profileData.college} onChange={e => setProfileData({...profileData, college: e.target.value})} style={{ marginBottom: '16px', width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', outline: 'none', transition: 'border 0.2s' }} onFocus={(e) => e.target.style.borderColor = '#185FA5'} onBlur={(e) => e.target.style.borderColor = '#e2e8f0'} />
                                 
