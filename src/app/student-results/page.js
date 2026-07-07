@@ -376,39 +376,188 @@ export default function StudentResults() {
         </div>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid4" style={{ marginBottom: '1.5rem' }}>
-        <div className="stat-card"><div className="stat-val" style={{ color: '#185FA5' }}>{sub.score}</div><div className="stat-lbl">Total Score</div></div>
-        <div className="stat-card"><div className="stat-val" style={{ color: '#3B6D11' }}>{sub.correct}</div><div className="stat-lbl">Correct</div></div>
-        <div className="stat-card"><div className="stat-val" style={{ color: '#A32D2D' }}>{sub.wrong}</div><div className="stat-lbl">Incorrect</div></div>
-        <div className="stat-card"><div className="stat-val" style={{ color: 'var(--color-text-secondary)' }}>{sub.skipped}</div><div className="stat-lbl">Skipped</div></div>
-      </div>
-
-      <div className="grid2" style={{ marginBottom: '2rem' }}>
-        {/* Performance Overview */}
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title"><i className="ti ti-chart-pie" style={{ fontSize: '20px', color: '#185FA5' }}></i> Performance Overview</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', marginBottom: '8px' }}><span>Total Marks Scored</span><span style={{ fontWeight: 600 }}>{sub.score} / {test.totalMarks}</span></div>
-          <div className="progress-track"><div className="progress-fill" style={{ width: `${pct}%` }}></div></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', margin: '1.25rem 0 8px' }}><span>Accuracy (Attempted)</span><span style={{ fontWeight: 600 }}>{accuracy}%</span></div>
-          <div className="progress-track"><div className="progress-fill" style={{ width: `${accuracy}%`, background: '#3B6D11' }}></div></div>
+      {/* 🔥 PREMIUM SUMMARY DASHBOARD (V3 - THE ULTIMATE ANALYTICS) 🔥 */}
+      {(() => {
+          const totalAttempted = sub.correct + sub.wrong;
+          const totalQs = sub.details ? sub.details.length : (sub.correct + sub.wrong + sub.skipped);
+          const percentage = test.totalMarks > 0 ? ((sub.score / test.totalMarks) * 100).toFixed(1) : 0;
+          const accuracyCalc = totalAttempted > 0 ? ((sub.correct / totalAttempted) * 100).toFixed(1) : 0;
+          const attemptRate = totalQs > 0 ? ((totalAttempted / totalQs) * 100).toFixed(1) : 0;
           
-          <div style={{ marginTop: '1.5rem' }} className="bar-chart">
-            <div className="bar-col"><div className="bar-val" style={{ color: '#3B6D11' }}>{sub.correct}</div><div className="bar" style={{ height: `${bH(sub.correct)}px`, background: '#C0DD97' }}></div><div className="bar-lbl">Correct</div></div>
-            <div className="bar-col"><div className="bar-val" style={{ color: '#A32D2D' }}>{sub.wrong}</div><div className="bar" style={{ height: `${bH(sub.wrong)}px`, background: '#F7C1C1' }}></div><div className="bar-lbl">Wrong</div></div>
-            <div className="bar-col"><div className="bar-val" style={{ color: 'var(--color-text-secondary)' }}>{sub.skipped}</div><div className="bar" style={{ height: `${bH(sub.skipped)}px`, background: 'var(--color-border-primary)' }}></div><div className="bar-lbl">Skipped</div></div>
-          </div>
-        </div>
+          // Negative Marks Calculation
+          const negMarks = (sub.wrong * (test.negMarking || 0)).toFixed(2);
 
-        {/* Warning/Notes Summary */}
-        <div className="card" style={{ marginBottom: 0 }}>
-           <div className="card-title"><i className="ti ti-list-details" style={{ fontSize: '20px', color: '#185FA5' }}></i> Test Summary</div>
-           <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
-              Total Attempted: <strong style={{ color: 'var(--color-text-primary)', fontSize: '15px' }}>{sub.correct + sub.wrong}</strong> / {test.questions.length}<br/>
-              Negative Marks: <strong style={{ color: '#A32D2D', fontSize: '15px' }}>-{(sub.wrong * (test.negMarking || 0)).toFixed(2)}</strong>
-           </div>
-        </div>
-      </div>
+          // Progress bar percentages
+          const cPct = totalQs > 0 ? (sub.correct / totalQs) * 100 : 0;
+          const wPct = totalQs > 0 ? (sub.wrong / totalQs) * 100 : 0;
+          const sPct = totalQs > 0 ? (sub.skipped / totalQs) * 100 : 0;
+
+          // Sectional Analysis & Finding Strengths/Weaknesses
+          const sectionStats = {};
+          let strongestSec = { name: '-', pct: -1 };
+          let weakestSec = { name: '-', pct: 101 };
+
+          if (sub.details) {
+              sub.details.forEach(item => {
+                  const sec = item.q.section || 'General';
+                  if (!sectionStats[sec]) sectionStats[sec] = { score: 0, max: 0, correct: 0, total: 0 };
+                  
+                  sectionStats[sec].total += 1;
+                  sectionStats[sec].max += Number(item.q.marks || 0);
+                  
+                  if (item.status === 'correct' || item.status === 'partial') {
+                      sectionStats[sec].score += Number(item.earned || 0);
+                      if (item.status === 'correct') sectionStats[sec].correct += 1;
+                  } else if (item.status === 'wrong') {
+                      sectionStats[sec].score += Number(item.earned || 0); 
+                  }
+              });
+
+              // Calculate Strongest and Weakest Section
+              const secKeys = Object.keys(sectionStats);
+              if (secKeys.length > 1) { // Sirf tabhi batao jab 1 se zyada subjects hon
+                  secKeys.forEach(sec => {
+                      const stat = sectionStats[sec];
+                      if (stat.max > 0) {
+                          const secPct = (stat.score / stat.max) * 100;
+                          if (secPct > strongestSec.pct) { strongestSec = { name: sec, pct: secPct }; }
+                          if (secPct < weakestSec.pct) { weakestSec = { name: sec, pct: secPct }; }
+                      }
+                  });
+              }
+          }
+
+          return (
+              <div style={{ background: '#fff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', marginBottom: '1.5rem', animation: 'fadeIn 0.4s ease' }}>
+                  <h3 style={{ fontSize: '17px', color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <i className="ti ti-device-analytics" style={{ color: '#185FA5', fontSize: '20px' }}></i> Performance Analytics
+                  </h3>
+                  
+                  {/* 📊 GRID 1: HORIZONTALLY SCROLLABLE METRICS (Phone Friendly & Premium) */}
+                  <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '12px', overflowX: 'auto', paddingBottom: '14px', WebkitOverflowScrolling: 'touch' }}>                
+                      {/* 🔥 NEW: Total Score Highlight Card */}
+                      <div style={{ flex: '0 0 auto', minWidth: '160px', background: 'linear-gradient(135deg, #185FA5, #3C3489)', padding: '12px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 10px rgba(24,95,165,0.2)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}><i className="ti ti-trophy"></i></div>
+                              <div style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 700, textTransform: 'uppercase' }}>Total Score</div>
+                          </div>
+                          <div style={{ fontSize: '22px', fontWeight: 800 }}>
+                              {sub.score} <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 600 }}>/ {test.totalMarks}</span>
+                          </div>
+                      </div>
+
+                      {/* Overall Percentage */}
+                      <div style={{ flex: '0 0 auto', minWidth: '140px', background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: percentage >= 75 ? '#d1fae5' : percentage >= 40 ? '#fef3c7' : '#fee2e2', color: percentage >= 75 ? '#059669' : percentage >= 40 ? '#d97706' : '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}><i className="ti ti-percentage"></i></div>
+                              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Percentage</div>
+                          </div>
+                          <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>{percentage}%</div>
+                      </div>
+
+                      {/* Attempt Rate */}
+                      <div style={{ flex: '0 0 auto', minWidth: '140px', background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#ffedd5', color: '#ea580c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}><i className="ti ti-flame"></i></div>
+                              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Attempt Rate</div>
+                          </div>
+                          <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>{attemptRate}%</div>
+                      </div>
+
+                      {/* Accuracy */}
+                      <div style={{ flex: '0 0 auto', minWidth: '140px', background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#e0e7ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}><i className="ti ti-target"></i></div>
+                              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Accuracy</div>
+                          </div>
+                          <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>{accuracyCalc}%</div>
+                      </div>
+
+                      {/* Negative Marks */}
+                      <div style={{ flex: '0 0 auto', minWidth: '140px', background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#fcebeb', color: '#a32d2d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}><i className="ti ti-minus"></i></div>
+                              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Negative</div>
+                          </div>
+                          <div style={{ fontSize: '20px', fontWeight: 800, color: '#a32d2d' }}>-{negMarks}</div>
+                      </div>
+
+                      {/* 🔥 NEW: Strongest Zone (If multiple sections exist) */}
+                      {Object.keys(sectionStats).length > 1 && strongestSec.pct > 0 && (
+                          <div style={{ flex: '0 0 auto', minWidth: '150px', background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#d1fae5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}><i className="ti ti-trending-up"></i></div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Strongest</div>
+                              </div>
+                              <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{strongestSec.name}</div>
+                          </div>
+                      )}
+
+                      {/* 🔥 NEW: Needs Work (Weakest Zone) */}
+                      {Object.keys(sectionStats).length > 1 && weakestSec.name !== '-' && (
+                          <div style={{ flex: '0 0 auto', minWidth: '150px', background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}><i className="ti ti-trending-down"></i></div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Needs Work</div>
+                              </div>
+                              <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{weakestSec.name}</div>
+                          </div>
+                      )}
+                  </div>
+
+                  {/* 📊 GRID 2: COMPACT QUESTION DISTRIBUTION */}
+                  <div style={{ marginTop: '0.5rem', background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, color: '#475569', marginBottom: '10px' }}>
+                           <span>Questions Distribution</span>
+                           <span>Attempted: {totalAttempted} / {totalQs}</span>
+                      </div>
+                      
+                      {/* Stacked Progress Bar */}
+                      <div style={{ display: 'flex', height: '14px', borderRadius: '10px', overflow: 'hidden', background: '#e2e8f0', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)' }}>
+                          <div style={{ width: `${cPct}%`, background: '#10b981', transition: 'width 1s ease' }}></div>
+                          <div style={{ width: `${wPct}%`, background: '#ef4444', transition: 'width 1s ease' }}></div>
+                          <div style={{ width: `${sPct}%`, background: '#94a3b8', transition: 'width 1s ease' }}></div>
+                      </div>
+                      
+                      {/* Legends with Values */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '12px', fontWeight: 700, flexWrap: 'wrap', gap: '8px' }}>
+                           <span style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-circle-check-filled" style={{ fontSize: '14px' }}></i> {sub.correct} Correct</span>
+                           <span style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-circle-x-filled" style={{ fontSize: '14px' }}></i> {sub.wrong} Wrong</span>
+                           <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-minus-circle" style={{ fontSize: '14px' }}></i> {sub.skipped} Skipped</span>
+                      </div>
+                  </div>
+
+                  {/* 📊 GRID 3: SWIPEABLE SECTION BREAKDOWN */}
+                  {Object.keys(sectionStats).length > 0 && (
+                      <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '1.25rem', marginTop: '1.25rem' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#475569', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Section-wise Scores</div>
+                          
+                          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', overflowX: 'auto', paddingBottom: '14px', WebkitOverflowScrolling: 'touch' }}>
+                              {Object.keys(sectionStats).map((sec, idx) => {
+                                  const stat = sectionStats[sec];
+                                  const secPercent = stat.max > 0 ? ((stat.score / stat.max) * 100).toFixed(0) : 0;
+                                  
+                                  return (
+                                      <div key={idx} style={{ flex: '0 0 auto', minWidth: '200px', background: '#f1f5f9', padding: '12px 15px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                              <i className="ti ti-folder" style={{ color: '#185FA5', fontSize: '16px' }}></i>
+                                              <span style={{ fontWeight: 700, color: '#334155', fontSize: '13px', maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sec}</span>
+                                          </div>
+                                          <div style={{ textAlign: 'right' }}>
+                                              <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>{stat.score} <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>/ {stat.max}</span></div>
+                                              <div style={{ fontSize: '10px', fontWeight: 700, background: secPercent >= 75 ? '#d1fae5' : secPercent >= 40 ? '#fef3c7' : '#fee2e2', color: secPercent >= 75 ? '#065f46' : secPercent >= 40 ? '#92400e' : '#991b1b', padding: '2px 6px', borderRadius: '12px', display: 'inline-block', marginTop: '4px' }}>
+                                                  {secPercent}%
+                                              </div>
+                                          </div>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      </div>
+                  )}
+              </div>
+          );
+      })()}
 
       {/* Filters */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)' }}>
