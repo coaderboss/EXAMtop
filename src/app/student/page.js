@@ -14,6 +14,8 @@ const StaticMath = memo(({ html, isBlock, style, className }) => {
   return <span className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
 });
 
+export const dynamic = 'force-dynamic';
+
 export default function StudentPortal() {
   const { currentUser, loading: authLoading } = useAuth();
   const { fetchSingleTest } = useData(); 

@@ -172,20 +172,20 @@ export default function StudentResults() {
     iframe.contentWindow.onafterprint = () => { setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 1000); };
   };
 
- // Smart Filter Changers (Pehle hide karte hain, fir filter badalte hain)
+// Smart Filter Changers (Pehle parda poora girega, fir 150ms baad data change hoga)
   const changeStatusFilter = (newFilter) => {
       if (newFilter === filter) return;
-      setIsMathReady(false); // Parda girao
-      setTimeout(() => setFilter(newFilter), 30); // 30ms baad naya data laao
+      setIsMathReady(false); // 1. Parda girao
+      setTimeout(() => setFilter(newFilter), 150); // 2. Wait karo, fir data badlo
   };
 
   const changeSectionFilter = (newSec) => {
       if (newSec === sectionFilter) return;
-      setIsMathReady(false); // Parda girao
-      setTimeout(() => setSectionFilter(newSec), 30); // 30ms baad naya data laao
+      setIsMathReady(false); // 1. Parda girao
+      setTimeout(() => setSectionFilter(newSec), 150); // 2. Wait karo, fir data badlo
   };
   
-  // MathJax Auto-Renderer with Fade-In
+  // MathJax Auto-Renderer with Perfect Fade-In
   useEffect(() => {
     const renderMath = async () => {
         if (selectedResult && typeof window !== 'undefined' && window.MathJax && window.MathJax.typesetPromise) {
@@ -195,13 +195,16 @@ export default function StudentResults() {
             } catch (err) {
                 console.log('MathJax Error:', err);
             } finally {
-                setIsMathReady(true); // 🔥 Parda uthao (Fade in)
+                // 3. MathJax banne ke 100ms baad parda uthao (Super smooth)
+                setTimeout(() => setIsMathReady(true), 100); 
             }
         } else {
-            setIsMathReady(true); // Agar mathjax fail ho toh bhi atakna nahi chahiye
+            setIsMathReady(true);
         }
     };
-    const timer = setTimeout(renderMath, 20); // Super fast trigger
+    
+    // Data change hone ke 50ms baad MathJax ko trigger karo
+    const timer = setTimeout(renderMath, 50); 
     return () => clearTimeout(timer);
   }, [selectedResult, filter, sectionFilter]);
 
@@ -456,7 +459,7 @@ export default function StudentResults() {
       </div>
 
       {/* Question Review Cards (With Shutter Fade Effect) */}
-      <div style={{ opacity: isMathReady ? 1 : 0, transition: 'opacity 0.25s ease-in', minHeight: '50vh' }}>
+      <div style={{ opacity: isMathReady ? 1 : 0, transition: 'opacity 0.3s ease-in', minHeight: '50vh' }}>
         {sub.details.filter(d => {
             //  Dono conditions (Status aur Section) match honi chahiye
             let sMatch = filter === 'all' || d.status === filter || (filter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
