@@ -1,6 +1,6 @@
 // src/app/student/page.js
 'use client';
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, memo, Suspense } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -14,9 +14,7 @@ const StaticMath = memo(({ html, isBlock, style, className }) => {
   return <span className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
 });
 
-export const dynamic = 'force-dynamic';
-
-export default function StudentPortal() {
+function StudentPortalContent() { 
   const { currentUser, loading: authLoading } = useAuth();
   const { fetchSingleTest } = useData(); 
   const router = useRouter();
@@ -1043,5 +1041,18 @@ export default function StudentPortal() {
       )}
 
     </div>
+  );
+}
+
+// 🔥 THE VERCEL BUILD FIX: Suspense Boundary Wrapper
+export default function StudentPortal() {
+  return (
+    <Suspense fallback={
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="spinner" style={{ width: '40px', height: '40px', borderWidth: '3px' }}></div>
+      </div>
+    }>
+      <StudentPortalContent />
+    </Suspense>
   );
 }
