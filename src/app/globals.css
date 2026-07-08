@@ -1019,61 +1019,76 @@ mjx-container[display="true"]::-webkit-scrollbar {
               border-radius: 20px;
               padding: 2rem 2.5rem;
               color: #fff;
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              gap: 1.5rem;
+              display: grid;
+              grid-template-columns: 1fr auto;
+              grid-template-areas: "info score" "tags score";
+              gap: 1.25rem 2rem;
               margin-bottom: 1.5rem;
               box-shadow: 0 10px 30px rgba(24,95,165,0.25);
               overflow: hidden;
               animation: fadeIn 0.5s ease;
           }
+          .hero-info { grid-area: info; z-index: 1; }
+          .hero-tags { grid-area: tags; z-index: 1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+          .hero-score-wrapper { grid-area: score; z-index: 1; display: flex; align-items: center; justify-content: center; }
+
           .hero-score-ring {
               position: relative;
-              width: 140px;
-              height: 140px;
+              width: 140px; height: 140px;
               border-radius: 50%;
               background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.02));
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              flex-direction: column;
+              display: flex; flex-direction: column; align-items: center; justify-content: center;
               border: 2px solid rgba(255,255,255,0.2);
               box-shadow: inset 0 0 20px rgba(0,0,0,0.1), 0 0 20px rgba(255,255,255,0.1);
               backdrop-filter: blur(10px);
-              flex-shrink: 0;
           }
           .hero-score-val { font-size: 50px; font-weight: 800; line-height: 1; z-index: 2; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-          .hero-left { flex: 1; z-index: 1; }
+          .hero-score-lbl { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.85); margin-top: 4px; z-index: 2; text-transform: uppercase; letter-spacing: 1px; }
+
           .hero-title { font-size: 28px; font-weight: 800; margin: 0 0 8px 0; letter-spacing: -0.5px; }
-          .hero-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-          
+          .hero-meta { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #e2e8f0; font-weight: 600; flex-wrap: wrap; }
+
+          .pill-tag {
+              display: inline-flex; align-items: center; gap: 6px;
+              padding: 6px 12px; border-radius: 10px;
+              font-size: 13px; font-weight: 700;
+              background: rgba(255,255,255,0.15);
+              border: 1px solid rgba(255,255,255,0.2);
+              backdrop-filter: blur(10px);
+              white-space: nowrap;
+          }
+
           .security-card {
               background: #fff; border-left: 6px solid #ef4444; border-radius: 16px; padding: 1.75rem; margin-bottom: 2rem; box-shadow: 0 10px 30px rgba(239,68,68,0.08); animation: fadeIn 0.5s ease;
           }
           
-          /* 🔥 FIX: Scrollable Cheat Logs Container */
-          .warn-container {
-              display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem;
-              max-height: 200px; /* Limits height, makes it scrollable */
-              overflow-y: auto;
-              padding-right: 6px;
-          }
+          .warn-container { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem; max-height: 200px; overflow-y: auto; padding-right: 6px; }
           .warn-container::-webkit-scrollbar { width: 4px; }
           .warn-container::-webkit-scrollbar-track { background: transparent; }
           .warn-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
-          /* 📱 PHONE VIEW OPTIMIZATION */
+          /* 📱 PHONE VIEW OPTIMIZATION (THE MAGIC HAPPENS HERE) */
           @media (max-width: 650px) {
-              .premium-hero { flex-direction: column-reverse; padding: 1.5rem; text-align: center; gap: 1.25rem; border-radius: 16px; }
-              .hero-score-ring { width: 110px; height: 110px; }
-              .hero-score-val { font-size: 40px; }
-              .hero-left { display: flex; flex-direction: column; align-items: center; }
-              .hero-tags { justify-content: center; }
-              .hero-title { font-size: 22px; }
+              .premium-hero {
+                  padding: 1.25rem;
+                  grid-template-columns: 1fr auto; /* Name on left, Score on right */
+                  grid-template-areas: 
+                      "info score"
+                      "tags tags"; /* Tags take full width at bottom */
+                  gap: 1rem;
+                  border-radius: 16px;
+              }
+              .hero-title { font-size: 22px; margin-bottom: 4px; }
+              .hero-meta { font-size: 11px; gap: 8px; }
+              .hero-score-ring { width: 80px; height: 80px; } /* Compact Ring */
+              .hero-score-val { font-size: 26px; }
+              .hero-score-lbl { font-size: 9px; margin-top: 2px; }
+              .hero-tags { gap: 6px; margin-top: 4px; }
+              .pill-tag { font-size: 11px; padding: 5px 10px; }
               
               .security-card { padding: 1.25rem; }
-              .warn-container { max-height: 150px; } /* Aur chota on phone */
+              .warn-container { max-height: 150px; }
               .warn-row { flex-direction: column; align-items: flex-start !important; gap: 6px !important; padding: 10px !important; }
               .warn-divider { display: none; }
-              .warn-text { font-size: 12px !important; line-height: 1.4; }}
+              .warn-text { font-size: 12px !important; line-height: 1.4; }
+          }

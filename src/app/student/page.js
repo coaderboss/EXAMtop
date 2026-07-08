@@ -555,13 +555,14 @@ function StudentPortalContent() {
     
     const timeTakenStr = formatTime(secondsSpent);
 
-    const finalSub = {
+   const finalSub = {
       uid: currentUser ? currentUser.uid : 'anonymous',
       email: currentUser ? currentUser.email : '',
       name: name,
       roll: roll,
       score: Number(score.toFixed(2)), correct, wrong, skipped, details,
       time: new Date().toLocaleString('en-IN'),
+      timestamp: Date.now(), 
       totalMarks: activeTest.totalMarks,
       cheatLogs: cheatLogsRef.current,
       timeTaken: timeTakenStr 
@@ -648,12 +649,33 @@ function StudentPortalContent() {
         `}</style>
 
         {isSubmitting ? (
-            <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease' }}>
-                <div style={{ width: '80px', height: '80px', margin: '0 auto 1.5rem', background: '#ecfdf5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '4px solid #10b981', animation: 'bounceSoft 2s infinite', boxShadow: '0 10px 25px rgba(16,185,129,0.2)' }}>
-                    <i className="ti ti-check" style={{ fontSize: '40px', color: '#10b981' }}></i>
+            <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <style>{`
+                    @keyframes scanline { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+                    @keyframes lockPulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 50% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+                    @keyframes floatUp { 0% { transform: translateY(10px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+                `}</style>
+                
+                <div style={{ position: 'relative', width: '130px', height: '130px', marginBottom: '2rem' }}>
+                    {/* Outer Rotating Dashed Ring */}
+                    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px dashed rgba(16, 185, 129, 0.4)', animation: 'spinDash 6s linear infinite' }}></div>
+                    {/* Inner Rotating Solid Ring */}
+                    <div style={{ position: 'absolute', inset: '12px', borderRadius: '50%', border: '4px solid transparent', borderTopColor: '#10b981', borderBottomColor: '#10b981', animation: 'spinDash 2s ease-in-out infinite reverse' }}></div>
+                    {/* Center Core Shield */}
+                    <div style={{ position: 'absolute', inset: '24px', background: 'linear-gradient(135deg, #10b981, #047857)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'lockPulse 2s infinite', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.2)' }}>
+                        <i className="ti ti-lock-check" style={{ fontSize: '40px', color: '#fff' }}></i>
+                    </div>
+                    {/* Futuristic Scanline */}
+                    <div style={{ position: 'absolute', top: 0, left: '20px', right: '20px', height: '3px', background: '#fff', boxShadow: '0 0 15px 3px rgba(255,255,255,0.8)', animation: 'scanline 2s linear infinite', zIndex: 10 }}></div>
                 </div>
-                <h2 style={{ fontSize: '26px', color: '#0f172a', marginBottom: '8px', fontWeight: 800, letterSpacing: '-0.5px' }}>Submission Secured</h2>
-                <p style={{ color: '#64748b', fontWeight: 600, fontSize: '15px' }}>Encrypting and safely transferring your vault...</p>
+
+                <h2 style={{ fontSize: '28px', color: '#0f172a', marginBottom: '12px', fontWeight: 800, letterSpacing: '-0.5px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    Encrypting Vault 
+                    <span className="spinner" style={{ width: '22px', height: '22px', borderWidth: '3px', borderColor: '#0f172a', borderTopColor: 'transparent' }}></span>
+                </h2>
+                <div style={{ background: '#ecfdf5', color: '#059669', padding: '8px 20px', borderRadius: '20px', fontSize: '13px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', animation: 'floatUp 0.5s ease forwards', boxShadow: '0 4px 15px rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)' }}>
+                    Establishing Secure Transfer...
+                </div>
             </div>
         ) : (
             <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease' }}>
@@ -803,24 +825,23 @@ function StudentPortalContent() {
                   {/* StaticMath applied to Question Text */}
                   <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
                   
-                  {/* 🔥 NAYA: HYBRID FIGURE ENGINE RENDERER (With Cache-Busting Loaders) */}
+                 {/* 🔥 NAYA COMPACT FIGURE ENGINE RENDERER (With Cache-Busting Loaders) */}
                   {currentQuestion?.figureType && currentQuestion.figureType !== 'none' && currentQuestion.figureData && (
-                    <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
+                    <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
                         
                         {(currentQuestion.figureType === 'image' || currentQuestion.figureType === 'url') && (
-                            <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center', minHeight: !imgLoaded ? '150px' : 'auto' }}>
+                            <div style={{ position: 'relative', width: 'fit-content', display: 'flex', justifyContent: 'center', minHeight: !imgLoaded ? '100px' : 'auto' }}>
                                 {!imgLoaded && (
                                     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-                                        <div className="spinner" style={{ width: '24px', height: '24px', borderWidth: '3px' }}></div>
-                                        <span style={{ fontSize: '12px', fontWeight: 600 }}>Loading Image...</span>
+                                        <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '3px' }}></div>
                                     </div>
                                 )}
                                 <img 
                                     key={`img-${curQ}`} 
                                     src={currentQuestion.figureData} 
-                                    alt="" 
-                                    ref={el => { if(el && el.complete) setImgLoaded(true); }} /* 🔥 CACHE FIX */
-                                    style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
+                                    alt="Figure" 
+                                    ref={el => { if(el && el.complete) setImgLoaded(true); }}
+                                    style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid #cbd5e1', objectFit: 'contain', background: '#fff', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
                                     onLoad={() => setImgLoaded(true)} 
                                     onError={(e) => { e.target.style.display = 'none'; setImgLoaded(true); }} 
                                 />
@@ -828,25 +849,24 @@ function StudentPortalContent() {
                         )}
 
                         {currentQuestion.figureType === 'smiles' && (
-                            <div style={{ display: 'flex', justifyContent: 'center' }}>
-                                <SmilesViewer smilesCode={currentQuestion.figureData} width={280} height={280} />
+                            <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'inline-block', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                                <SmilesViewer smilesCode={currentQuestion.figureData} width={200} height={200} />
                             </div>
                         )}
 
                         {currentQuestion.figureType === 'tikz' && (
-                            <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', overflowX: 'auto', maxWidth: '100%', minHeight: !imgLoaded ? '150px' : 'auto' }}>
+                            <div className="hide-scroll" style={{ position: 'relative', display: 'inline-block', overflowX: 'auto', maxWidth: '100%', background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', minHeight: !imgLoaded ? '100px' : 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                                 {!imgLoaded && (
                                     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-                                        <div className="spinner" style={{ width: '24px', height: '24px', borderWidth: '3px' }}></div>
-                                        <span style={{ fontSize: '12px', fontWeight: 600 }}>Drawing Figure...</span>
+                                        <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '3px' }}></div>
                                     </div>
                                 )}
                                 <img 
                                     key={`tikz-${curQ}`}
                                     src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}')}`} 
                                     alt="Math Graphic" 
-                                    ref={el => { if(el && el.complete) setImgLoaded(true); }} /* 🔥 CACHE FIX */
-                                    style={{ maxWidth: '100%', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
+                                    ref={el => { if(el && el.complete) setImgLoaded(true); }}
+                                    style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
                                     onLoad={() => setImgLoaded(true)} 
                                     onError={(e) => { e.target.style.display = 'none'; setImgLoaded(true); }} 
                                 />
@@ -854,6 +874,7 @@ function StudentPortalContent() {
                         )}
                     </div>
                   )}
+                    
                   
                   {/* OPTIONS AREA */}
                   <div>

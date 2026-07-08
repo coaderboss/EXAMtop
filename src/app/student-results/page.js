@@ -78,10 +78,22 @@ export default function StudentResults() {
                 }
             });
             
-            // 🔥 FIX 1: PERFECT SORTING (Sabse naya result sabse upar)
+            // 🔥 FIX: BULLETPROOF INDIAN DATE SORTING
             historyTemp.sort((a, b) => {
-                const timeA = a.sub.timestamp || Date.parse(a.sub.time) || 0;
-                const timeB = b.sub.timestamp || Date.parse(b.sub.time) || 0;
+                const parseIndianDate = (dateStr) => {
+                    if (!dateStr) return 0;
+                    try {
+                        const dmy = dateStr.split(',')[0].trim().split('/');
+                        if (dmy.length === 3) {
+                            // YYYY, MM (0-indexed), DD
+                            return new Date(dmy[2], dmy[1] - 1, dmy[0]).getTime();
+                        }
+                        return Date.parse(dateStr) || 0;
+                    } catch(e) { return 0; }
+                };
+                
+                const timeA = a.sub.timestamp || parseIndianDate(a.sub.time);
+                const timeB = b.sub.timestamp || parseIndianDate(b.sub.time);
                 return timeB - timeA; 
             });
             setMyHistory(historyTemp);
@@ -297,9 +309,9 @@ export default function StudentResults() {
             `}</style>
             
             {myHistory.map((h, idx) => {
-                // Smart check: Agar exam pichle 2 minute me submit hua hai, toh usko chamkao
                 const subTimeMs = h.sub.timestamp || Date.parse(h.sub.time) || 0;
-                const isRecent = (Date.now() - subTimeMs) < 120000; 
+                const timeDiff = Date.now() - subTimeMs;
+                const isRecent = timeDiff >= 0 && timeDiff < 120000; 
                 
                 return (
                   /* 🔥 FIX 2 & 3: COMPACT CARDS & HIGHLIGHT NEWEST SUBMISSION */
@@ -369,57 +381,53 @@ export default function StudentResults() {
         <i className="ti ti-arrow-left"></i> Back to Results
       </button>
 
-      {/* 🔥 PREMIUM HERO & SECURITY SECTION (V6 - Time Taken & Scrollable Alerts) 🔥 */}
-      <style>{`
-          
-          }
-      `}</style>
 
       <div className="premium-hero">
           {/* Background Decorative Glow */}
           <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '200px', height: '200px', background: 'rgba(255, 255, 255, 0.1)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
           <div style={{ position: 'absolute', bottom: '-50px', left: '10%', width: '150px', height: '150px', background: 'rgba(52, 211, 153, 0.2)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
 
-          {/* Left Side: Student & Test Info */}
-          <div className="hero-left">
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.2)', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+          {/* AREA 1: Left Info Section */}
+          <div className="hero-info">
+              <div className="pill-tag" style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', marginBottom: '12px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>
                   <i className="ti ti-notebook" style={{ color: '#fff' }}></i> {test.title}
               </div>
               
               <h2 className="hero-title">{sub.name}</h2>
               
-              <div className="hero-tags" style={{ fontSize: '12px', color: '#e2e8f0', marginBottom: '1.25rem', fontWeight: 600 }}>
-                  {sub.roll && <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.2)', padding: '5px 10px', borderRadius: '8px' }}><i className="ti ti-id"></i> {sub.roll}</span>}
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.2)', padding: '5px 10px', borderRadius: '8px' }}><i className="ti ti-calendar-time"></i> {sub.time}</span>
-                  
-                  {/* 🔥 NEW: TIME TAKEN FEATURE */}
-                  {sub.timeTaken && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(16,185,129,0.2)', padding: '5px 10px', borderRadius: '8px', color: '#a7f3d0', border: '1px solid rgba(16,185,129,0.3)' }}>
-                          <i className="ti ti-stopwatch"></i> Time Taken: {sub.timeTaken}
-                      </span>
-                  )}
-              </div>
-
-              <div className="hero-tags">
-                  {/* Premium Percentage Badge */}
-                  <span style={{ fontSize: '13px', fontWeight: 700, background: pct >= 75 ? 'rgba(52,211,153,0.2)' : pct >= 40 ? 'rgba(251,191,36,0.2)' : 'rgba(248,113,113,0.2)', color: '#fff', border: `1px solid ${pct >= 75 ? 'rgba(52,211,153,0.4)' : pct >= 40 ? 'rgba(251,191,36,0.4)' : 'rgba(248,113,113,0.4)'}`, padding: '6px 14px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px', backdropFilter: 'blur(10px)' }}>
-                      <i className="ti ti-activity" style={{ fontSize: '16px' }}></i> {pct}% &bull; {pct >= 90 ? 'Excellent' : pct >= 75 ? 'Great Job' : pct >= 50 ? 'Good Effort' : pct >= 35 ? 'Keep Practicing' : 'Needs Work'}
-                  </span>
-                  
-                  {/* Certificate Button */}
-                  {pct >= 75 && (
-                      <button onClick={generateCertificate} style={{ background: '#fff', color: '#185FA5', border: 'none', padding: '7px 16px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
-                          <i className="ti ti-medal" style={{ fontSize: '16px', color: '#d4af37' }}></i> Certificate
-                      </button>
-                  )}
+              <div className="hero-meta">
+                  {sub.roll && <span><i className="ti ti-id" style={{opacity: 0.8}}></i> {sub.roll}</span>}
+                  {sub.roll && <span style={{ opacity: 0.5 }}>|</span>}
+                  <span><i className="ti ti-calendar-time" style={{opacity: 0.8}}></i> {sub.time}</span>
               </div>
           </div>
 
-          {/* Right Side: Glowing Score Card */}
-          <div className="hero-score-ring">
-              <div style={{ position: 'absolute', inset: '6px', borderRadius: '50%', border: '2px dashed rgba(255,255,255,0.4)' }}></div>
-              <div className="hero-score-val">{sub.score}</div>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginTop: '4px', zIndex: 2, textTransform: 'uppercase', letterSpacing: '1px' }}>/ {test.totalMarks}</div>
+          {/* AREA 2: Right Score Ring */}
+          <div className="hero-score-wrapper">
+              <div className="hero-score-ring">
+                  <div style={{ position: 'absolute', inset: '6px', borderRadius: '50%', border: '2px dashed rgba(255,255,255,0.4)' }}></div>
+                  <div className="hero-score-val">{sub.score}</div>
+                  <div className="hero-score-lbl">/ {test.totalMarks}</div>
+              </div>
+          </div>
+
+          {/* AREA 3: Bottom Tags Container */}
+          <div className="hero-tags">
+              {sub.timeTaken && (
+                  <div className="pill-tag" style={{ background: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)', color: '#a7f3d0' }}>
+                      <i className="ti ti-stopwatch"></i> {sub.timeTaken}
+                  </div>
+              )}
+
+              <div className="pill-tag" style={{ background: pct >= 75 ? 'rgba(52,211,153,0.2)' : pct >= 40 ? 'rgba(251,191,36,0.2)' : 'rgba(248,113,113,0.2)', borderColor: pct >= 75 ? 'rgba(52,211,153,0.4)' : pct >= 40 ? 'rgba(251,191,36,0.4)' : 'rgba(248,113,113,0.4)' }}>
+                  <i className="ti ti-activity" style={{ fontSize: '14px' }}></i> {pct}% &bull; {pct >= 90 ? 'Excellent' : pct >= 75 ? 'Great Job' : pct >= 50 ? 'Good Effort' : pct >= 35 ? 'Keep Practicing' : 'Needs Work'}
+              </div>
+              
+              {pct >= 75 && (
+                  <button onClick={generateCertificate} className="pill-tag" style={{ background: '#fff', color: '#185FA5', border: 'none', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                      <i className="ti ti-medal" style={{ color: '#d4af37', fontSize: '15px' }}></i> Claim Certificate
+                  </button>
+              )}
           </div>
       </div>
 
@@ -437,7 +445,7 @@ export default function StudentResults() {
                 </div>
             </div>
 
-            {/* 🔥 FIX: Warning Rows (Now Scrollable!) */}
+            {/* Warning Rows (Scrollable!) */}
             <div className="warn-container">
                 {sub.cheatLogs.map((log, index) => (
                     <div key={index} className="warn-row" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
