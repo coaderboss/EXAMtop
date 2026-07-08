@@ -72,26 +72,34 @@ function StudentPortalContent() {
     }
   }, [currentUser]);
 
-  // 🔥 THE AUTO-JOIN SENSOR (URL Reader)
+  // 🔥 THE AUTO-JOIN SENSOR (SMART TOKEN DECODER)
   useEffect(() => {
       if (isMounted && !authLoading && searchParams) {
-          const autoJoinFlag = searchParams.get('autoJoin');
-          const urlCode = searchParams.get('code');
+          const secretToken = searchParams.get('token');
           
-          if (autoJoinFlag === 'true' && urlCode && !autoJoinTriggered.current) {
-              autoJoinTriggered.current = true; // Lock laga diya taaki baar baar na chale
-              
-              // Ensure immediate variables (state might take a millisecond to update)
-              const immediateName = currentUser?.displayName || name;
-              const immediateRoll = currentUser?.rollNo || currentUser?.examinerId || roll;
-              
-              setCode(urlCode);
-              
-              // URL se params hata do taaki refresh pe dubara trigger na ho
-              window.history.replaceState({}, document.title, "/student");
-              
-              // Trigger Main Join Function
-              handleJoinTest(urlCode, immediateName, immediateRoll);
+          if (secretToken && !autoJoinTriggered.current) {
+              try {
+                  // Token ko decode karo (e.g., "XYZ123-EXAMITOP-AUTO")
+                  const decoded = atob(secretToken);
+                  
+                  if (decoded.includes('-EXAMITOP-AUTO')) {
+                      const urlCode = decoded.split('-')[0]; // Asli code bahar nikalo
+                      autoJoinTriggered.current = true; 
+                      
+                      const immediateName = currentUser?.displayName || name;
+                      const immediateRoll = currentUser?.rollNo || currentUser?.examinerId || roll;
+                      
+                      setCode(urlCode);
+                      
+                      // URL se token hata do taaki refresh pe trigger na ho
+                      window.history.replaceState({}, document.title, "/student");
+                      
+                      // Trigger Main Join Function (with isAutoJoin = true)
+                      handleJoinTest(urlCode, immediateName, immediateRoll, true);
+                  }
+              } catch (e) {
+                  console.error("Invalid Security Token");
+              }
           }
       }
   }, [isMounted, authLoading, searchParams, currentUser]);
@@ -298,10 +306,11 @@ function StudentPortalContent() {
   }, [step]);
 
 
-  /// --- JOIN LOGIC ---
-  const handleJoinTest = async (overrideCode = null, overrideName = null, overrideRoll = null) => {
+ /// --- JOIN LOGIC ---
+  // 🔥 NAYA: isAutoJoin flag add kiya gaya hai
+  const handleJoinTest = async (overrideCode = null, overrideName = null, overrideRoll = null, isAutoJoin = false) => {
     
-    // Resolve Variables (Agar direct aaya hai toh wo use karo, warna input state)
+    // Resolve Variables
     const finalCode = (typeof overrideCode === 'string' ? overrideCode : code) || '';
     const finalName = (typeof overrideName === 'string' ? overrideName : name) || '';
     const finalRoll = (typeof overrideRoll === 'string' ? overrideRoll : roll) || '';
@@ -323,16 +332,38 @@ function StudentPortalContent() {
             t = await fetchSingleTest(codeUpper);
         }
 
-        if (!t) { setJoinError('Invalid Test Code. Check and try again.'); setIsFetchingTest(false); return; }
-        if (t.isActive === false) { setJoinError("Intake Closed: The examiner is no longer accepting submissions."); setIsFetchingTest(false); return; }
-        if (t.expiryDate && new Date() > new Date(t.expiryDate)) { setJoinError("Exam Expired: The deadline has passed."); setIsFetchingTest(false); return; }
+        if (!t) { 
+            if (isAutoJoin) setSysModal({ type: 'error', msg: 'Invalid Test Link.' });
+            else setJoinError('Invalid Test Code. Check and try again.'); 
+            setIsFetchingTest(false); return; 
+        }
+        if (t.isActive === false) { 
+            if (isAutoJoin) setSysModal({ type: 'error', msg: 'Intake Closed: The examiner is no longer accepting submissions.' });
+            else setJoinError("Intake Closed: The examiner is no longer accepting submissions."); 
+            setIsFetchingTest(false); return; 
+        }
 
-        const safeName = finalName.trim(); // 🔥 FIX
-        const safeRoll = finalRoll.trim().toLowerCase(); // 🔥 FIX
+        const safeName = finalName.trim(); 
+        const safeRoll = finalRoll.trim().toLowerCase(); 
         const safeSubmissions = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions || {});
         
         let existingSub = safeSubmissions.find(s => s && s.name && s.name.trim().toLowerCase() === safeName.toLowerCase() && (s.roll || '').trim().toLowerCase() === safeRoll);       
-        if (existingSub) { setJoinError("Submission Received: You have already submitted this test."); setIsFetchingTest(false); return; }
+        
+        // 🔥 MAGIC: Agar pehle test de chuka hai aur direct link se aaya hai!
+        if (existingSub) { 
+            if (isAutoJoin) {
+                setStep('already_completed'); // 🔥 FIX: Ye line form ko background se uda degi
+                setSysModal({
+                    type: 'success',
+                    msg: 'You have already completed this assessment! Redirecting you to the Results Vault...',
+                    action: () => { router.push('/student-results'); }
+                });
+            } else {
+                setJoinError("Submission Received: You have already submitted this test."); 
+            }
+            setIsFetchingTest(false); 
+            return; 
+        }
 
         const draftStr = localStorage.getItem(`exam_draft_${t.id}_${safeName}_${safeRoll || 'noroll'}`);
         if (draftStr) {
@@ -356,7 +387,8 @@ function StudentPortalContent() {
         setStep('instructions');
     } catch (error) {
         console.error("Join test error:", error);
-        setJoinError("Network Error. Please try again.");
+        if (isAutoJoin) setSysModal({ type: 'error', msg: 'Network Error. Please try again later.' });
+        else setJoinError("Network Error. Please try again.");
     } finally {
         setIsFetchingTest(false);
     }
@@ -518,7 +550,9 @@ function StudentPortalContent() {
     });
 
     const totalSecondsGiven = activeTest.duration ? activeTest.duration * 60 : 0;
-    const secondsSpent = totalSecondsGiven > 0 ? (totalSecondsGiven - timeLeft) : 0;
+    const exactRemaining = Math.max(0, Math.floor((endTimeRef.current - Date.now()) / 1000));
+    const secondsSpent = totalSecondsGiven > 0 ? (totalSecondsGiven - exactRemaining) : 0;
+    
     const timeTakenStr = formatTime(secondsSpent);
 
     const finalSub = {
@@ -604,26 +638,37 @@ function StudentPortalContent() {
 
   if (!isMounted || authLoading || isSubmitting || isFetchingTest) {
     return (
-      <div style={{ height: '100vh', width: '100vw', position: 'fixed', top: 0, left: 0, background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
+      <div style={{ height: '100vh', width: '100vw', position: 'fixed', top: 0, left: 0, background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
+        
+        {/* 🔥 Inline CSS for Premium Animations */}
+        <style>{`
+            @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(24,95,165,0.4); } 70% { box-shadow: 0 0 0 20px rgba(24,95,165,0); } 100% { box-shadow: 0 0 0 0 rgba(24,95,165,0); } }
+            @keyframes spinDash { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            @keyframes bounceSoft { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        `}</style>
+
         {isSubmitting ? (
             <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease' }}>
-                <div className="animation-wrapper">
-                    <div className="orbit-ring"></div>
-                    <div className="premium-success">
-                        <svg className="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
-                            <path d="M14.1 27.2l7.1 7.2 16.7-16.8" />
-                        </svg>
-                    </div>
+                <div style={{ width: '80px', height: '80px', margin: '0 auto 1.5rem', background: '#ecfdf5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '4px solid #10b981', animation: 'bounceSoft 2s infinite', boxShadow: '0 10px 25px rgba(16,185,129,0.2)' }}>
+                    <i className="ti ti-check" style={{ fontSize: '40px', color: '#10b981' }}></i>
                 </div>
                 <h2 style={{ fontSize: '26px', color: '#0f172a', marginBottom: '8px', fontWeight: 800, letterSpacing: '-0.5px' }}>Submission Secured</h2>
-                <p style={{ color: 'var(--color-text-secondary)', fontWeight: 600, fontSize: '15px' }}>Encrypting and transferring your responses...</p>
+                <p style={{ color: '#64748b', fontWeight: 600, fontSize: '15px' }}>Encrypting and safely transferring your vault...</p>
             </div>
         ) : (
-            <div style={{ textAlign: 'center' }}>
-                <div className="spinner" style={{ margin: '0 auto 1.5rem auto', width: '50px', height: '50px', borderWidth: '4px' }}></div>
-                <div style={{ fontWeight: 700, color: 'var(--color-text-secondary)', fontSize: '16px' }}>
-                    {isFetchingTest ? 'Decrypting Exam Vault...' : 'Initializing Portal...'}
+            <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease' }}>
+                <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto 2.5rem' }}>
+                    {/* Outer dashed spinning ring */}
+                    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px dashed #cbd5e1', animation: 'spinDash 8s linear infinite' }}></div>
+                    {/* Inner fast solid ring */}
+                    <div style={{ position: 'absolute', inset: '12px', borderRadius: '50%', border: '3px solid #185FA5', borderTopColor: 'transparent', animation: 'spinDash 1s cubic-bezier(0.4, 0, 0.2, 1) infinite' }}></div>
+                    {/* Center Glowing Icon */}
+                    <div style={{ position: 'absolute', inset: '24px', background: 'linear-gradient(135deg, #185FA5, #3C3489)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pulseGlow 2s infinite' }}>
+                        <i className="ti ti-shield-lock" style={{ color: '#fff', fontSize: '26px' }}></i>
+                    </div>
                 </div>
+                <h2 style={{ fontSize: '22px', color: '#0f172a', fontWeight: 800, marginBottom: '6px' }}>{isFetchingTest ? 'Decrypting Exam Vault...' : 'Initializing Secure Portal...'}</h2>
+                <p style={{ color: '#64748b', fontSize: '14px', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Please wait</p>
             </div>
         )}
       </div>
@@ -1024,22 +1069,46 @@ function StudentPortalContent() {
           </div>
       )}
 
-      {/* CUSTOM SYSTEM MODALS */}
+     {/* 🔥 PREMIUM SYSTEM MODALS */}
       {sysModal && (
-          <div className="modal-bg" style={{ zIndex: 999999 }}>
-              <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2.5rem', border: `2px solid ${sysModal.type === 'error' ? '#A32D2D' : '#3B6D11'}`, borderRadius: '16px' }}>
-                  <i className={`ti ${sysModal.type === 'error' ? 'ti-alert-octagon' : 'ti-circle-check'}`} style={{ fontSize: '48px', color: sysModal.type === 'error' ? '#A32D2D' : '#3B6D11', marginBottom: '15px' }}></i>
-                  <h3 style={{ fontSize: '20px', marginBottom: '10px', color: '#0f172a', fontWeight: 800 }}>{sysModal.type === 'error' ? 'Alert' : 'Success'}</h3>
-                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem', fontWeight: 500, lineHeight: 1.6 }}>{sysModal.msg}</p>
-                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', background: sysModal.type === 'error' ? '#A32D2D' : '#3B6D11', color: '#fff', border: 'none', fontWeight: 800, letterSpacing: '1px' }} onClick={() => {
-                      const action = sysModal.action;
-                      setSysModal(null);
-                      if(action) action();
-                  }}>ACKNOWLEDGE</button>
+          <div className="modal-bg" style={{ zIndex: 999999, backdropFilter: 'blur(8px)', background: 'rgba(15, 23, 42, 0.6)' }}>
+              
+              <style>{`
+                  @keyframes popIn { 0% { opacity: 0; transform: scale(0.9) translateY(15px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+              `}</style>
+              
+              <div className="modal-box" style={{ maxWidth: '420px', width: '90%', textAlign: 'center', padding: '0', border: 'none', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', animation: 'popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+                  
+                  {/* Top Color Banner */}
+                  <div style={{ height: '120px', background: sysModal.type === 'error' ? 'linear-gradient(135deg, #ef4444, #991b1b)' : 'linear-gradient(135deg, #10b981, #047857)', position: 'relative' }}>
+                      {/* Floating Icon overlapping the banner */}
+                      <div style={{ position: 'absolute', bottom: '-35px', left: '50%', transform: 'translateX(-50%)', width: '70px', height: '70px', background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
+                          <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: sysModal.type === 'error' ? '#fef2f2' : '#ecfdf5', color: sysModal.type === 'error' ? '#ef4444' : '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>
+                              <i className={`ti ${sysModal.type === 'error' ? 'ti-shield-x' : 'ti-shield-check'}`}></i>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* Content Area */}
+                  <div style={{ padding: '45px 30px 30px 30px', background: '#fff' }}>
+                      <h3 style={{ fontSize: '22px', marginBottom: '12px', color: '#0f172a', fontWeight: 800 }}>{sysModal.type === 'error' ? 'Security Alert' : 'Success'}</h3>
+                      <p style={{ color: '#475569', marginBottom: '2rem', fontWeight: 500, lineHeight: 1.6, fontSize: '15px' }}>{sysModal.msg}</p>
+                      
+                      <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '14px', borderRadius: '12px', background: sysModal.type === 'error' ? '#ef4444' : '#185FA5', color: '#fff', border: 'none', fontWeight: 700, fontSize: '15px', boxShadow: `0 4px 15px ${sysModal.type === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(24,95,165,0.3)'}`, transition: 'transform 0.2s', letterSpacing: '0.5px' }} 
+                          onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                          onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                          onClick={() => {
+                              const action = sysModal.action;
+                              setSysModal(null);
+                              if(action) action();
+                          }}
+                      >
+                          {sysModal.type === 'error' ? 'Acknowledge' : 'Continue'}
+                      </button>
+                  </div>
               </div>
           </div>
       )}
-
     </div>
   );
 }

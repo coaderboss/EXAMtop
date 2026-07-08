@@ -175,8 +175,9 @@ export default function EducatorRadar() {
                   return;
               }
 
-              // 2. Sab theek hai toh seedha Student Live Exam route par URL params ke sath push karo
-              router.push(`/student?code=${test.code}&autoJoin=true`);
+              // 2. 🔥 Sab theek hai toh code ko Base64 me encrypt karke (token banakar) push karo
+              const secretToken = btoa(`${test.code}-EXAMITOP-AUTO`);
+              router.push(`/student?token=${secretToken}`);
               
           } catch (error) {
               setSysAlert({ title: 'Error', msg: 'Failed to verify profile.', type: 'error' });
@@ -394,15 +395,38 @@ export default function EducatorRadar() {
           </div>
       )}
 
+      {/* 🔥 PREMIUM SYSTEM ALERT MODAL (Matching Live Exam UI) */}
       {sysAlert && (
-          <div className="modal-bg" style={{ zIndex: 9999 }}>
-              <div className="modal-box" style={{ maxWidth: '350px', textAlign: 'center', padding: '2rem 1.5rem', borderRadius: '16px' }}>
-                  <div style={{ width: '50px', height: '50px', borderRadius: '50%', margin: '0 auto 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', background: sysAlert.type === 'success' ? '#ecfdf5' : sysAlert.type === 'error' ? '#fef2f2' : '#fffbeb', color: sysAlert.type === 'success' ? '#059669' : sysAlert.type === 'error' ? '#dc2626' : '#d97706' }}>
-                      <i className={`ti ${sysAlert.type === 'success' ? 'ti-check' : sysAlert.type === 'error' ? 'ti-x' : 'ti-info-circle'}`}></i>
+          <div className="modal-bg" style={{ zIndex: 999999, backdropFilter: 'blur(8px)', background: 'rgba(15, 23, 42, 0.6)' }}>
+              <style>{`
+                  @keyframes popIn { 0% { opacity: 0; transform: scale(0.9) translateY(15px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+              `}</style>
+              
+              <div className="modal-box" style={{ maxWidth: '420px', width: '90%', textAlign: 'center', padding: '0', border: 'none', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', animation: 'popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+                  
+                  {/* Top Color Banner (Dynamic colors based on alert type) */}
+                  <div style={{ height: '120px', background: sysAlert.type === 'error' ? 'linear-gradient(135deg, #ef4444, #991b1b)' : sysAlert.type === 'success' ? 'linear-gradient(135deg, #10b981, #047857)' : sysAlert.type === 'warning' ? 'linear-gradient(135deg, #f59e0b, #b45309)' : 'linear-gradient(135deg, #3b82f6, #1d4ed8)', position: 'relative' }}>
+                      {/* Floating Icon */}
+                      <div style={{ position: 'absolute', bottom: '-35px', left: '50%', transform: 'translateX(-50%)', width: '70px', height: '70px', background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
+                          <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: sysAlert.type === 'error' ? '#fef2f2' : sysAlert.type === 'success' ? '#ecfdf5' : sysAlert.type === 'warning' ? '#fffbeb' : '#eff6ff', color: sysAlert.type === 'error' ? '#ef4444' : sysAlert.type === 'success' ? '#10b981' : sysAlert.type === 'warning' ? '#f59e0b' : '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>
+                              <i className={`ti ${sysAlert.type === 'error' ? 'ti-shield-x' : sysAlert.type === 'success' ? 'ti-shield-check' : sysAlert.type === 'warning' ? 'ti-alert-triangle' : 'ti-info-circle'}`}></i>
+                          </div>
+                      </div>
                   </div>
-                  <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>{sysAlert.title}</h3>
-                  <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '1.5rem', lineHeight: 1.5 }}>{sysAlert.msg}</p>
-                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '10px', borderRadius: '8px' }} onClick={() => setSysAlert(null)}>Okay</button>
+
+                  {/* Content Area */}
+                  <div style={{ padding: '45px 30px 30px 30px', background: '#fff' }}>
+                      <h3 style={{ fontSize: '22px', marginBottom: '12px', color: '#0f172a', fontWeight: 800 }}>{sysAlert.title}</h3>
+                      <p style={{ color: '#475569', marginBottom: '2rem', fontWeight: 500, lineHeight: 1.6, fontSize: '15px' }}>{sysAlert.msg}</p>
+                      
+                      <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '14px', borderRadius: '12px', background: sysAlert.type === 'error' ? '#ef4444' : sysAlert.type === 'success' ? '#10b981' : sysAlert.type === 'warning' ? '#f59e0b' : '#3b82f6', color: '#fff', border: 'none', fontWeight: 700, fontSize: '15px', boxShadow: `0 4px 15px ${sysAlert.type === 'error' ? 'rgba(239,68,68,0.3)' : sysAlert.type === 'success' ? 'rgba(16,185,129,0.3)' : sysAlert.type === 'warning' ? 'rgba(245,158,11,0.3)' : 'rgba(59,130,246,0.3)'}`, transition: 'transform 0.2s', letterSpacing: '0.5px' }} 
+                          onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                          onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                          onClick={() => setSysAlert(null)}
+                      >
+                          Okay, got it!
+                      </button>
+                  </div>
               </div>
           </div>
       )}

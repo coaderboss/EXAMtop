@@ -1011,3 +1011,69 @@ mjx-container[display="true"]::-webkit-scrollbar {
     z-index: 2;
     box-shadow: 0 0 20px rgba(59, 109, 17, 0.2);
 }
+
+
+.premium-hero {
+              position: relative;
+              background: linear-gradient(135deg, #185FA5 0%, #1e3a8a 100%);
+              border-radius: 20px;
+              padding: 2rem 2.5rem;
+              color: #fff;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 1.5rem;
+              margin-bottom: 1.5rem;
+              box-shadow: 0 10px 30px rgba(24,95,165,0.25);
+              overflow: hidden;
+              animation: fadeIn 0.5s ease;
+          }
+          .hero-score-ring {
+              position: relative;
+              width: 140px;
+              height: 140px;
+              border-radius: 50%;
+              background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.02));
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              flex-direction: column;
+              border: 2px solid rgba(255,255,255,0.2);
+              box-shadow: inset 0 0 20px rgba(0,0,0,0.1), 0 0 20px rgba(255,255,255,0.1);
+              backdrop-filter: blur(10px);
+              flex-shrink: 0;
+          }
+          .hero-score-val { font-size: 50px; font-weight: 800; line-height: 1; z-index: 2; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+          .hero-left { flex: 1; z-index: 1; }
+          .hero-title { font-size: 28px; font-weight: 800; margin: 0 0 8px 0; letter-spacing: -0.5px; }
+          .hero-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+          
+          .security-card {
+              background: #fff; border-left: 6px solid #ef4444; border-radius: 16px; padding: 1.75rem; margin-bottom: 2rem; box-shadow: 0 10px 30px rgba(239,68,68,0.08); animation: fadeIn 0.5s ease;
+          }
+          
+          /* 🔥 FIX: Scrollable Cheat Logs Container */
+          .warn-container {
+              display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem;
+              max-height: 200px; /* Limits height, makes it scrollable */
+              overflow-y: auto;
+              padding-right: 6px;
+          }
+          .warn-container::-webkit-scrollbar { width: 4px; }
+          .warn-container::-webkit-scrollbar-track { background: transparent; }
+          .warn-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+          /* 📱 PHONE VIEW OPTIMIZATION */
+          @media (max-width: 650px) {
+              .premium-hero { flex-direction: column-reverse; padding: 1.5rem; text-align: center; gap: 1.25rem; border-radius: 16px; }
+              .hero-score-ring { width: 110px; height: 110px; }
+              .hero-score-val { font-size: 40px; }
+              .hero-left { display: flex; flex-direction: column; align-items: center; }
+              .hero-tags { justify-content: center; }
+              .hero-title { font-size: 22px; }
+              
+              .security-card { padding: 1.25rem; }
+              .warn-container { max-height: 150px; } /* Aur chota on phone */
+              .warn-row { flex-direction: column; align-items: flex-start !important; gap: 6px !important; padding: 10px !important; }
+              .warn-divider { display: none; }
+              .warn-text { font-size: 12px !important; line-height: 1.4; }}

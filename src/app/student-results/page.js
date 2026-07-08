@@ -77,8 +77,15 @@ export default function StudentResults() {
                     });
                 }
             });
-            // Naye tests upar dikhane ke liye reverse
-            setMyHistory(historyTemp.reverse());
+            
+            // 🔥 FIX 1: PERFECT SORTING (Sabse naya result sabse upar)
+            historyTemp.sort((a, b) => {
+                const timeA = a.sub.timestamp || Date.parse(a.sub.time) || 0;
+                const timeB = b.sub.timestamp || Date.parse(b.sub.time) || 0;
+                return timeB - timeA; 
+            });
+            setMyHistory(historyTemp);
+
         }
       } catch (error) {
         console.error("Error fetching history:", error);
@@ -279,47 +286,66 @@ export default function StudentResults() {
              </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {myHistory.map((h, idx) => (
-              /*  UPGRADED ANIMATED CARDS */
-              <div 
-                key={idx} 
-                className="test-entry" 
-                style={{ 
-                    alignItems: 'center', 
-                    padding: '1.25rem 1.5rem',
-                    opacity: 0,
-                    animation: `staggerSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards`,
-                    animationDelay: `${idx * 0.08}s`,
-                    borderLeft: h.canView ? '4px solid #185FA5' : '4px solid #f59e0b'
-                }}
-              >
-                <div className="te-meta" style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 800, fontSize: '18px', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    {h.test.title} 
-                    <span className="badge b-purple" style={{ fontSize: '12px', padding: '4px 10px', fontFamily: 'monospace' }}><i className="ti ti-hash text-base"></i> {h.test.code}</span>
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="ti ti-calendar-time"></i> Submitted: {h.sub.time}
-                  </div>
-                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#185FA5', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="ti ti-target"></i> Score: {h.sub.score} / {h.test.totalMarks}
-                  </div>
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* CSS for Premium Blinking Effect */}
+            <style>{`
+                @keyframes recentPulse {
+                    0% { box-shadow: 0 0 0 0 rgba(24,95,165,0.4); border-color: #185FA5; }
+                    70% { box-shadow: 0 0 0 10px rgba(24,95,165,0); border-color: #60a5fa; }
+                    100% { box-shadow: 0 0 0 0 rgba(24,95,165,0); border-color: #185FA5; }
+                }
+            `}</style>
+            
+            {myHistory.map((h, idx) => {
+                // Smart check: Agar exam pichle 2 minute me submit hua hai, toh usko chamkao
+                const subTimeMs = h.sub.timestamp || Date.parse(h.sub.time) || 0;
+                const isRecent = (Date.now() - subTimeMs) < 120000; 
                 
-                <div style={{ flexShrink: 0, marginLeft: '15px' }}>
-                  {h.canView ? (
-                    <button className="btn btn-primary" style={{ padding: '10px 16px', fontWeight: 600 }} onClick={() => setSelectedResult(h)}>
-                      <i className="ti ti-eye"></i> View Report
-                    </button>
-                  ) : (
-                    <span className="badge b-amber" style={{ fontSize: '13px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <i className="ti ti-lock"></i> Pending Release
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+                return (
+                  /* 🔥 FIX 2 & 3: COMPACT CARDS & HIGHLIGHT NEWEST SUBMISSION */
+                  <div 
+                    key={idx} 
+                    className="test-entry" 
+                    style={{ 
+                        alignItems: 'center', 
+                        padding: '1rem 1.25rem', // Padding kam kar di (Sleek look)
+                        opacity: 0,
+                        animation: `staggerSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards${isRecent ? ', recentPulse 2s infinite' : ''}`,
+                        animationDelay: `${idx * 0.05}s, 0s`,
+                        borderLeft: h.canView ? '4px solid #185FA5' : '4px solid #f59e0b',
+                        background: isRecent ? '#f0f7ff' : 'var(--color-background-primary)', // Light blue bg for recent
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        borderRadius: '12px',
+                        border: isRecent ? '1px solid #185FA5' : '1px solid var(--color-border-secondary)'
+                    }}
+                  >
+                    <div className="te-meta" style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '16px', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {h.test.title} 
+                        {isRecent && <span style={{ background: '#185FA5', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>JUST NOW</span>}
+                        <span className="badge b-purple" style={{ fontSize: '11px', padding: '2px 8px', fontFamily: 'monospace' }}><i className="ti ti-hash"></i> {h.test.code}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '15px', marginTop: '6px', fontSize: '13px', color: '#64748b', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-calendar-time"></i> {h.sub.time}</span>
+                        <span style={{ fontWeight: 600, color: '#185FA5', display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-target"></i> Score: {h.sub.score} / {h.test.totalMarks}</span>
+                      </div>
+                    </div>
+                    
+                    <div style={{ flexShrink: 0, marginLeft: '12px' }}>
+                      {h.canView ? (
+                        <button className="btn btn-primary btn-sm" style={{ padding: '8px 16px', fontSize: '13px' }} onClick={() => setSelectedResult(h)}>
+                          View Result
+                        </button>
+                      ) : (
+                        <span className="badge b-amber" style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <i className="ti ti-lock"></i> Pending
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+            })}
           </div>
         )}
       </div>
@@ -343,36 +369,92 @@ export default function StudentResults() {
         <i className="ti ti-arrow-left"></i> Back to Results
       </button>
 
-      {/* Hero Section */}
-      <div className="result-hero">
-        <div style={{ fontSize: '15px', opacity: 0.85, marginBottom: '0.75rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '1px' }}>{test.title}</div>
-        <div style={{ fontSize: '24px', fontWeight: 600, marginBottom: '0.25rem' }}>{sub.name} {sub.roll ? '• ' + sub.roll : ''}</div>
-        <div style={{ fontSize: '14px', opacity: 0.8, marginBottom: '1.5rem' }}>{sub.time}</div>
-        <div style={{ display: 'inline-block', background: 'rgba(255,255,255,0.15)', borderRadius: '50%', width: '130px', height: '130px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', margin: '0 auto 1.5rem', boxShadow: '0 0 0 6px rgba(255,255,255,0.1)' }}>
-          <div style={{ fontSize: '42px', fontWeight: 600, marginBottom: '4px' }}>{sub.score}</div>
-          <div style={{ fontSize: '14px', opacity: 0.8, fontWeight: 500 }}>/ {test.totalMarks}</div>
-        </div>
-        <div style={{ fontSize: '18px', fontWeight: 600, background: 'rgba(0,0,0,0.15)', display: 'inline-block', padding: '8px 24px', borderRadius: '30px' }}>
-          {pct}% &bull; {pct >= 90 ? 'Excellent Score!' : pct >= 75 ? 'Great Job!' : pct >= 50 ? 'Good Effort' : pct >= 35 ? 'Keep Practicing' : 'Needs Improvement'}
-        </div>
-        {pct >= 75 && (
-          <div style={{ marginTop: '10px' }}>
-            <button className="btn btn-sm" style={{ background: '#FAEEDA', color: '#854F0B', borderColor: '#FAC775', fontWeight: 600, marginTop: '12px' }} onClick={generateCertificate}>
-              <i className="ti ti-medal"></i> Claim Certificate
-            </button>
+      {/* 🔥 PREMIUM HERO & SECURITY SECTION (V6 - Time Taken & Scrollable Alerts) 🔥 */}
+      <style>{`
+          
+          }
+      `}</style>
+
+      <div className="premium-hero">
+          {/* Background Decorative Glow */}
+          <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '200px', height: '200px', background: 'rgba(255, 255, 255, 0.1)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
+          <div style={{ position: 'absolute', bottom: '-50px', left: '10%', width: '150px', height: '150px', background: 'rgba(52, 211, 153, 0.2)', filter: 'blur(40px)', borderRadius: '50%' }}></div>
+
+          {/* Left Side: Student & Test Info */}
+          <div className="hero-left">
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.2)', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+                  <i className="ti ti-notebook" style={{ color: '#fff' }}></i> {test.title}
+              </div>
+              
+              <h2 className="hero-title">{sub.name}</h2>
+              
+              <div className="hero-tags" style={{ fontSize: '12px', color: '#e2e8f0', marginBottom: '1.25rem', fontWeight: 600 }}>
+                  {sub.roll && <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.2)', padding: '5px 10px', borderRadius: '8px' }}><i className="ti ti-id"></i> {sub.roll}</span>}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.2)', padding: '5px 10px', borderRadius: '8px' }}><i className="ti ti-calendar-time"></i> {sub.time}</span>
+                  
+                  {/* 🔥 NEW: TIME TAKEN FEATURE */}
+                  {sub.timeTaken && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(16,185,129,0.2)', padding: '5px 10px', borderRadius: '8px', color: '#a7f3d0', border: '1px solid rgba(16,185,129,0.3)' }}>
+                          <i className="ti ti-stopwatch"></i> Time Taken: {sub.timeTaken}
+                      </span>
+                  )}
+              </div>
+
+              <div className="hero-tags">
+                  {/* Premium Percentage Badge */}
+                  <span style={{ fontSize: '13px', fontWeight: 700, background: pct >= 75 ? 'rgba(52,211,153,0.2)' : pct >= 40 ? 'rgba(251,191,36,0.2)' : 'rgba(248,113,113,0.2)', color: '#fff', border: `1px solid ${pct >= 75 ? 'rgba(52,211,153,0.4)' : pct >= 40 ? 'rgba(251,191,36,0.4)' : 'rgba(248,113,113,0.4)'}`, padding: '6px 14px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px', backdropFilter: 'blur(10px)' }}>
+                      <i className="ti ti-activity" style={{ fontSize: '16px' }}></i> {pct}% &bull; {pct >= 90 ? 'Excellent' : pct >= 75 ? 'Great Job' : pct >= 50 ? 'Good Effort' : pct >= 35 ? 'Keep Practicing' : 'Needs Work'}
+                  </span>
+                  
+                  {/* Certificate Button */}
+                  {pct >= 75 && (
+                      <button onClick={generateCertificate} style={{ background: '#fff', color: '#185FA5', border: 'none', padding: '7px 16px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                          <i className="ti ti-medal" style={{ fontSize: '16px', color: '#d4af37' }}></i> Certificate
+                      </button>
+                  )}
+              </div>
           </div>
-        )}
+
+          {/* Right Side: Glowing Score Card */}
+          <div className="hero-score-ring">
+              <div style={{ position: 'absolute', inset: '6px', borderRadius: '50%', border: '2px dashed rgba(255,255,255,0.4)' }}></div>
+              <div className="hero-score-val">{sub.score}</div>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginTop: '4px', zIndex: 2, textTransform: 'uppercase', letterSpacing: '1px' }}>/ {test.totalMarks}</div>
+          </div>
       </div>
 
-      {/* Cheat Logs Warning */}
+      {/* 🔥 PREMIUM CHEAT LOGS WARNING 🔥 */}
       {sub.cheatLogs && sub.cheatLogs.length > 0 && (
-        <div className="card" style={{ borderColor: '#A32D2D', background: '#FCEBEB', marginBottom: '1.5rem', boxShadow: '0 4px 15px rgba(163, 45, 45, 0.1)' }}>
-            <h4 style={{ color: '#A32D2D', margin: '0 0 10px 0', fontSize: '16px' }}><i className="ti ti-shield-x" style={{ fontSize: '20px' }}></i> Security & Proctoring Alerts</h4>
-            <p style={{ fontSize: '13px', color: '#791F1F', marginBottom: '10px' }}>The system detected suspicious activity during the exam:</p>
-            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '14px', color: '#791F1F', lineHeight: 1.6 }}>
-                {sub.cheatLogs.map((log, index) => <li key={index} style={{ marginBottom: '6px' }}><strong>Warning {index + 1} [{log.time}]:</strong> {log.reason}</li>)}
-            </ul>
-            {sub.cheatLogs.length >= 3 && <div className="badge b-red" style={{ marginTop: '10px', padding: '6px 10px', fontSize: '13px' }}><i className="ti ti-ban"></i> Test Auto-Submitted due to repeated violations</div>}
+        <div className="security-card">
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.25rem' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', flexShrink: 0 }}>
+                    <i className="ti ti-shield-x"></i>
+                </div>
+                <div>
+                    <h4 style={{ margin: 0, fontSize: '16px', color: '#0f172a', fontWeight: 800 }}>Security & Proctoring Alert</h4>
+                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>System recorded suspicious activities</div>
+                </div>
+            </div>
+
+            {/* 🔥 FIX: Warning Rows (Now Scrollable!) */}
+            <div className="warn-container">
+                {sub.cheatLogs.map((log, index) => (
+                    <div key={index} className="warn-row" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ background: '#fee2e2', color: '#ef4444', fontSize: '10px', fontWeight: 800, padding: '4px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>Warning {index + 1}</div>
+                        <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}><i className="ti ti-clock"></i> {log.time}</div>
+                        <div className="warn-divider" style={{ width: '1px', height: '14px', background: '#cbd5e1' }}></div>
+                        <div className="warn-text" style={{ color: '#334155', fontSize: '13px', fontWeight: 600, flex: 1 }}>{log.reason}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Auto Submit Tag */}
+            {sub.cheatLogs.length >= 3 && (
+                <div style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', padding: '10px 16px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, boxShadow: '0 4px 15px rgba(239,68,68,0.3)' }}>
+                    <i className="ti ti-ban" style={{ fontSize: '16px' }}></i> Auto-Submitted Due To Violations
+                </div>
+            )}
         </div>
       )}
 
@@ -432,9 +514,16 @@ export default function StudentResults() {
                   <h3 style={{ fontSize: '17px', color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <i className="ti ti-device-analytics" style={{ color: '#185FA5', fontSize: '20px' }}></i> Performance Analytics
                   </h3>
-                  
+                  {/* 🔥 MAC-STYLE SLEEK SCROLLBAR */}
+                  <style>{`
+                      .premium-scroll::-webkit-scrollbar { height: 6px; }
+                      .premium-scroll::-webkit-scrollbar-track { background: transparent; }
+                      .premium-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                      .premium-scroll::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+                  `}</style>
+
                   {/* 📊 GRID 1: HORIZONTALLY SCROLLABLE METRICS (Phone Friendly & Premium) */}
-                  <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '12px', overflowX: 'auto', paddingBottom: '14px', WebkitOverflowScrolling: 'touch' }}>                
+                  <div className="premium-scroll" style={{ display: 'flex', flexWrap: 'nowrap', gap: '12px', overflowX: 'auto', paddingBottom: '14px', WebkitOverflowScrolling: 'touch' }}>                
                       {/* 🔥 NEW: Total Score Highlight Card */}
                       <div style={{ flex: '0 0 auto', minWidth: '160px', background: 'linear-gradient(135deg, #185FA5, #3C3489)', padding: '12px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 10px rgba(24,95,165,0.2)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
@@ -512,11 +601,11 @@ export default function StudentResults() {
                            <span>Attempted: {totalAttempted} / {totalQs}</span>
                       </div>
                       
-                      {/* Stacked Progress Bar */}
-                      <div style={{ display: 'flex', height: '14px', borderRadius: '10px', overflow: 'hidden', background: '#e2e8f0', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)' }}>
-                          <div style={{ width: `${cPct}%`, background: '#10b981', transition: 'width 1s ease' }}></div>
-                          <div style={{ width: `${wPct}%`, background: '#ef4444', transition: 'width 1s ease' }}></div>
-                          <div style={{ width: `${sPct}%`, background: '#94a3b8', transition: 'width 1s ease' }}></div>
+                      {/* Stacked Progress Bar (Lighter Pastel Colors) */}
+                      <div style={{ display: 'flex', height: '14px', borderRadius: '10px', overflow: 'hidden', background: '#f1f5f9', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)' }}>
+                          <div style={{ width: `${cPct}%`, background: '#34d399', transition: 'width 1s ease' }}></div> {/* Soft Green */}
+                          <div style={{ width: `${wPct}%`, background: '#fca5a5', transition: 'width 1s ease' }}></div> {/* Soft Red */}
+                          <div style={{ width: `${sPct}%`, background: '#cbd5e1', transition: 'width 1s ease' }}></div> {/* Soft Grey */}
                       </div>
                       
                       {/* Legends with Values */}
@@ -532,7 +621,7 @@ export default function StudentResults() {
                       <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '1.25rem', marginTop: '1.25rem' }}>
                           <div style={{ fontSize: '13px', fontWeight: 800, color: '#475569', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Section-wise Scores</div>
                           
-                          <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', overflowX: 'auto', paddingBottom: '14px', WebkitOverflowScrolling: 'touch' }}>
+                          <div className="premium-scroll" style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', overflowX: 'auto', paddingBottom: '14px', WebkitOverflowScrolling: 'touch' }}>
                               {Object.keys(sectionStats).map((sec, idx) => {
                                   const stat = sectionStats[sec];
                                   const secPercent = stat.max > 0 ? ((stat.score / stat.max) * 100).toFixed(0) : 0;
@@ -640,16 +729,34 @@ export default function StudentResults() {
                     {/* 🔥 FIX: MathJax Protector applied to Question Text */}
                     <StaticMath isBlock={true} html={q.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.5rem', color: 'var(--color-text-primary)', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} />
                     
-                    {/* Universal Hybrid Figure Renderer Wrapper */}
-                    <div className="hide-scroll" style={{ maxWidth: '100%', minWidth: 0 }}>
-                        <FigureRenderer figureType={q.figureType} figureData={q.figureData} />
-                    </div>
+                    {/* 🔥 NEW COMPACT FIGURE ENGINE (Perfectly Centered & No Extra Space) */}
+                    {q.figureType && q.figureType !== 'none' && q.figureData && (
+                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%', margin: '0.5rem 0 1.5rem 0' }}>
+                            
+                            {(q.figureType === 'image' || q.figureType === 'url') && (
+                                <img src={q.figureData} alt="Figure" style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain', background: '#fff' }} />
+                            )}
+                            
+                            {q.figureType === 'smiles' && (
+                                <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', display: 'inline-block', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                                    <SmilesViewer smilesCode={q.figureData} width={200} height={200} />
+                                </div>
+                            )}
+                            
+                            {q.figureType === 'tikz' && (
+                                <div className="hide-scroll" style={{ maxWidth: '100%', overflowX: 'auto', background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', display: 'inline-block', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                                    <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" style={{ maxWidth: '100%', objectFit: 'contain' }} />
+                                </div>
+                            )}
+                            
+                        </div>
+                    )}
                     
                     {/* Fallback for very old JSON imports that still use imgUrl */}
                     {!q.figureType && q.imgUrl && (
-                         <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
-                             <img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} alt="Legacy Question Figure" />
-                         </div>
+                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%', margin: '0.5rem 0 1.5rem 0' }}>
+                            <img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain', background: '#fff' }} alt="Legacy Question Figure" />
+                        </div>
                     )}
                                         
                     {/* MCQ / MSQ Options */}
