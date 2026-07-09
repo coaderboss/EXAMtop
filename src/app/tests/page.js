@@ -1182,28 +1182,24 @@ export default function ManageTests() {
                             </details>
                         )}
                         
-                        <div className="mt-8 flex flex-col gap-5">
-                            {/* 🔥 REDESIGNED AUDIT LOGS (Sleek Timeline Style) 🔥 */}
+                        <div className="mt-5 flex flex-col gap-3">
+                            {/* 🔥 ULTRA-COMPACT AUDIT LOGS 🔥 */}
                             {d.auditLogs && d.auditLogs.length > 0 && (
-                                <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-5">
-                                    <div className="font-extrabold text-[12px] text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                        <i className="ti ti-history text-base"></i> Evaluation History
+                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                        <i className="ti ti-history text-sm"></i> Evaluation History
                                     </div>
-                                    <div className="flex flex-col gap-4 relative before:absolute before:inset-y-0 before:left-[11px] before:w-[2px] before:bg-slate-200 ml-1">
+                                    <div className="flex flex-col gap-1.5">
                                         {d.auditLogs.map((log, lIdx) => (
-                                            <div key={lIdx} className="relative pl-8">
-                                                <div className="absolute left-0 top-1 w-[24px] h-[24px] bg-white border-2 border-slate-300 rounded-full flex items-center justify-center z-10 -ml-[5px]">
-                                                    <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+                                            <div key={lIdx} className="bg-white px-3 py-2 rounded-lg border border-slate-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 text-[12px]">
+                                                    <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 font-black text-[11px] shrink-0">{log.awarded} Mk</span>
+                                                    <span className="text-slate-600 truncate max-w-[200px] sm:max-w-sm italic" title={log.reason}>"{log.reason}"</span>
                                                 </div>
-                                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md">
-                                                    <div className="text-[13px] text-slate-800 font-semibold mb-1.5 flex items-center gap-2">
-                                                        Marks changed to <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 font-black">{log.awarded}</span>
-                                                    </div>
-                                                    <div className="text-[13px] text-slate-600 mb-3 italic bg-slate-50 p-2 rounded-lg border border-slate-100">"{log.reason}"</div>
-                                                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2 border-t border-slate-100">
-                                                        <span className="flex items-center gap-1.5"><i className="ti ti-user text-sm"></i> {log.examiner}</span>
-                                                        <span className="flex items-center gap-1.5"><i className="ti ti-clock text-sm"></i> {log.date}</span>
-                                                    </div>
+                                                <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                                                    <span><i className="ti ti-user"></i> {log.examiner}</span>
+                                                    <span className="hidden sm:inline">•</span>
+                                                    <span>{log.date}</span>
                                                 </div>
                                             </div>
                                         ))}
@@ -1211,32 +1207,29 @@ export default function ManageTests() {
                                 </div>
                             )}
 
-                            {/* 🔥 REDESIGNED OVERRIDE TOOL (Premium Action Area) 🔥 */}
-                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-2xl border-2 border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative overflow-hidden shadow-[0_4px_15px_rgb(0,0,0,0.02)]">
-                                <div className="absolute -right-6 -top-6 text-blue-200 opacity-40 text-8xl pointer-events-none"><i className="ti ti-award"></i></div>
-                                
-                                <div className="relative z-10">
-                                    <div className="text-[14px] text-blue-800 font-black flex items-center gap-2 mb-1">
-                                        <i className="ti ti-wand text-lg"></i> Manual Grade Override
+                            {/* 🔥 ULTRA-COMPACT OVERRIDE TOOL 🔥 */}
+                            <div className="bg-blue-50/80 border border-blue-100 p-3 rounded-xl flex items-center justify-between gap-3 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-inner">
+                                        <i className="ti ti-wand text-lg"></i>
                                     </div>
-                                    <div className="text-[12px] text-blue-600/80 font-semibold">
-                                        Adjust the marks for this specific question.
+                                    <div className="flex flex-col">
+                                        <span className="text-[13px] font-bold text-blue-800 leading-none mb-1">Grade Override</span>
+                                        <span className="text-[10px] font-semibold text-blue-500/80 leading-none">Update marks</span>
                                     </div>
                                 </div>
                                 
-                                <div className="relative z-10 flex items-center gap-3 bg-white p-2 rounded-xl border-2 border-blue-200 shadow-sm transition-all focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100">
+                                <div className="flex items-center gap-2 bg-white px-2 py-1.5 rounded-lg border border-blue-200 shadow-inner focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                                     <input 
                                         type="number" 
                                         max={q.marks} 
                                         step="0.25" 
                                         value={evalOverrides[originalQIdx] !== undefined ? evalOverrides[originalQIdx] : (d.earned || 0)} 
                                         onChange={(e) => setEvalOverrides({ ...evalOverrides, [originalQIdx]: e.target.value })} 
-                                        className="w-20 p-2 text-[18px] font-black text-blue-700 bg-blue-50 border-none rounded-lg text-center outline-none"
+                                        className="w-12 sm:w-14 text-[14px] font-black text-blue-700 bg-transparent text-center outline-none"
                                     />
-                                    <div className="flex flex-col pr-3">
-                                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Max</span>
-                                        <span className="text-[15px] font-black text-slate-700">{q.marks}</span>
-                                    </div>
+                                    <div className="w-px h-5 bg-slate-200"></div>
+                                    <div className="text-[11px] font-bold text-slate-400 pr-1 shrink-0">/ {q.marks}</div>
                                 </div>
                             </div>
                         </div>
@@ -1293,21 +1286,56 @@ export default function ManageTests() {
         // ==========================================
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
           
-          <button className="btn btn-ghost" style={{ marginBottom: '1.25rem', padding: 0, fontSize: '15px', color: '#475569', fontWeight: 600 }} onClick={() => setSelectedTest(null)}>
-              <i className="ti ti-arrow-left"></i> Back to Vault
-          </button>
+          {/* 🔥 PREMIUM TEST DASHBOARD HEADER & TABS 🔥 */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+              <button 
+                  className="flex w-fit items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors active:scale-95 text-sm" 
+                  onClick={() => setSelectedTest(null)}
+              >
+                  <i className="ti ti-arrow-left text-lg"></i> Back
+              </button>
+              
+              <div className="flex bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 w-full sm:w-fit overflow-hidden">
+                  <button 
+                      className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${activeTab === 'overview' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                      onClick={() => setActiveTab('overview')}
+                  >
+                      <i className="ti ti-dashboard"></i> Overview
+                  </button>
+                  <button 
+                      className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${activeTab === 'subs' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                      onClick={() => setActiveTab('subs')}
+                  >
+                      <i className="ti ti-users"></i> Subs
+                      <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${activeTab === 'subs' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500'}`}>
+                          {selectedTest.submissions ? selectedTest.submissions.length : 0}
+                      </span>
+                  </button>
+              </div>
+          </div>
 
-          <div className="card" style={{ borderTop: '4px solid #185FA5', padding: '1.5rem 2rem', marginBottom: '1.5rem', background: 'linear-gradient(to right, #ffffff, #f8fafc)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px' }}>
-                  <div>
-                      <h2 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: 800 }}>{selectedTest.title}</h2>
-                      <p style={{ margin: 0, color: '#475569', fontSize: '15px', fontWeight: 500 }}>
-                          Code: <span className="badge b-purple" style={{ fontFamily: 'monospace', fontSize: '16px', letterSpacing: '1px' }}>{selectedTest.code}</span> &nbsp;&bull;&nbsp; {selectedTest.duration} Mins &nbsp;&bull;&nbsp; {selectedTest.totalMarks} Marks
-                          {selectedTest.isLocal && <span className="badge b-amber" style={{ marginLeft: '10px' }}><i className="ti ti-device-floppy"></i> Local Data</span>}
-                      </p>
+          {/* 🔥 COMPACT DASHBOARD HERO CARD 🔥 */}
+          <div className="bg-slate-900 rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4 shadow-lg border border-slate-800 relative overflow-hidden mb-6">
+              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-blue-500 to-indigo-500"></div>
+              
+              <div className="flex flex-col min-w-0 z-10">
+                  <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-extrabold text-blue-400 uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded">
+                          {selectedTest.subject || 'General'}
+                      </span>
+                      {selectedTest.isLocal && <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-widest bg-amber-500/10 px-2 py-0.5 rounded flex items-center gap-1"><i className="ti ti-device-floppy"></i> Local</span>}
                   </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-white mb-2 tracking-tight truncate leading-tight">{selectedTest.title}</h2>
                   
-                  {/* 🔥 SMART UI BADGE (Live, Scheduled, or Closed) */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-300">
+                      <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 font-mono text-[11px]"><i className="ti ti-hash opacity-60"></i> {selectedTest.code}</span>
+                      <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-1"><i className="ti ti-clock text-slate-400"></i> {selectedTest.duration}m</span>
+                      <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-1"><i className="ti ti-target text-slate-400"></i> {selectedTest.totalMarks} Mk</span>
+                  </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="shrink-0 z-10 self-start sm:self-auto">
                   {(() => {
                       const stNow = Date.now();
                       const stClose = selectedTest.closeDate ? new Date(selectedTest.closeDate).getTime() : null;
@@ -1318,95 +1346,174 @@ export default function ManageTests() {
                       else if (stOpen && stNow < stOpen) stStatus = 'upcoming';
 
                       return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', 
-                              background: stStatus === 'live' ? '#d1fae5' : (stStatus === 'upcoming' ? '#fef3c7' : '#f1f5f9'), 
-                              color: stStatus === 'live' ? '#065f46' : (stStatus === 'upcoming' ? '#92400e' : '#475569'), 
-                              border: `1px solid ${stStatus === 'live' ? '#34d399' : (stStatus === 'upcoming' ? '#fbbf24' : '#cbd5e1')}`, 
-                              padding: '8px 16px', borderRadius: '30px', fontSize: '14px', fontWeight: 700 
-                          }}>
-                              {stStatus === 'live' && <><span style={{ width: '10px', height: '10px', background: '#10B981', borderRadius: '50%', animation: 'pulse 1s infinite' }}></span> Live Accepting</>}
-                              {stStatus === 'upcoming' && <><i className="ti ti-clock" style={{ fontSize: '16px' }}></i> Scheduled</>}
-                              {stStatus === 'closed' && <><span style={{ width: '10px', height: '10px', background: '#94a3b8', borderRadius: '50%' }}></span> Intake Closed</>}
+                          <div className={`flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs border shadow-sm ${stStatus === 'live' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : (stStatus === 'upcoming' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-slate-800 text-slate-400 border-slate-700')}`}>
+                              {stStatus === 'live' && <><span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span> Active</>}
+                              {stStatus === 'upcoming' && <><i className="ti ti-clock"></i> Scheduled</>}
+                              {stStatus === 'closed' && <><i className="ti ti-lock"></i> Closed</>}
                           </div>
                       );
                   })()}
               </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px', overflowX: 'auto' }}>
-              <button className="btn btn-ghost" style={{ fontSize: '15px', fontWeight: 600, color: activeTab === 'overview' ? '#185FA5' : '#64748b', background: activeTab === 'overview' ? '#E6F1FB' : 'transparent', borderRadius: '8px', padding: '10px 20px', whiteSpace: 'nowrap' }} onClick={() => setActiveTab('overview')}><i className="ti ti-dashboard"></i> Overview & Settings</button>
-              <button className="btn btn-ghost" style={{ fontSize: '15px', fontWeight: 600, color: activeTab === 'subs' ? '#185FA5' : '#64748b', background: activeTab === 'subs' ? '#E6F1FB' : 'transparent', padding: '10px 20px', whiteSpace: 'nowrap' }} onClick={() => setActiveTab('subs')}><i className="ti ti-users"></i> Submissions <span className="badge b-gray" style={{ marginLeft: '8px' }}>{selectedTest.submissions ? selectedTest.submissions.length : 0}</span></button>
-          </div>
-
+          {/* 🔥 MAIN OVERVIEW CONTENT (Logical Flow & Natural Heights) 🔥 */}
           {activeTab === 'overview' && (
-              <div className="grid2">
-                  <div className="card" style={{ borderRadius: '12px' }}>
-                      <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-tool" style={{ color: '#185FA5' }}></i> Essential Tools</h3>
-                      <div className="grid2" style={{ marginBottom: '1rem' }}>
-                          <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600 }} onClick={() => autoJoinLocalTest(selectedTest.code)}><i className="ti ti-player-play text-blue"></i> Demo Test</button>
-                          <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600 }} onClick={() => printTestPaper(selectedTest)}><i className="ti ti-printer"></i> Print Paper</button>
-                          <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#FAEEDA', color: '#854F0B', borderColor: '#FAC775' }} onClick={openEditKey}><i className="ti ti-key"></i> Edit Key</button>
-                          <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#EEEDFE', color: '#3C3489', borderColor: '#CECBF6' }} onClick={() => setModalType('analytics')}><i className="ti ti-chart-pie"></i> Analytics</button>
+              <div className="flex flex-col lg:flex-row gap-5 sm:gap-6 mb-8">
+                  
+                  {/* LEFT COLUMN: Takes up 60-65% width on Desktop */}
+                  <div className="flex flex-col gap-5 sm:gap-6 lg:w-[60%] xl:w-[65%]">
+                      
+                      {/* 1. INTAKE CONTROL (Now standard height, NO vertical stretching) */}
+                      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-[0_4px_20px_rgb(0,0,0,0.03)] flex flex-col sm:flex-row items-center justify-between gap-5">
+                          <div className="flex-1 text-center sm:text-left">
+                              <h3 className="text-[13px] sm:text-[14px] font-extrabold text-slate-800 uppercase tracking-widest mb-1.5 flex items-center justify-center sm:justify-start gap-2">
+                                  <i className="ti ti-door-enter text-blue-600 text-lg"></i> Exam Intake Access
+                              </h3>
+                              <p className="text-[12px] sm:text-[13px] text-slate-500 font-semibold leading-relaxed">
+                                  Control whether students can join this test right now. Locking the intake prevents any new entries.
+                              </p>
+                          </div>
+                          {(() => {
+                              const now = Date.now();
+                              const closeTime = selectedTest.closeDate ? new Date(selectedTest.closeDate).getTime() : null;
+                              const openTime = selectedTest.openDate ? new Date(selectedTest.openDate).getTime() : null;
+                              let isLive = !(selectedTest.isActive === false || (closeTime && now > closeTime));
+                              
+                              return (
+                                  <button 
+                                      className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm text-sm shrink-0 ${isLive ? 'bg-rose-50 text-rose-700 border-2 border-rose-200 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200 hover:bg-emerald-100'}`} 
+                                      onClick={() => toggleTestStatus(selectedTest)}
+                                  >
+                                      <i className={`ti ${isLive ? 'ti-lock' : 'ti-door-enter'} text-xl`}></i> {isLive ? 'Lock Exam Intake' : 'Open Intake Now'}
+                                  </button>
+                              );
+                          })()}
                       </div>
 
-                      {/*  NAYA: Configuration Card */}
-                  <div className="card" style={{ borderRadius: '12px' }}>
-                      <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-adjustments" style={{ color: '#854F0B' }}></i> Configuration</h3>
-                      
-                      <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 700, marginBottom: '12px', background: '#FEF5E5', color: '#d97706', borderColor: '#fcd34d' }} onClick={openEditSettings}>
-                          <i className="ti ti-edit"></i> Edit Time & Settings
-                      </button>
-                      
-                      <div style={{ fontSize: '14px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Duration:</strong> <span>{selectedTest.duration} Mins</span></div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Neg. Marking:</strong> <span>{selectedTest.negMarking || 0} Marks</span></div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Results:</strong> <span>{selectedTest.resultVis === 'instant' ? 'Instant' : 'Manual'}</span></div>
-                      </div>
-                  </div>
-                      
-                      {/*  FIX 3: Magic Recalculate Button */}
-                      {/* <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 700, background: '#FEF5E5', color: '#d97706', borderColor: '#fcd34d', marginBottom: '2rem' }} onClick={triggerMagicRecalculate}>
-                          <i className="ti ti-wand"></i> Fix Corrupted Scores (Remove Double-Negative)
-                      </button> */}
-
-                      <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-share" style={{ color: '#10B981' }}></i> 1-Click Share</h3>                      <div className="grid2">
-                          <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#dcf8c6', color: '#075e54', border: '1px solid #25d366' }} onClick={() => shareTest(selectedTest, 'whatsapp')}><i className="ti ti-brand-whatsapp" style={{ fontSize: '20px' }}></i> WhatsApp</button>
-                          <button className="btn" style={{ justifyContent: 'center', padding: '12px', fontWeight: 600, background: '#e0f2fe', color: '#0284c7', border: '1px solid #38bdf8' }} onClick={() => shareTest(selectedTest, 'telegram')}><i className="ti ti-brand-telegram" style={{ fontSize: '20px' }}></i> Telegram</button>
-                      </div>
-                  </div>
-
-                  <div className="card" style={{ borderRadius: '12px' }}>
-                      <h3 style={{ fontSize: '16px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-settings" style={{ color: '#64748b' }}></i> Access Controls</h3>
-                      
-                      {/* 🔥 SMART MANUAL OVERRIDE BUTTON */}
-                      {(() => {
-                          const now = Date.now();
-                          const closeTime = selectedTest.closeDate ? new Date(selectedTest.closeDate).getTime() : null;
-                          const openTime = selectedTest.openDate ? new Date(selectedTest.openDate).getTime() : null;
-                          
-                          let currentStatus = 'live';
-                          if (selectedTest.isActive === false || (closeTime && now > closeTime)) currentStatus = 'closed';
-                          else if (openTime && now < openTime) currentStatus = 'upcoming';
-                          
-                          const isLive = currentStatus === 'live';
-
-                          return (
-                              <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: '15px', marginBottom: '12px', background: isLive ? '#FCEBEB' : '#EAF3DE', color: isLive ? '#A32D2D' : '#3B6D11', borderColor: isLive ? '#A32D2D' : '#3B6D11', fontWeight: 700 }} onClick={() => toggleTestStatus(selectedTest)}>
-                                  <i className={`ti ${isLive ? 'ti-lock' : 'ti-door-enter'}`}></i> {isLive ? 'Close Exam Intake' : 'Force Open Intake Now'}
+                      {/* 2. MANAGEMENT TOOLS */}
+                      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                          <h3 className="text-[12px] font-extrabold text-slate-500 uppercase tracking-widest mb-5 flex items-center gap-1.5"><i className="ti ti-apps text-blue-500 text-lg"></i> Management Tools</h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <button onClick={() => autoJoinLocalTest(selectedTest.code)} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-blue-50 hover:border-blue-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-blue-600 group-hover:scale-105 transition-transform"><i className="ti ti-player-play text-xl"></i></div>
+                                  <div>
+                                      <div className="font-bold text-[14px] text-slate-800 group-hover:text-blue-700">Demo Test</div>
+                                      <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Experience as student</div>
+                                  </div>
                               </button>
-                          );
-                      })()}
+                              <button onClick={() => printTestPaper(selectedTest)} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-indigo-50 hover:border-indigo-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-indigo-600 group-hover:scale-105 transition-transform"><i className="ti ti-printer text-xl"></i></div>
+                                  <div>
+                                      <div className="font-bold text-[14px] text-slate-800 group-hover:text-indigo-700">Print Paper</div>
+                                      <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Generate PDF copy</div>
+                                  </div>
+                              </button>
+                              <button onClick={openEditKey} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-amber-50 hover:border-amber-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-amber-600 group-hover:scale-105 transition-transform"><i className="ti ti-key text-xl"></i></div>
+                                  <div>
+                                      <div className="font-bold text-[14px] text-slate-800 group-hover:text-amber-700">Edit Answer Key</div>
+                                      <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Fix errors & Auto-Regrade</div>
+                                  </div>
+                              </button>
+                              <button onClick={() => setModalType('analytics')} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-emerald-50 hover:border-emerald-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-emerald-600 group-hover:scale-105 transition-transform"><i className="ti ti-chart-pie text-xl"></i></div>
+                                  <div>
+                                      <div className="font-bold text-[14px] text-slate-800 group-hover:text-emerald-700">View Analytics</div>
+                                      <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Class performance stats</div>
+                                  </div>
+                              </button>
+                          </div>
+                      </div>
+
+                      {/* 3. RESULTS & SHARING */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                              <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5"><i className="ti ti-file-certificate text-indigo-500 text-lg"></i> Assessment Results</h3>
+                              {!selectedTest.released && selectedTest.resultVis === 'manual' ? (
+                                  <button className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-600 text-white shadow-md shadow-blue-600/30 hover:bg-blue-700 transition-all active:scale-95 text-sm" onClick={() => publishResults(selectedTest)}>
+                                      <i className="ti ti-send text-xl"></i> Publish Now
+                                  </button>
+                              ) : (
+                                  <div className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-slate-50 text-slate-500 border border-slate-200 text-sm">
+                                      <i className={`ti ${selectedTest.resultVis === 'instant' ? 'ti-bolt text-amber-500' : 'ti-check text-emerald-500'} text-xl`}></i> 
+                                      {selectedTest.resultVis === 'instant' ? 'Instant Access Active' : 'Results Published'}
+                                  </div>
+                              )}
+                          </div>
+                          
+                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                              <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5"><i className="ti ti-share text-emerald-500 text-lg"></i> Quick Sharing</h3>
+                              <div className="flex gap-2">
+                                  <button className="flex-1 p-3 rounded-xl bg-[#25d366]/10 text-[#075e54] hover:bg-[#25d366]/20 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-[#25d366]/20" onClick={() => shareTest(selectedTest, 'whatsapp')} title="Share via WhatsApp">
+                                      <i className="ti ti-brand-whatsapp text-xl"></i>
+                                  </button>
+                                  <button className="flex-1 p-3 rounded-xl bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/20 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-[#0088cc]/20" onClick={() => shareTest(selectedTest, 'telegram')} title="Share via Telegram">
+                                      <i className="ti ti-brand-telegram text-xl"></i>
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* RIGHT COLUMN: Takes up remaining space */}
+                  <div className="flex flex-col gap-5 sm:gap-6 lg:w-[40%] xl:w-[35%]">
                       
-                      {!selectedTest.released && selectedTest.resultVis === 'manual' && (
-                          <button className="btn btn-success" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 600, marginBottom: '12px' }} onClick={() => publishResults(selectedTest)}>
-                              <i className="ti ti-send"></i> Publish Results Manually
+                      {/* 4. CONFIGURATION (Added Radar) */}
+                      <div className="bg-slate-50 p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden flex-1">
+                          <i className="ti ti-settings absolute -right-4 -top-4 text-slate-200 text-7xl sm:text-8xl pointer-events-none opacity-50"></i>
+                          
+                          <div className="flex items-center justify-between mb-5 relative z-10">
+                              <h3 className="text-[12px] font-extrabold text-slate-600 uppercase tracking-widest flex items-center gap-1.5"><i className="ti ti-adjustments text-slate-700 text-lg"></i> Exam Settings</h3>
+                              <button className="text-[11px] font-bold text-blue-700 bg-blue-100/80 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors shadow-sm" onClick={openEditSettings}>Edit Settings</button>
+                          </div>
+                          
+                          <div className="flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm relative z-10 mb-5">
+                              <div className="flex justify-between items-center p-3.5 border-b border-slate-100">
+                                  <span className="text-[12px] font-bold text-slate-500">Duration</span>
+                                  <span className="text-[13px] font-black text-slate-800">{selectedTest.duration} Mins</span>
+                              </div>
+                              <div className="flex justify-between items-center p-3.5 border-b border-slate-100">
+                                  <span className="text-[12px] font-bold text-slate-500">Neg. Marking</span>
+                                  <span className="text-[13px] font-black text-rose-600">-{selectedTest.negMarking || 0}</span>
+                              </div>
+                              <div className="flex justify-between items-center p-3.5 border-b border-slate-100">
+                                  <span className="text-[12px] font-bold text-slate-500">Results Type</span>
+                                  <span className="text-[13px] font-black text-slate-800">{selectedTest.resultVis === 'instant' ? 'Instant' : 'Manual'}</span>
+                              </div>
+                              
+                              {/* 🔥 NEW: RADAR VISIBILITY ADDED HERE */}
+                              <div className="flex justify-between items-center p-3.5 border-b border-slate-100 bg-slate-50/50">
+                                  <span className="text-[12px] font-bold text-slate-500">Radar Visibility</span>
+                                  {selectedTest.radarVisible ? (
+                                      <span className="text-[11px] font-extrabold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 flex items-center gap-1"><i className="ti ti-eye text-[10px]"></i> VISIBLE</span>
+                                  ) : (
+                                      <span className="text-[11px] font-extrabold bg-slate-200 text-slate-600 px-2 py-0.5 rounded border border-slate-300 flex items-center gap-1"><i className="ti ti-eye-off text-[10px]"></i> HIDDEN</span>
+                                  )}
+                              </div>
+                              
+                              <div className="flex justify-between items-center p-3.5 bg-slate-50/50">
+                                  <span className="text-[12px] font-bold text-slate-500">Direct Entry</span>
+                                  {selectedTest.directEntry ? (
+                                      <span className="text-[11px] font-extrabold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1"><i className="ti ti-check text-[10px]"></i> ON</span>
+                                  ) : (
+                                      <span className="text-[11px] font-extrabold bg-slate-200 text-slate-500 px-2 py-0.5 rounded border border-slate-300">OFF</span>
+                                  )}
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* 5. DANGER ZONE */}
+                      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-rose-200 shadow-sm flex flex-col justify-between h-fit relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/4"></div>
+                          <div className="relative z-10">
+                              <h3 className="text-[12px] font-extrabold text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-2"><i className="ti ti-alert-triangle text-lg"></i> Danger Zone</h3>
+                              <p className="text-[12px] font-semibold text-slate-500 mb-5 leading-relaxed">
+                                  Irreversible action. Deletes all questions, analytics, and student submissions.
+                              </p>
+                          </div>
+                          <button className="w-full py-3 bg-rose-50 border-2 border-rose-200 text-rose-700 font-bold text-sm rounded-xl hover:bg-rose-100 hover:border-rose-300 transition-all active:scale-95 flex items-center justify-center gap-2 relative z-10 shadow-sm" onClick={() => triggerDelete(selectedTest)}>
+                              <i className="ti ti-trash text-lg"></i> Delete Entire Test
                           </button>
-                      )}
-                      
-                      <div style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px dashed #F7C1C1' }}>
-                          <h3 style={{ fontSize: '16px', color: '#A32D2D', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-alert-triangle"></i> Danger Zone</h3>
-                          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '15px' }}>Deleting a test is irreversible. All associated student submissions and analytics will be permanently erased.</p>
-                          <button className="btn btn-danger" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontWeight: 600 }} onClick={() => triggerDelete(selectedTest)}><i className="ti ti-trash"></i> Delete Entire Test</button>
                       </div>
                   </div>
               </div>
@@ -1534,77 +1641,116 @@ export default function ManageTests() {
               </div>
           )}
 
-         {/* 🔥 UPGRADED EDIT SETTINGS MODAL */}
+         {/* 🔥 UPGRADED EDIT SETTINGS MODAL (Ultra Premium SaaS Style) 🔥 */}
           {modalType === 'editSettings' && (
-              <div className="modal-bg" style={{ zIndex: 1000 }}>
-                  <div className="modal-box" style={{ maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-                      <h3 style={{ marginBottom: '1.5rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <i className="ti ti-adjustments"></i> Exam Configuration
-                      </h3>
+              <div className="modal-bg flex items-center justify-center p-4" style={{ zIndex: 10000, backdropFilter: 'blur(5px)', background: 'rgba(15, 23, 42, 0.6)' }}>
+                  <div className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-[popIn_0.3s_cubic-bezier(0.16,1,0.3,1)_forwards]">
                       
-                      <div className="grid2" style={{ gap: '15px', marginBottom: '15px' }}>
-                          <div>
-                              <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Duration (Mins)</label>
-                              <input type="number" value={editSettingsData.duration} onChange={e => setEditSettingsData({...editSettingsData, duration: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
-                          </div>
-                          <div>
-                              <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Negative Marking</label>
-                              <input type="number" step="0.25" value={editSettingsData.negMarking} onChange={e => setEditSettingsData({...editSettingsData, negMarking: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
-                          </div>
-                      </div>
-
-                      {/* 🔥 WAPAS AAYA HUA RESULT VISIBILITY DROPDOWN */}
-                      <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Result Visibility</label>
-                      <select value={editSettingsData.resultVis} onChange={e => setEditSettingsData({...editSettingsData, resultVis: e.target.value})} style={{ width: '100%', padding: '10px', marginBottom: '15px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none', background: '#fff' }}>
-                          <option value="manual">Manual (Publish Later)</option>
-                          <option value="instant">Instant (Show after submit)</option>
-                      </select>
-
-                      {/* 🔥 NAYA: START & END TIME GRID */}
-                      <div className="grid2" style={{ gap: '15px', marginBottom: '1.5rem' }}>
-                          <div>
-                              <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Schedule Start (Open)</label>
-                              <input type="datetime-local" value={editSettingsData.openDate} onChange={e => setEditSettingsData({...editSettingsData, openDate: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
-                          </div>
-                          <div>
-                              <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px', display: 'block' }}>Auto-Close Intake</label>
-                              <input type="datetime-local" value={editSettingsData.closeDate} onChange={e => setEditSettingsData({...editSettingsData, closeDate: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '2px solid #e2e8f0', outline: 'none' }} />
-                          </div>
-                      </div>
-
-                      <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '1.5rem' }}>                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                              <div style={{ fontWeight: 700, color: '#185FA5', fontSize: '14px' }}><i className="ti ti-radar"></i> Show on Student Radar?</div>
-                              <label className="toggle">
-                                  <input type="checkbox" checked={editSettingsData.radarVisible} onChange={e => setEditSettingsData({...editSettingsData, radarVisible: e.target.checked})} />
-                                  <span className="tog-slider"></span>
-                              </label>
-                          </div>
-                          <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 10px 0' }}>If OFF, students won't see this test even if they follow you. (Keeps test hidden as Draft).</p>
-                          
-                          {editSettingsData.radarVisible && (
-                              <div style={{ animation: 'fadeIn 0.3s ease' }}>
-                                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>Message / Note for Students (Optional)</label>
-                                  <textarea value={editSettingsData.radarNote} onChange={e => setEditSettingsData({...editSettingsData, radarNote: e.target.value})} placeholder="e.g. Bring your calculators..." style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', minHeight: '60px', resize: 'vertical' }}></textarea>
+                      {/* Modal Header */}
+                      <div className="bg-slate-50 p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+                          <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl shadow-inner"><i className="ti ti-adjustments"></i></div>
+                              <div>
+                                  <h3 className="text-lg font-black text-slate-800 m-0 leading-none">Exam Configuration</h3>
+                                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 leading-none">Manage Rules & Access</p>
                               </div>
-                          )}
-                      </div>
-
-                      <div style={{ background: '#ecfdf5', padding: '15px', borderRadius: '10px', border: '1px solid #a7f3d0', marginBottom: '1.5rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                              <div style={{ fontWeight: 700, color: '#059669', fontSize: '14px' }}><i className="ti ti-bolt"></i> Enable Direct Entry</div>
-                              <label className="toggle">
-                                  <input type="checkbox" checked={editSettingsData.directEntry} onChange={e => setEditSettingsData({...editSettingsData, directEntry: e.target.checked})} />
-                                  <span className="tog-slider"></span>
-                              </label>
                           </div>
-                          <p style={{ fontSize: '12px', color: '#065f46', margin: 0, opacity: 0.8 }}>
-                              If ON, students who saved their Roll Number in profile can join instantly without entering the exam code. (Default: OFF)
-                          </p>
+                          <button className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 transition-colors" onClick={() => setModalType(null)}>
+                              <i className="ti ti-x text-lg"></i>
+                          </button>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                          <button className="btn" style={{ flex: 1, padding: '12px', fontWeight: 600, justifyContent: 'center' }} onClick={() => setModalType(null)}>Cancel</button>
-                          <button className="btn btn-primary" style={{ flex: 1, padding: '12px', fontWeight: 600, justifyContent: 'center' }} onClick={saveTestSettings}><i className="ti ti-device-floppy"></i> Save Config</button>
+                      {/* Modal Body (Scrollable) */}
+                      <div className="p-5 sm:p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6 bg-slate-50/50">
+                          
+                          {/* Section 1: Core Rules */}
+                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                              <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><i className="ti ti-ruler-2"></i> Core Rules</h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div>
+                                      <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">Duration (Mins)</label>
+                                      <div className="relative">
+                                          <i className="ti ti-clock absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                                          <input type="number" value={editSettingsData.duration} onChange={e => setEditSettingsData({...editSettingsData, duration: e.target.value})} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all" />
+                                      </div>
+                                  </div>
+                                  <div>
+                                      <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">Negative Marking</label>
+                                      <div className="relative">
+                                          <i className="ti ti-minus absolute left-3.5 top-1/2 -translate-y-1/2 text-rose-400 text-lg"></i>
+                                          <input type="number" step="0.25" value={editSettingsData.negMarking} onChange={e => setEditSettingsData({...editSettingsData, negMarking: e.target.value})} className="w-full pl-10 pr-4 py-2.5 bg-rose-50/50 border-2 border-slate-200 rounded-xl text-sm font-bold text-rose-700 outline-none focus:border-rose-400 focus:bg-white transition-all" />
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+
+                          {/* Section 2: Schedule & Visibility */}
+                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                              <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><i className="ti ti-calendar-time"></i> Schedule & Visibility</h4>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                                  <div>
+                                      <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">Auto-Open Intake (Start)</label>
+                                      <input type="datetime-local" value={editSettingsData.openDate} onChange={e => setEditSettingsData({...editSettingsData, openDate: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all" />
+                                  </div>
+                                  <div>
+                                      <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">Auto-Close Intake (End)</label>
+                                      <input type="datetime-local" value={editSettingsData.closeDate} onChange={e => setEditSettingsData({...editSettingsData, closeDate: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all" />
+                                  </div>
+                              </div>
+
+                              <div className="flex items-center justify-between p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                                  <div>
+                                      <div className="text-[13px] font-black text-indigo-900 mb-0.5 flex items-center gap-1.5"><i className="ti ti-radar text-lg"></i> Show on Student Radar</div>
+                                      <div className="text-[11px] font-semibold text-indigo-700/70">If OFF, students won't see this test (Keeps it as Draft).</div>
+                                  </div>
+                                  <div className={`w-12 h-6 rounded-full cursor-pointer relative transition-colors duration-300 shrink-0 border border-black/5 ${editSettingsData.radarVisible ? 'bg-indigo-500' : 'bg-slate-300'}`} onClick={() => setEditSettingsData({...editSettingsData, radarVisible: !editSettingsData.radarVisible})}>
+                                      <div className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${editSettingsData.radarVisible ? 'left-6' : 'left-[2px]'}`}></div>
+                                  </div>
+                              </div>
+                              
+                              {editSettingsData.radarVisible && (
+                                  <div className="mt-3 animate-[fadeIn_0.3s_ease]">
+                                      <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">Note for Students (Optional)</label>
+                                      <textarea value={editSettingsData.radarNote} onChange={e => setEditSettingsData({...editSettingsData, radarNote: e.target.value})} placeholder="e.g. Bring your calculators..." className="w-full p-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-indigo-400 transition-all min-h-[60px] resize-y custom-scrollbar"></textarea>
+                                  </div>
+                              )}
+                          </div>
+
+                          {/* Section 3: Access & Security */}
+                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                              <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><i className="ti ti-shield-lock"></i> Access & Security</h4>
+                              
+                              <div className="mb-5">
+                                  <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">Results Visibility</label>
+                                  <div className="relative">
+                                      <select value={editSettingsData.resultVis} onChange={e => setEditSettingsData({...editSettingsData, resultVis: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all appearance-none cursor-pointer">
+                                          <option value="manual">Manual Verification (Publish Later)</option>
+                                          <option value="instant">Instant Access (Show after submit)</option>
+                                      </select>
+                                      <i className="ti ti-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                                  </div>
+                              </div>
+
+                              <div className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
+                                  <div>
+                                      <div className="text-[13px] font-black text-emerald-900 mb-0.5 flex items-center gap-1.5"><i className="ti ti-bolt text-lg"></i> Enable Direct Entry</div>
+                                      <div className="text-[11px] font-semibold text-emerald-700/70">Allow students to join instantly without the exam code.</div>
+                                  </div>
+                                  <div className={`w-12 h-6 rounded-full cursor-pointer relative transition-colors duration-300 shrink-0 border border-black/5 ${editSettingsData.directEntry ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={() => setEditSettingsData({...editSettingsData, directEntry: !editSettingsData.directEntry})}>
+                                      <div className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${editSettingsData.directEntry ? 'left-6' : 'left-[2px]'}`}></div>
+                                  </div>
+                              </div>
+                          </div>
+
+                      </div>
+
+                      {/* Modal Footer */}
+                      <div className="bg-white p-5 sm:p-6 border-t border-slate-100 flex gap-3 shrink-0">
+                          <button className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors active:scale-95" onClick={() => setModalType(null)}>Cancel</button>
+                          <button className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2" onClick={saveTestSettings}>
+                              <i className="ti ti-device-floppy text-lg"></i> Save Configuration
+                          </button>
                       </div>
                   </div>
               </div>
