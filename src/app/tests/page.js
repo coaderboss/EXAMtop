@@ -750,341 +750,536 @@ export default function ManageTests() {
         // ==========================================
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
           
-          {/*  SMART SCROLL SHUTTER FOR EVALUATION NAVBAR */}
-          <div 
-              id="eval-shutter-nav"
-              style={{ 
-              position: 'sticky', 
-              top: '60px', // Initial State
-              background: 'rgba(255, 255, 255, 0.90)', 
-              backdropFilter: 'blur(12px)',
-              zIndex: 90, 
-              padding: '12px 15px', 
-              margin: '0 -15px', // Edges tak khinchne ke liye (Mobile Optimized)
-              borderBottom: '1px solid rgba(0,0,0,0.05)', 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              transition: 'top 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, box-shadow 0.3s ease',
-              opacity: 1, // Initial State
-              boxShadow: '0 4px 25px rgba(0,0,0,0.06)' // Initial State
-          }}>
-              {/* Left Side: Back Button */}
+          {/* 🔥 STATIC PREMIUM EVALUATION NAVBAR 🔥 */}
+          <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-2xl border-2 border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] mb-2 mt-2">
               <button 
-                  className="btn btn-ghost" 
-                  style={{ fontWeight: 600, padding: '8px 12px', background: '#f1f5f9' }} 
+                  className="flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors active:scale-95" 
                   onClick={() => { setEvaluateSub(null); setEvalOverrides({}); setEvalSectionFilter('all_sections'); }}
               >
-                  <i className="ti ti-arrow-left"></i> <span className="hide-mobile" style={{ marginLeft: '4px' }}>Back</span>
+                  <i className="ti ti-arrow-left text-lg"></i> <span className="hidden sm:inline">Back to Vault</span>
               </button>
               
-              {/* Center Label (Mobile pe chhip jayega space bachane ke liye) */}
-              <div className="hide-mobile" style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  Evaluation Mode
+              <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg font-black text-[11px] uppercase tracking-widest border border-blue-100">
+                  <i className="ti ti-pencil-check text-base"></i> Evaluation Mode
               </div>
 
-              {/* Right Side: Save Button */}
               <button 
-                  className="btn btn-success" 
-                  style={{ fontWeight: 600, padding: '8px 16px', boxShadow: '0 4px 15px rgba(59,109,17,0.2)' }} 
+                  className="flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-2.5 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 hover:-translate-y-0.5 transition-all active:scale-95" 
                   onClick={() => setModalType('audit')}
               >
-                  <i className="ti ti-device-floppy"></i> Save <span className="hide-mobile" style={{ marginLeft: '4px' }}>Evaluation</span>
+                  <i className="ti ti-device-floppy text-lg"></i> <span>Save <span className="hidden sm:inline">Evaluation</span></span>
               </button>
           </div>
 
-          <div className="result-hero" style={{ background: '#114B87', borderRadius: '12px', padding: '2rem 1.5rem', textAlign: 'center', color: '#fff', margin: '1.5rem 0', boxShadow: '0 10px 25px rgba(24,95,165,0.2)' }}>
-              <div style={{ fontSize: '14px', opacity: 0.85, marginBottom: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>Evaluating Paper: {evaluateSub.test.title}</div>
-              <div style={{ fontSize: '26px', fontWeight: 700, marginBottom: '0.25rem' }}>{evaluateSub.sub.name} {evaluateSub.sub.roll ? '• ' + evaluateSub.sub.roll : ''}</div>
-              <div style={{ fontSize: '14px', opacity: 0.8, marginBottom: '1.5rem' }}>Submitted on: {evaluateSub.sub.time}</div>
+         {/* 🔥 EXAMINER PRO DASHBOARD (Ultra-Compact, Data-Driven) 🔥 */}
+          <div className="flex flex-col gap-4 mb-8 mt-2">
               
-             <div style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.1)', borderRadius: '50%', width: '130px', height: '130px', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', margin: '0 auto 1rem', border: '4px solid rgba(255,255,255,0.2)' }}>
-                  <div style={{ fontSize: '42px', fontWeight: 700, marginBottom: '4px', lineHeight: 1 }}>{evaluateSub.sub.score}</div>
-                  <div style={{ fontSize: '14px', opacity: 0.9, fontWeight: 600 }}>/ {evaluateSub.test.totalMarks}</div>
-              </div>
-              {/*  FIX: Centered Premium Percentage Badge */}
-              <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.25)', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 16px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', letterSpacing: '0.5px' }}>
-                      <i className="ti ti-target"></i> {((evaluateSub.sub.score / evaluateSub.test.totalMarks) * 100).toFixed(1)}% Accuracy
-                  </div>
-              </div>
-          </div>
-
-          <div className="grid4" style={{ marginBottom: '1.5rem' }}>
-              <div className="card" style={{ padding: '1.5rem', textAlign: 'center', marginBottom: 0 }}>
-                  <div style={{ color: '#185FA5', fontSize: '28px', fontWeight: 700 }}>{evaluateSub.sub.score}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748b', marginTop: '6px' }}>Total Score</div>
-              </div>
-              <div className="card" style={{ padding: '1.5rem', textAlign: 'center', marginBottom: 0 }}>
-                  <div style={{ color: '#3B6D11', fontSize: '28px', fontWeight: 700 }}>{evaluateSub.sub.correct}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748b', marginTop: '6px' }}>Correct</div>
-              </div>
-              <div className="card" style={{ padding: '1.5rem', textAlign: 'center', marginBottom: 0 }}>
-                  <div style={{ color: '#A32D2D', fontSize: '28px', fontWeight: 700 }}>{evaluateSub.sub.wrong}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748b', marginTop: '6px' }}>Incorrect</div>
-              </div>
-              <div className="card" style={{ padding: '1.5rem', textAlign: 'center', marginBottom: 0 }}>
-                  <div style={{ color: '#64748b', fontSize: '28px', fontWeight: 700 }}>{evaluateSub.sub.skipped}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748b', marginTop: '6px' }}>Pending / Skipped</div>
-              </div>
-          </div>
-
-          {/*  NAYA: Performance Overview Graph */}
-          <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-              <h3 style={{ margin: '0 0 1rem 0', fontSize: '16px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <i className="ti ti-chart-donut"></i> Performance Breakdown
-              </h3>
-              
-              <div style={{ display: 'flex', height: '16px', borderRadius: '8px', overflow: 'hidden', marginBottom: '1rem', background: '#f1f5f9' }}>
-                  <div style={{ width: `${(evaluateSub.sub.correct / evaluateSub.test.questions.length) * 100}%`, background: '#10B981', transition: 'width 1s ease' }}></div>
-                  <div style={{ width: `${(evaluateSub.sub.wrong / evaluateSub.test.questions.length) * 100}%`, background: '#EF4444', transition: 'width 1s ease' }}></div>
-                  <div style={{ width: `${(evaluateSub.sub.skipped / evaluateSub.test.questions.length) * 100}%`, background: '#94A3B8', transition: 'width 1s ease' }}></div>
-              </div>
-              <div style={{ display: 'flex', gap: '15px', fontSize: '13px', fontWeight: 600, color: '#64748b', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', background: '#10B981', borderRadius: '50%' }}></span> {Math.round((evaluateSub.sub.correct / evaluateSub.test.questions.length) * 100)}% Correct</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', background: '#EF4444', borderRadius: '50%' }}></span> {Math.round((evaluateSub.sub.wrong / evaluateSub.test.questions.length) * 100)}% Incorrect</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', background: '#94A3B8', borderRadius: '50%' }}></span> {Math.round((evaluateSub.sub.skipped / evaluateSub.test.questions.length) * 100)}% Skipped</div>
-              </div>
-          </div>
-
-          {/*  FIX: Integrity & Time Analytics Box (With Ultimate Data Catcher) */}
-          <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem', borderLeft: '4px solid #f59e0b', background: '#FEF5E5' }}>
-              <h3 style={{ margin: '0 0 1rem 0', fontSize: '16px', color: '#854F0B', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <i className="ti ti-shield-half-filled"></i> Integrity & Session Analytics
-              </h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-                  <div style={{ flex: 1, minWidth: '180px' }}>
-                      <div style={{ fontSize: '13px', color: '#b45309', marginBottom: '6px', fontWeight: 600 }}>Total Time Taken</div>
-                      <div style={{ fontSize: '18px', fontWeight: 700, color: '#854f0b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <i className="ti ti-clock"></i>
-                        {evaluateSub.sub.timeTaken ? evaluateSub.sub.timeTaken : <span style={{fontSize: '14px', color: '#b45309', fontWeight: 500}}>Not Tracked (Old Paper)</span>}
+              {/* 1. COMPACT HERO CARD */}
+              <div className="bg-slate-900 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-center gap-5 shadow-lg border border-slate-800 relative overflow-hidden">
+                  {/* Subtle Background Glow */}
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/4"></div>
+                  
+                  {/* Left Info */}
+                  <div className="w-full sm:w-auto flex flex-col items-center sm:items-start text-center sm:text-left z-10">
+                      <div className="text-[10px] font-extrabold text-blue-400 uppercase tracking-widest mb-1">
+                          Evaluating: {evaluateSub.test.title}
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-black text-white mb-2 leading-tight">
+                          {evaluateSub.sub.name}
+                      </h2>
+                      <div className="flex flex-wrap justify-center sm:justify-start items-center gap-2 text-xs font-semibold text-slate-300">
+                          {evaluateSub.sub.roll && <span className="bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">Roll: {evaluateSub.sub.roll}</span>}
+                          <span className="bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 flex items-center gap-1"><i className="ti ti-clock opacity-70"></i> {evaluateSub.sub.time}</span>
                       </div>
                   </div>
-                  
-                  <div style={{ flex: 2, minWidth: '250px' }}>
-                      <div style={{ fontSize: '13px', color: '#b45309', marginBottom: '6px', fontWeight: 600 }}>Proctoring Alerts / Logs</div>
-                      {(() => {
-                          //  ULTIMATE FALLBACK: Har possible naam check karo jisme student ne logs save kiye ho
-                           const logs = evaluateSub.sub.cheatLogs || evaluateSub.sub.antiCheatLogs || evaluateSub.sub.logs || evaluateSub.sub.events || evaluateSub.sub.warnings || [];                          if (logs.length > 0) {
-                              return (
-                                  <div style={{ maxHeight: '120px', overflowY: 'auto', background: '#fff', padding: '10px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
-                                      {logs.map((log, idx) => (
-                                          <div key={idx} style={{ fontSize: '13px', color: '#991b1b', marginBottom: '6px', display: 'flex', gap: '6px' }}>
-                                              <i className="ti ti-alert-triangle" style={{ marginTop: '2px' }}></i> 
-                                              <span>{typeof log === 'string' ? log : log.msg || log.type || log.event || JSON.stringify(log)}</span>
-                                          </div>
-                                      ))}
-                                  </div>
-                              );
-                          } else {
-                              return (
-                                  <div style={{ fontSize: '14px', color: '#166534', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', background: '#dcfce7', padding: '10px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
-                                      <i className="ti ti-check"></i> No suspicious activity detected. All clear.
-                                  </div>
-                              );
-                          }
-                      })()}
-                  </div>
-              </div>
-          </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)' }}>              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>Question-wise Analysis</h3>
-                  {(() => {
-                      //  DYNAMIC COUNT CALCULATION BASED ON ACTIVE SECTION (EXAMINER)
-                      const secDetails = evaluateSub.sub.details.filter(d => evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0])));
-                      const countAll = secDetails.length;
-                      const countCorrect = secDetails.filter(d => d.status === 'correct' || d.status === 'partial').length;
-                      const countWrong = secDetails.filter(d => d.status === 'wrong').length;
-                      const countSkipped = secDetails.filter(d => d.status === 'skipped' || d.status === 'submitted' || d.status === 'evaluated').length;
-
-                      return (
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              <button className="btn btn-sm" style={{ background: evalFilter === 'all' ? '#185FA5' : '#fff', color: evalFilter === 'all' ? '#fff' : '#64748b', border: evalFilter === 'all' ? 'none' : '1px solid #cbd5e1', borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => changeEvalStatus('all')}>All ({countAll})</button>
-                              <button className="btn btn-sm" style={{ background: evalFilter === 'correct' ? '#fff' : '#fff', color: evalFilter === 'correct' ? '#3B6D11' : '#64748b', border: `1px solid ${evalFilter === 'correct' ? '#3B6D11' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => changeEvalStatus('correct')}>Correct ({countCorrect})</button>
-                              <button className="btn btn-sm" style={{ background: evalFilter === 'wrong' ? '#fff' : '#fff', color: evalFilter === 'wrong' ? '#A32D2D' : '#64748b', border: `1px solid ${evalFilter === 'wrong' ? '#A32D2D' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => changeEvalStatus('wrong')}>Wrong ({countWrong})</button>
-                              <button className="btn btn-sm" style={{ background: evalFilter === 'skipped' ? '#fff' : '#fff', color: evalFilter === 'skipped' ? '#64748b' : '#64748b', border: `1px solid ${evalFilter === 'skipped' ? '#94a3b8' : '#cbd5e1'}`, borderRadius: '20px', padding: '6px 16px', fontWeight: 600 }} onClick={() => changeEvalStatus('skipped')}>Pending/Skipped ({countSkipped})</button>
+                  {/* Right Score */}
+                  <div className="flex items-center gap-4 z-10 w-full sm:w-auto justify-center sm:justify-end">
+                      <div className="flex flex-col items-end">
+                          <div className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest mb-1">Total Score</div>
+                          <div className="bg-slate-800/80 px-3 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5 shadow-inner">
+                              <span className="text-2xl font-black text-white">{evaluateSub.sub.score}</span>
+                              <span className="text-sm font-bold text-slate-500">/ {evaluateSub.test.totalMarks}</span>
                           </div>
-                      );
-                  })()}
+                      </div>
+                      {/* Circular Accuracy Indicator */}
+                      <div className="w-14 h-14 rounded-full border-4 border-slate-700 flex flex-col items-center justify-center shrink-0 relative bg-slate-800">
+                          {/* Green ring based on percentage (Simplified CSS representation) */}
+                          <div className="absolute inset-[-4px] rounded-full border-4 border-emerald-500 opacity-50" style={{ clipPath: `polygon(0 0, 100% 0, 100% ${(evaluateSub.sub.score / evaluateSub.test.totalMarks) * 100}%, 0 ${(evaluateSub.sub.score / evaluateSub.test.totalMarks) * 100}%)` }}></div>
+                          <span className="text-[13px] font-black text-white z-10">{((evaluateSub.sub.score / evaluateSub.test.totalMarks) * 100).toFixed(0)}%</span>
+                      </div>
+                  </div>
               </div>
 
-              {/* NEW: Section Scrollable Pill Menu for Examiner */}
-              {evaluateSub.test.sections && evaluateSub.test.sections.length > 0 && (
-                  <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '4px' }}>
-                      <button 
-                          className="btn btn-sm" 
-                          style={{ whiteSpace: 'nowrap', fontWeight: 600, background: evalSectionFilter === 'all_sections' ? '#185FA5' : '#f1f5f9', color: evalSectionFilter === 'all_sections' ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
-                          onClick={() => changeEvalSection('all_sections')}
-                      >
-                          All Sections
-                      </button>
-                      {evaluateSub.test.sections.map((sec, idx) => (
-                          <button 
-                              key={idx} 
-                              className="btn btn-sm" 
-                              style={{ whiteSpace: 'nowrap', fontWeight: 600, background: evalSectionFilter === sec ? '#185FA5' : '#f1f5f9', color: evalSectionFilter === sec ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
-                              onClick={() => changeEvalSection(sec)}
-                          >
-                              {sec}
-                          </button>
-                      ))}
-                  </div>
-              )}
-          </div>
-
-          {/* 🔥 PREMIUM SHUTTER WRAPPER: Fade and slight slide up animation */}
-          <div style={{ 
-              opacity: isEvalMathReady ? 1 : 0, 
-              transform: isEvalMathReady ? 'translateY(0)' : 'translateY(10px)', 
-              transition: 'opacity 0.2s ease-in-out, transform 0.2s ease-in-out', 
-              minHeight: '50vh' 
-             }}>
-              {evaluateSub.sub.details.filter(d => {
-                //  Dono conditions (Status aur Section) match honi chahiye
-              let sMatch = evalFilter === 'all' || d.status === evalFilter || (evalFilter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
-              let secMatch = evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0]));
-              return sMatch && secMatch;
-          }).map((d, index) => {
-              const originalQIdx = evaluateSub.sub.details.indexOf(d);
-              const q = d.q;
-              const ans = d.ans;
-              let userSel = Array.isArray(ans.val) ? ans.val : (ans.val !== null ? [ans.val] : []);
-              let corrSel = q.correct || [];
-
-              return (
-                  <div key={originalQIdx} className="q-review-card" style={{ marginBottom: '1.5rem', border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-                      <div className="qr-header" style={{ background: d.status === 'evaluated' ? '#EEEDFE' : 'var(--color-background-secondary)' }}>
-                          <i className="ti ti-pencil" style={{ fontSize: '20px', color: '#185FA5' }}></i>
-                          <span style={{ fontWeight: 600, fontSize: '15px' }}>Q{originalQIdx + 1} &mdash; {getLabel(q.type)}</span>
-                          <span style={{ marginLeft: 'auto', fontSize: '14px', fontWeight: 600 }}>Earned: {d.earned || 0} / {q.marks}</span>
+              {/* 🔥 2. SLEEK PERFORMANCE & SECTIONS (Replaces Bulky 4-Grid) 🔥 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  
+                  {/* Left: One-Line Smart Progress Bar */}
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                      <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest"><i className="ti ti-chart-bar text-blue-500 text-sm"></i> Performance Bar</h3>
+                          <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{evaluateSub.test.questions.length} Qs Total</span>
                       </div>
                       
-                      {/*  OVERFLOW FIX: Strict maxWidth aur hide-scroll laga diya */}
-                      <div className="qr-body hide-scroll" style={{ maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
-                         
-                         {/* 🔥 FIX: MathJax Protector applied to Question Text */}
-                         <StaticMath isBlock={true} html={q.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.25rem', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} />           
-                         
-                         {/* Universal Hybrid Figure Renderer Wrapper */}
-                         <div className="hide-scroll" style={{ maxWidth: '100%', minWidth: 0 }}>
-                             <FigureRenderer figureType={q.figureType} figureData={q.figureData} />
-                         </div>
-                         
-                         {/* Fallback for legacy tests that only have imgUrl */}
-                         {!q.figureType && q.imgUrl && (
-                             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
-                                 <img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '250px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)' }} alt="Legacy Question Figure" />
-                             </div>
-                         )}
-                                                   
-                          {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
-                              let isUser = userSel.includes(j);
-                              let isCorr = corrSel.includes(j);
-                              let cls = 'neutral', borderStyle = {};
-                              if (isCorr && isUser) { cls = 'correct'; borderStyle = { borderColor: '#3B6D11', background: '#EAF3DE' }; }
-                              else if (isCorr && !isUser) { cls = 'neutral'; borderStyle = { borderColor: '#C0DD97', background: '#f4f9ed' }; }
-                              else if (!isCorr && isUser) { cls = 'wrong'; borderStyle = { borderColor: '#A32D2D', background: '#FCEBEB' }; }
-
-                              return (
-                                  //  FIX 1: hide-scroll and maxWidth added to prevent outer div overflow
-                                  <div key={j} className={`qr-opt ${cls} hide-scroll`} style={{ ...borderStyle, maxWidth: '100%' }}>
-                                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, flexShrink: 0, background: 'rgba(255,255,255,0.7)' }}>{String.fromCharCode(65 + j)}</div>
-                                      
-                                      {/*  FIX 2: minWidth: 0 is CRITICAL for flexbox to allow inner scrolling without expanding the parent */}
-                                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0', minWidth: 0 }} className="hide-scroll">
-                                          
-                                          {/* MathJax Protector applied to Options */}
-                                          {o.startsWith('[smiles]') ? (
-                                              <div style={{ pointerEvents: 'none' }}>
-                                                  <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
-                                              </div>
-                                          ) : (
-                                              <StaticMath isBlock={true} html={o} style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400, whiteSpace: 'normal', wordBreak: 'break-word' }} />
-                                          )}
-
-                                          {(isUser || isCorr) && (
-                                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                                  {isUser && <span style={{ fontSize: '11px', background: '#185FA5', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Student Picked</span>}
-                                                  {isCorr && <span style={{ fontSize: '11px', background: '#3B6D11', color: '#fff', padding: '2px 6px', borderRadius: '4px' }}>Correct Key</span>}
-                                              </div>
-                                          )}
-                                      </div>
-                                      
-                                      {isCorr && isUser && <i className="ti ti-check" style={{ fontSize: '22px', color: '#3B6D11', flexShrink: 0 }}></i>}
-                                      {isUser && !isCorr && <i className="ti ti-x" style={{ fontSize: '22px', color: '#A32D2D', flexShrink: 0 }}></i>}
-                                  </div>
-                              );
-                          })}
-
-                          {q.type === 'integer' && (
-                              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '1rem' }}>
-                                  <div className={`qr-opt ${d.status}`} style={{ flex: 1, fontSize: '15px' }}>Student Typed: <strong style={{ fontSize: '18px', marginLeft: '8px' }}>{ans.val !== null ? ans.val : '—'}</strong></div>
-                                  <div className="qr-opt correct" style={{ flex: 1, fontSize: '15px' }}>Correct Key: <strong style={{ fontSize: '18px', marginLeft: '8px' }}>{q.correctInt}</strong></div>
-                              </div>
-                          )}
-
-                          {q.type === 'subjective' && (
-                              <div style={{ marginBottom: '1rem' }}>
-                                  <div style={{ padding: '1rem', background: 'var(--color-background-tertiary)', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', marginBottom: '1rem' }}>
-                                      <strong>Student Answer:</strong><br/><span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{ans.val || <em style={{ color: 'var(--color-text-secondary)' }}>No answer provided.</em>}</span>
-                                  </div>
-                                  {q.modelAnswer && (
-                                      <div style={{ padding: '1rem', background: '#EAF3DE', border: '1px solid #C0DD97', borderRadius: '8px', color: '#27500A' }}>
-                                          <strong>Model Answer (Reference):</strong><br/><span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{q.modelAnswer}</span>
-                                      </div>
-                                  )}
-                              </div>
-                          )}
-
-                          {q.explanation && (
-                              <div style={{ padding: '1rem', background: '#F8FAFC', borderRadius: '8px', borderLeft: '4px solid #475569', marginTop: '1.5rem', marginBottom: '1rem' }}>
-                                  <strong style={{ color: '#334155', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Correct Explanation / Logic:</strong>
-                                  {/* 🔥 FIX: MathJax Protector applied to Explanation */}
-                                  <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" style={{ fontSize: '14px', color: '#334155', lineHeight: 1.6 }} />
-                              </div>
-                          )}
-
-                          {d.auditLogs && d.auditLogs.length > 0 && (
-                              <div style={{ marginTop: '12px', marginBottom: '16px', padding: '10px', background: '#FEF5E5', border: '1px solid #FAC775', borderRadius: '6px', fontSize: '13px', color: '#633806' }}>
-                                  <div style={{ fontWeight: 600, marginBottom: '4px' }}><i className="ti ti-shield-check"></i> Past Evaluations</div>
-                                  {d.auditLogs.map((log, lIdx) => (
-                                      <div key={lIdx} style={{ borderBottom: lIdx !== d.auditLogs.length - 1 ? '1px dashed #FAC775' : 'none', paddingBottom: lIdx !== d.auditLogs.length - 1 ? '6px' : '0', marginBottom: lIdx !== d.auditLogs.length - 1 ? '6px' : '0' }}>
-                                          Marks overridden to <strong>{log.awarded}</strong>. Reason: "{log.reason}" <br />
-                                          <span style={{ fontSize: '11px', opacity: 0.8 }}>By: {log.examiner} | Date: {log.date}</span>
-                                      </div>
-                                  ))}
-                              </div>
-                          )}
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: '1rem' }}>
-                              <div style={{ fontSize: '14px', color: '#185FA5', fontWeight: 600 }}><i className="ti ti-edit"></i> Override / Award Marks:</div>
-                              <input 
-                                  type="number" 
-                                  max={q.marks} 
-                                  step="0.25" 
-                                  value={evalOverrides[originalQIdx] !== undefined ? evalOverrides[originalQIdx] : (d.earned || 0)} 
-                                  onChange={(e) => setEvalOverrides({ ...evalOverrides, [originalQIdx]: e.target.value })} 
-                                  style={{ width: '90px', padding: '6px', fontSize: '15px', fontWeight: 'bold', color: '#185FA5', border: '2px solid #185FA5', borderRadius: '6px', textAlign: 'center' }} 
-                              />
-                              <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>/ {q.marks} Max</span>
-                          </div>
+                      {/* Stacked Bar */}
+                      <div className="flex h-3.5 rounded-full overflow-hidden mb-4 bg-slate-100 shadow-inner">
+                          <div style={{ width: `${(evaluateSub.sub.correct / evaluateSub.test.questions.length) * 100}%` }} className="bg-emerald-500"></div>
+                          <div style={{ width: `${(evaluateSub.sub.wrong / evaluateSub.test.questions.length) * 100}%` }} className="bg-rose-500"></div>
+                          <div style={{ width: `${(evaluateSub.sub.skipped / evaluateSub.test.questions.length) * 100}%` }} className="bg-slate-300"></div>
+                      </div>
+                      
+                      {/* Legends */}
+                      <div className="flex justify-between items-center text-[12px] font-bold">
+                          <span className="flex items-center gap-1.5 text-emerald-700"><span className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span> {evaluateSub.sub.correct} Correct</span>
+                          <span className="flex items-center gap-1.5 text-rose-700"><span className="w-2.5 h-2.5 bg-rose-500 rounded-full"></span> {evaluateSub.sub.wrong} Wrong</span>
+                          <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2.5 h-2.5 bg-slate-300 rounded-full"></span> {evaluateSub.sub.skipped} Skipped</span>
                       </div>
                   </div>
-              );
-          })}
-          </div> 
 
+                  {/* Right: Ultra-Thin Section Marks */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                      <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5"><i className="ti ti-category text-indigo-500 text-sm"></i> Section-Wise Score</h3>
+                      <div className="flex-1 flex flex-col gap-1 overflow-y-auto max-h-[90px] custom-scrollbar pr-1">
+                          {(() => {
+                              const secStats = {};
+                              const sectionsList = evaluateSub.test.sections || [];
+                              if (sectionsList.length === 0) secStats['General Paper'] = { earned: 0, total: 0 };
+                              else sectionsList.forEach(s => secStats[s] = { earned: 0, total: 0 });
+
+                              evaluateSub.sub.details.forEach(d => {
+                                  const sec = d.q.section || sectionsList[0] || 'General Paper';
+                                  if (!secStats[sec]) secStats[sec] = { earned: 0, total: 0 };
+                                  secStats[sec].total += d.q.marks;
+                                  secStats[sec].earned += (d.earned || 0);
+                              });
+
+                              return Object.keys(secStats).map((sec, idx) => {
+                                  const sData = secStats[sec];
+                                  const pct = sData.total > 0 ? ((sData.earned / sData.total) * 100).toFixed(0) : 0;
+                                  
+                                  return (
+                                      <div key={sec} className={`flex items-center justify-between py-1.5 px-2 rounded hover:bg-slate-50 ${idx !== Object.keys(secStats).length - 1 ? 'border-b border-slate-100' : ''}`}>
+                                          <div className="font-bold text-[12.5px] text-slate-700 truncate mr-2 flex items-center gap-1.5"><i className="ti ti-folder text-slate-400 text-[14px]"></i> {sec}</div>
+                                          <div className="flex items-center gap-3 shrink-0">
+                                              <div className="text-[12.5px] font-black text-slate-800">{Number(sData.earned.toFixed(2))} <span className="text-[10px] font-bold text-slate-400">/ {sData.total}</span></div>
+                                              <div className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded w-10 text-center ${pct >= 75 ? 'bg-emerald-100 text-emerald-700' : pct >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>{pct}%</div>
+                                          </div>
+                                          
+                                      </div>
+                                  );
+                              });
+                          })()}
+                      </div>
+                  </div>
+              </div>
+
+              {/* 🔥 3. SMART PROCTORING SHUTTER (Accordion UI) 🔥 */}
+              {(() => {
+                  const logs = evaluateSub.sub.cheatLogs || evaluateSub.sub.antiCheatLogs || evaluateSub.sub.logs || evaluateSub.sub.events || evaluateSub.sub.warnings || [];
+                  const isClean = logs.length === 0;
+                  
+                  // Logic to check if student was auto-kicked (either 3+ warnings or explicit 'auto-submit' string)
+                  const isKicked = logs.length >= 3 || logs.some(l => typeof l === 'string' ? l.toLowerCase().includes('auto-submit') || l.toLowerCase().includes('violat') : (l.reason||l.msg||l.event||'').toLowerCase().includes('auto-submit'));
+                  
+                  // Dynamic styles based on status
+                  const sStyle = isClean ? { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', icon: 'ti-shield-check', badge: 'bg-emerald-100 text-emerald-800' } :
+                                 isKicked ? { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', icon: 'ti-ban', badge: 'bg-rose-600 text-white shadow-sm shadow-rose-500/30' } :
+                                 { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', icon: 'ti-alert-triangle', badge: 'bg-amber-500 text-white shadow-sm shadow-amber-500/30' };
+
+                  return (
+                      <details className={`group rounded-2xl border shadow-sm overflow-hidden transition-all duration-300 ${sStyle.bg}`}>
+                          <summary className="cursor-pointer p-4 flex items-center justify-between select-none hover:bg-black/5 transition-colors list-none [&::-webkit-details-marker]:hidden">
+                              
+                              <div className="flex flex-wrap items-center gap-3 md:gap-4 w-full md:w-auto">
+                                  {/* Time Taken Badge */}
+                                  <div className="flex items-center gap-1.5 text-slate-700 font-bold text-[13px] bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0">
+                                      <i className="ti ti-clock text-slate-500"></i> {evaluateSub.sub.timeTaken || <span className="opacity-60 text-[11px]">N/A</span>}
+                                  </div>
+                                  
+                                  {/* Dynamic Status Title */}
+                                  <div className={`flex items-center gap-2 font-black text-[14px] ${sStyle.text}`}>
+                                      <i className={`ti ${sStyle.icon} text-lg`}></i>
+                                      {isClean ? 'Clean Session (No Flags)' : 
+                                       isKicked ? 'AUTO-KICKED / SUBMITTED' : 
+                                       `${logs.length} Warning(s) Recorded`}
+                                  </div>
+                              </div>
+                              
+                              <div className={`w-8 h-8 rounded-full bg-white flex items-center justify-center ${sStyle.text} border ${sStyle.border} shadow-sm group-open:bg-current group-open:text-white transition-all transform group-open:rotate-180 shrink-0`}>
+                                  <i className="ti ti-chevron-down"></i>
+                              </div>
+                          </summary>
+                          
+                          {/* Shutter Content (Opens smoothly on click) */}
+                          <div className={`p-4 border-t bg-white/50 ${sStyle.border}`}>
+                              {isClean ? (
+                                  <div className="text-[13px] font-bold text-emerald-700 flex items-center gap-2">
+                                      <i className="ti ti-check bg-emerald-200 p-0.5 rounded-full"></i> 
+                                      The system did not detect any tab-switching or suspicious behavior during the exam.
+                                  </div>
+                              ) : (
+                                  <div className="max-h-[120px] overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-2">
+                                      {logs.map((log, idx) => {
+                                          let cleanReason = "Suspicious Activity", cleanTime = "";
+                                          if (typeof log === 'string') {
+                                              try { const parsed = JSON.parse(log); cleanReason = parsed.reason || parsed.event || log; cleanTime = parsed.time || ""; } 
+                                              catch(e) { cleanReason = log; }
+                                          } else {
+                                              cleanReason = log.reason || log.msg || log.event || "Alert Recorded"; cleanTime = log.time || "";
+                                          }
+
+                                          return (
+                                              <div key={idx} className="text-[12px] font-bold text-slate-700 flex items-start gap-2 leading-tight bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                                                  <div className="bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 mt-0.5">
+                                                      #{idx + 1}
+                                                  </div>
+                                                  <span className="flex-1 break-words mt-0.5">{cleanReason}</span>
+                                                  {cleanTime && <span className="shrink-0 px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] rounded uppercase font-black tracking-wider border border-slate-200 mt-0.5">{cleanTime}</span>}
+                                              </div>
+                                          );
+                                      })}
+                                  </div>
+                              )}
+                          </div>
+                      </details>
+                  );
+              })()}
+          </div>
+
+          {/* 🔥 MINIMALIST & ADVANCED FILTERS (Apple/Stripe Style) - EXAMINER MODE 🔥 */}
+          <div className="mb-6 border-b border-slate-200 pb-5 mt-8">
+            <div className="flex flex-col gap-4">
+                
+                {/* Header & Status Filters */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <h3 className="text-[17px] font-extrabold text-slate-800 flex items-center gap-2 tracking-tight">
+                        <i className="ti ti-adjustments-horizontal text-blue-600 text-xl"></i> Evaluation Filters
+                    </h3>
+                    
+                    {(() => {
+                        const secDetails = evaluateSub.sub.details.filter(d => evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0])));
+                        const countAll = secDetails.length;
+                        const countCorrect = secDetails.filter(d => d.status === 'correct' || d.status === 'partial').length;
+                        const countWrong = secDetails.filter(d => d.status === 'wrong').length;
+                        const countSkipped = secDetails.filter(d => d.status === 'skipped' || d.status === 'submitted' || d.status === 'evaluated').length;
+                        
+                        return (
+                            <div className="inline-flex bg-slate-100/80 p-1.5 rounded-xl overflow-x-auto scrollbar-hide -webkit-overflow-scrolling-touch border border-slate-200/60 w-full md:w-auto">
+                              
+                              <button 
+                                  className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${evalFilter === 'all' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                                  onClick={() => { changeEvalStatus('all'); setTimeout(() => setIsEvalMathReady(true), 500); }}
+                              >
+                                  All <span className={`ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black ${evalFilter === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500'}`}>{countAll}</span>
+                              </button>
+                              
+                              <button 
+                                  className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${evalFilter === 'correct' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                                  onClick={() => { changeEvalStatus('correct'); setTimeout(() => setIsEvalMathReady(true), 500); }}
+                              >
+                                  Correct <span className={`ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black ${evalFilter === 'correct' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>{countCorrect}</span>
+                              </button>
+                              
+                              <button 
+                                  className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${evalFilter === 'wrong' ? 'bg-white text-rose-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                                  onClick={() => { changeEvalStatus('wrong'); setTimeout(() => setIsEvalMathReady(true), 500); }}
+                              >
+                                  Wrong <span className={`ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${evalFilter === 'wrong' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-500'}`}>{countWrong}</span>
+                              </button>
+                              
+                              <button 
+                                  className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${evalFilter === 'skipped' ? 'bg-white text-slate-800 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                                  onClick={() => { changeEvalStatus('skipped'); setTimeout(() => setIsEvalMathReady(true), 500); }}
+                              >
+                                  Pending <span className={`ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black ${evalFilter === 'skipped' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200 text-slate-500'}`}>{countSkipped}</span>
+                              </button>
+                            </div>
+                        );
+                    })()}
+                </div>
+
+                {/* Section Filters (Sleek Pills) */}
+                {evaluateSub.test.sections && evaluateSub.test.sections.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -webkit-overflow-scrolling-touch">
+                        <button 
+                            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-all duration-200 border ${evalSectionFilter === 'all_sections' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`} 
+                            onClick={() => { changeEvalSection('all_sections'); setTimeout(() => setIsEvalMathReady(true), 500); }}
+                        >
+                            All Sections
+                        </button>
+                        {evaluateSub.test.sections.map((sec, idx) => (
+                            <button 
+                                key={idx} 
+                                className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-all duration-200 border ${evalSectionFilter === sec ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`} 
+                                onClick={() => { changeEvalSection(sec); setTimeout(() => setIsEvalMathReady(true), 500); }}
+                            >
+                                {sec}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+          </div>
+
+          {/* 🔥 PREMIUM QUESTION REVIEW CARDS (Examiner Mode) 🔥 */}
+          {/* ⚡ FIX: Added min-opacity 0.1 so it never completely disappears, and added a robust fallback in state toggles above */}
+          <div style={{ opacity: isEvalMathReady ? 1 : 0.05, transition: 'opacity 0.2s ease-in', minHeight: '50vh' }} className="flex flex-col gap-6">
+            {evaluateSub.sub.details.filter(d => {
+                let sMatch = evalFilter === 'all' || d.status === evalFilter || (evalFilter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
+                let secMatch = evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0]));
+                return sMatch && secMatch;
+            }).map((d, index) => {
+               const originalQIdx = evaluateSub.sub.details.indexOf(d);
+               const q = d.q;
+               const ans = d.ans;
+               
+               const statusColors = {
+                   correct: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-800', icon: 'ti-circle-check', header: 'bg-emerald-100/50' },
+                   wrong: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-800', icon: 'ti-circle-x', header: 'bg-rose-100/50' },
+                   partial: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800', icon: 'ti-adjustments-alt', header: 'bg-amber-100/50' },
+                   evaluated: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', icon: 'ti-pencil', header: 'bg-blue-100/50' },
+                   submitted: { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-800', icon: 'ti-file-search', header: 'bg-indigo-100/50' },
+                   skipped: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', icon: 'ti-minus', header: 'bg-slate-100/50' }
+               };
+               
+               const sColor = statusColors[d.status] || statusColors.skipped;
+               let userSel = Array.isArray(ans.val) ? ans.val : (ans.val !== null ? [ans.val] : []);
+               let corrSel = q.correct || [];
+
+               return (
+                 <div key={originalQIdx} className={`bg-white rounded-2xl border ${sColor.border} overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1`}>
+                    
+                    {/* Header Section */}
+                    <div className={`px-5 py-3 ${sColor.header} border-b ${sColor.border} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
+                        <div className={`flex items-center gap-2 font-bold ${sColor.text} text-[15px]`}>
+                            <i className={`ti ${sColor.icon} text-[20px]`}></i>
+                            <span>Question {originalQIdx + 1} <span className="opacity-50 mx-1">|</span> {getLabel(q.type)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-white shadow-sm">
+                                Earned: {d.earned || 0} / {q.marks}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Body Section */}
+                    <div className="p-5 overflow-x-auto hide-scroll w-full">
+                        
+                        <StaticMath isBlock={true} html={q.text} className="text-[16px] leading-relaxed text-slate-800 font-medium mb-5 whitespace-normal break-words" />
+                        
+                        {/* Universal Compact Figure Engine */}
+                        {q.figureType && q.figureType !== 'none' && q.figureData && (
+                            <div className="flex justify-center w-full my-4">
+                                {(q.figureType === 'image' || q.figureType === 'url') && (
+                                    <img src={q.figureData} alt="Figure" className="max-w-full max-h-[200px] rounded-lg border border-slate-200 object-contain bg-white shadow-sm" />
+                                )}
+                                {q.figureType === 'smiles' && (
+                                    <div className="bg-white p-3 rounded-lg border border-slate-200 inline-block shadow-sm">
+                                        <SmilesViewer smilesCode={q.figureData} width={200} height={200} />
+                                    </div>
+                                )}
+                                {q.figureType === 'tikz' && (
+                                    <div className="hide-scroll max-w-full overflow-x-auto bg-white p-3 rounded-lg border border-slate-200 inline-block shadow-sm">
+                                        <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" className="max-w-full object-contain" />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        
+                        {/* Fallback Legacy Image */}
+                        {!q.figureType && q.imgUrl && (
+                            <div className="flex justify-center w-full my-4">
+                                <img src={q.imgUrl} className="max-w-full max-h-[200px] rounded-lg border border-slate-200 object-contain bg-white shadow-sm" alt="Legacy Figure" />
+                            </div>
+                        )}
+                                            
+                        {/* MCQ / MSQ Options */}
+                        <div className="flex flex-col gap-3">
+                            {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
+                                let isUser = userSel.includes(j);
+                                let isCorr = corrSel.includes(j);
+                                
+                                let optBg = 'bg-slate-50 hover:bg-slate-100', optBorder = 'border-slate-200', optText = 'text-slate-700', iconUi = null;
+                                if (isCorr && isUser) { optBg = 'bg-emerald-50'; optBorder = 'border-emerald-300'; optText = 'text-emerald-900 font-semibold'; iconUi = <i className="ti ti-check text-2xl text-emerald-600 flex-shrink-0"></i>; }
+                                else if (isCorr && !isUser) { optBg = 'bg-emerald-50/50'; optBorder = 'border-emerald-200 border-dashed'; optText = 'text-emerald-800'; iconUi = <i className="ti ti-check text-2xl text-emerald-400 opacity-50 flex-shrink-0"></i>; }
+                                else if (!isCorr && isUser) { optBg = 'bg-rose-50'; optBorder = 'border-rose-300'; optText = 'text-rose-900 font-semibold'; iconUi = <i className="ti ti-x text-2xl text-rose-600 flex-shrink-0"></i>; }
+
+                                return (
+                                    <div key={j} className={`flex items-start gap-4 p-4 rounded-xl border ${optBg} ${optBorder} transition-colors duration-200 w-full overflow-hidden`}>
+                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 border-2 bg-white ${isCorr && isUser ? 'border-emerald-500 text-emerald-600' : (!isCorr && isUser) ? 'border-rose-500 text-rose-600' : 'border-slate-400 text-slate-500'}`}>
+                                            {String.fromCharCode(65 + j)}
+                                        </div>
+                                        <div className="flex-1 flex flex-col gap-2 min-w-0">
+                                            {o.startsWith('[smiles]') ? (
+                                                <div className="pointer-events-none bg-white p-2 rounded-lg border border-slate-200 inline-block w-fit">
+                                                    <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
+                                                </div>
+                                            ) : (
+                                                <StaticMath isBlock={true} html={o} className={`text-[15px] whitespace-normal break-words ${optText}`} />
+                                            )}
+                                            {(isUser || isCorr) && (
+                                                <div className="flex gap-2 flex-wrap mt-1">
+                                                    {isUser && <span className="text-[10px] uppercase tracking-wide font-bold bg-blue-600 text-white px-2 py-0.5 rounded shadow-sm"><i className="ti ti-hand-click"></i> Student Picked</span>}
+                                                    {isCorr && <span className="text-[10px] uppercase tracking-wide font-bold bg-emerald-600 text-white px-2 py-0.5 rounded shadow-sm"><i className="ti ti-key"></i> Correct Key</span>}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {iconUi}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Integer Type */}
+                        {q.type === 'integer' && (
+                            <div className="flex flex-col sm:flex-row gap-4 mt-2">
+                                <div className={`flex-1 p-4 rounded-xl border flex flex-col justify-center ${d.status === 'correct' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                                    <span className="text-xs uppercase font-bold opacity-70 mb-1">Student Answer</span>
+                                    <strong className="text-2xl">{ans.val !== null ? ans.val : '—'}</strong>
+                                </div>
+                                <div className="flex-1 p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800 flex flex-col justify-center relative overflow-hidden">
+                                    <i className="ti ti-key absolute -right-2 -bottom-2 text-6xl opacity-10"></i>
+                                    <span className="text-xs uppercase font-bold opacity-70 mb-1">Correct Answer</span>
+                                    <strong className="text-2xl">{q.correctInt}</strong>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Subjective Type */}
+                        {q.type === 'subjective' && (
+                            <div className="flex flex-col gap-4 mt-2">
+                                <div className="p-4 rounded-xl border bg-slate-50 border-slate-200 flex gap-3 items-start">
+                                    <i className="ti ti-pencil text-blue-600 text-xl mt-0.5 flex-shrink-0"></i>
+                                    <div>
+                                        <span className="text-xs uppercase font-bold text-slate-500 mb-1 block">Student Answer</span>
+                                        <span className="text-[15px] leading-relaxed text-slate-700 whitespace-pre-wrap">{ans.val || <em className="text-slate-400">No answer written.</em>}</span>
+                                    </div>
+                                </div>
+                                {q.modelAnswer && (
+                                    <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 flex gap-3 items-start">
+                                        <i className="ti ti-bulb text-emerald-600 text-xl mt-0.5 flex-shrink-0"></i>
+                                        <div>
+                                            <span className="text-xs uppercase font-bold text-emerald-600 mb-1 block">Model Answer</span>
+                                            <span className="text-[15px] leading-relaxed text-emerald-900 whitespace-pre-wrap">{q.modelAnswer}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Smart Accordion Explanation */}
+                        {q.explanation && (
+                            <details className="group mt-6 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden transition-all duration-300">
+                                <summary className="cursor-pointer p-4 font-semibold text-slate-700 flex items-center justify-between hover:bg-slate-100 transition-colors select-none">
+                                    <span className="flex items-center gap-2"><i className="ti ti-bulb text-lg text-slate-500"></i> View Solution / Logic</span>
+                                    <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 group-open:bg-slate-700 group-open:text-white transition-colors">
+                                        <i className="ti ti-chevron-down transform group-open:rotate-180 transition-transform duration-300"></i>
+                                    </div>
+                                </summary>
+                                <div className="p-5 border-t border-slate-200 text-[15px] text-slate-700 leading-relaxed bg-white">
+                                    <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" />
+                                </div>
+                            </details>
+                        )}
+                        
+                        <div className="mt-8 flex flex-col gap-5">
+                            {/* 🔥 REDESIGNED AUDIT LOGS (Sleek Timeline Style) 🔥 */}
+                            {d.auditLogs && d.auditLogs.length > 0 && (
+                                <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-5">
+                                    <div className="font-extrabold text-[12px] text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <i className="ti ti-history text-base"></i> Evaluation History
+                                    </div>
+                                    <div className="flex flex-col gap-4 relative before:absolute before:inset-y-0 before:left-[11px] before:w-[2px] before:bg-slate-200 ml-1">
+                                        {d.auditLogs.map((log, lIdx) => (
+                                            <div key={lIdx} className="relative pl-8">
+                                                <div className="absolute left-0 top-1 w-[24px] h-[24px] bg-white border-2 border-slate-300 rounded-full flex items-center justify-center z-10 -ml-[5px]">
+                                                    <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+                                                </div>
+                                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:shadow-md">
+                                                    <div className="text-[13px] text-slate-800 font-semibold mb-1.5 flex items-center gap-2">
+                                                        Marks changed to <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 font-black">{log.awarded}</span>
+                                                    </div>
+                                                    <div className="text-[13px] text-slate-600 mb-3 italic bg-slate-50 p-2 rounded-lg border border-slate-100">"{log.reason}"</div>
+                                                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2 border-t border-slate-100">
+                                                        <span className="flex items-center gap-1.5"><i className="ti ti-user text-sm"></i> {log.examiner}</span>
+                                                        <span className="flex items-center gap-1.5"><i className="ti ti-clock text-sm"></i> {log.date}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 🔥 REDESIGNED OVERRIDE TOOL (Premium Action Area) 🔥 */}
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-2xl border-2 border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative overflow-hidden shadow-[0_4px_15px_rgb(0,0,0,0.02)]">
+                                <div className="absolute -right-6 -top-6 text-blue-200 opacity-40 text-8xl pointer-events-none"><i className="ti ti-award"></i></div>
+                                
+                                <div className="relative z-10">
+                                    <div className="text-[14px] text-blue-800 font-black flex items-center gap-2 mb-1">
+                                        <i className="ti ti-wand text-lg"></i> Manual Grade Override
+                                    </div>
+                                    <div className="text-[12px] text-blue-600/80 font-semibold">
+                                        Adjust the marks for this specific question.
+                                    </div>
+                                </div>
+                                
+                                <div className="relative z-10 flex items-center gap-3 bg-white p-2 rounded-xl border-2 border-blue-200 shadow-sm transition-all focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100">
+                                    <input 
+                                        type="number" 
+                                        max={q.marks} 
+                                        step="0.25" 
+                                        value={evalOverrides[originalQIdx] !== undefined ? evalOverrides[originalQIdx] : (d.earned || 0)} 
+                                        onChange={(e) => setEvalOverrides({ ...evalOverrides, [originalQIdx]: e.target.value })} 
+                                        className="w-20 p-2 text-[18px] font-black text-blue-700 bg-blue-50 border-none rounded-lg text-center outline-none"
+                                    />
+                                    <div className="flex flex-col pr-3">
+                                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Max</span>
+                                        <span className="text-[15px] font-black text-slate-700">{q.marks}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                 </div>
+               );
+            })}
+          </div>
+
+          {/* 🔥 PREMIUM AUDIT MODAL 🔥 */}
           {modalType === 'audit' && (
-              <div className="modal-bg" style={{ zIndex: 1000 }}>
-                  <div className="modal-box">
-                      <h3 style={{ color: '#854F0B', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-shield-check"></i> Evaluation Audit</h3>
-                      <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>To ensure transparency, please provide a justification for these manual overrides.</p>
-                      <label>Reason for changing marks: <span style={{ color: '#A32D2D' }}>*</span></label>
-                      <textarea value={auditReason} onChange={e => setAuditReason(e.target.value)} placeholder="e.g., 'Partial marks for correct formula'" style={{ minHeight: '80px', marginBottom: '1.5rem', width: '100%' }}></textarea>
-                      <div style={{ display: 'flex', gap: '12px' }}>
-                          <button className="btn" style={{ flex: 1 }} onClick={() => setModalType(null)}>Cancel</button>
-                          <button className="btn btn-primary" style={{ flex: 1 }} onClick={saveEvaluation}><i className="ti ti-lock"></i> Confirm & Save</button>
+              <div className="modal-bg flex items-center justify-center p-4" style={{ zIndex: 10000, backdropFilter: 'blur(8px)', background: 'rgba(15, 23, 42, 0.7)' }}>
+                  <div className="bg-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl transform transition-all animate-[popIn_0.3s_cubic-bezier(0.16,1,0.3,1)_forwards]">
+                      
+                      <div className="bg-amber-50 p-6 border-b border-amber-100 flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-2xl shrink-0"><i className="ti ti-shield-check"></i></div>
+                          <div>
+                              <h3 className="text-xl font-black text-amber-900 m-0">Evaluation Audit</h3>
+                              <p className="text-xs font-bold text-amber-700/70 uppercase tracking-widest mt-1">Transparency Log</p>
+                          </div>
+                      </div>
+
+                      <div className="p-6">
+                          <p className="text-sm font-semibold text-slate-600 mb-5 leading-relaxed">
+                              To ensure platform integrity, please provide a clear justification for these manual overrides. This will be visible in the student's audit trail.
+                          </p>
+                          
+                          <div className="mb-6">
+                              <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1">Reason for changing marks <span className="text-rose-500">*</span></label>
+                              <textarea 
+                                  value={auditReason} 
+                                  onChange={e => setAuditReason(e.target.value)} 
+                                  placeholder="e.g., 'Awarded partial marks for using the correct formula despite calculation error.'" 
+                                  className="w-full min-h-[100px] p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 outline-none transition-all text-[14px] font-medium text-slate-700 resize-y custom-scrollbar"
+                              ></textarea>
+                          </div>
+
+                          <div className="flex gap-3">
+                              <button className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors active:scale-95" onClick={() => setModalType(null)}>Cancel</button>
+                              <button className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-500/30 transition-all active:scale-95 flex items-center justify-center gap-2" onClick={saveEvaluation}>
+                                  <i className="ti ti-lock"></i> Confirm & Save
+                              </button>
+                          </div>
                       </div>
                   </div>
               </div>
