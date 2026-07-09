@@ -35,6 +35,7 @@ function StudentPortalContent() {
   const [roll, setRoll] = useState('');
   const [code, setCode] = useState('');
   const [activeTest, setActiveTest] = useState(null);
+  const [isDirectJoin, setIsDirectJoin] = useState(false); 
 
   // --- EXAM ENGINE STATES ---
   const [curQ, setCurQ] = useState(0);
@@ -85,6 +86,7 @@ function StudentPortalContent() {
                   if (decoded.includes('-EXAMITOP-AUTO')) {
                       const urlCode = decoded.split('-')[0]; // Asli code bahar nikalo
                       autoJoinTriggered.current = true; 
+                      setIsDirectJoin(true); // ENGINE KO BATA DIYA KI YE DIRECT AAYA HAI 
                       
                       const immediateName = currentUser?.displayName || name;
                       const immediateRoll = currentUser?.rollNo || currentUser?.examinerId || roll;
@@ -758,7 +760,18 @@ function StudentPortalContent() {
                 </ul>
             </div>
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '16px' }} onClick={startExam}><i className="ti ti-player-play"></i> {draftToResume ? 'Resume Exam Now' : 'Start Exam Now'}</button>
-            <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '16px', marginTop: '12px' }} onClick={() => setStep('join')}><i className="ti ti-arrow-left"></i> Go Back</button>
+            
+            {/* 🔥 SMART GO BACK BUTTON */}
+            <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '16px', marginTop: '12px' }} 
+                onClick={() => {
+                    if (isDirectJoin) {
+                        router.push('/student/radar'); // Direct aaye the toh wapas Radar pe jao
+                    } else {
+                        setStep('join'); // Form se aaye the toh wapas form pe jao
+                    }
+                }}>
+                <i className="ti ti-arrow-left"></i> Go Back
+            </button>
         </div>
       )}
 
