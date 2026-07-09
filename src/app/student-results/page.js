@@ -656,58 +656,84 @@ export default function StudentResults() {
           );
       })()}
 
-      {/* Filters */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)' }}>
-        
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ fontSize: '18px', fontWeight: 600 }}>Question-wise Analysis</div>
-            {(() => {
-                //  DYNAMIC COUNT CALCULATION BASED ON ACTIVE SECTION
-                const secDetails = sub.details.filter(d => sectionFilter === 'all_sections' || d.q.section === sectionFilter || (!d.q.section && sectionFilter === (test.sections?.[0])));
-                const countAll = secDetails.length;
-                const countCorrect = secDetails.filter(d => d.status === 'correct' || d.status === 'partial').length;
-                const countWrong = secDetails.filter(d => d.status === 'wrong').length;
-                const countSkipped = secDetails.filter(d => d.status === 'skipped' || d.status === 'submitted' || d.status === 'evaluated').length;
+     {/* 🔥 MINIMALIST & ADVANCED FILTERS (iOS/Apple Style) 🔥 */}
+      <div className="mb-6 border-b border-slate-200 pb-5">
+        <div className="flex flex-col gap-4">
+            
+            {/* Header & Status Filters */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <h3 className="text-[17px] font-extrabold text-slate-800 flex items-center gap-2 tracking-tight">
+                    <i className="ti ti-adjustments-horizontal text-blue-600 text-xl"></i> Review Filters
+                </h3>
                 
-                return (
-                    <div className="filter-tabs" style={{ marginBottom: 0 }}>
-                      <button className={`ftab ${filter === 'all' ? 'active' : ''}`} onClick={() => changeStatusFilter('all')}>All ({countAll})</button>
-                      <button className={`ftab ${filter === 'correct' ? 'active' : ''}`} onClick={() => changeStatusFilter('correct')}>Correct ({countCorrect})</button>
-                      <button className={`ftab ${filter === 'wrong' ? 'active' : ''}`} onClick={() => changeStatusFilter('wrong')}>Wrong ({countWrong})</button>
-                      <button className={`ftab ${filter === 'skipped' ? 'active' : ''}`} onClick={() => changeStatusFilter('skipped')}>Skipped ({countSkipped})</button>
-                    </div>
-                );
-            })()}
-        </div>
-
-        {/*  NEW: Section Scrollable Pill Menu */}
-        {test.sections && test.sections.length > 0 && (
-            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '4px' }}>
-                <button 
-                    className="btn btn-sm" 
-                    style={{ whiteSpace: 'nowrap', fontWeight: 600, background: sectionFilter === 'all_sections' ? '#185FA5' : '#f1f5f9', color: sectionFilter === 'all_sections' ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
-                    onClick={() => changeSectionFilter('all_sections')}
-                >
-                    All Sections
-                </button>
-                {test.sections.map((sec, idx) => (
-                    <button 
-                        key={idx} 
-                        className="btn btn-sm" 
-                        style={{ whiteSpace: 'nowrap', fontWeight: 600, background: sectionFilter === sec ? '#185FA5' : '#f1f5f9', color: sectionFilter === sec ? '#fff' : '#64748b', border: 'none', borderRadius: '20px', padding: '6px 16px' }} 
-                        onClick={() => changeSectionFilter(sec)}
-                    >
-                        {sec}
-                    </button>
-                ))}
+                {(() => {
+                    const secDetails = sub.details.filter(d => sectionFilter === 'all_sections' || d.q.section === sectionFilter || (!d.q.section && sectionFilter === (test.sections?.[0])));
+                    const countAll = secDetails.length;
+                    const countCorrect = secDetails.filter(d => d.status === 'correct' || d.status === 'partial').length;
+                    const countWrong = secDetails.filter(d => d.status === 'wrong').length;
+                    const countSkipped = secDetails.filter(d => d.status === 'skipped' || d.status === 'submitted' || d.status === 'evaluated').length;
+                    
+                    return (
+                        <div className="inline-flex bg-slate-100/80 p-1.5 rounded-xl overflow-x-auto scrollbar-hide -webkit-overflow-scrolling-touch border border-slate-200/60 w-full md:w-auto">
+                          
+                          <button 
+                              className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${filter === 'all' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                              onClick={() => changeStatusFilter('all')}
+                          >
+                              All <span className={`ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black ${filter === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500'}`}>{countAll}</span>
+                          </button>
+                          
+                          <button 
+                              className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${filter === 'correct' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                              onClick={() => changeStatusFilter('correct')}
+                          >
+                              Correct <span className={`ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black ${filter === 'correct' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>{countCorrect}</span>
+                          </button>
+                          
+                          <button 
+                              className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${filter === 'wrong' ? 'bg-white text-rose-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                              onClick={() => changeStatusFilter('wrong')}
+                          >
+                              Wrong <span className={`ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${filter === 'wrong' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-500'}`}>{countWrong}</span>
+                          </button>
+                          
+                          <button 
+                              className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${filter === 'skipped' ? 'bg-white text-slate-800 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-800'}`} 
+                              onClick={() => changeStatusFilter('skipped')}
+                          >
+                              Skipped <span className={`ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black ${filter === 'skipped' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200 text-slate-500'}`}>{countSkipped}</span>
+                          </button>
+                        </div>
+                    );
+                })()}
             </div>
-        )}
+
+            {/* Section Filters (Sleek Pills) */}
+            {test.sections && test.sections.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -webkit-overflow-scrolling-touch">
+                    <button 
+                        className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-all duration-200 border ${sectionFilter === 'all_sections' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`} 
+                        onClick={() => changeSectionFilter('all_sections')}
+                    >
+                        All Sections
+                    </button>
+                    {test.sections.map((sec, idx) => (
+                        <button 
+                            key={idx} 
+                            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-all duration-200 border ${sectionFilter === sec ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`} 
+                            onClick={() => changeSectionFilter(sec)}
+                        >
+                            {sec}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
       </div>
 
-      {/* Question Review Cards (With Shutter Fade Effect) */}
-      <div style={{ opacity: isMathReady ? 1 : 0, transition: 'opacity 0.3s ease-in', minHeight: '50vh' }}>
+      {/* 🔥 HYPER-VIBRANT QUESTION REVIEW CARDS 🔥 */}
+      <div style={{ opacity: isMathReady ? 1 : 0, transition: 'opacity 0.3s ease-in', minHeight: '50vh' }} className="flex flex-col gap-6">
         {sub.details.filter(d => {
-            //  Dono conditions (Status aur Section) match honi chahiye
             let sMatch = filter === 'all' || d.status === filter || (filter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
             let secMatch = sectionFilter === 'all_sections' || d.q.section === sectionFilter || (!d.q.section && sectionFilter === (test.sections?.[0]));
             return sMatch && secMatch;
@@ -715,138 +741,187 @@ export default function StudentResults() {
            const q = d.q;
            const ans = d.ans;
            const originalQIdx = sub.details.indexOf(d);
-           const headerBg = d.status === 'correct' ? '#EAF3DE' : d.status === 'wrong' ? '#FCEBEB' : d.status === 'partial' ? '#FAEEDA' : (d.status === 'submitted' || d.status === 'evaluated') ? '#EEEDFE' : 'var(--color-background-secondary)';
-           const headerColor = d.status === 'correct' ? '#27500A' : d.status === 'wrong' ? '#791F1F' : d.status === 'partial' ? '#633806' : (d.status === 'submitted' || d.status === 'evaluated') ? '#3C3489' : 'var(--color-text-secondary)';
-           const icon = d.status === 'correct' ? 'ti-circle-check' : d.status === 'wrong' ? 'ti-circle-x' : d.status === 'partial' ? 'ti-adjustments-alt' : (d.status === 'submitted' || d.status === 'evaluated') ? 'ti-pencil' : 'ti-minus';
-           const statusLabel = d.status === 'correct' ? 'Correct' : d.status === 'wrong' ? 'Wrong' : d.status === 'partial' ? 'Partially Correct' : d.status === 'evaluated' ? 'Evaluated manually' : d.status === 'submitted' ? 'Pending Evaluation' : 'Skipped';
+           
+           // Super Vibrant Colors
+           const sProps = {
+               correct: { grad: 'from-emerald-400 to-teal-500', bg: 'bg-emerald-50', text: 'text-emerald-700', icon: 'ti-circle-check', badgeBg: 'bg-emerald-600' },
+               wrong: { grad: 'from-rose-500 to-red-500', bg: 'bg-rose-50', text: 'text-rose-700', icon: 'ti-circle-x', badgeBg: 'bg-rose-600' },
+               partial: { grad: 'from-amber-400 to-orange-500', bg: 'bg-amber-50', text: 'text-amber-700', icon: 'ti-adjustments-alt', badgeBg: 'bg-amber-600' },
+               evaluated: { grad: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', text: 'text-blue-700', icon: 'ti-pencil', badgeBg: 'bg-blue-600' },
+               submitted: { grad: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', text: 'text-blue-700', icon: 'ti-pencil', badgeBg: 'bg-blue-600' },
+               skipped: { grad: 'from-slate-400 to-slate-500', bg: 'bg-slate-50', text: 'text-slate-600', icon: 'ti-minus', badgeBg: 'bg-slate-600' }
+           };
+           
+           const sp = sProps[d.status] || sProps.skipped;
+           const statusLabel = d.status === 'correct' ? 'Correct' : d.status === 'wrong' ? 'Wrong' : d.status === 'partial' ? 'Partially Correct' : d.status === 'evaluated' ? 'Evaluated' : d.status === 'submitted' ? 'Pending' : 'Skipped';
            const earnedStr = d.earned > 0 ? '+' + d.earned : d.earned < 0 ? '' + d.earned : '0';
 
            let userSel = Array.isArray(ans.val) ? ans.val : (ans.val !== null ? [ans.val] : []);
            let corrSel = q.correct || [];
 
            return (
-             <div key={i} className="q-review-card">
-                <div className="qr-header" style={{ background: headerBg, color: headerColor }}>
-                    <i className={`ti ${icon}`} style={{ fontSize: '20px' }}></i>
-                    <span style={{ fontWeight: 600, fontSize: '15px' }}>Question {originalQIdx + 1} &mdash; {getLabel(q.type)}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: '14px', fontWeight: 600, background: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: '12px' }}>{statusLabel} &nbsp; {earnedStr} marks</span>
+             <div key={i} className="relative bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-[0_10px_40px_rgb(0,0,0,0.08)]">
+                
+                {/* Vibrant Top Accent Line */}
+                <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${sp.grad}`}></div>
+                
+                {/* Header Section */}
+                <div className={`px-5 py-4 ${sp.bg} border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1`}>
+                    <div className={`flex items-center gap-2 font-black ${sp.text} text-[16px]`}>
+                        <i className={`ti ${sp.icon} text-[22px]`}></i>
+                        <span>Q{originalQIdx + 1} <span className="opacity-40 mx-1">|</span> <span className="font-semibold text-sm uppercase tracking-wide">{getLabel(q.type)}</span></span>
+                    </div>
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <span className={`px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider font-extrabold text-white shadow-sm ${sp.badgeBg}`}>
+                            {statusLabel}
+                        </span>
+                        <span className="px-3 py-1.5 rounded-lg text-[12px] font-extrabold bg-slate-900 text-white shadow-sm">
+                            <i className="ti ti-target"></i> {earnedStr} Marks
+                        </span>
+                    </div>
                 </div>
-                {/*  OVERFLOW FIX: Strict maxWidth aur hide-scroll laga diya */}
-                <div className="qr-body hide-scroll" style={{ maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
+
+                {/* Body Section */}
+                <div className="p-5 sm:p-6 overflow-x-auto hide-scroll w-full">
                     
-                    {/* 🔥 FIX: MathJax Protector applied to Question Text */}
-                    <StaticMath isBlock={true} html={q.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '1.5rem', color: 'var(--color-text-primary)', fontWeight: 500, whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '100%' }} />
+                    {/* Question Text */}
+                    <StaticMath isBlock={true} html={q.text} className="text-[17px] leading-relaxed text-slate-800 font-semibold mb-6 whitespace-normal break-words" />
                     
-                    {/* 🔥 NEW COMPACT FIGURE ENGINE (Perfectly Centered & No Extra Space) */}
+                    {/* Universal Compact Figure Engine */}
                     {q.figureType && q.figureType !== 'none' && q.figureData && (
-                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%', margin: '0.5rem 0 1.5rem 0' }}>
-                            
+                        <div className="flex justify-center w-full mb-6">
                             {(q.figureType === 'image' || q.figureType === 'url') && (
-                                <img src={q.figureData} alt="Figure" style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain', background: '#fff' }} />
+                                <img src={q.figureData} alt="Figure" className="max-w-full max-h-[220px] rounded-xl border-2 border-slate-200 object-contain bg-white shadow-sm" />
                             )}
-                            
                             {q.figureType === 'smiles' && (
-                                <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', display: 'inline-block', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                                <div className="bg-white p-3 rounded-xl border-2 border-slate-200 inline-block shadow-sm">
                                     <SmilesViewer smilesCode={q.figureData} width={200} height={200} />
                                 </div>
                             )}
-                            
                             {q.figureType === 'tikz' && (
-                                <div className="hide-scroll" style={{ maxWidth: '100%', overflowX: 'auto', background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', display: 'inline-block', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                                    <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" style={{ maxWidth: '100%', objectFit: 'contain' }} />
+                                <div className="hide-scroll max-w-full overflow-x-auto bg-white p-3 rounded-xl border-2 border-slate-200 inline-block shadow-sm">
+                                    <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" className="max-w-full object-contain" />
                                 </div>
                             )}
-                            
                         </div>
                     )}
                     
-                    {/* Fallback for very old JSON imports that still use imgUrl */}
+                    {/* Fallback Legacy Image */}
                     {!q.figureType && q.imgUrl && (
-                        <div style={{ display: 'flex', justifyContent: 'center', width: '100%', margin: '0.5rem 0 1.5rem 0' }}>
-                            <img src={q.imgUrl} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid var(--color-border-secondary)', objectFit: 'contain', background: '#fff' }} alt="Legacy Question Figure" />
+                        <div className="flex justify-center w-full mb-6">
+                            <img src={q.imgUrl} className="max-w-full max-h-[220px] rounded-xl border-2 border-slate-200 object-contain bg-white shadow-sm" alt="Legacy Figure" />
                         </div>
                     )}
                                         
                     {/* MCQ / MSQ Options */}
-                    {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
-                        let isUser = userSel.includes(j);
-                        let isCorr = corrSel.includes(j);
-                        let cls = 'neutral', borderStyle = {};
-                        
-                        if (isCorr && isUser) { cls = 'correct'; borderStyle = { borderColor: '#3B6D11', background: '#EAF3DE' }; }
-                        else if (isCorr && !isUser) { cls = 'neutral'; borderStyle = { borderColor: '#C0DD97', background: '#f4f9ed' }; }
-                        else if (!isCorr && isUser) { cls = 'wrong'; borderStyle = { borderColor: '#A32D2D', background: '#FCEBEB' }; }
+                    <div className="flex flex-col gap-3">
+                        {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
+                            let isUser = userSel.includes(j);
+                            let isCorr = corrSel.includes(j);
+                            
+                            // High Contrast Styling for Options
+                            let optBg = 'bg-slate-50 hover:bg-slate-100 border-slate-200', optText = 'text-slate-700', iconUi = null;
+                            if (isCorr && isUser) { optBg = 'bg-emerald-50 border-emerald-500 shadow-[0_0_0_1px_#10b981]'; optText = 'text-emerald-900 font-bold'; iconUi = <i className="ti ti-check text-2xl text-emerald-600"></i>; }
+                            else if (isCorr && !isUser) { optBg = 'bg-white border-emerald-400 border-dashed border-2'; optText = 'text-emerald-800 font-bold'; iconUi = <i className="ti ti-check text-2xl text-emerald-400 opacity-60"></i>; }
+                            else if (!isCorr && isUser) { optBg = 'bg-rose-50 border-rose-500 shadow-[0_0_0_1px_#ef4444]'; optText = 'text-rose-900 font-bold'; iconUi = <i className="ti ti-x text-2xl text-rose-600"></i>; }
 
-                        return (
-                            //  FIX 1: hide-scroll and maxWidth to prevent outer div overflow
-                            <div key={j} className={`qr-opt ${cls} hide-scroll`} style={{ ...borderStyle, maxWidth: '100%' }}>
-                                <div style={{ width: '26px', height: '26px', borderRadius: '50%', border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, flexShrink: 0, background: 'rgba(255,255,255,0.7)' }}>{String.fromCharCode(65 + j)}</div>
-                                
-                                {/*  FIX 2: minWidth: 0 is CRITICAL for flexbox to not stretch the screen */}
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '4px 0', minWidth: 0 }} className="hide-scroll">
+                            return (
+                                <div key={j} className={`flex items-start gap-4 p-4 rounded-xl border-2 ${optBg} transition-all duration-200 w-full overflow-hidden`}>
                                     
-                                    {/* MathJax Protector applied to Options */}
-                                    {o.startsWith('[smiles]') ? (
-                                        <div style={{ pointerEvents: 'none' }}>
-                                            <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
-                                        </div>
-                                    ) : (
-                                        <StaticMath isBlock={true} html={o} style={{ fontSize: '15px', fontWeight: isUser || isCorr ? 600 : 400, whiteSpace: 'normal', wordBreak: 'break-word' }} />
-                                    )}
+                                    {/* Option Letter Circle */}
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 border-2 bg-white ${isCorr && isUser ? 'border-emerald-500 text-emerald-600 shadow-sm' : (!isCorr && isUser) ? 'border-rose-500 text-rose-600 shadow-sm' : 'border-slate-300 text-slate-500'}`}>
+                                        {String.fromCharCode(65 + j)}
+                                    </div>
+                                    
+                                    {/* Option Content */}
+                                    <div className="flex-1 flex flex-col gap-2 min-w-0 pt-0.5">
+                                        {o.startsWith('[smiles]') ? (
+                                            <div className="pointer-events-none bg-white p-2 rounded-lg border-2 border-slate-100 inline-block w-fit">
+                                                <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
+                                            </div>
+                                        ) : (
+                                            <StaticMath isBlock={true} html={o} className={`text-[15.5px] whitespace-normal break-words ${optText}`} />
+                                        )}
 
-                                    {(isUser || isCorr) && (
-                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                            {isUser && <span style={{ fontSize: '11px', background: '#185FA5', color: '#fff', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>Student Picked</span>}
-                                            {isCorr && <span style={{ fontSize: '11px', background: '#3B6D11', color: '#fff', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>Correct Key</span>}
-                                        </div>
-                                    )}
+                                        {/* Status Badges */}
+                                        {(isUser || isCorr) && (
+                                            <div className="flex gap-2 flex-wrap mt-1.5">
+                                                {isUser && <span className="text-[10px] uppercase tracking-wider font-extrabold bg-slate-800 text-white px-2 py-1 rounded shadow-sm"><i className="ti ti-hand-click"></i> You Picked</span>}
+                                                {isCorr && <span className="text-[10px] uppercase tracking-wider font-extrabold bg-emerald-500 text-white px-2 py-1 rounded shadow-sm"><i className="ti ti-key"></i> Correct Key</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Result Icon Right */}
+                                    <div className="mt-1 flex-shrink-0">{iconUi}</div>
                                 </div>
-                                
-                                {isCorr && isUser && <i className="ti ti-check" style={{ fontSize: '22px', color: '#3B6D11', flexShrink: 0 }}></i>}
-                                {isUser && !isCorr && <i className="ti ti-x" style={{ fontSize: '22px', color: '#A32D2D', flexShrink: 0 }}></i>}
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
 
                     {/* Integer Type */}
                     {q.type === 'integer' && (
-                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                            <div className={`qr-opt ${d.status}`} style={{ flex: 1, fontSize: '15px' }}>Answer Typed: <strong style={{ fontSize: '18px', marginLeft: '8px' }}>{ans.val !== null ? ans.val : '—'}</strong></div>
-                            <div className="qr-opt correct" style={{ flex: 1, fontSize: '15px' }}>Correct Key: <strong style={{ fontSize: '18px', marginLeft: '8px' }}>{q.correctInt}</strong></div>
+                        <div className="flex flex-col sm:flex-row gap-4 mt-2">
+                            <div className={`flex-1 p-5 rounded-2xl border-2 flex flex-col justify-center ${d.status === 'correct' ? 'bg-emerald-50 border-emerald-400 text-emerald-900 shadow-[0_0_0_1px_#34d399]' : 'bg-rose-50 border-rose-400 text-rose-900 shadow-[0_0_0_1px_#fb7185]'}`}>
+                                <span className="text-[11px] uppercase tracking-wider font-extrabold opacity-70 mb-1">Your Answer</span>
+                                <strong className="text-3xl">{ans.val !== null ? ans.val : '—'}</strong>
+                            </div>
+                            <div className="flex-1 p-5 rounded-2xl border-2 border-emerald-400 bg-white text-emerald-900 flex flex-col justify-center relative overflow-hidden shadow-sm">
+                                <i className="ti ti-key absolute -right-2 -bottom-4 text-7xl text-emerald-100"></i>
+                                <span className="text-[11px] uppercase tracking-wider font-extrabold opacity-70 mb-1 relative z-10">Correct Answer</span>
+                                <strong className="text-3xl relative z-10">{q.correctInt}</strong>
+                            </div>
                         </div>
                     )}
 
                     {/* Subjective Type */}
                     {q.type === 'subjective' && (
-                        <>
-                            <div className="qr-opt neutral" style={{ marginBottom: '0.75rem', alignItems: 'flex-start', padding: '1rem' }}>
-                                <i className="ti ti-note" style={{ flexShrink: 0, marginTop: '2px', fontSize: '18px', color: '#185FA5' }}></i>
-                                <span style={{ fontSize: '15px', lineHeight: 1.6 }}>{ans.val || <em style={{ color: 'var(--color-text-secondary)' }}>No answer written.</em>}</span>
+                        <div className="flex flex-col gap-4 mt-2">
+                            <div className="p-5 rounded-2xl border-2 bg-slate-50 border-slate-200 flex gap-4 items-start">
+                                <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 shadow-sm"><i className="ti ti-pencil text-slate-700 text-xl"></i></div>
+                                <div>
+                                    <span className="text-[11px] uppercase tracking-wider font-extrabold text-slate-500 mb-1 block">Your Answer</span>
+                                    <span className="text-[15.5px] leading-relaxed text-slate-800 font-medium">{ans.val || <em className="text-slate-400">No answer written.</em>}</span>
+                                </div>
                             </div>
                             {q.modelAnswer && (
-                                <div className="qr-opt correct" style={{ alignItems: 'flex-start', padding: '1rem' }}>
-                                    <i className="ti ti-bulb" style={{ flexShrink: 0, marginTop: '2px', fontSize: '18px' }}></i>
-                                    <span style={{ fontSize: '15px', lineHeight: 1.6 }}><strong>Model Answer:</strong><br />{q.modelAnswer}</span>
+                                <div className="p-5 rounded-2xl border-2 bg-emerald-50 border-emerald-300 flex gap-4 items-start">
+                                    <div className="w-10 h-10 rounded-full bg-white border border-emerald-200 flex items-center justify-center flex-shrink-0 shadow-sm"><i className="ti ti-bulb text-emerald-600 text-xl"></i></div>
+                                    <div>
+                                        <span className="text-[11px] uppercase tracking-wider font-extrabold text-emerald-700 mb-1 block">Model Answer</span>
+                                        <span className="text-[15.5px] leading-relaxed text-emerald-900 font-medium">{q.modelAnswer}</span>
+                                    </div>
                                 </div>
                             )}
-                        </>
+                        </div>
                     )}
 
-                    {/* Explanation Box for Student */}
+                    {/* 🔥 HYPER-VIBRANT Accordion Explanation */}
                     {q.explanation && (
-                        <div style={{ padding: '1rem', background: '#E6F1FB', borderRadius: '8px', borderLeft: '4px solid #185FA5', marginTop: '1.5rem', marginBottom: '1rem' }}>
-                            <strong style={{ color: '#114B87', display: 'block', marginBottom: '8px' }}><i className="ti ti-bulb"></i> Solution & Explanation:</strong>
-                            {/* 🔥 FIX: MathJax Protector applied to Explanation */}
-                            <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" style={{ fontSize: '14px', color: '#114B87', lineHeight: 1.6 }} />
-                        </div>
+                        <details className="group mt-8 rounded-2xl border-2 border-indigo-100 overflow-hidden transition-all duration-300 bg-white shadow-sm hover:shadow-md">
+                            <summary className="cursor-pointer p-5 font-bold text-indigo-700 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 transition-colors select-none">
+                                <span className="flex items-center gap-3 text-[15px] tracking-wide"><i className="ti ti-bulb text-xl text-indigo-500"></i> View Solution & Explanation</span>
+                                <div className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center text-indigo-600 group-open:bg-indigo-600 group-open:text-white transition-all duration-300 transform group-open:rotate-180">
+                                    <i className="ti ti-chevron-down"></i>
+                                </div>
+                            </summary>
+                            <div className="p-6 border-t-2 border-indigo-100 text-[15.5px] text-slate-800 leading-relaxed font-medium bg-white">
+                                <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" />
+                            </div>
+                        </details>
                     )}
                     
                     {/* Audit Logs */}
                     {d.auditLogs && d.auditLogs.length > 0 && (
-                        <div style={{ marginTop: '12px', padding: '10px', background: '#FEF5E5', border: '1px solid #FAC775', borderRadius: '6px', fontSize: '13px', color: '#633806' }}>
-                            <div style={{ fontWeight: 600, marginBottom: '4px' }}><i className="ti ti-shield-check"></i> Audit Log (Manual Evaluation)</div>
-                            Marks overridden to <strong>{d.auditLogs[d.auditLogs.length - 1].awarded}</strong>. <br /><strong>Reason:</strong> "{d.auditLogs[d.auditLogs.length - 1].reason}" <br />
-                            <span style={{ fontSize: '11px', opacity: 0.7 }}>By: {d.auditLogs[d.auditLogs.length - 1].examiner} | Date: {d.auditLogs[d.auditLogs.length - 1].date}</span>
+                        <div className="mt-5 p-5 bg-amber-50 border-2 border-amber-300 rounded-2xl text-[14px] text-amber-900 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                            <div className="font-extrabold mb-2 flex items-center gap-2 text-[15px]"><i className="ti ti-shield-check text-xl text-amber-600"></i> Audit Log (Manual Evaluation)</div>
+                            Marks overridden to <strong className="bg-amber-500 text-white px-2 py-0.5 rounded ml-1">{d.auditLogs[d.auditLogs.length - 1].awarded}</strong>.<br />
+                            <div className="mt-2 font-medium"><strong>Reason:</strong> "{d.auditLogs[d.auditLogs.length - 1].reason}"</div>
+                            <div className="mt-4 pt-3 border-t border-amber-300/50 text-[11px] uppercase tracking-wider font-bold opacity-70 flex justify-between">
+                                <span><i className="ti ti-user"></i> By: {d.auditLogs[d.auditLogs.length - 1].examiner}</span>
+                                <span><i className="ti ti-calendar"></i> {d.auditLogs[d.auditLogs.length - 1].date}</span>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -854,8 +929,7 @@ export default function StudentResults() {
            );
         })}
       </div>
-
-      {/* 🔥 PREMIUM FLOATING SCROLL TO TOP BUTTON */}
+      
       {showScrollTop && (
           <button 
               onClick={scrollToTop}
