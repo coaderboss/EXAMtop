@@ -207,6 +207,14 @@ export default function ManageTests() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // 🔥 NAYA FIX: AUTO-SCROLL TO TOP ON TEST OPEN/CLOSE 🔥
+  useEffect(() => {
+      if (typeof window !== 'undefined') {
+          // Jab bhi 'selectedTest' change hoga (kisi test ko kholne ya band karne par), page smoothly top par jayega
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+  }, [selectedTest]);
+
  // 2. MathJax Auto-Renderer (ULTIMATE BULLETPROOF FIX WITH FADE-IN)
   useEffect(() => {
     let isSubscribed = true;
