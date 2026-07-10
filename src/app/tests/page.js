@@ -1940,124 +1940,124 @@ export default function ManageTests() {
         // ==========================================
         // VIEW 1: MASTER VAULT (List of Tests)
         // ==========================================
-       <div style={{ padding: '1.5rem 1rem', paddingBottom: '40vh', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
+       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-[30vh] animate-[fadeIn_0.3s_ease]">
             
-            {/* 🔥 MODERN ULTRA-COMPACT HEADER (NO-WRAP MOBILE FIX) */}
-            <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '8px' }}>
-                
-                {/* Left Side: Title & Subtitle (With Truncation for small screens) */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, minWidth: 0 }}>
-                    <h2 style={{ margin: 0, fontSize: 'clamp(18px, 5vw, 22px)', fontWeight: 800, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        <i className="ti ti-vault" style={{ color: '#185FA5', fontSize: 'clamp(20px, 5vw, 24px)', flexShrink: 0 }}></i> 
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>My Tests Vault</span>
-                    </h2>
-                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-text-secondary)', lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Manage assessments, control intakes, and review results.
-                    </p>
+            {/* 🔥 PREMIUM HEADER (Fixed Mobile Layout & Icon) 🔥 */}
+            <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+                {/* Fixed Icon: Using an inline SVG so it never fails to load */}
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-[0_8px_20px_rgb(37,99,235,0.25)] shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
                 </div>
                 
-                {/* 🔥 SLEEK FOLLOWERS PILL (Micro-sized & Locked) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f8fafc', border: '1px solid #cbd5e1', padding: '4px 10px', borderRadius: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', flexShrink: 0 }}>
-                    <i className="ti ti-users" style={{ fontSize: '15px', color: '#185FA5' }}></i>
-                    <div style={{ fontSize: '13px', color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        <span style={{ color: '#0f172a', fontWeight: 800 }}>{followerCount}</span> <span className="hide-mobile">Followers</span>
+                <div className="flex flex-col min-w-0 justify-center">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                        <h2 className="text-xl sm:text-[28px] font-black text-slate-800 tracking-tight leading-none m-0 truncate">My Tests Vault</h2>
+                        
+                        {/* Followers Pill (Moved next to title for compactness) */}
+                        <div className="bg-blue-50 text-blue-700 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold border border-blue-100 flex items-center gap-1 shadow-sm shrink-0">
+                            <i className="ti ti-users text-sm"></i>
+                            {followerCount} Followers
+                        </div>
                     </div>
+                    <p className="text-[12px] sm:text-[13px] font-medium text-slate-500 mt-1.5 sm:mt-2 truncate">
+                        Manage assessments, control intakes, and review results.
+                    </p>
                 </div>
             </div>
 
             {myTests.length === 0 ? (
                 /* Empty State UI */
-                <div className="bg-white dark:bg-slate-900 rounded-2xl p-10 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center min-h-[350px]">
-                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-5">
-                        <i className="ti ti-folder-off text-4xl text-slate-400"></i>
+                <div className="bg-white rounded-3xl p-10 sm:p-16 text-center border-2 border-dashed border-slate-200 shadow-sm flex flex-col items-center justify-center mt-4">
+                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100">
+                        <i className="ti ti-folder-off text-4xl text-slate-300"></i>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-2">Your Vault is Empty</h3>
-                    <p className="text-slate-500 max-w-md mx-auto mb-8 text-sm leading-relaxed">
+                    <h3 className="text-xl font-black text-slate-700 mb-2 tracking-tight">Your Vault is Empty</h3>
+                    <p className="text-slate-500 max-w-sm mx-auto mb-8 text-[13px] sm:text-sm font-medium leading-relaxed">
                         You haven't created any assessments yet. Click the button below to start building your first secure test.
                     </p>
-                    <button className="btn btn-primary" style={{ padding: '12px 24px', fontWeight: 600, fontSize: '15px' }} onClick={() => router.push('/create')}>
-                        <i className="ti ti-plus"></i> Create New Test
+                    <button className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95" onClick={() => router.push('/create')}>
+                        <i className="ti ti-plus text-lg"></i> Create New Test
                     </button>
                 </div>
             ) : (
                 <>
-                    {/*  Inline Search & Sort Panel */}
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '1.25rem', width: '100%' }}>
-                        
+                    {/* 🔥 SMART SEARCH & FILTER BAR (Side-by-side on all screens) 🔥 */}
+                    <div className="flex flex-row gap-2 sm:gap-3 mb-6 relative z-20">
                         {/* Instant Search Bar */}
-                        <div style={{ position: 'relative', flex: 1 }}>
-                            <i className="ti ti-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '16px' }}></i>
+                        <div className="relative flex-1 group min-w-0">
+                            <i className="ti ti-search absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-slate-400 text-base sm:text-lg group-focus-within:text-blue-500 transition-colors pointer-events-none"></i>
                             <input 
-                                ref={searchRef} //  Added Ref for keyboard focus
+                                ref={searchRef} 
                                 type="text" 
-                                placeholder="Search tests... (Press '/')" // Indicator for PC users
+                                placeholder="Search tests..." 
                                 value={vaultSearchQuery}
                                 onChange={(e) => setVaultSearchQuery(e.target.value)}
-                                style={{ padding: '10px 10px 10px 36px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '14px', color: 'var(--color-text-primary)' }}
+                                className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm"
                             />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-1 rounded">
+                                <span>Press</span> <kbd className="font-mono text-slate-500">/</kbd>
+                            </div>
                         </div>
                         
-                        {/* Premium Dropdown with Integrated Status Filters */}
-                        <div style={{ position: 'relative', width: '110px', flexShrink: 0 }}>
+                        {/* Premium Dropdown */}
+                        <div className="relative shrink-0 w-[110px] sm:w-[150px]">
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                style={{ padding: '10px 24px 10px 10px', width: '100%', borderRadius: '10px', border: '1px solid var(--color-border-primary)', background: 'var(--color-background-primary)', fontSize: '13px', fontWeight: 600, appearance: 'none', cursor: 'pointer', color: 'var(--color-text-primary)' }}
+                                className="w-full pl-3 sm:pl-4 pr-7 sm:pr-10 py-2.5 sm:py-3.5 bg-white border border-slate-200 rounded-xl text-[12px] sm:text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm appearance-none cursor-pointer"
                             >
                                 <option value="newest">Newest</option>
                                 <option value="oldest">Oldest</option>
                                 <option value="alphabetical">A - Z</option>
-                                <option value="live">🟢 Live</option> {/*  Status option added */}
-                                <option value="closed">⚪ Closed</option> {/*  Status option added */}
+                                <option value="live">🟢 Live</option>
+                                <option value="closed">⚪ Closed</option>
                             </select>
-                            <i className="ti ti-sort-descending" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', fontSize: '16px' }}></i>
+                            <i className="ti ti-chevron-down absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
                         </div>
                     </div>
 
-                    {/*  FILTERING, SORTING & RENDERING ENGINE */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* 🔥 THE NATIVE PREMIUM LIST ENGINE 🔥 */}
+                    <div className="flex flex-col gap-3 sm:gap-4">
                         {(() => {
-                            // 1. Filter by Search Query AND Dropdown Status
+                            // Filter Logic
                             let filtered = myTests.filter(t => {
                                 const sq = vaultSearchQuery.toLowerCase();
                                 const matchesSearch = !vaultSearchQuery || (t.title?.toLowerCase().includes(sq) || t.code?.toLowerCase().includes(sq) || t.subject?.toLowerCase().includes(sq));
-                                
                                 const isLive = t.isActive !== false;
                                 let matchesStatus = true;
                                 if (sortBy === 'live') matchesStatus = isLive;
                                 if (sortBy === 'closed') matchesStatus = !isLive;
-                                
                                 return matchesSearch && matchesStatus;
                             });
 
-                            // 2. Sort Logic (Handles fallback inner chronological order for live/closed status)
+                            // Sort Logic
                             filtered.sort((a, b) => {
                                 const idA = String(a.id || '');
                                 const idB = String(b.id || '');
-                                
                                 if (sortBy === 'newest' || sortBy === 'live' || sortBy === 'closed') return idB.localeCompare(idA); 
                                 if (sortBy === 'oldest') return idA.localeCompare(idB); 
-                                if (sortBy === 'alphabetical') {
-                                    return String(a.title || '').toLowerCase().localeCompare(String(b.title || '').toLowerCase());
-                                }
+                                if (sortBy === 'alphabetical') return String(a.title || '').toLowerCase().localeCompare(String(b.title || '').toLowerCase());
                                 return 0;
                             });
 
-                            // 3. No Results Found UI
+                            // No Results UI
                             if (filtered.length === 0) {
                                 return (
-                                    <div style={{ textAlign: 'center', padding: '3rem 1rem', background: 'var(--color-background-primary)', borderRadius: '12px', border: '1px solid var(--color-border-secondary)' }}>
-                                        <i className="ti ti-search-off" style={{ fontSize: '48px', color: '#cbd5e1', display: 'block', marginBottom: '1rem' }}></i>
-                                        <h4 style={{ color: '#475569', marginBottom: '5px', fontSize: '18px' }}>No tests found</h4>
-                                        <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '1rem' }}>We couldn't find any tests matching "{vaultSearchQuery}".</p>
-                                        <button className="btn btn-ghost" onClick={() => setVaultSearchQuery('')}>Clear Search</button>
+                                    <div className="bg-white rounded-2xl p-10 text-center border border-slate-200 shadow-sm flex flex-col items-center mt-2">
+                                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
+                                            <i className="ti ti-search-off text-3xl text-slate-400"></i>
+                                        </div>
+                                        <h4 className="text-[16px] font-black text-slate-700 mb-1">No tests found</h4>
+                                        <p className="text-[13px] font-semibold text-slate-500 mb-5">We couldn't find any tests matching "{vaultSearchQuery}".</p>
+                                        <button className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm rounded-xl transition-colors active:scale-95" onClick={() => setVaultSearchQuery('')}>Clear Search</button>
                                     </div>
                                 );
                             }
 
-                            // 4. Render Sorted & Filtered Cards
+                            // Render Premium Cards
                             return filtered.map((t, i) => {
-                                // 🔥 NAYA TIME-BASED STATUS LOGIC
                                 const now = Date.now();
                                 const closeTime = t.closeDate ? new Date(t.closeDate).getTime() : null;
                                 const openTime = t.openDate ? new Date(t.openDate).getTime() : null;
@@ -2068,61 +2068,64 @@ export default function ManageTests() {
 
                                 const subCount = t.submissions ? t.submissions.length : 0;
                                 
+                                // Dynamic Accent Line Color
+                                let statusColorLine = 'bg-slate-200';
+                                if (t.isLocal) statusColorLine = 'bg-amber-400';
+                                else if (status === 'live') statusColorLine = 'bg-emerald-500';
+                                else if (status === 'upcoming') statusColorLine = 'bg-blue-400';
+
                                 return (
                                     <div 
                                         key={t.id || i} 
-                                        className="test-entry" 
-                                        style={{ 
-                                            cursor: 'pointer', 
-                                            // 🔥 Status ke hisaab se border color change
-                                            borderLeft: t.isLocal ? '4px solid #f59e0b' : (status === 'live' ? '4px solid #3B6D11' : (status === 'upcoming' ? '4px solid #f59e0b' : '4px solid #cbd5e1')),
-                                            opacity: 0,
-                                            animation: `staggerSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards`,
-                                            animationDelay: `${(i > 10 ? 10 : i) * 0.06}s`, 
-                                            padding: '1.25rem 1rem', 
-                                            marginBottom: 0,
-                                            display: 'flex',
-                                            flexWrap: 'wrap',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            gap: '12px'
-                                        }}
+                                        className="group bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:border-blue-300 transition-all duration-300 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer relative overflow-hidden animate-[slideUp_0.4s_ease_forwards] opacity-0"
+                                        style={{ animationDelay: `${(i > 10 ? 10 : i) * 0.05}s` }}
                                         onClick={() => setSelectedTest(t)}
                                     >
-                                        <div style={{ flex: 1, minWidth: '220px' }}> 
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>{t.title}</h3>
+                                        {/* Status Accent Line */}
+                                        <div className={`absolute left-0 top-0 bottom-0 w-[5px] ${statusColorLine}`}></div>
+                                        
+                                        <div className="flex flex-col min-w-0 pl-1.5 sm:pl-2">
+                                            
+                                            {/* Title & Status Badge Row */}
+                                            <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                                <h3 className="text-[16px] sm:text-[18px] font-black text-slate-800 truncate group-hover:text-blue-700 transition-colors leading-tight m-0">{t.title}</h3>
                                                 
-                                                {t.isLocal && <span className="badge b-amber" style={{ padding: '2px 8px', fontSize: '11px' }}><i className="ti ti-device-floppy"></i> Local</span>}
-                                                
-                                                {/* 🔥 Status ke hisaab se Badge */}
-                                                {!t.isLocal && status === 'live' && (
-                                                    <span className="badge b-green" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', fontSize: '11px' }}>
-                                                        <span style={{ width: '6px', height: '6px', background: '#27500A', borderRadius: '50%', animation: 'pulse 1s infinite' }}></span> Live
-                                                    </span>
-                                                )}
-                                                {!t.isLocal && status === 'upcoming' && (
-                                                    <span className="badge b-amber" style={{ padding: '2px 8px', fontSize: '11px' }}>Scheduled</span>
-                                                )}
-                                                {!t.isLocal && status === 'closed' && (
-                                                    <span className="badge b-gray" style={{ padding: '2px 8px', fontSize: '11px' }}>Closed</span>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    {t.isLocal && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-amber-200"><i className="ti ti-device-floppy"></i> Local</span>}
+                                                    
+                                                    {!t.isLocal && status === 'live' && (
+                                                        <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 border border-emerald-200">
+                                                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> Live
+                                                        </span>
+                                                    )}
+                                                    {!t.isLocal && status === 'upcoming' && (
+                                                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-blue-200"><i className="ti ti-clock"></i> Scheduled</span>
+                                                    )}
+                                                    {!t.isLocal && status === 'closed' && (
+                                                        <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-slate-200"><i className="ti ti-lock"></i> Closed</span>
+                                                    )}
+                                                </div>
                                             </div>
                                             
-                                            <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', fontWeight: 500, display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-book text-base"></i> {t.subject || 'General'}</span>
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-list-numbers text-base"></i> {t.questions?.length || 0} Qs</span>
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-clock text-base"></i> {t.duration} Mins</span>
+                                            {/* Meta Info Row */}
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] sm:text-[13px] font-semibold text-slate-500 mb-3">
+                                                <span className="flex items-center gap-1.5"><i className="ti ti-book text-slate-400 text-base"></i> {t.subject || 'General'}</span>
+                                                <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
+                                                <span className="flex items-center gap-1.5"><i className="ti ti-list-numbers text-slate-400 text-base"></i> {t.questions?.length || 0} Qs</span>
+                                                <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
+                                                <span className="flex items-center gap-1.5"><i className="ti ti-clock text-slate-400 text-base"></i> {t.duration} Mins</span>
                                             </div>
                                             
-                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                                <span className="badge b-purple" style={{ fontFamily: 'monospace', letterSpacing: '0.5px', padding: '4px 10px', fontSize: '12px' }}><i className="ti ti-hash text-base"></i> {t.code}</span>
-                                                <span className="badge b-gray" style={{ padding: '4px 10px', fontSize: '12px' }}><i className="ti ti-users text-base"></i> {subCount} Subs</span>
+                                            {/* Data Tags */}
+                                            <div className="flex items-center gap-2">
+                                                <span className="bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg text-[11px] font-bold font-mono tracking-widest border border-slate-200 shadow-sm flex items-center gap-1"><i className="ti ti-hash opacity-60"></i> {t.code}</span>
+                                                <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-indigo-200 shadow-sm flex items-center gap-1.5"><i className="ti ti-users"></i> {subCount} Subs</span>
                                             </div>
                                         </div>
                                         
-                                        <div className="hide-mobile" style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            <i className="ti ti-chevron-right" style={{ fontSize: '20px' }}></i>
+                                        {/* Hover Arrow (Desktop only for sleekness) */}
+                                        <div className="hidden sm:flex w-10 h-10 rounded-full bg-slate-50 border border-slate-100 items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all shrink-0 shadow-sm">
+                                            <i className="ti ti-chevron-right text-lg transform group-hover:translate-x-0.5 transition-transform"></i>
                                         </div>
                                     </div>
                                 );
@@ -2134,7 +2137,8 @@ export default function ManageTests() {
         </div>
       )}
 
-      {/*  ROOT LEVEL SYSTEM POPUPS */}
+
+      {/* ROOT LEVEL SYSTEM POPUPS */}
       
       {undoData && (
           <div style={{ position: 'fixed', bottom: '30px', right: '30px', background: '#334155', color: '#fff', padding: '16px 24px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', zIndex: 9999, animation: 'slideUp 0.3s ease' }}>
