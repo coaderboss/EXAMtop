@@ -1092,3 +1092,35 @@ mjx-container[display="true"]::-webkit-scrollbar {
               .warn-divider { display: none; }
               .warn-text { font-size: 12px !important; line-height: 1.4; }
           }
+
+
+/* 🔥 Premium Pill Navigation (Safe CSS) 🔥 */
+            .nav-tab {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 8px 18px;
+                border-radius: 9999px;
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--color-text-secondary);
+                text-decoration: none;
+                white-space: nowrap;
+                transition: all 0.2s ease;
+                border: 1px solid transparent;
+            }
+            .nav-tab:hover {
+                background: var(--color-background-primary);
+                color: var(--color-text-primary);
+                border-color: var(--color-border-secondary);
+            }
+            .nav-tab.active {
+                background: #185FA5;
+                color: #ffffff;
+                box-shadow: 0 4px 12px rgba(24,95,165,0.25);
+            }
+            [data-theme='dark'] .nav-tab.active {
+                background: #fff;
+                color: #0f172a;
+                box-shadow: 0 4px 12px rgba(255,255,255,0.1);
+            }
