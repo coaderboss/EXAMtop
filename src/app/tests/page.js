@@ -1193,7 +1193,7 @@ export default function ManageTests() {
                                         {d.auditLogs.map((log, lIdx) => (
                                             <div key={lIdx} className="bg-white px-3 py-2 rounded-lg border border-slate-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2 text-[12px]">
-                                                    <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 font-black text-[11px] shrink-0">{log.awarded} Mk</span>
+                                                    <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 font-black text-[11px] shrink-0">{log.awarded} Marks</span>
                                                     <span className="text-slate-600 truncate max-w-[200px] sm:max-w-sm italic" title={log.reason}>"{log.reason}"</span>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
@@ -1330,7 +1330,7 @@ export default function ManageTests() {
                   <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-300">
                       <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 font-mono text-[11px]"><i className="ti ti-hash opacity-60"></i> {selectedTest.code}</span>
                       <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-1"><i className="ti ti-clock text-slate-400"></i> {selectedTest.duration}m</span>
-                      <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-1"><i className="ti ti-target text-slate-400"></i> {selectedTest.totalMarks} Mk</span>
+                      <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-1"><i className="ti ti-target text-slate-400"></i> {selectedTest.totalMarks} Marks</span>
                   </div>
               </div>
 
@@ -1356,132 +1356,60 @@ export default function ManageTests() {
               </div>
           </div>
 
-          {/* 🔥 MAIN OVERVIEW CONTENT (Logical Flow & Natural Heights) 🔥 */}
-          {activeTab === 'overview' && (
-              <div className="flex flex-col lg:flex-row gap-5 sm:gap-6 mb-8">
-                  
-                  {/* LEFT COLUMN: Takes up 60-65% width on Desktop */}
-                  <div className="flex flex-col gap-5 sm:gap-6 lg:w-[60%] xl:w-[65%]">
-                      
-                      {/* 1. INTAKE CONTROL (Now standard height, NO vertical stretching) */}
-                      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-[0_4px_20px_rgb(0,0,0,0.03)] flex flex-col sm:flex-row items-center justify-between gap-5">
-                          <div className="flex-1 text-center sm:text-left">
-                              <h3 className="text-[13px] sm:text-[14px] font-extrabold text-slate-800 uppercase tracking-widest mb-1.5 flex items-center justify-center sm:justify-start gap-2">
-                                  <i className="ti ti-door-enter text-blue-600 text-lg"></i> Exam Intake Access
-                              </h3>
-                              <p className="text-[12px] sm:text-[13px] text-slate-500 font-semibold leading-relaxed">
-                                  Control whether students can join this test right now. Locking the intake prevents any new entries.
-                              </p>
-                          </div>
-                          {(() => {
-                              const now = Date.now();
-                              const closeTime = selectedTest.closeDate ? new Date(selectedTest.closeDate).getTime() : null;
-                              const openTime = selectedTest.openDate ? new Date(selectedTest.openDate).getTime() : null;
-                              let isLive = !(selectedTest.isActive === false || (closeTime && now > closeTime));
-                              
-                              return (
-                                  <button 
-                                      className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm text-sm shrink-0 ${isLive ? 'bg-rose-50 text-rose-700 border-2 border-rose-200 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200 hover:bg-emerald-100'}`} 
-                                      onClick={() => toggleTestStatus(selectedTest)}
-                                  >
-                                      <i className={`ti ${isLive ? 'ti-lock' : 'ti-door-enter'} text-xl`}></i> {isLive ? 'Lock Exam Intake' : 'Open Intake Now'}
-                                  </button>
-                              );
-                          })()}
-                      </div>
+          {/* 🔥 MAIN OVERVIEW CONTENT (Perfect Layout via React Variables) 🔥 */}
+          {activeTab === 'overview' && (() => {
 
-                      {/* 2. MANAGEMENT TOOLS */}
-                      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
-                          <h3 className="text-[12px] font-extrabold text-slate-500 uppercase tracking-widest mb-5 flex items-center gap-1.5"><i className="ti ti-apps text-blue-500 text-lg"></i> Management Tools</h3>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <button onClick={() => autoJoinLocalTest(selectedTest.code)} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-blue-50 hover:border-blue-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-                                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-blue-600 group-hover:scale-105 transition-transform"><i className="ti ti-player-play text-xl"></i></div>
-                                  <div>
-                                      <div className="font-bold text-[14px] text-slate-800 group-hover:text-blue-700">Demo Test</div>
-                                      <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Experience as student</div>
-                                  </div>
-                              </button>
-                              <button onClick={() => printTestPaper(selectedTest)} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-indigo-50 hover:border-indigo-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-                                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-indigo-600 group-hover:scale-105 transition-transform"><i className="ti ti-printer text-xl"></i></div>
-                                  <div>
-                                      <div className="font-bold text-[14px] text-slate-800 group-hover:text-indigo-700">Print Paper</div>
-                                      <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Generate PDF copy</div>
-                                  </div>
-                              </button>
-                              <button onClick={openEditKey} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-amber-50 hover:border-amber-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-                                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-amber-600 group-hover:scale-105 transition-transform"><i className="ti ti-key text-xl"></i></div>
-                                  <div>
-                                      <div className="font-bold text-[14px] text-slate-800 group-hover:text-amber-700">Edit Answer Key</div>
-                                      <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Fix errors & Auto-Regrade</div>
-                                  </div>
-                              </button>
-                              <button onClick={() => setModalType('analytics')} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-emerald-50 hover:border-emerald-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-                                  <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-emerald-600 group-hover:scale-105 transition-transform"><i className="ti ti-chart-pie text-xl"></i></div>
-                                  <div>
-                                      <div className="font-bold text-[14px] text-slate-800 group-hover:text-emerald-700">View Analytics</div>
-                                      <div className="text-[11px] text-slate-500 font-semibold mt-0.5">Class performance stats</div>
-                                  </div>
-                              </button>
-                          </div>
+              const intakeCard = (
+                  <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-[0_4px_20px_rgb(0,0,0,0.03)] flex flex-col sm:flex-row items-center justify-between gap-5">
+                      <div className="flex-1 text-center sm:text-left">
+                          <h3 className="text-[13px] sm:text-[14px] font-extrabold text-slate-800 uppercase tracking-widest mb-1.5 flex items-center justify-center sm:justify-start gap-2">
+                              <i className="ti ti-door-enter text-blue-600 text-lg"></i> Exam Intake Access
+                          </h3>
+                          <p className="text-[12px] sm:text-[13px] text-slate-500 font-semibold leading-relaxed">
+                              Control whether students can join this test right now. Locking the intake will prevent any new students from starting the exam.
+                          </p>
                       </div>
-
-                      {/* 3. RESULTS & SHARING */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
-                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                              <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5"><i className="ti ti-file-certificate text-indigo-500 text-lg"></i> Assessment Results</h3>
-                              {!selectedTest.released && selectedTest.resultVis === 'manual' ? (
-                                  <button className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-600 text-white shadow-md shadow-blue-600/30 hover:bg-blue-700 transition-all active:scale-95 text-sm" onClick={() => publishResults(selectedTest)}>
-                                      <i className="ti ti-send text-xl"></i> Publish Now
-                                  </button>
-                              ) : (
-                                  <div className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-slate-50 text-slate-500 border border-slate-200 text-sm">
-                                      <i className={`ti ${selectedTest.resultVis === 'instant' ? 'ti-bolt text-amber-500' : 'ti-check text-emerald-500'} text-xl`}></i> 
-                                      {selectedTest.resultVis === 'instant' ? 'Instant Access Active' : 'Results Published'}
-                                  </div>
-                              )}
-                          </div>
+                      {(() => {
+                          const now = Date.now();
+                          const closeTime = selectedTest.closeDate ? new Date(selectedTest.closeDate).getTime() : null;
+                          const openTime = selectedTest.openDate ? new Date(selectedTest.openDate).getTime() : null;
+                          let isLive = !(selectedTest.isActive === false || (closeTime && now > closeTime));
                           
-                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                              <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5"><i className="ti ti-share text-emerald-500 text-lg"></i> Quick Sharing</h3>
-                              <div className="flex gap-2">
-                                  <button className="flex-1 p-3 rounded-xl bg-[#25d366]/10 text-[#075e54] hover:bg-[#25d366]/20 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-[#25d366]/20" onClick={() => shareTest(selectedTest, 'whatsapp')} title="Share via WhatsApp">
-                                      <i className="ti ti-brand-whatsapp text-xl"></i>
-                                  </button>
-                                  <button className="flex-1 p-3 rounded-xl bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/20 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-[#0088cc]/20" onClick={() => shareTest(selectedTest, 'telegram')} title="Share via Telegram">
-                                      <i className="ti ti-brand-telegram text-xl"></i>
-                                  </button>
-                              </div>
-                          </div>
-                      </div>
+                          return (
+                              <button 
+                                  className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm text-sm sm:text-base shrink-0 ${isLive ? 'bg-rose-50 text-rose-700 border-2 border-rose-200 hover:bg-rose-100 hover:border-rose-300' : 'bg-emerald-50 text-emerald-700 border-2 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'}`} 
+                                  onClick={() => toggleTestStatus(selectedTest)}
+                              >
+                                  <i className={`ti ${isLive ? 'ti-lock' : 'ti-door-enter'} text-xl`}></i> {isLive ? 'Lock Exam Intake' : 'Open Intake Now'}
+                              </button>
+                          );
+                      })()}
                   </div>
+              );
 
-                  {/* RIGHT COLUMN: Takes up remaining space */}
-                  <div className="flex flex-col gap-5 sm:gap-6 lg:w-[40%] xl:w-[35%]">
+              const settingsCard = (
+                  <div className="bg-slate-50 p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                      <i className="ti ti-settings absolute -right-4 -top-4 text-slate-200 text-7xl sm:text-8xl pointer-events-none opacity-50"></i>
                       
-                      {/* 4. CONFIGURATION (Added Radar) */}
-                      <div className="bg-slate-50 p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden flex-1">
-                          <i className="ti ti-settings absolute -right-4 -top-4 text-slate-200 text-7xl sm:text-8xl pointer-events-none opacity-50"></i>
-                          
+                      <div>
                           <div className="flex items-center justify-between mb-5 relative z-10">
-                              <h3 className="text-[12px] font-extrabold text-slate-600 uppercase tracking-widest flex items-center gap-1.5"><i className="ti ti-adjustments text-slate-700 text-lg"></i> Exam Settings</h3>
-                              <button className="text-[11px] font-bold text-blue-700 bg-blue-100/80 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors shadow-sm" onClick={openEditSettings}>Edit Settings</button>
+                              <h3 className="text-[13px] font-extrabold text-slate-600 uppercase tracking-widest flex items-center gap-1.5"><i className="ti ti-adjustments text-slate-700 text-lg"></i> Exam Settings</h3>
+                              <button className="text-[11px] sm:text-[12px] font-bold text-blue-700 bg-blue-100/80 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors shadow-sm" onClick={openEditSettings}>Edit Settings</button>
                           </div>
                           
-                          <div className="flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm relative z-10 mb-5">
+                          <div className="flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm relative z-10">
                               <div className="flex justify-between items-center p-3.5 border-b border-slate-100">
-                                  <span className="text-[12px] font-bold text-slate-500">Duration</span>
-                                  <span className="text-[13px] font-black text-slate-800">{selectedTest.duration} Mins</span>
+                                  <span className="text-[12px] sm:text-[13px] font-bold text-slate-500">Duration</span>
+                                  <span className="text-[13px] sm:text-[14px] font-black text-slate-800">{selectedTest.duration} Mins</span>
                               </div>
                               <div className="flex justify-between items-center p-3.5 border-b border-slate-100">
-                                  <span className="text-[12px] font-bold text-slate-500">Neg. Marking</span>
-                                  <span className="text-[13px] font-black text-rose-600">-{selectedTest.negMarking || 0}</span>
+                                  <span className="text-[12px] sm:text-[13px] font-bold text-slate-500">Neg. Marking</span>
+                                  <span className="text-[13px] sm:text-[14px] font-black text-rose-600">-{selectedTest.negMarking || 0}</span>
                               </div>
                               <div className="flex justify-between items-center p-3.5 border-b border-slate-100">
-                                  <span className="text-[12px] font-bold text-slate-500">Results Type</span>
-                                  <span className="text-[13px] font-black text-slate-800">{selectedTest.resultVis === 'instant' ? 'Instant' : 'Manual'}</span>
+                                  <span className="text-[12px] sm:text-[13px] font-bold text-slate-500">Results Type</span>
+                                  <span className="text-[13px] sm:text-[14px] font-black text-slate-800">{selectedTest.resultVis === 'instant' ? 'Instant' : 'Manual'}</span>
                               </div>
-                              
-                              {/* 🔥 NEW: RADAR VISIBILITY ADDED HERE */}
                               <div className="flex justify-between items-center p-3.5 border-b border-slate-100 bg-slate-50/50">
                                   <span className="text-[12px] font-bold text-slate-500">Radar Visibility</span>
                                   {selectedTest.radarVisible ? (
@@ -1490,95 +1418,268 @@ export default function ManageTests() {
                                       <span className="text-[11px] font-extrabold bg-slate-200 text-slate-600 px-2 py-0.5 rounded border border-slate-300 flex items-center gap-1"><i className="ti ti-eye-off text-[10px]"></i> HIDDEN</span>
                                   )}
                               </div>
-                              
                               <div className="flex justify-between items-center p-3.5 bg-slate-50/50">
-                                  <span className="text-[12px] font-bold text-slate-500">Direct Entry</span>
+                                  <span className="text-[12px] sm:text-[13px] font-bold text-slate-500">Direct Entry</span>
                                   {selectedTest.directEntry ? (
                                       <span className="text-[11px] font-extrabold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1"><i className="ti ti-check text-[10px]"></i> ON</span>
                                   ) : (
-                                      <span className="text-[11px] font-extrabold bg-slate-200 text-slate-500 px-2 py-0.5 rounded border border-slate-300">OFF</span>
+                                      <span className="text-[11px] font-extrabold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">OFF</span>
                                   )}
                               </div>
                           </div>
                       </div>
+                  </div>
+              );
 
-                      {/* 5. DANGER ZONE */}
-                      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-rose-200 shadow-sm flex flex-col justify-between h-fit relative overflow-hidden">
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/4"></div>
-                          <div className="relative z-10">
-                              <h3 className="text-[12px] font-extrabold text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-2"><i className="ti ti-alert-triangle text-lg"></i> Danger Zone</h3>
-                              <p className="text-[12px] font-semibold text-slate-500 mb-5 leading-relaxed">
-                                  Irreversible action. Deletes all questions, analytics, and student submissions.
-                              </p>
-                          </div>
-                          <button className="w-full py-3 bg-rose-50 border-2 border-rose-200 text-rose-700 font-bold text-sm rounded-xl hover:bg-rose-100 hover:border-rose-300 transition-all active:scale-95 flex items-center justify-center gap-2 relative z-10 shadow-sm" onClick={() => triggerDelete(selectedTest)}>
-                              <i className="ti ti-trash text-lg"></i> Delete Entire Test
+              const toolsCard = (
+                  <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                      <h3 className="text-[12px] sm:text-[13px] font-extrabold text-slate-500 uppercase tracking-widest mb-5 flex items-center gap-1.5"><i className="ti ti-apps text-blue-500 text-lg"></i> Management Tools</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {/* Demo Test */}
+                          <button onClick={() => autoJoinLocalTest(selectedTest.code)} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-blue-50 hover:border-blue-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                              <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-blue-600 group-hover:scale-105 transition-transform"><i className="ti ti-player-play text-xl"></i></div>
+                              <div>
+                                  <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 group-hover:text-blue-700">Demo Test</div>
+                                  <div className="text-[11px] sm:text-[12px] text-slate-500 font-semibold mt-0.5">Experience as student</div>
+                              </div>
+                          </button>
+                          {/* Print Paper */}
+                          <button onClick={() => printTestPaper(selectedTest)} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-indigo-50 hover:border-indigo-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                              <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-indigo-600 group-hover:scale-105 transition-transform"><i className="ti ti-printer text-xl"></i></div>
+                              <div>
+                                  <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 group-hover:text-indigo-700">Print Paper</div>
+                                  <div className="text-[11px] sm:text-[12px] text-slate-500 font-semibold mt-0.5">Generate PDF copy</div>
+                              </div>
+                          </button>
+                          {/* Edit Key */}
+                          <button onClick={openEditKey} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-amber-50 hover:border-amber-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                              <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-amber-600 group-hover:scale-105 transition-transform"><i className="ti ti-key text-xl"></i></div>
+                              <div>
+                                  <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 group-hover:text-amber-700">Edit Answer Key</div>
+                                  <div className="text-[11px] sm:text-[12px] text-slate-500 font-semibold mt-0.5">Fix errors & Auto-Regrade</div>
+                              </div>
+                          </button>
+                          {/* Analytics */}
+                          <button onClick={() => setModalType('analytics')} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-emerald-50 hover:border-emerald-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                              <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-emerald-600 group-hover:scale-105 transition-transform"><i className="ti ti-chart-pie text-xl"></i></div>
+                              <div>
+                                  <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 group-hover:text-emerald-700">View Analytics</div>
+                                  <div className="text-[11px] sm:text-[12px] text-slate-500 font-semibold mt-0.5">Class performance stats</div>
+                              </div>
                           </button>
                       </div>
                   </div>
-              </div>
-          )}
+              );
 
-          {activeTab === 'subs' && (
-              <div className="card" style={{ padding: '2rem 1rem', borderRadius: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '15px' }}>
-                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>Submissions Ledger</h3>
-                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', width: '100%' }}>
-                          <button className="btn btn-success" style={{ padding: '10px 16px', fontWeight: 600, borderRadius: '8px', flexGrow: 1, justifyContent: 'center' }} onClick={() => exportToCSV(selectedTest)}><i className="ti ti-file-spreadsheet"></i> Export CSV</button>
-                          <div style={{ position: 'relative', flexGrow: 2, minWidth: '200px' }}>
-                              <i className="ti ti-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '18px' }}></i>
-                              <input type="text" placeholder="Search by Name or Roll No..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ padding: '10px 10px 10px 40px', width: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', boxSizing: 'border-box' }} />
+              const resultsAndSharingCard = (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                          <h3 className="text-[12px] sm:text-[13px] font-extrabold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-1.5"><i className="ti ti-file-certificate text-indigo-500 text-lg"></i> Assessment Results</h3>
+                          {!selectedTest.released && selectedTest.resultVis === 'manual' ? (
+                              <button className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-600 text-white shadow-md shadow-blue-600/30 hover:bg-blue-700 transition-all active:scale-95 text-sm" onClick={() => publishResults(selectedTest)}>
+                                  <i className="ti ti-send text-xl"></i> Publish Now
+                              </button>
+                          ) : (
+                              <div className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-slate-50 text-slate-500 border border-slate-200 text-sm">
+                                  <i className={`ti ${selectedTest.resultVis === 'instant' ? 'ti-bolt text-amber-500' : 'ti-check text-emerald-500'} text-xl`}></i> 
+                                  {selectedTest.resultVis === 'instant' ? 'Instant Access Active' : 'Results Published'}
+                              </div>
+                          )}
+                      </div>
+                      
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                          <h3 className="text-[12px] sm:text-[13px] font-extrabold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-1.5"><i className="ti ti-share text-emerald-500 text-lg"></i> Quick Sharing</h3>
+                          <div className="flex gap-2">
+                              <button className="flex-1 p-3 rounded-xl bg-[#25d366]/10 text-[#075e54] hover:bg-[#25d366]/20 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-[#25d366]/20" onClick={() => shareTest(selectedTest, 'whatsapp')} title="Share via WhatsApp">
+                                  <i className="ti ti-brand-whatsapp text-2xl"></i>
+                              </button>
+                              <button className="flex-1 p-3 rounded-xl bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/20 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-[#0088cc]/20" onClick={() => shareTest(selectedTest, 'telegram')} title="Share via Telegram">
+                                  <i className="ti ti-brand-telegram text-2xl"></i>
+                              </button>
                           </div>
                       </div>
                   </div>
+              );
 
-                  {(!selectedTest.submissions || selectedTest.submissions.length === 0) ? (
-                      <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-                          <i className="ti ti-ghost" style={{ fontSize: '48px', color: '#cbd5e1', display: 'block', marginBottom: '1rem' }}></i>
-                          <h4 style={{ color: '#475569', marginBottom: '5px' }}>No Submissions Found</h4>
-                          <p style={{ color: '#94a3b8', fontSize: '14px' }}>Wait for students to complete the test.</p>
+              const dangerCard = (
+                  <div className="bg-white p-5 sm:p-6 rounded-2xl border border-rose-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/4"></div>
+                      <div className="relative z-10">
+                          <h3 className="text-[13px] font-extrabold text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-2"><i className="ti ti-alert-triangle text-lg"></i> Danger Zone</h3>
+                          <p className="text-[12px] font-semibold text-slate-500 mb-5 leading-relaxed">
+                              Irreversible action. Deletes all questions, analytics, and student submissions permanently.
+                          </p>
                       </div>
-                  ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '500px', overflowY: 'auto', paddingRight: '5px' }}>
-                          {(searchQuery ? selectedTest.submissions.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || (s.roll && s.roll.toLowerCase().includes(searchQuery.toLowerCase()))) : selectedTest.submissions).map((s, sIdx) => (
-                              <div key={sIdx} style={{ padding: '15px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '15px' }}>
-                                  
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '150px' }}>
-                                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '16px', flexShrink: 0 }}>{(s.name || 'A').charAt(0).toUpperCase()}</div>
-                                      <div style={{ overflow: 'hidden' }}>
-                                          <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '2px', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{s.name}</div>
-                                          <div style={{ fontSize: '13px', color: '#64748b', fontFamily: 'monospace' }}>Roll: {s.roll || 'N/A'}</div>
-                                      </div>
-                                  </div>
+                      <button className="w-full py-3 bg-rose-50 border-2 border-rose-200 text-rose-700 font-bold text-sm rounded-xl hover:bg-rose-100 hover:border-rose-300 transition-all active:scale-95 flex items-center justify-center gap-2 relative z-10 shadow-sm" onClick={() => triggerDelete(selectedTest)}>
+                          <i className="ti ti-trash text-lg"></i> Delete Entire Test
+                      </button>
+                  </div>
+              );
 
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap', flexGrow: 1, justifyContent: 'flex-end' }}>
-                                      {s.evaluated || selectedTest.resultVis === 'instant' ? (
-                                          <div style={{ textAlign: 'right' }}><div style={{ fontSize: '18px', fontWeight: 800, color: '#185FA5' }}>{s.score} <span style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8' }}>/ {selectedTest.totalMarks}</span></div><div style={{ fontSize: '11px', color: '#10B981', fontWeight: 600 }}>Evaluated</div></div>
-                                      ) : (
-                                          <div style={{ textAlign: 'right' }}><div style={{ fontSize: '15px', fontWeight: 700, color: '#f59e0b', marginBottom: '2px' }}><i className="ti ti-clock"></i> Pending</div><div style={{ fontSize: '11px', color: '#94a3b8' }}>Needs Check</div></div>
-                                      )}
-                                      
-                                      <div style={{ display: 'flex', gap: '8px' }}>
-                                          <button className="btn btn-primary" style={{ padding: '8px 14px', fontWeight: 600, borderRadius: '8px', whiteSpace: 'nowrap' }} onClick={() => { setEvaluateSub({ sub: s, test: selectedTest, sIdx }); setEvalFilter('all'); }}><i className="ti ti-eye"></i> Evaluate</button>
-                                          
-                                          {/*  SECURITY FIX: Button sirf Admin ko ya Examiner ke khud ke demo test par dikhega */}
-                                          {(userRole === 'admin' || s.uid === currentUser?.uid || s.email === currentUser?.email) && (
-                                              <button 
-                                                  className="btn btn-ghost" 
-                                                  style={{ padding: '8px 12px', color: '#A32D2D', border: '1px solid #F7C1C1', background: '#FCEBEB', borderRadius: '8px' }}
-                                                  title="Delete this demo submission"
-                                                  onClick={() => deleteSubmission(sIdx, s.name)}
-                                              >
-                                                  <i className="ti ti-trash" style={{ margin: 0, fontSize: '18px' }}></i>
-                                              </button>
-                                          )}
-                                      </div>
-                                  </div>
+             return (
+                  <>
+                      {/* 🔥 BULLETPROOF CSS LAYOUT (Bypasses Tailwind Compile Issues) 🔥 */}
+                      <style>{`
+                          .overview-mobile-layout { display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2rem; width: 100%; }
+                          .overview-desktop-layout { display: none; width: 100%; gap: 1.5rem; margin-bottom: 2rem; align-items: flex-start; }
+                          
+                          /* 950px safe breakpoint for all laptops/tablets */
+                          @media (min-width: 950px) {
+                              .overview-mobile-layout { display: none !important; }
+                              .overview-desktop-layout { display: flex !important; }
+                          }
+                      `}</style>
 
+                      {/* 📱 MOBILE & TABLET LAYOUT */}
+                      {/* Logical Flow: Intake -> Settings -> Tools -> Results -> Danger */}
+                      <div className="overview-mobile-layout">
+                          {intakeCard}
+                          {settingsCard}
+                          {toolsCard}
+                          {resultsAndSharingCard}
+                          {dangerCard}
+                      </div>
+
+                      {/* 💻 DESKTOP LAYOUT (2 Columns - No Vertical Stretching!) */}
+                      <div className="overview-desktop-layout">
+                          
+                          {/* Left Column (Fixed 62% Width - Tools & Core Actions) */}
+                          <div style={{ flex: '0 0 62%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                              {intakeCard}
+                              {toolsCard}
+                              {resultsAndSharingCard}
+                          </div>
+                          
+                          {/* Right Column (Fills remaining space - Settings & Danger) */}
+                          <div style={{ flex: '1', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                              {settingsCard}
+                              {dangerCard}
+                          </div>
+                          
+                      </div>
+                  </>
+              );
+          })()}
+
+          {/* 🔥 PREMIUM SUBMISSIONS LEDGER (Tailwind SaaS Style) 🔥 */}
+          {activeTab === 'subs' && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-8 animate-[fadeIn_0.3s_ease]">
+                  
+                  {/* Ledger Header & Controls */}
+                  <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                          <h3 className="text-[16px] sm:text-[18px] font-black text-slate-800 flex items-center gap-2 m-0 tracking-tight">
+                              <i className="ti ti-users-group text-blue-600 text-xl"></i> 
+                              Submissions Ledger
+                              <span className="bg-blue-100 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-bold ml-1 border border-blue-200">
+                                  {selectedTest.submissions ? selectedTest.submissions.length : 0}
+                              </span>
+                          </h3>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                          {/* Search Bar */}
+                          <div className="relative flex-1 sm:min-w-[260px]">
+                              <i className="ti ti-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none"></i>
+                              <input 
+                                  type="text" 
+                                  placeholder="Search by Name or Roll No..." 
+                                  value={searchQuery} 
+                                  onChange={(e) => setSearchQuery(e.target.value)} 
+                                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm" 
+                              />
+                          </div>
+                          {/* Export CSV Button */}
+                          <button 
+                              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[13px] sm:text-sm rounded-xl hover:bg-emerald-100 transition-colors active:scale-95 shadow-sm whitespace-nowrap" 
+                              onClick={() => exportToCSV(selectedTest)}
+                          >
+                              <i className="ti ti-file-spreadsheet text-lg"></i> Export CSV
+                          </button>
+                      </div>
+                  </div>
+
+                  {/* Ledger List Container */}
+                  <div className="p-4 sm:p-6 bg-slate-50/30">
+                      {(!selectedTest.submissions || selectedTest.submissions.length === 0) ? (
+                          
+                          /* Empty State */
+                          <div className="text-center py-12 px-4 bg-white rounded-xl border border-slate-100 shadow-sm">
+                              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                                  <i className="ti ti-ghost text-4xl text-slate-300"></i>
                               </div>
-                          ))}
-                      </div>
-                  )}
+                              <h4 className="text-lg font-bold text-slate-700 mb-1">No Submissions Found</h4>
+                              <p className="text-sm text-slate-500 font-medium">Wait for students to complete and submit the test.</p>
+                          </div>
+                      
+                      ) : (
+                          
+                          /* Scrollable Submissions List */
+                          <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1 sm:pr-2">
+                              {(searchQuery ? selectedTest.submissions.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || (s.roll && s.roll.toLowerCase().includes(searchQuery.toLowerCase()))) : selectedTest.submissions).map((s, sIdx) => (
+                                  
+                                  <div key={sIdx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-200 hover:shadow-md transition-all duration-200 group">
+                                      
+                                      {/* Left: Student Info */}
+                                      <div className="flex items-center gap-3.5">
+                                          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-500 text-lg shrink-0 shadow-inner group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                                              {(s.name || 'A').charAt(0).toUpperCase()}
+                                          </div>
+                                          <div className="flex flex-col min-w-0">
+                                              <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 truncate mb-0.5 group-hover:text-blue-700 transition-colors">{s.name}</div>
+                                              <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-widest">
+                                                  <i className="ti ti-id"></i> Roll: <span className="text-slate-500">{s.roll || 'N/A'}</span>
+                                              </div>
+                                          </div>
+                                      </div>
+
+                                      {/* Right: Score & Actions (Border top on mobile) */}
+                                      <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto mt-1 sm:mt-0 pt-3 sm:pt-0 border-t border-slate-100 sm:border-0">
+                                          
+                                          {/* Status / Score display */}
+                                          <div className="text-left sm:text-right shrink-0">
+                                              {s.evaluated || selectedTest.resultVis === 'instant' ? (
+                                                  <div className="flex flex-col items-start sm:items-end">
+                                                      <div className="text-[16px] sm:text-[18px] font-black text-blue-700 leading-none mb-1.5">
+                                                          {s.score} <span className="text-[11px] sm:text-[12px] font-bold text-slate-400">/ {selectedTest.totalMarks}</span>
+                                                      </div>
+                                                      <div className="text-[9px] font-extrabold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1"><i className="ti ti-check"></i> Evaluated</div>
+                                                  </div>
+                                              ) : (
+                                                  <div className="flex flex-col items-start sm:items-end">
+                                                      <div className="text-[13px] sm:text-[14px] font-bold text-amber-600 leading-none mb-1.5 flex items-center gap-1"><i className="ti ti-clock text-lg"></i> Pending</div>
+                                                      <div className="text-[9px] font-extrabold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest">Needs Check</div>
+                                                  </div>
+                                              )}
+                                          </div>
+
+                                          {/* Action Buttons */}
+                                          <div className="flex items-center gap-2 shrink-0">
+                                              <button 
+                                                  className="px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white font-bold text-[13px] sm:text-sm rounded-xl shadow-md shadow-blue-600/20 hover:bg-blue-700 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center gap-1.5" 
+                                                  onClick={() => { setEvaluateSub({ sub: s, test: selectedTest, sIdx }); setEvalFilter('all'); }}
+                                              >
+                                                  <i className="ti ti-microscope text-[16px] sm:text-lg"></i> <span className="hidden sm:inline">Evaluate</span>
+                                              </button>
+                                              
+                                              {/* Demo Test Delete Button (Only for Admin/Owner) */}
+                                              {(userRole === 'admin' || s.uid === currentUser?.uid || s.email === currentUser?.email) && (
+                                                  <button 
+                                                      className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-white text-rose-500 border border-rose-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors active:scale-95 shrink-0 shadow-sm"
+                                                      title="Delete Demo Submission"
+                                                      onClick={() => deleteSubmission(sIdx, s.name)}
+                                                  >
+                                                      <i className="ti ti-trash text-lg"></i>
+                                                  </button>
+                                              )}
+                                          </div>
+                                      </div>
+
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
               </div>
           )}
 
