@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
-import { ref, set, update, remove, get } from 'firebase/database'; 
+import { ref, set, update, remove, get, onValue } from 'firebase/database'; 
 import FigureRenderer from '../../components/FigureRenderer'; 
 import SmilesViewer from '../../components/SmilesViewer';
 
@@ -50,6 +50,7 @@ export default function ManageTests() {
   const [evalSectionFilter, setEvalSectionFilter] = useState('all_sections'); // NAYA: Examiner Section Filter
   const [followerCount, setFollowerCount] = useState(0);
   const [isEvalMathReady, setIsEvalMathReady] = useState(true);
+  const [liveCount, setLiveCount] = useState(0);
   
 
   // --- SYSTEM POPUP STATES ---
@@ -255,6 +256,19 @@ export default function ManageTests() {
         clearTimeout(timer1);
     };
   }, [selectedTest, evaluateSub, evalFilter, evalSectionFilter, modalType, activeTab]);
+
+  useEffect(() => {
+      // Jab bhi koi test open hoga, ye listener background me active ho jayega
+      if (!selectedTest?.id || isOffline) return;
+      const liveRef = ref(database, `live_sessions/${selectedTest.id}`);
+      
+      const unsubscribe = onValue(liveRef, (snapshot) => {
+          const data = snapshot.val();
+          // Data me active users ki keys hongi, unki length = Live Students
+          setLiveCount(data ? Object.keys(data).length : 0);
+      });
+      return () => unsubscribe(); // Cleanup jab test close ho
+  }, [selectedTest?.id, isOffline]);
 
   // Fetch Followers Count on Mount
   useEffect(() => {
@@ -1029,9 +1043,12 @@ export default function ManageTests() {
             </div>
           </div>
 
-          {/* 🔥 PREMIUM QUESTION REVIEW CARDS (Examiner Mode) 🔥 */}
-          {/* ⚡ FIX: Added min-opacity 0.1 so it never completely disappears, and added a robust fallback in state toggles above */}
+          {/* 🔥 PREMIUM QUESTION REVIEW CARDS (Examiner Mode - Split Grid) 🔥 */}
           <div style={{ opacity: isEvalMathReady ? 1 : 0.05, transition: 'opacity 0.2s ease-in', minHeight: '50vh' }} className="flex flex-col gap-6">
+            
+            {/* CSS Hack for SVGs */}
+            <style>{`.svg-eval-container svg { max-width: 100%; height: auto; max-height: 280px; min-height: 100px; }`}</style>
+
             {evaluateSub.sub.details.filter(d => {
                 let sMatch = evalFilter === 'all' || d.status === evalFilter || (evalFilter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
                 let secMatch = evalSectionFilter === 'all_sections' || d.q.section === evalSectionFilter || (!d.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0]));
@@ -1058,188 +1075,197 @@ export default function ManageTests() {
                  <div key={originalQIdx} className={`bg-white rounded-2xl border ${sColor.border} overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1`}>
                     
                     {/* Header Section */}
-                    <div className={`px-5 py-3 ${sColor.header} border-b ${sColor.border} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
-                        <div className={`flex items-center gap-2 font-bold ${sColor.text} text-[15px]`}>
+                    <div className={`px-4 py-3 ${sColor.header} border-b ${sColor.border} flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
+                        <div className={`flex items-center gap-2 font-black ${sColor.text} text-[15px]`}>
                             <i className={`ti ${sColor.icon} text-[20px]`}></i>
-                            <span>Question {originalQIdx + 1} <span className="opacity-50 mx-1">|</span> {getLabel(q.type)}</span>
+                            <span>Q{originalQIdx + 1} <span className="opacity-40 mx-1">|</span> <span className="font-semibold text-xs uppercase tracking-wide">{getLabel(q.type)}</span></span>
                         </div>
                         <div className="flex items-center gap-2 self-start sm:self-auto">
-                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-white shadow-sm">
-                                Earned: {d.earned || 0} / {q.marks}
+                            <span className="px-3 py-1.5 rounded-lg text-[11px] font-extrabold bg-slate-800 text-white shadow-sm flex items-center gap-1.5">
+                                <i className="ti ti-target"></i> Earned: {d.earned || 0} / {q.marks}
                             </span>
                         </div>
                     </div>
 
-                    {/* Body Section */}
-                    <div className="p-5 overflow-x-auto hide-scroll w-full">
+                    {/* Split Grid Body Section */}
+                    <div className="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 w-full">
                         
-                        <StaticMath isBlock={true} html={q.text} className="text-[16px] leading-relaxed text-slate-800 font-medium mb-5 whitespace-normal break-words" />
-                        
-                        {/* Universal Compact Figure Engine */}
-                        {q.figureType && q.figureType !== 'none' && q.figureData && (
-                            <div className="flex justify-center w-full my-4">
-                                {(q.figureType === 'image' || q.figureType === 'url') && (
-                                    <img src={q.figureData} alt="Figure" className="max-w-full max-h-[200px] rounded-lg border border-slate-200 object-contain bg-white shadow-sm" />
-                                )}
-                                {q.figureType === 'smiles' && (
-                                    <div className="bg-white p-3 rounded-lg border border-slate-200 inline-block shadow-sm">
-                                        <SmilesViewer smilesCode={q.figureData} width={200} height={200} />
-                                    </div>
-                                )}
-                                {q.figureType === 'tikz' && (
-                                    <div className="hide-scroll max-w-full overflow-x-auto bg-white p-3 rounded-lg border border-slate-200 inline-block shadow-sm">
-                                        <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" className="max-w-full object-contain" />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        
-                        {/* Fallback Legacy Image */}
-                        {!q.figureType && q.imgUrl && (
-                            <div className="flex justify-center w-full my-4">
-                                <img src={q.imgUrl} className="max-w-full max-h-[200px] rounded-lg border border-slate-200 object-contain bg-white shadow-sm" alt="Legacy Figure" />
-                            </div>
-                        )}
-                                            
-                        {/* MCQ / MSQ Options */}
-                        <div className="flex flex-col gap-3">
-                            {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
-                                let isUser = userSel.includes(j);
-                                let isCorr = corrSel.includes(j);
-                                
-                                let optBg = 'bg-slate-50 hover:bg-slate-100', optBorder = 'border-slate-200', optText = 'text-slate-700', iconUi = null;
-                                if (isCorr && isUser) { optBg = 'bg-emerald-50'; optBorder = 'border-emerald-300'; optText = 'text-emerald-900 font-semibold'; iconUi = <i className="ti ti-check text-2xl text-emerald-600 flex-shrink-0"></i>; }
-                                else if (isCorr && !isUser) { optBg = 'bg-emerald-50/50'; optBorder = 'border-emerald-200 border-dashed'; optText = 'text-emerald-800'; iconUi = <i className="ti ti-check text-2xl text-emerald-400 opacity-50 flex-shrink-0"></i>; }
-                                else if (!isCorr && isUser) { optBg = 'bg-rose-50'; optBorder = 'border-rose-300'; optText = 'text-rose-900 font-semibold'; iconUi = <i className="ti ti-x text-2xl text-rose-600 flex-shrink-0"></i>; }
-
-                                return (
-                                    <div key={j} className={`flex items-start gap-4 p-4 rounded-xl border ${optBg} ${optBorder} transition-colors duration-200 w-full overflow-hidden`}>
-                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 border-2 bg-white ${isCorr && isUser ? 'border-emerald-500 text-emerald-600' : (!isCorr && isUser) ? 'border-rose-500 text-rose-600' : 'border-slate-400 text-slate-500'}`}>
-                                            {String.fromCharCode(65 + j)}
+                        {/* LEFT COLUMN: Question Text & Universal Figure */}
+                        <div className="flex flex-col gap-4">
+                            <StaticMath isBlock={true} html={q.text} className="text-[15px] sm:text-[16px] leading-relaxed text-slate-800 font-semibold whitespace-normal break-words" />
+                            
+                            {q.figureType && q.figureType !== 'none' && q.figureData && (
+                                <div className="flex justify-center w-full bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                    {(q.figureType === 'image' || q.figureType === 'url') && (
+                                        <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                                            <img src={q.figureData} alt="Figure" className="max-w-full max-h-[220px] object-contain" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=Image+Load+Failed'; }} />
                                         </div>
-                                        <div className="flex-1 flex flex-col gap-2 min-w-0">
-                                            {o.startsWith('[smiles]') ? (
-                                                <div className="pointer-events-none bg-white p-2 rounded-lg border border-slate-200 inline-block w-fit">
-                                                    <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
-                                                </div>
-                                            ) : (
-                                                <StaticMath isBlock={true} html={o} className={`text-[15px] whitespace-normal break-words ${optText}`} />
-                                            )}
-                                            {(isUser || isCorr) && (
-                                                <div className="flex gap-2 flex-wrap mt-1">
-                                                    {isUser && <span className="text-[10px] uppercase tracking-wide font-bold bg-blue-600 text-white px-2 py-0.5 rounded shadow-sm"><i className="ti ti-hand-click"></i> Student Picked</span>}
-                                                    {isCorr && <span className="text-[10px] uppercase tracking-wide font-bold bg-emerald-600 text-white px-2 py-0.5 rounded shadow-sm"><i className="ti ti-key"></i> Correct Key</span>}
-                                                </div>
-                                            )}
+                                    )}
+                                    {q.figureType === 'svg' && (
+                                        <div className="svg-eval-container w-full bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex justify-center overflow-x-auto" dangerouslySetInnerHTML={{ __html: q.figureData }} />
+                                    )}
+                                    {q.figureType === 'smiles' && (
+                                        <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm inline-block">
+                                            <SmilesViewer smilesCode={q.figureData} width={200} height={200} />
                                         </div>
-                                        {iconUi}
-                                    </div>
-                                );
-                            })}
+                                    )}
+                                    {q.figureType === 'tikz' && (
+                                        <div className="hide-scroll max-w-full overflow-x-auto bg-white p-2 rounded-lg border border-slate-200 shadow-sm inline-block">
+                                            <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" className="max-w-full max-h-[200px] object-contain" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=TikZ+Failed'; }} />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            
+                            {/* Fallback Legacy Image */}
+                            {!q.figureType && q.imgUrl && (
+                                <div className="flex justify-center w-full bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                    <img src={q.imgUrl} className="max-w-full max-h-[220px] rounded-lg border border-slate-200 object-contain bg-white shadow-sm" alt="Legacy Figure" />
+                                </div>
+                            )}
                         </div>
 
-                        {/* Integer Type */}
-                        {q.type === 'integer' && (
-                            <div className="flex flex-col sm:flex-row gap-4 mt-2">
-                                <div className={`flex-1 p-4 rounded-xl border flex flex-col justify-center ${d.status === 'correct' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
-                                    <span className="text-xs uppercase font-bold opacity-70 mb-1">Student Answer</span>
-                                    <strong className="text-2xl">{ans.val !== null ? ans.val : '—'}</strong>
-                                </div>
-                                <div className="flex-1 p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800 flex flex-col justify-center relative overflow-hidden">
-                                    <i className="ti ti-key absolute -right-2 -bottom-2 text-6xl opacity-10"></i>
-                                    <span className="text-xs uppercase font-bold opacity-70 mb-1">Correct Answer</span>
-                                    <strong className="text-2xl">{q.correctInt}</strong>
-                                </div>
-                            </div>
-                        )}
+                        {/* RIGHT COLUMN: Options, Logic, Audit & Override */}
+                        <div className="flex flex-col gap-4">
+                            {/* MCQ / MSQ Options */}
+                            {(q.type === 'mcq' || q.type === 'msq') && (
+                                <div className="flex flex-col gap-2.5">
+                                    {q.options.map((o, j) => {
+                                        let isUser = userSel.includes(j);
+                                        let isCorr = corrSel.includes(j);
+                                        let optBg = 'bg-slate-50', optBorder = 'border-slate-200', optText = 'text-slate-700', iconUi = null;
+                                        
+                                        if (isCorr && isUser) { optBg = 'bg-emerald-50 shadow-[0_0_0_1px_#10b981]'; optBorder = 'border-emerald-500'; optText = 'text-emerald-900 font-bold'; iconUi = <i className="ti ti-check text-xl text-emerald-600"></i>; }
+                                        else if (isCorr && !isUser) { optBg = 'bg-white border-dashed border-2'; optBorder = 'border-emerald-400'; optText = 'text-emerald-800 font-bold'; iconUi = <i className="ti ti-check text-xl text-emerald-400 opacity-60"></i>; }
+                                        else if (!isCorr && isUser) { optBg = 'bg-rose-50 shadow-[0_0_0_1px_#ef4444]'; optBorder = 'border-rose-500'; optText = 'text-rose-900 font-bold'; iconUi = <i className="ti ti-x text-xl text-rose-600"></i>; }
 
-                        {/* Subjective Type */}
-                        {q.type === 'subjective' && (
-                            <div className="flex flex-col gap-4 mt-2">
-                                <div className="p-4 rounded-xl border bg-slate-50 border-slate-200 flex gap-3 items-start">
-                                    <i className="ti ti-pencil text-blue-600 text-xl mt-0.5 flex-shrink-0"></i>
-                                    <div>
-                                        <span className="text-xs uppercase font-bold text-slate-500 mb-1 block">Student Answer</span>
-                                        <span className="text-[15px] leading-relaxed text-slate-700 whitespace-pre-wrap">{ans.val || <em className="text-slate-400">No answer written.</em>}</span>
-                                    </div>
-                                </div>
-                                {q.modelAnswer && (
-                                    <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 flex gap-3 items-start">
-                                        <i className="ti ti-bulb text-emerald-600 text-xl mt-0.5 flex-shrink-0"></i>
-                                        <div>
-                                            <span className="text-xs uppercase font-bold text-emerald-600 mb-1 block">Model Answer</span>
-                                            <span className="text-[15px] leading-relaxed text-emerald-900 whitespace-pre-wrap">{q.modelAnswer}</span>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Smart Accordion Explanation */}
-                        {q.explanation && (
-                            <details className="group mt-6 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden transition-all duration-300">
-                                <summary className="cursor-pointer p-4 font-semibold text-slate-700 flex items-center justify-between hover:bg-slate-100 transition-colors select-none">
-                                    <span className="flex items-center gap-2"><i className="ti ti-bulb text-lg text-slate-500"></i> View Solution / Logic</span>
-                                    <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 group-open:bg-slate-700 group-open:text-white transition-colors">
-                                        <i className="ti ti-chevron-down transform group-open:rotate-180 transition-transform duration-300"></i>
-                                    </div>
-                                </summary>
-                                <div className="p-5 border-t border-slate-200 text-[15px] text-slate-700 leading-relaxed bg-white">
-                                    <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" />
-                                </div>
-                            </details>
-                        )}
-                        
-                        <div className="mt-5 flex flex-col gap-3">
-                            {/* 🔥 ULTRA-COMPACT AUDIT LOGS 🔥 */}
-                            {d.auditLogs && d.auditLogs.length > 0 && (
-                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                        <i className="ti ti-history text-sm"></i> Evaluation History
-                                    </div>
-                                    <div className="flex flex-col gap-1.5">
-                                        {d.auditLogs.map((log, lIdx) => (
-                                            <div key={lIdx} className="bg-white px-3 py-2 rounded-lg border border-slate-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                <div className="flex items-center gap-2 text-[12px]">
-                                                    <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200 font-black text-[11px] shrink-0">{log.awarded} Marks</span>
-                                                    <span className="text-slate-600 truncate max-w-[200px] sm:max-w-sm italic" title={log.reason}>"{log.reason}"</span>
+                                        return (
+                                            <div key={j} className={`flex items-start gap-3 p-3 rounded-xl border-2 ${optBg} ${optBorder} transition-all w-full overflow-hidden`}>
+                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 border-2 bg-white ${isCorr && isUser ? 'border-emerald-500 text-emerald-600' : (!isCorr && isUser) ? 'border-rose-500 text-rose-600' : 'border-slate-300 text-slate-500'}`}>
+                                                    {String.fromCharCode(65 + j)}
                                                 </div>
-                                                <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                                                    <span><i className="ti ti-user"></i> {log.examiner}</span>
-                                                    <span className="hidden sm:inline">•</span>
-                                                    <span>{log.date}</span>
+                                                <div className="flex-1 flex flex-col gap-1.5 min-w-0 pt-0.5">
+                                                    {o.startsWith('[smiles]') ? (
+                                                        <div className="bg-white p-1.5 rounded-lg border border-slate-200 inline-block w-fit pointer-events-none">
+                                                            <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={120} height={120} />
+                                                        </div>
+                                                    ) : (
+                                                        <StaticMath isBlock={true} html={o} className={`text-[14px] sm:text-[14.5px] whitespace-normal break-words ${optText}`} />
+                                                    )}
+                                                    {(isUser || isCorr) && (
+                                                        <div className="flex gap-2 mt-1">
+                                                            {isUser && <span className="text-[9px] uppercase font-extrabold bg-blue-600 text-white px-1.5 py-0.5 rounded shadow-sm"><i className="ti ti-hand-click"></i> Picked</span>}
+                                                            {isCorr && <span className="text-[9px] uppercase font-extrabold bg-emerald-500 text-white px-1.5 py-0.5 rounded shadow-sm"><i className="ti ti-key"></i> Key</span>}
+                                                        </div>
+                                                    )}
                                                 </div>
+                                                <div className="shrink-0 mt-0.5">{iconUi}</div>
                                             </div>
-                                        ))}
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Integer Type */}
+                            {q.type === 'integer' && (
+                                <div className="flex gap-3">
+                                    <div className={`flex-1 p-3 sm:p-4 rounded-xl border-2 flex flex-col justify-center ${d.status === 'correct' ? 'bg-emerald-50 border-emerald-400 text-emerald-900' : 'bg-rose-50 border-rose-400 text-rose-900'}`}>
+                                        <span className="text-[10px] uppercase font-extrabold opacity-70 mb-0.5">Student Answer</span>
+                                        <strong className="text-2xl">{ans.val !== null ? ans.val : '—'}</strong>
+                                    </div>
+                                    <div className="flex-1 p-3 sm:p-4 rounded-xl border-2 border-emerald-400 bg-white text-emerald-900 flex flex-col justify-center relative overflow-hidden shadow-sm">
+                                        <i className="ti ti-key absolute -right-2 -bottom-2 text-5xl text-emerald-50"></i>
+                                        <span className="text-[10px] uppercase font-extrabold opacity-70 mb-0.5 relative z-10">Correct Key</span>
+                                        <strong className="text-2xl relative z-10">{q.correctInt}</strong>
                                     </div>
                                 </div>
                             )}
 
-                            {/* 🔥 ULTRA-COMPACT OVERRIDE TOOL 🔥 */}
-                            <div className="bg-blue-50/80 border border-blue-100 p-3 rounded-xl flex items-center justify-between gap-3 shadow-sm">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-inner">
-                                        <i className="ti ti-wand text-lg"></i>
+                            {/* Subjective Type */}
+                            {q.type === 'subjective' && (
+                                <div className="flex flex-col gap-3">
+                                    <div className="p-4 rounded-xl border-2 bg-slate-50 border-slate-200 flex gap-3 items-start">
+                                        <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm"><i className="ti ti-pencil text-slate-700"></i></div>
+                                        <div>
+                                            <span className="text-[10px] uppercase font-extrabold text-slate-500 mb-1 block">Student Answer</span>
+                                            <span className="text-[14px] leading-relaxed text-slate-800 font-medium">{ans.val || <em className="text-slate-400">No answer written.</em>}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[13px] font-bold text-blue-800 leading-none mb-1">Grade Override</span>
-                                        <span className="text-[10px] font-semibold text-blue-500/80 leading-none">Update marks</span>
-                                    </div>
+                                    {q.modelAnswer && (
+                                        <div className="p-4 rounded-xl border-2 bg-emerald-50 border-emerald-300 flex gap-3 items-start">
+                                            <div className="w-8 h-8 rounded-full bg-white border border-emerald-200 flex items-center justify-center shrink-0 shadow-sm"><i className="ti ti-bulb text-emerald-600"></i></div>
+                                            <div>
+                                                <span className="text-[10px] uppercase font-extrabold text-emerald-700 mb-1 block">Model Answer</span>
+                                                <span className="text-[14px] leading-relaxed text-emerald-900 font-medium">{q.modelAnswer}</span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                                
-                                <div className="flex items-center gap-2 bg-white px-2 py-1.5 rounded-lg border border-blue-200 shadow-inner focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                                    <input 
-                                        type="number" 
-                                        max={q.marks} 
-                                        step="0.25" 
-                                        value={evalOverrides[originalQIdx] !== undefined ? evalOverrides[originalQIdx] : (d.earned || 0)} 
-                                        onChange={(e) => setEvalOverrides({ ...evalOverrides, [originalQIdx]: e.target.value })} 
-                                        className="w-12 sm:w-14 text-[14px] font-black text-blue-700 bg-transparent text-center outline-none"
-                                    />
-                                    <div className="w-px h-5 bg-slate-200"></div>
-                                    <div className="text-[11px] font-bold text-slate-400 pr-1 shrink-0">/ {q.marks}</div>
+                            )}
+
+                            {/* Smart Accordion Explanation */}
+                            {q.explanation && (
+                                <details className="group bg-slate-50 rounded-xl border border-slate-200 overflow-hidden transition-all duration-300">
+                                    <summary className="cursor-pointer p-3 sm:p-4 font-bold text-slate-700 flex items-center justify-between hover:bg-slate-100 transition-colors select-none">
+                                        <span className="flex items-center gap-2 text-[13px]"><i className="ti ti-bulb text-lg text-slate-500"></i> View Solution / Logic</span>
+                                        <div className="w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-500 group-open:bg-slate-700 group-open:text-white transition-colors">
+                                            <i className="ti ti-chevron-down transform group-open:rotate-180 transition-transform duration-300 text-xs"></i>
+                                        </div>
+                                    </summary>
+                                    <div className="p-4 border-t border-slate-200 text-[13.5px] text-slate-700 leading-relaxed font-medium bg-white">
+                                        <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" />
+                                    </div>
+                                </details>
+                            )}
+
+                            {/* Audit & Overrides Zone */}
+                            <div className="mt-auto flex flex-col gap-2.5 pt-4">
+                                {d.auditLogs && d.auditLogs.length > 0 && (
+                                    <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 shadow-sm relative overflow-hidden">
+                                        <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                                        <div className="text-[10px] uppercase font-extrabold tracking-widest mb-1.5 flex items-center gap-1.5 text-amber-700"><i className="ti ti-history text-sm"></i> Evaluation Audit Log</div>
+                                        <div className="flex flex-col gap-1.5 mt-2">
+                                            {d.auditLogs.map((log, lIdx) => (
+                                                <div key={lIdx} className="bg-white px-3 py-2 rounded-lg border border-amber-100/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                                                    <div className="flex items-center gap-2 text-[12px]">
+                                                        <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-black shrink-0">{log.awarded} Mk</span>
+                                                        <span className="text-amber-800/80 truncate max-w-[180px] italic">"{log.reason}"</span>
+                                                    </div>
+                                                    <div className="text-[9px] font-bold text-amber-500/70 uppercase tracking-wider shrink-0">{log.examiner} • {log.date.split(',')[0]}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Compact Grade Override Tool */}
+                                <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-inner">
+                                            <i className="ti ti-wand text-lg"></i>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[13px] font-bold text-blue-900 leading-none mb-1">Grade Override</span>
+                                            <span className="text-[10px] font-semibold text-blue-600/70 leading-none">Update manual marks</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-blue-200 shadow-inner focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all ml-auto">
+                                        <input 
+                                            type="number" 
+                                            max={q.marks} 
+                                            step="0.25" 
+                                            value={evalOverrides[originalQIdx] !== undefined ? evalOverrides[originalQIdx] : (d.earned || 0)} 
+                                            onChange={(e) => setEvalOverrides({ ...evalOverrides, [originalQIdx]: e.target.value })} 
+                                            className="w-14 sm:w-16 text-[15px] font-black text-blue-700 bg-transparent text-center outline-none"
+                                            style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' }}
+                                        />
+                                        <div className="w-px h-5 bg-slate-200"></div>
+                                        <div className="text-[11px] font-extrabold text-slate-400 pr-1 shrink-0">/ {q.marks}</div>
+                                    </div>
                                 </div>
                             </div>
+
                         </div>
                     </div>
                  </div>
@@ -1342,8 +1368,8 @@ export default function ManageTests() {
                   </div>
               </div>
 
-              {/* Status Badge */}
-              <div className="shrink-0 z-10 self-start sm:self-auto">
+              {/* Status Badge & Live Counter */}
+              <div className="shrink-0 z-10 self-start sm:self-auto flex flex-col sm:items-end gap-2">
                   {(() => {
                       const stNow = Date.now();
                       const stClose = selectedTest.closeDate ? new Date(selectedTest.closeDate).getTime() : null;
@@ -1361,6 +1387,15 @@ export default function ManageTests() {
                           </div>
                       );
                   })()}
+                  
+                  {/* 🔥 NAYA: REAL-TIME LIVE COUNTER BADGE 🔥 */}
+                  <div className="flex w-fit items-center gap-2 px-3 py-1.5 bg-blue-600/20 border border-blue-500/30 text-blue-300 rounded-lg font-black text-[11px] shadow-inner uppercase tracking-widest backdrop-blur-sm">
+                      {liveCount > 0 ? (
+                          <><span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse shadow-[0_0_8px_#60a5fa]"></span> {liveCount} Inside Exam</>
+                      ) : (
+                          <><i className="ti ti-ghost opacity-60"></i> 0 Inside Exam</>
+                      )}
+                  </div>
               </div>
           </div>
 

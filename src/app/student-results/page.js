@@ -731,8 +731,14 @@ export default function StudentResults() {
         </div>
       </div>
 
-      {/* 🔥 HYPER-VIBRANT QUESTION REVIEW CARDS 🔥 */}
-      <div style={{ opacity: isMathReady ? 1 : 0, transition: 'opacity 0.3s ease-in', minHeight: '50vh' }} className="flex flex-col gap-6">
+      {/* 🔥 HYPER-VIBRANT QUESTION REVIEW CARDS (COMPACT SPLIT-GRID) 🔥 */}
+      <div style={{ opacity: isMathReady ? 1 : 0, transition: 'opacity 0.3s ease-in', minHeight: '50vh' }} className="flex flex-col gap-5 sm:gap-6">
+        
+        {/* 🔥 CSS Hack: Force SVG to scale properly without overflowing */}
+        <style>{`
+            .svg-eval-container svg { max-width: 100%; height: auto; max-height: 280px; min-height: 100px; }
+        `}</style>
+
         {sub.details.filter(d => {
             let sMatch = filter === 'all' || d.status === filter || (filter === 'skipped' && (d.status === 'submitted' || d.status === 'evaluated'));
             let secMatch = sectionFilter === 'all_sections' || d.q.section === sectionFilter || (!d.q.section && sectionFilter === (test.sections?.[0]));
@@ -744,186 +750,189 @@ export default function StudentResults() {
            
            // Super Vibrant Colors
            const sProps = {
-               correct: { grad: 'from-emerald-400 to-teal-500', bg: 'bg-emerald-50', text: 'text-emerald-700', icon: 'ti-circle-check', badgeBg: 'bg-emerald-600' },
-               wrong: { grad: 'from-rose-500 to-red-500', bg: 'bg-rose-50', text: 'text-rose-700', icon: 'ti-circle-x', badgeBg: 'bg-rose-600' },
-               partial: { grad: 'from-amber-400 to-orange-500', bg: 'bg-amber-50', text: 'text-amber-700', icon: 'ti-adjustments-alt', badgeBg: 'bg-amber-600' },
-               evaluated: { grad: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', text: 'text-blue-700', icon: 'ti-pencil', badgeBg: 'bg-blue-600' },
-               submitted: { grad: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', text: 'text-blue-700', icon: 'ti-pencil', badgeBg: 'bg-blue-600' },
+               correct: { grad: 'from-emerald-400 to-teal-500', bg: 'bg-emerald-50/50', text: 'text-emerald-700', icon: 'ti-circle-check', badgeBg: 'bg-emerald-600' },
+               wrong: { grad: 'from-rose-500 to-red-500', bg: 'bg-rose-50/50', text: 'text-rose-700', icon: 'ti-circle-x', badgeBg: 'bg-rose-600' },
+               partial: { grad: 'from-amber-400 to-orange-500', bg: 'bg-amber-50/50', text: 'text-amber-700', icon: 'ti-adjustments-alt', badgeBg: 'bg-amber-600' },
+               evaluated: { grad: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50/50', text: 'text-blue-700', icon: 'ti-pencil', badgeBg: 'bg-blue-600' },
+               submitted: { grad: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50/50', text: 'text-blue-700', icon: 'ti-pencil', badgeBg: 'bg-blue-600' },
                skipped: { grad: 'from-slate-400 to-slate-500', bg: 'bg-slate-50', text: 'text-slate-600', icon: 'ti-minus', badgeBg: 'bg-slate-600' }
            };
            
            const sp = sProps[d.status] || sProps.skipped;
-           const statusLabel = d.status === 'correct' ? 'Correct' : d.status === 'wrong' ? 'Wrong' : d.status === 'partial' ? 'Partially Correct' : d.status === 'evaluated' ? 'Evaluated' : d.status === 'submitted' ? 'Pending' : 'Skipped';
+           const statusLabel = d.status === 'correct' ? 'Correct' : d.status === 'wrong' ? 'Wrong' : d.status === 'partial' ? 'Partial' : d.status === 'evaluated' ? 'Evaluated' : d.status === 'submitted' ? 'Pending' : 'Skipped';
            const earnedStr = d.earned > 0 ? '+' + d.earned : d.earned < 0 ? '' + d.earned : '0';
 
            let userSel = Array.isArray(ans.val) ? ans.val : (ans.val !== null ? [ans.val] : []);
            let corrSel = q.correct || [];
 
            return (
-             <div key={i} className="relative bg-white rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-[0_10px_40px_rgb(0,0,0,0.08)]">
+             <div key={i} className="relative bg-white rounded-2xl shadow-[0_2px_15px_rgb(0,0,0,0.03)] border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] group">
                 
                 {/* Vibrant Top Accent Line */}
-                <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${sp.grad}`}></div>
+                <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${sp.grad}`}></div>
                 
-                {/* Header Section */}
-                <div className={`px-5 py-4 ${sp.bg} border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1`}>
-                    <div className={`flex items-center gap-2 font-black ${sp.text} text-[16px]`}>
-                        <i className={`ti ${sp.icon} text-[22px]`}></i>
-                        <span>Q{originalQIdx + 1} <span className="opacity-40 mx-1">|</span> <span className="font-semibold text-sm uppercase tracking-wide">{getLabel(q.type)}</span></span>
+                {/* Compact Header */}
+                <div className={`px-4 py-3 ${sp.bg} border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1`}>
+                    <div className={`flex items-center gap-2 font-black ${sp.text} text-[15px]`}>
+                        <i className={`ti ${sp.icon} text-[20px]`}></i>
+                        <span>Q{originalQIdx + 1} <span className="opacity-40 mx-1">|</span> <span className="font-semibold text-xs uppercase tracking-wide">{getLabel(q.type)}</span></span>
                     </div>
                     <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <span className={`px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider font-extrabold text-white shadow-sm ${sp.badgeBg}`}>
+                        <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-extrabold text-white shadow-sm ${sp.badgeBg}`}>
                             {statusLabel}
                         </span>
-                        <span className="px-3 py-1.5 rounded-lg text-[12px] font-extrabold bg-slate-900 text-white shadow-sm">
+                        <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-slate-800 text-white shadow-sm flex items-center gap-1">
                             <i className="ti ti-target"></i> {earnedStr} Marks
                         </span>
                     </div>
                 </div>
 
-                {/* Body Section */}
-                <div className="p-5 sm:p-6 overflow-x-auto hide-scroll w-full">
+                {/* Body Section (SPLIT-GRID FOR LAPTOPS) */}
+                <div className="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 w-full">
                     
-                    {/* Question Text */}
-                    <StaticMath isBlock={true} html={q.text} className="text-[17px] leading-relaxed text-slate-800 font-semibold mb-6 whitespace-normal break-words" />
-                    
-                    {/* Universal Compact Figure Engine */}
-                    {q.figureType && q.figureType !== 'none' && q.figureData && (
-                        <div className="flex justify-center w-full mb-6">
-                            {(q.figureType === 'image' || q.figureType === 'url') && (
-                                <img src={q.figureData} alt="Figure" className="max-w-full max-h-[220px] rounded-xl border-2 border-slate-200 object-contain bg-white shadow-sm" />
-                            )}
-                            {q.figureType === 'smiles' && (
-                                <div className="bg-white p-3 rounded-xl border-2 border-slate-200 inline-block shadow-sm">
-                                    <SmilesViewer smilesCode={q.figureData} width={200} height={200} />
-                                </div>
-                            )}
-                            {q.figureType === 'tikz' && (
-                                <div className="hide-scroll max-w-full overflow-x-auto bg-white p-3 rounded-xl border-2 border-slate-200 inline-block shadow-sm">
-                                    <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" className="max-w-full object-contain" />
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    
-                    {/* Fallback Legacy Image */}
-                    {!q.figureType && q.imgUrl && (
-                        <div className="flex justify-center w-full mb-6">
-                            <img src={q.imgUrl} className="max-w-full max-h-[220px] rounded-xl border-2 border-slate-200 object-contain bg-white shadow-sm" alt="Legacy Figure" />
-                        </div>
-                    )}
-                                        
-                    {/* MCQ / MSQ Options */}
-                    <div className="flex flex-col gap-3">
-                        {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
-                            let isUser = userSel.includes(j);
-                            let isCorr = corrSel.includes(j);
-                            
-                            // High Contrast Styling for Options
-                            let optBg = 'bg-slate-50 hover:bg-slate-100 border-slate-200', optText = 'text-slate-700', iconUi = null;
-                            if (isCorr && isUser) { optBg = 'bg-emerald-50 border-emerald-500 shadow-[0_0_0_1px_#10b981]'; optText = 'text-emerald-900 font-bold'; iconUi = <i className="ti ti-check text-2xl text-emerald-600"></i>; }
-                            else if (isCorr && !isUser) { optBg = 'bg-white border-emerald-400 border-dashed border-2'; optText = 'text-emerald-800 font-bold'; iconUi = <i className="ti ti-check text-2xl text-emerald-400 opacity-60"></i>; }
-                            else if (!isCorr && isUser) { optBg = 'bg-rose-50 border-rose-500 shadow-[0_0_0_1px_#ef4444]'; optText = 'text-rose-900 font-bold'; iconUi = <i className="ti ti-x text-2xl text-rose-600"></i>; }
-
-                            return (
-                                <div key={j} className={`flex items-start gap-4 p-4 rounded-xl border-2 ${optBg} transition-all duration-200 w-full overflow-hidden`}>
-                                    
-                                    {/* Option Letter Circle */}
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 border-2 bg-white ${isCorr && isUser ? 'border-emerald-500 text-emerald-600 shadow-sm' : (!isCorr && isUser) ? 'border-rose-500 text-rose-600 shadow-sm' : 'border-slate-300 text-slate-500'}`}>
-                                        {String.fromCharCode(65 + j)}
+                    {/* === LEFT COLUMN: Question Text & Figure === */}
+                    <div className="flex flex-col gap-4">
+                        <StaticMath isBlock={true} html={q.text} className="text-[14px] sm:text-[15.5px] leading-relaxed text-slate-800 font-semibold whitespace-normal break-words" />
+                        
+                        {/* Universal Compact Figure Engine (With SVG/URL Fixes) */}
+                        {q.figureType && q.figureType !== 'none' && q.figureData && (
+                            <div className="flex justify-center w-full bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                {(q.figureType === 'image' || q.figureType === 'url') && (
+                                    <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm">
+                                        <img src={q.figureData} alt="Figure" className="max-w-full max-h-[220px] object-contain" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=Image+Load+Failed'; }} />
                                     </div>
-                                    
-                                    {/* Option Content */}
-                                    <div className="flex-1 flex flex-col gap-2 min-w-0 pt-0.5">
-                                        {o.startsWith('[smiles]') ? (
-                                            <div className="pointer-events-none bg-white p-2 rounded-lg border-2 border-slate-100 inline-block w-fit">
-                                                <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={150} height={150} />
-                                            </div>
-                                        ) : (
-                                            <StaticMath isBlock={true} html={o} className={`text-[15.5px] whitespace-normal break-words ${optText}`} />
-                                        )}
-
-                                        {/* Status Badges */}
-                                        {(isUser || isCorr) && (
-                                            <div className="flex gap-2 flex-wrap mt-1.5">
-                                                {isUser && <span className="text-[10px] uppercase tracking-wider font-extrabold bg-slate-800 text-white px-2 py-1 rounded shadow-sm"><i className="ti ti-hand-click"></i> You Picked</span>}
-                                                {isCorr && <span className="text-[10px] uppercase tracking-wider font-extrabold bg-emerald-500 text-white px-2 py-1 rounded shadow-sm"><i className="ti ti-key"></i> Correct Key</span>}
-                                            </div>
-                                        )}
+                                )}
+                                {q.figureType === 'svg' && (
+                                    <div className="svg-eval-container w-full bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex justify-center overflow-x-auto" dangerouslySetInnerHTML={{ __html: q.figureData }} />
+                                )}
+                                {q.figureType === 'smiles' && (
+                                    <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm inline-block">
+                                        <SmilesViewer smilesCode={q.figureData} width={200} height={200} />
                                     </div>
-                                    
-                                    {/* Result Icon Right */}
-                                    <div className="mt-1 flex-shrink-0">{iconUi}</div>
-                                </div>
-                            );
-                        })}
+                                )}
+                                {q.figureType === 'tikz' && (
+                                    <div className="hide-scroll max-w-full overflow-x-auto bg-white p-2 rounded-lg border border-slate-200 shadow-sm inline-block">
+                                        <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" className="max-w-full max-h-[200px] object-contain" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=TikZ+Failed'; }} />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        
+                        {/* Fallback Legacy Image */}
+                        {!q.figureType && q.imgUrl && (
+                            <div className="flex justify-center w-full bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                <img src={q.imgUrl} className="max-w-full max-h-[220px] rounded-lg border border-slate-200 object-contain bg-white shadow-sm" alt="Legacy Figure" />
+                            </div>
+                        )}
                     </div>
 
-                    {/* Integer Type */}
-                    {q.type === 'integer' && (
-                        <div className="flex flex-col sm:flex-row gap-4 mt-2">
-                            <div className={`flex-1 p-5 rounded-2xl border-2 flex flex-col justify-center ${d.status === 'correct' ? 'bg-emerald-50 border-emerald-400 text-emerald-900 shadow-[0_0_0_1px_#34d399]' : 'bg-rose-50 border-rose-400 text-rose-900 shadow-[0_0_0_1px_#fb7185]'}`}>
-                                <span className="text-[11px] uppercase tracking-wider font-extrabold opacity-70 mb-1">Your Answer</span>
-                                <strong className="text-3xl">{ans.val !== null ? ans.val : '—'}</strong>
-                            </div>
-                            <div className="flex-1 p-5 rounded-2xl border-2 border-emerald-400 bg-white text-emerald-900 flex flex-col justify-center relative overflow-hidden shadow-sm">
-                                <i className="ti ti-key absolute -right-2 -bottom-4 text-7xl text-emerald-100"></i>
-                                <span className="text-[11px] uppercase tracking-wider font-extrabold opacity-70 mb-1 relative z-10">Correct Answer</span>
-                                <strong className="text-3xl relative z-10">{q.correctInt}</strong>
-                            </div>
-                        </div>
-                    )}
+                    {/* === RIGHT COLUMN: Options, Explanation, & Audit === */}
+                    <div className="flex flex-col gap-4">
+                        
+                        {/* MCQ / MSQ Options */}
+                        <div className="flex flex-col gap-2.5">
+                            {(q.type === 'mcq' || q.type === 'msq') && q.options.map((o, j) => {
+                                let isUser = userSel.includes(j);
+                                let isCorr = corrSel.includes(j);
+                                
+                                let optBg = 'bg-slate-50 hover:bg-slate-100 border-slate-200', optText = 'text-slate-700', iconUi = null;
+                                if (isCorr && isUser) { optBg = 'bg-emerald-50 border-emerald-500 shadow-[0_0_0_1px_#10b981]'; optText = 'text-emerald-900 font-bold'; iconUi = <i className="ti ti-check text-xl text-emerald-600"></i>; }
+                                else if (isCorr && !isUser) { optBg = 'bg-white border-emerald-400 border-dashed border-2'; optText = 'text-emerald-800 font-bold'; iconUi = <i className="ti ti-check text-xl text-emerald-400 opacity-60"></i>; }
+                                else if (!isCorr && isUser) { optBg = 'bg-rose-50 border-rose-500 shadow-[0_0_0_1px_#ef4444]'; optText = 'text-rose-900 font-bold'; iconUi = <i className="ti ti-x text-xl text-rose-600"></i>; }
 
-                    {/* Subjective Type */}
-                    {q.type === 'subjective' && (
-                        <div className="flex flex-col gap-4 mt-2">
-                            <div className="p-5 rounded-2xl border-2 bg-slate-50 border-slate-200 flex gap-4 items-start">
-                                <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 shadow-sm"><i className="ti ti-pencil text-slate-700 text-xl"></i></div>
-                                <div>
-                                    <span className="text-[11px] uppercase tracking-wider font-extrabold text-slate-500 mb-1 block">Your Answer</span>
-                                    <span className="text-[15.5px] leading-relaxed text-slate-800 font-medium">{ans.val || <em className="text-slate-400">No answer written.</em>}</span>
+                                return (
+                                    <div key={j} className={`flex items-start gap-3 p-3 rounded-xl border-2 ${optBg} transition-all duration-200 w-full overflow-hidden`}>
+                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 border-2 bg-white ${isCorr && isUser ? 'border-emerald-500 text-emerald-600 shadow-sm' : (!isCorr && isUser) ? 'border-rose-500 text-rose-600 shadow-sm' : 'border-slate-300 text-slate-500'}`}>
+                                            {String.fromCharCode(65 + j)}
+                                        </div>
+                                        <div className="flex-1 flex flex-col gap-1.5 min-w-0 pt-0.5">
+                                            {o.startsWith('[smiles]') ? (
+                                                <div className="pointer-events-none bg-white p-1.5 rounded-lg border border-slate-200 inline-block w-fit">
+                                                    <SmilesViewer smilesCode={o.replace('[smiles]', '').trim()} width={120} height={120} />
+                                                </div>
+                                            ) : (
+                                                <StaticMath isBlock={true} html={o} className={`text-[14px] sm:text-[14.5px] whitespace-normal break-words ${optText}`} />
+                                            )}
+                                            {(isUser || isCorr) && (
+                                                <div className="flex gap-2 flex-wrap mt-1">
+                                                    {isUser && <span className="text-[9px] uppercase tracking-wider font-extrabold bg-slate-800 text-white px-1.5 py-0.5 rounded shadow-sm"><i className="ti ti-hand-click"></i> Picked</span>}
+                                                    {isCorr && <span className="text-[9px] uppercase tracking-wider font-extrabold bg-emerald-500 text-white px-1.5 py-0.5 rounded shadow-sm"><i className="ti ti-key"></i> Key</span>}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="mt-0.5 flex-shrink-0">{iconUi}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Integer Type */}
+                        {q.type === 'integer' && (
+                            <div className="flex gap-3 mt-1">
+                                <div className={`flex-1 p-3 sm:p-4 rounded-xl border-2 flex flex-col justify-center ${d.status === 'correct' ? 'bg-emerald-50 border-emerald-400 text-emerald-900' : 'bg-rose-50 border-rose-400 text-rose-900'}`}>
+                                    <span className="text-[10px] uppercase tracking-wider font-extrabold opacity-70 mb-0.5">Your Answer</span>
+                                    <strong className="text-2xl">{ans.val !== null ? ans.val : '—'}</strong>
+                                </div>
+                                <div className="flex-1 p-3 sm:p-4 rounded-xl border-2 border-emerald-400 bg-white text-emerald-900 flex flex-col justify-center relative overflow-hidden shadow-sm">
+                                    <i className="ti ti-key absolute -right-2 -bottom-2 text-5xl text-emerald-50"></i>
+                                    <span className="text-[10px] uppercase tracking-wider font-extrabold opacity-70 mb-0.5 relative z-10">Correct</span>
+                                    <strong className="text-2xl relative z-10">{q.correctInt}</strong>
                                 </div>
                             </div>
-                            {q.modelAnswer && (
-                                <div className="p-5 rounded-2xl border-2 bg-emerald-50 border-emerald-300 flex gap-4 items-start">
-                                    <div className="w-10 h-10 rounded-full bg-white border border-emerald-200 flex items-center justify-center flex-shrink-0 shadow-sm"><i className="ti ti-bulb text-emerald-600 text-xl"></i></div>
+                        )}
+
+                        {/* Subjective Type */}
+                        {q.type === 'subjective' && (
+                            <div className="flex flex-col gap-3 mt-1">
+                                <div className="p-4 rounded-xl border-2 bg-slate-50 border-slate-200 flex gap-3 items-start">
+                                    <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 shadow-sm"><i className="ti ti-pencil text-slate-700 text-lg"></i></div>
                                     <div>
-                                        <span className="text-[11px] uppercase tracking-wider font-extrabold text-emerald-700 mb-1 block">Model Answer</span>
-                                        <span className="text-[15.5px] leading-relaxed text-emerald-900 font-medium">{q.modelAnswer}</span>
+                                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 mb-1 block">Your Answer</span>
+                                        <span className="text-[14px] leading-relaxed text-slate-800 font-medium">{ans.val || <em className="text-slate-400">No answer.</em>}</span>
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                    )}
+                                {q.modelAnswer && (
+                                    <div className="p-4 rounded-xl border-2 bg-emerald-50 border-emerald-300 flex gap-3 items-start">
+                                        <div className="w-8 h-8 rounded-full bg-white border border-emerald-200 flex items-center justify-center flex-shrink-0 shadow-sm"><i className="ti ti-bulb text-emerald-600 text-lg"></i></div>
+                                        <div>
+                                            <span className="text-[10px] uppercase tracking-wider font-extrabold text-emerald-700 mb-1 block">Model Answer</span>
+                                            <span className="text-[14px] leading-relaxed text-emerald-900 font-medium">{q.modelAnswer}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                    {/* 🔥 HYPER-VIBRANT Accordion Explanation */}
-                    {q.explanation && (
-                        <details className="group mt-8 rounded-2xl border-2 border-indigo-100 overflow-hidden transition-all duration-300 bg-white shadow-sm hover:shadow-md">
-                            <summary className="cursor-pointer p-5 font-bold text-indigo-700 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 transition-colors select-none">
-                                <span className="flex items-center gap-3 text-[15px] tracking-wide"><i className="ti ti-bulb text-xl text-indigo-500"></i> View Solution & Explanation</span>
-                                <div className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center text-indigo-600 group-open:bg-indigo-600 group-open:text-white transition-all duration-300 transform group-open:rotate-180">
-                                    <i className="ti ti-chevron-down"></i>
+                        {/* Explanation Accordion */}
+                        {q.explanation && (
+                            <details className="group rounded-xl border border-indigo-100 overflow-hidden transition-all duration-300 bg-white shadow-sm mt-1">
+                                <summary className="cursor-pointer p-3 sm:p-4 font-bold text-indigo-700 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 transition-colors select-none">
+                                    <span className="flex items-center gap-2 text-[13px] sm:text-[14px]"><i className="ti ti-bulb text-lg text-indigo-500"></i> Solution / Logic</span>
+                                    <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center text-indigo-600 group-open:bg-indigo-600 group-open:text-white transition-all duration-300 transform group-open:rotate-180">
+                                        <i className="ti ti-chevron-down text-sm"></i>
+                                    </div>
+                                </summary>
+                                <div className="p-4 sm:p-5 border-t border-indigo-100 text-[13.5px] sm:text-[14px] text-slate-800 leading-relaxed font-medium bg-white">
+                                    <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" />
                                 </div>
-                            </summary>
-                            <div className="p-6 border-t-2 border-indigo-100 text-[15.5px] text-slate-800 leading-relaxed font-medium bg-white">
-                                <StaticMath isBlock={true} html={q.explanation} className="math-scroll-box" />
+                            </details>
+                        )}
+                        
+                        {/* Audit Logs */}
+                        {d.auditLogs && d.auditLogs.length > 0 && (
+                            <div className="mt-1 p-4 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-900 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                                <div className="font-extrabold mb-1.5 flex items-center gap-1.5"><i className="ti ti-shield-check text-lg text-amber-600"></i> Audit Log</div>
+                                Marks overridden to <strong className="bg-amber-500 text-white px-1.5 py-0.5 rounded ml-1 text-xs">{d.auditLogs[d.auditLogs.length - 1].awarded}</strong>.<br />
+                                <div className="mt-1.5 font-medium"><strong>Reason:</strong> "{d.auditLogs[d.auditLogs.length - 1].reason}"</div>
+                                <div className="mt-3 pt-2 border-t border-amber-200 text-[10px] uppercase tracking-wider font-bold opacity-70 flex justify-between">
+                                    <span>By: {d.auditLogs[d.auditLogs.length - 1].examiner.split('@')[0]}</span>
+                                    <span>{d.auditLogs[d.auditLogs.length - 1].date}</span>
+                                </div>
                             </div>
-                        </details>
-                    )}
-                    
-                    {/* Audit Logs */}
-                    {d.auditLogs && d.auditLogs.length > 0 && (
-                        <div className="mt-5 p-5 bg-amber-50 border-2 border-amber-300 rounded-2xl text-[14px] text-amber-900 shadow-sm relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-                            <div className="font-extrabold mb-2 flex items-center gap-2 text-[15px]"><i className="ti ti-shield-check text-xl text-amber-600"></i> Audit Log (Manual Evaluation)</div>
-                            Marks overridden to <strong className="bg-amber-500 text-white px-2 py-0.5 rounded ml-1">{d.auditLogs[d.auditLogs.length - 1].awarded}</strong>.<br />
-                            <div className="mt-2 font-medium"><strong>Reason:</strong> "{d.auditLogs[d.auditLogs.length - 1].reason}"</div>
-                            <div className="mt-4 pt-3 border-t border-amber-300/50 text-[11px] uppercase tracking-wider font-bold opacity-70 flex justify-between">
-                                <span><i className="ti ti-user"></i> By: {d.auditLogs[d.auditLogs.length - 1].examiner}</span>
-                                <span><i className="ti ti-calendar"></i> {d.auditLogs[d.auditLogs.length - 1].date}</span>
-                            </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
+
                 </div>
              </div>
            );

@@ -38,6 +38,7 @@ export default function CreateTest() {
 
   const [mismatchModal, setMismatchModal] = useState(null); // For Marks Mismatch Custom Alert
   const [sysAlert, setSysAlert] = useState(null); // { title, msg, type }
+  const [jsonModal, setJsonModal] = useState(null);
   
   // Premium Draft State (For Custom Modal)
   const [pendingDraft, setPendingDraft] = useState(null); 
@@ -189,60 +190,133 @@ export default function CreateTest() {
     setQList(newList);
   };
 
+  // 🔥 1. UNIVERSAL JSON TEMPLATE (With SVG, TikZ, SMILES) 🔥
   const downloadTemplate = () => {
-    const t = JSON.stringify([
-      { 
-        section: 'Physics', 
-        type: 'mcq', 
-        text: 'Find the equivalent resistance in the given circuit:', 
-        figureType: 'image', // Universal Image Engine (URL or Base64 Text)
-        figureData: 'https://via.placeholder.com/400x150.png?text=Placeholder+Circuit+Diagram', 
-        marks: 4, 
-        options: ['2 Ohm', '4 Ohm', '6 Ohm', '8 Ohm'], 
-        correct: [1], 
-        explanation: 'Use parallel combination formula.' 
-      },
-      { 
-        section: 'Chemistry', 
-        type: 'mcq', 
-        text: 'Identify the functional groups present in this molecule (Aspirin):', 
-        figureType: 'smiles', // Chemistry SMILES Engine
-        figureData: 'CC(=O)OC1=CC=CC=C1C(=O)O', 
-        marks: 4, 
-        options: ['Ester and Carboxylic Acid', 'Alcohol and Ketone', 'Aldehyde and Ether', 'Amine and Amide'], 
-        correct: [0], 
-        explanation: 'Contains an acetyl group (ester) and a carboxylic acid group.' 
-      },
-      { 
-        section: 'Mathematics', 
-        type: 'mcq', 
-        text: 'Based on the geometric figure plotted below, identify the shape:', 
-        figureType: 'tikz', // Math/Geometry TikZ Engine
-        figureData: '\\draw (0,0) -- (4,0) -- (0,3) -- cycle; \\draw (0,0.3) -- (0.3,0.3) -- (0.3,0);', 
-        marks: 4, 
-        options: ['Equilateral Triangle', 'Isosceles Triangle', 'Right Angled Triangle', 'Scalene Triangle'], 
-        correct: [2], 
-        explanation: 'The square symbol in the corner confirms it is a right-angled triangle.' 
-      },
-      { 
-        section: 'General', 
-        type: 'mcq', 
-        text: 'Which of the following elements has the highest electronegativity?', 
-        figureType: 'none', // No Figure required
-        figureData: '', 
-        marks: 4, 
-        options: ['Oxygen', 'Fluorine', 'Chlorine', 'Nitrogen'], 
-        correct: [1], 
-        explanation: 'Fluorine is the most electronegative element in the periodic table.' 
-      }
-    ], null, 2);
-    
-    const blob = new Blob([t], { type: 'application/json' });
+    const universalTemplate = {
+      title: "Sample Smart Test",
+      subject: "Physics & Chemistry",
+      duration: 180,
+      totalMarks: 16,
+      sections: ["Section A", "Section B"],
+      sectionRules: { "Section B": 5 }, // Meaning: Attempt any 5 in Section B
+      questions: [
+        {
+          _comment: "TYPE 1: MCQ with RAW SVG (AI Generated Circuit)",
+          type: "mcq", section: "Section A", marks: 4,
+          text: "Find the equivalent resistance between A and B.",
+          figureType: "svg",
+          figureData: "<svg viewBox='0 0 200 100' width='100%' height='150' xmlns='http://www.w3.org/2000/svg'><path d='M20 50 L50 50 L55 40 L65 60 L75 40 L85 60 L90 50 L120 50' stroke='black' stroke-width='2' fill='none'/><text x='10' y='55' font-family='Arial'>A</text><text x='130' y='55' font-family='Arial'>B</text><text x='65' y='30' font-family='Arial'>5 Ω</text></svg>",
+          options: ["2 Ω", "5 Ω", "10 Ω", "15 Ω"], correct: [1], correctInt: null
+        },
+        {
+          _comment: "TYPE 2: Integer Type with Math/TikZ",
+          type: "integer", section: "Section B", marks: 4,
+          text: "If a particle moves with velocity $v = 3t^2$, find displacement at $t=2$.",
+          figureType: "tikz",
+          figureData: "\\begin{tikzpicture}\\draw[->] (0,0) -- (4,0) node[right] {$t$}; \\draw[->] (0,0) -- (0,3) node[above] {$v$}; \\draw[thick, blue] (0,0) parabola (3,2.5);\\end{tikzpicture}",
+          options: [], correct: [], correctInt: 8
+        },
+        {
+          _comment: "TYPE 3: Multiple Correct (MSQ) without figure",
+          type: "msq", section: "Section A", marks: 4,
+          text: "Which of these are non-conservative forces?",
+          figureType: "none", figureData: "",
+          options: ["Friction", "Gravity", "Viscous Drag", "Electrostatic"], correct: [0, 2], correctInt: null
+        },
+        {
+          _comment: "TYPE 4: Chemistry MCQ with SMILES",
+          type: "mcq", section: "Section B", marks: 4,
+          text: "Identify this IUPAC structure:",
+          figureType: "smiles", figureData: "CC(=O)OC1=CC=CC=C1C(=O)O",
+          options: ["Aspirin", "Paracetamol", "Benzene", "Phenol"], correct: [0], correctInt: null
+        }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(universalTemplate, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'examitop_universal_template.json';
+    const a = document.createElement('a'); a.href = url; a.download = 'examitop_universal_template.json';
     a.click();
+  };
+
+  // 🔥 2. SMART JSON VALIDATOR & IMPORTER 🔥
+  const validateAndImportJSON = (rawText) => {
+    let errors = [];
+    let parsedData;
+
+    // Phase 1: Syntax Check (Missing commas, brackets, etc.)
+    try {
+      parsedData = JSON.parse(rawText);
+    } catch (e) {
+      setJsonModal({ text: rawText, errors: [`🚨 Syntax Error: ${e.message}. Please check for missing commas, unclosed brackets, or extra quotes.`] });
+      return;
+    }
+
+    // Determine if it's an array directly or an object containing a 'questions' array
+    let qArray = Array.isArray(parsedData) ? parsedData : (parsedData.questions ? parsedData.questions : null);
+
+    if (!qArray || !Array.isArray(qArray)) {
+      setJsonModal({ text: rawText, errors: ["🚨 Structure Error: JSON must be an Array of questions OR an object containing a 'questions' array."] });
+      return;
+    }
+
+    // Phase 2: Deep Schema Validation (Finding exact logical mistakes)
+    const mappedData = [];
+    let importedSections = new Set(sections.split(',').map(s => s.trim()).filter(s => s));
+
+    qArray.forEach((q, idx) => {
+      let qNum = idx + 1;
+      
+      if (!q.text || q.text.trim() === '') errors.push(`❌ Question ${qNum}: Missing 'text' (Question body cannot be empty).`);
+      if (!q.type || !['mcq', 'msq', 'integer', 'subjective'].includes(q.type)) errors.push(`❌ Question ${qNum}: Invalid type. Must be 'mcq', 'msq', 'integer', or 'subjective'.`);
+      
+      if (q.type === 'mcq' || q.type === 'msq') {
+        if (!q.options || !Array.isArray(q.options) || q.options.length < 2) errors.push(`❌ Question ${qNum} (${q.type}): Must have an 'options' array with at least 2 choices.`);
+        if (!q.correct || !Array.isArray(q.correct) || q.correct.length === 0) errors.push(`❌ Question ${qNum} (${q.type}): Missing 'correct' array (e.g., [0] for A).`);
+      }
+      
+      if (q.type === 'integer' && (q.correctInt === undefined || q.correctInt === null || q.correctInt === '')) {
+        errors.push(`❌ Question ${qNum} (integer): Missing 'correctInt' value.`);
+      }
+
+      // If no errors for this specific question, map it to be ready for import
+      if (errors.length === 0) {
+        if (q.section) importedSections.add(q.section);
+        mappedData.push({
+          id: Date.now() + Math.random() + idx,
+          type: q.type || 'mcq',
+          text: q.text || '',
+          figureType: q.figureType || 'none',
+          figureData: q.figureData || '',
+          marks: q.marks || 4,
+          options: q.options || ['', '', '', ''],
+          correct: q.correct || [],
+          correctInt: q.correctInt !== undefined ? q.correctInt : null,
+          modelAnswer: q.modelAnswer || '',
+          explanation: q.explanation || '',
+          section: q.section || ''
+        });
+      }
+    });
+
+    // Phase 3: Action based on Validation
+    if (errors.length > 0) {
+      // Show editor modal with errors
+      setJsonModal({ text: JSON.stringify(parsedData, null, 2), errors });
+    } else {
+      // 100% Perfect! Import it.
+      setSections(Array.from(importedSections).join(', '));
+      if (!Array.isArray(parsedData)) {
+          if (parsedData.title) setTitle(parsedData.title);
+          if (parsedData.subject) setSubject(parsedData.subject);
+          if (parsedData.duration) setDuration(Number(parsedData.duration));
+          if (parsedData.totalMarks) setTotalMarks(Number(parsedData.totalMarks));
+          if (parsedData.negMarking) setNegMarking(Number(parsedData.negMarking));
+          if (parsedData.sectionRules) setSectionRules(parsedData.sectionRules);
+      }
+      setQList([...qList, ...mappedData]);
+      setJsonModal(null); // Close modal if open
+      setSysAlert({ title: 'Import Successful', msg: `${mappedData.length} questions mapped perfectly from JSON.`, type: 'success' });
+    }
   };
 
   const handleImport = (e) => {
@@ -250,43 +324,10 @@ export default function CreateTest() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
-      try {
-        const data = JSON.parse(evt.target.result);
-        if (!Array.isArray(data)) { alert('Must be a JSON array.'); return; }
-        
-        let importedSections = new Set(sections.split(',').map(s => s.trim()).filter(s => s));
-
-        const mappedData = data.map(d => {
-          if(d.section) importedSections.add(d.section);
-          return {
-            id: Date.now() + Math.random(),
-            type: d.type || 'mcq',
-            text: d.text || '',
-            figureType: d.figureType || 'none', // Naya addition
-            figureData: d.figureData || '',     // Naya addition
-            marks: d.marks || 4,
-            options: d.options || ['', '', '', ''],
-            correct: d.correct || [],
-            correctInt: d.correctInt || null,
-            modelAnswer: d.modelAnswer || '',
-            explanation: d.explanation || '',
-            section: d.section || ''
-          };
-        });
-        
-        setSections(Array.from(importedSections).join(', '));
-      setQList([...qList, ...mappedData]);
-      
-      //  Alert Hatao, SysModal Lagao
-      setSysAlert({ title: 'Import Successful', msg: `${data.length} questions mapped from JSON.`, type: 'success' });
-      
-    } catch (ex) { 
-      //  Error Alert Hatao
-      setSysAlert({ title: 'Import Failed', msg: 'Invalid JSON file format. Please check your syntax.', type: 'error' });
-    }
-   };
-   reader.readAsText(file);
-   e.target.value = '';
+        validateAndImportJSON(evt.target.result);
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // Reset file input
   };
 
   //  UNIVERSAL BASE64 IMAGE CONVERTER
@@ -324,7 +365,6 @@ export default function CreateTest() {
         }
     }
     
-    // ... baaki ka mismatch modal aur proceedWithSave ka logic waisa hi rahega
 
     const calculatedSum = qList.reduce((sum, q) => sum + Number(q.marks), 0);
     
@@ -613,7 +653,7 @@ export default function CreateTest() {
       </div>
 
       {/* 🔥 PREMIUM QUESTION CARDS (Ultra-Compact Split Grid) 🔥 */}
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-6">
         {qList.map((q, i) => (
           <div key={q.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:border-blue-300 hover:shadow-md group">
             
@@ -621,9 +661,9 @@ export default function CreateTest() {
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
               
               <div className="flex items-center gap-2.5 w-full sm:w-auto overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-lg flex items-center justify-center font-black text-xs shrink-0 shadow-sm">{i + 1}</div>
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-lg flex items-center justify-center font-black text-sm shrink-0 shadow-sm">{i + 1}</div>
                   
-                  <select value={q.type} onChange={e => updateQ(i, 'type', e.target.value)} className="bg-white border border-slate-200 text-slate-700 font-bold text-[11px] sm:text-[12px] rounded-lg px-2.5 py-1 outline-none focus:border-blue-400 shadow-sm cursor-pointer shrink-0">
+                  <select value={q.type} onChange={e => updateQ(i, 'type', e.target.value)} className="bg-white border border-slate-200 text-slate-700 font-bold text-[12px] rounded-lg px-3 py-1.5 outline-none focus:border-blue-400 shadow-sm cursor-pointer shrink-0">
                     <option value="mcq">Single Correct (MCQ)</option>
                     <option value="msq">Multi Correct (MSQ)</option>
                     <option value="integer">Integer Type</option>
@@ -631,19 +671,20 @@ export default function CreateTest() {
                   </select>
 
                   {parsedSectionsArray.length > 0 && (
-                      <select value={q.section || ''} onChange={e => updateQ(i, 'section', e.target.value)} className="bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-[11px] sm:text-[12px] rounded-lg px-2.5 py-1 outline-none focus:border-indigo-400 shadow-sm cursor-pointer shrink-0">
+                      <select value={q.section || ''} onChange={e => updateQ(i, 'section', e.target.value)} className="bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-[12px] rounded-lg px-3 py-1.5 outline-none focus:border-indigo-400 shadow-sm cursor-pointer shrink-0">
                           <option value="">-- No Section --</option>
                           {parsedSectionsArray.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                   )}
               </div>
               
-              <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
+              <div className="flex items-center gap-3 shrink-0 ml-auto sm:ml-0">
+                {/* 🔥 MARKS BOX FIX: Fixed width and removed native arrows */}
                 <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                    <span className="bg-slate-50 text-[9px] sm:text-[10px] font-extrabold text-slate-500 uppercase tracking-widest px-2 py-1.5 border-r border-slate-200">Marks</span>
-                    <input type="number" value={q.marks} onChange={e => updateQ(i, 'marks', Number(e.target.value))} className="w-10 sm:w-12 text-center py-1 text-[13px] font-black text-slate-800 outline-none" />
+                    <span className="bg-slate-50 text-[10px] font-extrabold text-slate-500 uppercase tracking-widest px-2.5 py-1.5 border-r border-slate-200">Marks</span>
+                    <input type="number" value={q.marks} onChange={e => updateQ(i, 'marks', Number(e.target.value))} className="w-14 text-center py-1 text-[14px] font-black text-slate-800 outline-none" style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' }} />
                 </div>
-                <button className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-100 transition-all flex items-center justify-center shrink-0" onClick={() => rmQ(i)} title="Delete Question">
+                <button className="w-8 h-8 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-100 transition-all flex items-center justify-center shrink-0" onClick={() => rmQ(i)} title="Delete Question">
                     <i className="ti ti-trash text-base"></i>
                 </button>
               </div>
@@ -673,8 +714,9 @@ export default function CreateTest() {
                           <option value="none">No Figure</option>
                           <option value="image">Local Image</option>
                           <option value="url">Web URL</option>
-                          <option value="smiles">SMILES</option>
-                          <option value="tikz">TikZ Graph</option>
+                          <option value="svg">Raw SVG (AI Code)</option>
+                          <option value="smiles">Chemistry (SMILES)</option>
+                          <option value="tikz">Math (TikZ)</option>
                         </select>
                       </div>
 
@@ -690,6 +732,16 @@ export default function CreateTest() {
                         </div>
                       )}
                       {q.figureType === 'url' && <input type="text" value={q.figureData || ''} onChange={e => updateQ(i, 'figureData', e.target.value)} placeholder="Paste image link (https://...)" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs outline-none focus:border-indigo-400 transition-colors" />}
+                      
+                      {q.figureType === 'svg' && (
+                        <div className="flex flex-col gap-2">
+                          <textarea value={q.figureData || ''} onChange={e => updateQ(i, 'figureData', e.target.value)} placeholder="<svg viewBox='0 0 200 100'> ... </svg>" className="w-full p-2.5 bg-slate-900 text-blue-300 border border-slate-800 rounded-lg text-[10px] font-mono outline-none focus:border-blue-500 transition-colors min-h-[60px] custom-scrollbar" />
+                          {q.figureData && (
+                             <div className="p-3 bg-white border border-slate-200 rounded-lg flex justify-center shadow-inner overflow-hidden max-w-full" dangerouslySetInnerHTML={{ __html: q.figureData }}></div>
+                          )}
+                        </div>
+                      )}
+
                       {q.figureType === 'smiles' && <input type="text" value={q.figureData || ''} onChange={e => updateQ(i, 'figureData', e.target.value)} placeholder="e.g. c1ccccc1" className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-mono outline-none focus:border-indigo-400 transition-colors" />}
                       {q.figureType === 'tikz' && <textarea value={q.figureData || ''} onChange={e => updateQ(i, 'figureData', e.target.value)} placeholder="\begin{tikzpicture} ... \end{tikzpicture}" className="w-full p-3 bg-slate-900 text-emerald-400 border border-slate-800 rounded-lg text-[11px] font-mono outline-none focus:border-emerald-500 transition-colors min-h-[80px] custom-scrollbar" />}
                     </div>
@@ -730,7 +782,7 @@ export default function CreateTest() {
                     {q.type === 'integer' && (
                       <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl">
                         <label className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-widest mb-1.5 block">Correct Integer Answer</label>
-                        <input type="number" value={q.correctInt !== null ? q.correctInt : ''} onChange={e => updateQ(i, 'correctInt', e.target.value === '' ? null : Number(e.target.value))} className="w-28 px-3 py-2 bg-white border border-emerald-200 rounded-lg text-base font-black text-emerald-700 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition-all text-center" placeholder="e.g. 42" />
+                        <input type="number" value={q.correctInt !== null ? q.correctInt : ''} onChange={e => updateQ(i, 'correctInt', e.target.value === '' ? null : Number(e.target.value))} className="w-28 px-3 py-2 bg-white border border-emerald-200 rounded-lg text-base font-black text-emerald-700 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition-all text-center" style={{ WebkitAppearance: 'none', MozAppearance: 'textfield' }} placeholder="e.g. 42" />
                       </div>
                     )}
 
@@ -836,6 +888,71 @@ export default function CreateTest() {
       {toastMsg && (
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-[0_10px_30px_rgb(0,0,0,0.3)] z-[999999] font-bold text-sm flex items-center gap-2 animate-[slideUp_0.3s_ease]">
               {toastMsg}
+          </div>
+      )}
+
+      {/* 🔥 THE SMART JSON ERROR & EDITOR MODAL 🔥 */}
+      {jsonModal && (
+          <div className="modal-bg flex items-center justify-center p-4 sm:p-6" style={{ zIndex: 100000, backdropFilter: 'blur(8px)', background: 'rgba(15, 23, 42, 0.7)' }}>
+              <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh] animate-[popIn_0.3s_ease]">
+                  
+                  {/* Header */}
+                  <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center text-xl shadow-inner border border-rose-200"><i className="ti ti-code-asterix"></i></div>
+                          <div>
+                              <h3 className="text-[18px] font-black text-slate-800 m-0 leading-none tracking-tight">JSON Validation Failed</h3>
+                              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">Fix the errors below and retry</p>
+                          </div>
+                      </div>
+                      <button className="w-8 h-8 rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 transition-colors" onClick={() => setJsonModal(null)}>
+                          <i className="ti ti-x text-lg"></i>
+                      </button>
+                  </div>
+
+                  {/* Body: Errors + Code Editor */}
+                  <div className="flex-1 flex flex-col lg:flex-row overflow-hidden bg-slate-100/50">
+                      
+                      {/* Left: Error List */}
+                      <div className="lg:w-1/3 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 overflow-y-auto custom-scrollbar shrink-0">
+                          <h4 className="text-[12px] font-extrabold text-rose-600 uppercase tracking-widest mb-4 flex items-center gap-2"><i className="ti ti-bug"></i> Detected Errors ({jsonModal.errors.length})</h4>
+                          <div className="flex flex-col gap-2">
+                              {jsonModal.errors.map((err, i) => (
+                                  <div key={i} className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-[12px] font-semibold text-rose-700 leading-snug shadow-sm">
+                                      {err}
+                                  </div>
+                              ))}
+                          </div>
+                          <div className="mt-5 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                              <h4 className="text-[11px] font-extrabold text-blue-700 uppercase tracking-widest mb-1">Quick Tip</h4>
+                              <p className="text-[11px] font-medium text-blue-600/80 leading-relaxed">Find the exact question number in the editor on the right, correct the missing values (like adding [0] to correct arrays), and click Re-Validate.</p>
+                          </div>
+                      </div>
+
+                      {/* Right: Code Editor */}
+                      <div className="flex-1 p-4 sm:p-5 flex flex-col bg-[#0d1117]">
+                           <div className="flex justify-between items-center mb-3">
+                                <span className="text-[11px] font-bold font-mono text-slate-400 bg-slate-800 px-3 py-1 rounded-md">test_data.json</span>
+                                <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1"><i className="ti ti-edit"></i> Live Editable</span>
+                           </div>
+                           <textarea 
+                              value={jsonModal.text}
+                              onChange={(e) => setJsonModal({...jsonModal, text: e.target.value})}
+                              spellCheck="false"
+                              className="w-full flex-1 bg-transparent text-[#e6edf3] font-mono text-[13px] outline-none resize-none custom-scrollbar leading-relaxed"
+                           />
+                      </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-4 sm:p-5 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0">
+                      <button className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors active:scale-95" onClick={() => setJsonModal(null)}>Cancel Import</button>
+                      <button className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm rounded-xl shadow-md shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2" onClick={() => validateAndImportJSON(jsonModal.text)}>
+                          <i className="ti ti-refresh"></i> Re-Validate & Import
+                      </button>
+                  </div>
+
+              </div>
           </div>
       )}
     </div>

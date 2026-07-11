@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { database } from '../../lib/firebase';
-import { ref, push, set, get } from 'firebase/database'; 
+import { ref, push, set, get, onDisconnect, remove } from 'firebase/database'; 
 import SmilesViewer from '../../components/SmilesViewer';
 
 // THE MASTER FIX: MathJax React Re-render Protector
@@ -141,7 +141,7 @@ function StudentPortalContent() {
     return () => { if (header) header.style.display = ''; };
   }, [step]);
 
-  // 🔥 NAYA: Keyboard Navigation Engine (Arrows & 1,2,3,4)
+  // NAYA: Keyboard Navigation Engine (Arrows & 1,2,3,4)
   useEffect(() => {
     if (step !== 'exam' || !activeTest) return;
     
@@ -189,6 +189,29 @@ function StudentPortalContent() {
         localStorage.setItem(`exam_draft_${activeTest.id}_${safeName}_${safeRoll}`, secretPayload);
     }
   }, [answers, curQ, step, activeTest, name, roll]);
+
+  // NAYA: REAL-TIME LIVE PRESENCE ENGINE
+  useEffect(() => {
+    // Sirf tab active hoga jab student exam de raha ho
+    if (step !== 'exam' || !activeTest || !navigator.onLine) return;
+
+    // Unique ID: Agar user login hai toh UID, warna ek random ID
+    const sessionUid = currentUser?.uid || `guest_${Math.random().toString(36).substr(2, 9)}`;
+    const presenceRef = ref(database, `live_sessions/${activeTest.id}/${sessionUid}`);
+
+    // Student ko "LIVE" mark karo
+    set(presenceRef, {
+        name: name || 'Student',
+        roll: roll || 'N/A',
+        joinedAt: new Date().toLocaleTimeString('en-IN')
+    });
+    //Agar tab close ho jaye ya net cut jaye, toh Firebase khud isko delete kar dega
+    onDisconnect(presenceRef).remove();
+    // CLEANUP: Jab exam submit ho jaye ya piche back kare
+    return () => {
+        remove(presenceRef);
+    };
+  }, [step, activeTest, currentUser, name, roll]);
 
   // 3. AUTO-SYNC OFFLINE SUBMISSIONS
   useEffect(() => {
@@ -838,50 +861,65 @@ function StudentPortalContent() {
                   {/* StaticMath applied to Question Text */}
                   <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
                   
-                 {/* 🔥 NAYA COMPACT FIGURE ENGINE RENDERER (With Cache-Busting Loaders) */}
+                 {/* 🔥 UNIVERSAL FIGURE ENGINE (With Auto-Scaling & Fallbacks) 🔥 */}
                   {currentQuestion?.figureType && currentQuestion.figureType !== 'none' && currentQuestion.figureData && (
                     <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
                         
+                        {/* 🔥 CSS Hack: SVG height strictly controlled for Mobile/Laptop */}
+                        <style>{`
+                            .svg-figure-container svg { max-width: 100%; height: auto; min-height: 80px; max-height: 220px; }
+                        `}</style>
+
+                        {/* URL & IMAGE RENDERER (With Restored Spinner & Fade-in) */}
                         {(currentQuestion.figureType === 'image' || currentQuestion.figureType === 'url') && (
-                            <div style={{ position: 'relative', width: 'fit-content', display: 'flex', justifyContent: 'center', minHeight: !imgLoaded ? '100px' : 'auto' }}>
+                            <div style={{ position: 'relative', width: 'fit-content', display: 'flex', justifyContent: 'center', background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minHeight: !imgLoaded ? '100px' : 'auto', minWidth: !imgLoaded ? '150px' : 'auto' }}>
+                                
                                 {!imgLoaded && (
                                     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
                                         <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '3px' }}></div>
                                     </div>
                                 )}
+                                
                                 <img 
                                     key={`img-${curQ}`} 
                                     src={currentQuestion.figureData} 
-                                    alt="Figure" 
-                                    ref={el => { if(el && el.complete) setImgLoaded(true); }}
-                                    style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '8px', border: '1px solid #cbd5e1', objectFit: 'contain', background: '#fff', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
-                                    onLoad={() => setImgLoaded(true)} 
-                                    onError={(e) => { e.target.style.display = 'none'; setImgLoaded(true); }} 
+                                    alt="Question Figure" 
+                                    style={{ maxWidth: '100%', maxHeight: '220px', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
+                                    onLoad={() => setImgLoaded(true)}
+                                    onError={(e) => { 
+                                        setImgLoaded(true); 
+                                        e.target.onerror = null; 
+                                        e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=Image+Load+Failed'; 
+                                    }} 
                                 />
                             </div>
                         )}
 
+                        {/* 🔥 RAW SVG RENDERER (Sleek & Compact) 🔥 */}
+                        {currentQuestion.figureType === 'svg' && (
+                            <div 
+                                className="svg-figure-container"
+                                style={{ background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', overflowX: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
+                                dangerouslySetInnerHTML={{ __html: currentQuestion.figureData }} 
+                            />
+                        )}
+
+                        {/* SMILES RENDERER */}
                         {currentQuestion.figureType === 'smiles' && (
                             <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'inline-block', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                                 <SmilesViewer smilesCode={currentQuestion.figureData} width={200} height={200} />
                             </div>
                         )}
 
+                        {/* TIKZ RENDERER */}
                         {currentQuestion.figureType === 'tikz' && (
-                            <div className="hide-scroll" style={{ position: 'relative', display: 'inline-block', overflowX: 'auto', maxWidth: '100%', background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', minHeight: !imgLoaded ? '100px' : 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                                {!imgLoaded && (
-                                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-                                        <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '3px' }}></div>
-                                    </div>
-                                )}
+                            <div className="hide-scroll" style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'inline-block', overflowX: 'auto', maxWidth: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                                 <img 
                                     key={`tikz-${curQ}`}
                                     src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}')}`} 
                                     alt="Math Graphic" 
-                                    ref={el => { if(el && el.complete) setImgLoaded(true); }}
-                                    style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
-                                    onLoad={() => setImgLoaded(true)} 
-                                    onError={(e) => { e.target.style.display = 'none'; setImgLoaded(true); }} 
+                                    style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain' }} 
+                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/500x200/f8fafc/ef4444?text=TikZ+Compilation+Failed'; }}
                                 />
                             </div>
                         )}
