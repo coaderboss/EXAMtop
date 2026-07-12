@@ -52,6 +52,7 @@ function StudentPortalContent() {
   const [joinError, setJoinError] = useState(''); 
   const [cheatWarning, setCheatWarning] = useState(null); 
   const [sysModal, setSysModal] = useState(null);
+  const [qTime, setQTime] = useState({});
   
   // --- REFS ---
   const timerRef = useRef(null);
@@ -223,6 +224,21 @@ function StudentPortalContent() {
         remove(presenceRef);
     };
   }, [step, activeTest, currentUser, name, roll]);
+
+  // Silent Background Timer for Active Question
+  useEffect(() => {
+      let qTimer;
+      // Timer tabhi chalega jab exam chal raha ho
+      if (step === 'exam' && activeTest) {
+          qTimer = setInterval(() => {
+              setQTime(prev => ({
+                  ...prev,
+                  [curQ]: (prev[curQ] || 0) + 1 // Har second active question ka time +1 hoga
+              }));
+          }, 1000);
+      }
+      return () => clearInterval(qTimer);
+  }, [step, curQ, activeTest]);
 
   // 3. AUTO-SYNC OFFLINE SUBMISSIONS
   useEffect(() => {
@@ -601,7 +617,8 @@ function StudentPortalContent() {
       timestamp: Date.now(), 
       totalMarks: activeTest.totalMarks,
       cheatLogs: cheatLogsRef.current,
-      timeTaken: timeTakenStr 
+      timeTaken: timeTakenStr,
+      timeSpentPerQuestion: qTime
     };
 
     localStorage.removeItem(`exam_draft_${activeTest.id}_${name.trim() || 'guest'}_${roll.trim().toLowerCase() || 'noroll'}`);

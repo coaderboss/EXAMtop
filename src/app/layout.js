@@ -262,7 +262,7 @@ function Header() {
   return (
     <>
         <div className="app-header" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--color-background-primary)', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', borderBottom: '1px solid var(--color-border-secondary)' }}>
-            <div className="app-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
+            <div className="app-header-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 4%', maxWidth: '100%', margin: '0 auto', width: '100%' }}>
                 
                 {/* Logo Area */}
                 <Link href="/" className="logo" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '10px', outline: 'none' }}>  

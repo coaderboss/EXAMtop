@@ -374,6 +374,27 @@ export default function StudentResults() {
   const maxH = Math.max(sub.correct, sub.wrong, sub.skipped, 1);
   const bH = (c) => Math.max(16, Math.round((c / maxH) * 80));
 
+  // 🔥 NAYA: Helper for Time Formatting
+  const formatQTime = (seconds) => {
+      if (!seconds) return '00s';
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
+
+  // 🔥 NAYA: Dynamic Time Calculation Based on Section Filter
+  let displayTimeStr = sub.timeTaken || '00s';
+  if (sub.timeSpentPerQuestion) {
+      let totalSecs = 0;
+      sub.details.forEach((d, idx) => {
+          const sec = d.q.section || 'General';
+          if (sectionFilter === 'all_sections' || sec === sectionFilter) {
+              totalSecs += (sub.timeSpentPerQuestion[idx] || 0);
+          }
+      });
+      if (totalSecs > 0) displayTimeStr = formatQTime(totalSecs);
+  }
+
   return (
     <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', animation: 'fadeIn 0.3s ease' }}>
       
@@ -413,11 +434,10 @@ export default function StudentResults() {
 
           {/* AREA 3: Bottom Tags Container */}
           <div className="hero-tags">
-              {sub.timeTaken && (
-                  <div className="pill-tag" style={{ background: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)', color: '#a7f3d0' }}>
-                      <i className="ti ti-stopwatch"></i> {sub.timeTaken}
-                  </div>
-              )}
+              {/* 🔥 DYNAMIC TIME PILL (Changes with Section Filter) 🔥 */}
+              <div className="pill-tag" style={{ background: 'rgba(16,185,129,0.2)', borderColor: 'rgba(16,185,129,0.4)', color: '#a7f3d0' }}>
+                  <i className="ti ti-stopwatch"></i> {sectionFilter === 'all_sections' ? 'Total Time: ' : 'Section Time: '} {displayTimeStr}
+              </div>
 
               <div className="pill-tag" style={{ background: pct >= 75 ? 'rgba(52,211,153,0.2)' : pct >= 40 ? 'rgba(251,191,36,0.2)' : 'rgba(248,113,113,0.2)', borderColor: pct >= 75 ? 'rgba(52,211,153,0.4)' : pct >= 40 ? 'rgba(251,191,36,0.4)' : 'rgba(248,113,113,0.4)' }}>
                   <i className="ti ti-activity" style={{ fontSize: '14px' }}></i> {pct}% &bull; {pct >= 90 ? 'Excellent' : pct >= 75 ? 'Great Job' : pct >= 50 ? 'Good Effort' : pct >= 35 ? 'Keep Practicing' : 'Needs Work'}
@@ -431,39 +451,47 @@ export default function StudentResults() {
           </div>
       </div>
 
-      {/* 🔥 PREMIUM CHEAT LOGS WARNING 🔥 */}
+      {/* 🔥 PREMIUM CHEAT LOGS WARNING (Compact & Animated Dropdown) 🔥 */}
       {sub.cheatLogs && sub.cheatLogs.length > 0 && (
-        <div className="security-card">
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.25rem' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', flexShrink: 0 }}>
-                    <i className="ti ti-shield-x"></i>
-                </div>
-                <div>
-                    <h4 style={{ margin: 0, fontSize: '16px', color: '#0f172a', fontWeight: 800 }}>Security & Proctoring Alert</h4>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>System recorded suspicious activities</div>
-                </div>
-            </div>
-
-            {/* Warning Rows (Scrollable!) */}
-            <div className="warn-container">
-                {sub.cheatLogs.map((log, index) => (
-                    <div key={index} className="warn-row" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ background: '#fee2e2', color: '#ef4444', fontSize: '10px', fontWeight: 800, padding: '4px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>Warning {index + 1}</div>
-                        <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}><i className="ti ti-clock"></i> {log.time}</div>
-                        <div className="warn-divider" style={{ width: '1px', height: '14px', background: '#cbd5e1' }}></div>
-                        <div className="warn-text" style={{ color: '#334155', fontSize: '13px', fontWeight: 600, flex: 1 }}>{log.reason}</div>
+        <details className="group" style={{ marginBottom: '1.5rem', background: '#fff', borderRadius: '12px', border: sub.cheatLogs.length >= 3 ? '1px solid #ef4444' : '1px solid #fca5a5', boxShadow: '0 4px 15px rgba(239,68,68,0.05)', overflow: 'hidden' }}>
+            
+            {/* Header (Summary) - Super Compact */}
+            <summary style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', listStyle: 'none', padding: '12px 16px', background: sub.cheatLogs.length >= 3 ? '#fef2f2' : '#fff', transition: 'background 0.3s' }} className="[&::-webkit-details-marker]:hidden outline-none">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: sub.cheatLogs.length >= 3 ? '#ef4444' : '#fef2f2', color: sub.cheatLogs.length >= 3 ? '#fff' : '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0 }}>
+                        <i className="ti ti-shield-x"></i>
                     </div>
-                ))}
-            </div>
-
-            {/* Auto Submit Tag */}
-            {sub.cheatLogs.length >= 3 && (
-                <div style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', padding: '10px 16px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, boxShadow: '0 4px 15px rgba(239,68,68,0.3)' }}>
-                    <i className="ti ti-ban" style={{ fontSize: '16px' }}></i> Auto-Submitted Due To Violations
+                    <div>
+                        <h4 style={{ margin: 0, fontSize: '14px', color: sub.cheatLogs.length >= 3 ? '#991b1b' : '#0f172a', fontWeight: 800 }}>
+                           {sub.cheatLogs.length >= 3 ? 'Exam Terminated Early (Violations)' : 'Security & Proctoring Alert'}
+                        </h4>
+                        <div style={{ fontSize: '11px', color: sub.cheatLogs.length >= 3 ? '#dc2626' : '#64748b', fontWeight: 600, marginTop: '1px' }}>System recorded suspicious activities. Click to view.</div>
+                    </div>
                 </div>
-            )}
-        </div>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: sub.cheatLogs.length >= 3 ? '#fca5a5' : '#f1f5f9', color: sub.cheatLogs.length >= 3 ? '#991b1b' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.3s' }} className="group-open:rotate-180">
+                    <i className="ti ti-chevron-down text-sm"></i>
+                </div>
+            </summary>
+
+            {/* Dropdown Content - Smooth Fade In Animation */}
+            <div style={{ padding: '0 16px 16px 16px', background: '#fff', borderTop: sub.cheatLogs.length >= 3 ? '1px solid #fecaca' : '1px solid #f1f5f9' }} className="animate-[fadeIn_0.3s_ease]">
+                <div className="custom-scrollbar" style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '6px', marginTop: '12px' }}>
+                    {sub.cheatLogs.map((log, index) => (
+                        <div key={index} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                            <div style={{ background: '#fee2e2', color: '#ef4444', fontSize: '9px', fontWeight: 800, padding: '3px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>Warning {index + 1}</div>
+                            <div style={{ color: '#64748b', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}><i className="ti ti-clock"></i> {log.time}</div>
+                            <div style={{ width: '1px', height: '12px', background: '#cbd5e1', flexShrink: 0 }}></div>
+                            <div style={{ color: '#334155', fontSize: '12px', fontWeight: 600, flex: 1, wordBreak: 'break-word' }}>{log.reason}</div>
+                        </div>
+                    ))}
+                </div>
+                {sub.cheatLogs.length >= 3 && (
+                    <div style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', padding: '8px 14px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, boxShadow: '0 4px 12px rgba(239,68,68,0.3)', marginTop: '8px' }}>
+                        <i className="ti ti-ban" style={{ fontSize: '14px' }}></i> Auto-Submitted Due To Violations
+                    </div>
+                )}
+            </div>
+        </details>
       )}
 
       {/* 🔥 PREMIUM SUMMARY DASHBOARD (V3 - THE ULTIMATE ANALYTICS) 🔥 */}
@@ -488,11 +516,13 @@ export default function StudentResults() {
           let weakestSec = { name: '-', pct: 101 };
 
           if (sub.details) {
-              sub.details.forEach(item => {
+              sub.details.forEach((item, idx) => {
                   const sec = item.q.section || 'General';
-                  if (!sectionStats[sec]) sectionStats[sec] = { score: 0, max: 0, correct: 0, total: 0 };
+                  if (!sectionStats[sec]) sectionStats[sec] = { score: 0, max: 0, correct: 0, total: 0, time: 0 };
                   
                   sectionStats[sec].total += 1;
+                  sectionStats[sec].max += Number(item.q.marks || 0);
+                  sectionStats[sec].time += (sub.timeSpentPerQuestion?.[idx] || 0); 
                   sectionStats[sec].max += Number(item.q.marks || 0);
                   
                   if (item.status === 'correct' || item.status === 'partial') {
@@ -635,10 +665,16 @@ export default function StudentResults() {
                                   const secPercent = stat.max > 0 ? ((stat.score / stat.max) * 100).toFixed(0) : 0;
                                   
                                   return (
-                                      <div key={idx} style={{ flex: '0 0 auto', minWidth: '200px', background: '#f1f5f9', padding: '12px 15px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                              <i className="ti ti-folder" style={{ color: '#185FA5', fontSize: '16px' }}></i>
-                                              <span style={{ fontWeight: 700, color: '#334155', fontSize: '13px', maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sec}</span>
+                                      <div key={idx} style={{ flex: '0 0 auto', minWidth: '220px', background: '#f1f5f9', padding: '12px 15px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                  <i className="ti ti-folder" style={{ color: '#185FA5', fontSize: '16px' }}></i>
+                                                  <span style={{ fontWeight: 700, color: '#334155', fontSize: '13px', maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sec}</span>
+                                              </div>
+                                              {/*SECTION TIME BADGE*/}
+                                              <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', width: 'fit-content' }}>
+                                                  <i className="ti ti-stopwatch"></i> {formatQTime(stat.time)}
+                                              </div>
                                           </div>
                                           <div style={{ textAlign: 'right' }}>
                                               <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>{stat.score} <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>/ {stat.max}</span></div>
@@ -777,7 +813,14 @@ export default function StudentResults() {
                         <i className={`ti ${sp.icon} text-[20px]`}></i>
                         <span>Q{originalQIdx + 1} <span className="opacity-40 mx-1">|</span> <span className="font-semibold text-xs uppercase tracking-wide">{getLabel(q.type)}</span></span>
                     </div>
-                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                        
+                        {/* 🔥 NAYA: INDIVIDUAL QUESTION TIME SPENT BADGE 🔥 */}
+                        <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-white border border-slate-200 text-slate-600 shadow-sm flex items-center gap-1.5" title="Time taken on this question">
+                            <i className="ti ti-stopwatch text-slate-400 text-sm"></i> 
+                            {formatQTime(sub.timeSpentPerQuestion?.[originalQIdx])}
+                        </span>
+
                         <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-extrabold text-white shadow-sm ${sp.badgeBg}`}>
                             {statusLabel}
                         </span>
@@ -918,17 +961,27 @@ export default function StudentResults() {
                             </details>
                         )}
                         
-                        {/* Audit Logs */}
+                        {/*SLEEK AUDIT LOG*/}
                         {d.auditLogs && d.auditLogs.length > 0 && (
-                            <div className="mt-1 p-4 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-900 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-                                <div className="font-extrabold mb-1.5 flex items-center gap-1.5"><i className="ti ti-shield-check text-lg text-amber-600"></i> Audit Log</div>
-                                Marks overridden to <strong className="bg-amber-500 text-white px-1.5 py-0.5 rounded ml-1 text-xs">{d.auditLogs[d.auditLogs.length - 1].awarded}</strong>.<br />
-                                <div className="mt-1.5 font-medium"><strong>Reason:</strong> "{d.auditLogs[d.auditLogs.length - 1].reason}"</div>
-                                <div className="mt-3 pt-2 border-t border-amber-200 text-[10px] uppercase tracking-wider font-bold opacity-70 flex justify-between">
-                                    <span>By: {d.auditLogs[d.auditLogs.length - 1].examiner.split('@')[0]}</span>
-                                    <span>{d.auditLogs[d.auditLogs.length - 1].date}</span>
+                            <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col gap-2">
+                                <div className="text-[10px] font-extrabold tracking-widest uppercase text-slate-500 flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5"><i className="ti ti-history text-sm"></i> Evaluation Audit Trail</span>
                                 </div>
+                                
+                                {d.auditLogs.map((log, lIdx) => (
+                                    <div key={lIdx} className="bg-white px-3 py-2.5 rounded-lg border border-slate-200 flex flex-col gap-1 shadow-sm">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2 text-[12px]">
+                                                <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black shrink-0 border border-emerald-200 shadow-inner">{log.awarded} Mks</span>
+                                                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase">{log.examiner?.split('@')[0] || 'Examiner'}</span>
+                                            </div>
+                                            <div className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0">{log.date?.split(',')[0]}</div>
+                                        </div>
+                                        <div className="text-[12px] font-semibold text-slate-600 italic leading-snug pl-1 border-l-2 border-slate-200 ml-1">
+                                            "{log.reason}"
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

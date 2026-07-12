@@ -764,6 +764,14 @@ export default function ManageTests() {
     }
   };
 
+  // Helper for Time Formatting 
+  const formatQTime = (seconds) => {
+      if (!seconds) return '00s';
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
+
   return (
     <>
       {evaluateSub ? (
@@ -772,7 +780,7 @@ export default function ManageTests() {
         // ==========================================
         <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
           
-          {/* 🔥 STATIC PREMIUM EVALUATION NAVBAR 🔥 */}
+          {/* STATIC PREMIUM EVALUATION NAVBAR */}
           <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-2xl border-2 border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] mb-2 mt-2">
               <button 
                   className="flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors active:scale-95" 
@@ -793,7 +801,7 @@ export default function ManageTests() {
               </button>
           </div>
 
-         {/* 🔥 EXAMINER PRO DASHBOARD (Ultra-Compact, Data-Driven) 🔥 */}
+         {/* EXAMINER PRO DASHBOARD (Ultra-Compact, Data-Driven) */}
           <div className="flex flex-col gap-4 mb-8 mt-2">
               
               {/* 1. COMPACT HERO CARD */}
@@ -913,9 +921,23 @@ export default function ManageTests() {
                           <summary className="cursor-pointer p-4 flex items-center justify-between select-none hover:bg-black/5 transition-colors list-none [&::-webkit-details-marker]:hidden">
                               
                               <div className="flex flex-wrap items-center gap-3 md:gap-4 w-full md:w-auto">
-                                  {/* Time Taken Badge */}
+                                  {/* 🔥 NAYA: DYNAMIC TIME TAKEN BADGE 🔥 */}
                                   <div className="flex items-center gap-1.5 text-slate-700 font-bold text-[13px] bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm shrink-0">
-                                      <i className="ti ti-clock text-slate-500"></i> {evaluateSub.sub.timeTaken || <span className="opacity-60 text-[11px]">N/A</span>}
+                                      <i className="ti ti-clock text-slate-500"></i> 
+                                      {(() => {
+                                          let displayTimeStr = evaluateSub.sub.timeTaken || <span className="opacity-60 text-[11px]">N/A</span>;
+                                          if (evaluateSub.sub.timeSpentPerQuestion) {
+                                              let totalSecs = 0;
+                                              evaluateSub.sub.details.forEach((dt, idx) => {
+                                                  const sec = dt.q.section || 'General';
+                                                  if (evalSectionFilter === 'all_sections' || sec === evalSectionFilter || (!dt.q.section && evalSectionFilter === (evaluateSub.test.sections?.[0]))) {
+                                                      totalSecs += (evaluateSub.sub.timeSpentPerQuestion[idx] || 0);
+                                                  }
+                                              });
+                                              if (totalSecs > 0) displayTimeStr = formatQTime(totalSecs);
+                                          }
+                                          return <>{evalSectionFilter === 'all_sections' ? 'Total: ' : 'Section: '} {displayTimeStr}</>;
+                                      })()}
                                   </div>
                                   
                                   {/* Dynamic Status Title */}
@@ -1080,7 +1102,14 @@ export default function ManageTests() {
                             <i className={`ti ${sColor.icon} text-[20px]`}></i>
                             <span>Q{originalQIdx + 1} <span className="opacity-40 mx-1">|</span> <span className="font-semibold text-xs uppercase tracking-wide">{getLabel(q.type)}</span></span>
                         </div>
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                            
+                            {/*  NAYA: INDIVIDUAL QUESTION TIME BADGE  */}
+                            <span className="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-white border border-slate-200 text-slate-600 shadow-sm flex items-center gap-1.5" title="Time taken by student on this question">
+                                <i className="ti ti-stopwatch text-slate-400 text-sm"></i> 
+                                {formatQTime(evaluateSub.sub.timeSpentPerQuestion?.[originalQIdx])}
+                            </span>
+
                             <span className="px-3 py-1.5 rounded-lg text-[11px] font-extrabold bg-slate-800 text-white shadow-sm flex items-center gap-1.5">
                                 <i className="ti ti-target"></i> Earned: {d.earned || 0} / {q.marks}
                             </span>

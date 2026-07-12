@@ -16,6 +16,7 @@ export default function StudentDashboard() {
   
   // 🔥 NEW: Analysis Dropdown State
   const [analysisMode, setAnalysisMode] = useState('insights'); 
+  const [trendPage, setTrendPage] = useState(0);
 
   useEffect(() => {
       if (!fetchingResults && myHistory.length > 0) {
@@ -130,7 +131,17 @@ export default function StudentDashboard() {
   const testsInCurrentLevel = totalTests % testsPerLevel;
   const progressPct = (testsInCurrentLevel / testsPerLevel) * 100;
   const testsToNextLevel = testsPerLevel - testsInCurrentLevel;
-  const recentTrend = myHistory.slice(-10);
+  
+  // 🔥 SMART GRAPH PAGINATION LOGIC 🔥
+  const ITEMS_PER_PAGE = 10;
+  const totalTrendPages = Math.ceil(totalTests / ITEMS_PER_PAGE);
+  // Hum array ko reverse karte hain taaki newest pehle aa jayein, fir page ke hisaab se 10 ka slice lete hain, aur graph me left-to-right dikhane ke liye wapas reverse kar dete hain.
+  const reversedHistory = [...myHistory].reverse();
+  const startIndex = trendPage * ITEMS_PER_PAGE;
+  const recentTrend = reversedHistory.slice(startIndex, startIndex + ITEMS_PER_PAGE).reverse();
+
+  const hasOlder = (startIndex + ITEMS_PER_PAGE) < totalTests;
+  const hasNewer = trendPage > 0;
 
   // Smart Insights Generation
   let smartInsights = [];
@@ -254,9 +265,27 @@ export default function StudentDashboard() {
               </div>
           </div>
           
-          <div className="flex justify-between items-center text-[9px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mt-3 sm:mt-4 px-2 shrink-0">
-              <span className="flex items-center gap-1.5"><i className="ti ti-arrow-left"></i> Older</span>
-              <span className="flex items-center gap-1.5">Newer <i className="ti ti-arrow-right"></i></span>
+          {/* 🔥 PAGINATION CONTROLS 🔥 */}
+          <div className="flex justify-between items-center text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest mt-3 sm:mt-4 px-2 shrink-0 select-none">
+              <button 
+                  onClick={() => { if (hasOlder) { setTrendPage(p => p + 1); setAnimateGraph(false); setTimeout(() => setAnimateGraph(true), 50); } }}
+                  disabled={!hasOlder}
+                  className={`flex items-center gap-1.5 transition-colors px-2 py-1.5 rounded-lg ${hasOlder ? 'text-blue-600 hover:bg-blue-50 cursor-pointer active:scale-95' : 'text-slate-300 cursor-not-allowed'}`}>
+                  <i className="ti ti-arrow-left text-sm"></i> Older Exams
+              </button>
+              
+              {totalTests > ITEMS_PER_PAGE && (
+                  <span className="text-[9px] text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full shadow-inner border border-slate-200/50">
+                      Page {trendPage + 1} / {totalTrendPages}
+                  </span>
+              )}
+
+              <button 
+                  onClick={() => { if (hasNewer) { setTrendPage(p => p - 1); setAnimateGraph(false); setTimeout(() => setAnimateGraph(true), 50); } }}
+                  disabled={!hasNewer}
+                  className={`flex items-center gap-1.5 transition-colors px-2 py-1.5 rounded-lg ${hasNewer ? 'text-blue-600 hover:bg-blue-50 cursor-pointer active:scale-95' : 'text-slate-300 cursor-not-allowed'}`}>
+                  Newer Exams <i className="ti ti-arrow-right text-sm"></i>
+              </button>
           </div>
       </div>
   );
