@@ -133,12 +133,23 @@ function StudentPortalContent() {
     return () => clearTimeout(timer);
   }, [curQ, step]);
 
-  // Hide Global Header during Exam
+  // Hide Global Header & Sub-Navbar during Instructions and Exam
   useEffect(() => {
     const header = document.querySelector('.app-header');
-    if (step === 'exam' && header) header.style.display = 'none'; 
-    else if (header) header.style.display = ''; 
-    return () => { if (header) header.style.display = ''; };
+    const subNav = document.getElementById('dynamic-nav-wrapper'); // Sub-navbar (pills) ko bhi target kiya
+
+    if (step === 'exam' || step === 'instructions') {
+        if (header) header.style.display = 'none'; 
+        if (subNav) subNav.style.display = 'none';
+    } else {
+        if (header) header.style.display = ''; 
+        if (subNav) subNav.style.display = '';
+    }
+    // Cleanup: Jab form submit karke page se bahar jaye (Results par), toh sab normal ho jaye
+    return () => { 
+        if (header) header.style.display = ''; 
+        if (subNav) subNav.style.display = '';
+    };
   }, [step]);
 
   // NAYA: Keyboard Navigation Engine (Arrows & 1,2,3,4)
@@ -664,58 +675,43 @@ function StudentPortalContent() {
 
   if (!isMounted || authLoading || isSubmitting || isFetchingTest) {
     return (
-      <div style={{ height: '100vh', width: '100vw', position: 'fixed', top: 0, left: 0, background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
-        
-        {/* 🔥 Inline CSS for Premium Animations */}
+      <div className="fixed inset-0 bg-slate-50 flex flex-col items-center justify-center z-[99999]">
         <style>{`
-            @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(24,95,165,0.4); } 70% { box-shadow: 0 0 0 20px rgba(24,95,165,0); } 100% { box-shadow: 0 0 0 0 rgba(24,95,165,0); } }
             @keyframes spinDash { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            @keyframes bounceSoft { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+            @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(37,99,235,0.4); } 70% { box-shadow: 0 0 0 20px rgba(37,99,235,0); } 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); } }
+            @keyframes lockPulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 50% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+            @keyframes floatUp { 0% { transform: translateY(10px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
         `}</style>
 
         {isSubmitting ? (
-            <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <style>{`
-                    @keyframes scanline { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
-                    @keyframes lockPulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 50% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
-                    @keyframes floatUp { 0% { transform: translateY(10px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
-                `}</style>
-                
-                <div style={{ position: 'relative', width: '130px', height: '130px', marginBottom: '2rem' }}>
-                    {/* Outer Rotating Dashed Ring */}
-                    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px dashed rgba(16, 185, 129, 0.4)', animation: 'spinDash 6s linear infinite' }}></div>
-                    {/* Inner Rotating Solid Ring */}
-                    <div style={{ position: 'absolute', inset: '12px', borderRadius: '50%', border: '4px solid transparent', borderTopColor: '#10b981', borderBottomColor: '#10b981', animation: 'spinDash 2s ease-in-out infinite reverse' }}></div>
-                    {/* Center Core Shield */}
-                    <div style={{ position: 'absolute', inset: '24px', background: 'linear-gradient(135deg, #10b981, #047857)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'lockPulse 2s infinite', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.2)' }}>
-                        <i className="ti ti-lock-check" style={{ fontSize: '40px', color: '#fff' }}></i>
+            <div className="text-center animate-[fadeIn_0.4s_ease] flex flex-col items-center">
+                <div className="relative w-[120px] h-[120px] mb-8">
+                    <div className="absolute inset-0 rounded-full border-[3px] border-dashed border-emerald-500/40 animate-[spinDash_6s_linear_infinite]"></div>
+                    <div className="absolute inset-[10px] rounded-full border-4 border-transparent border-t-emerald-500 border-b-emerald-500 animate-[spinDash_2s_ease-in-out_infinite_reverse]"></div>
+                    <div className="absolute inset-[20px] bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center shadow-inner animate-[lockPulse_2s_infinite]">
+                        <i className="ti ti-lock-check text-4xl text-white"></i>
                     </div>
-                    {/* Futuristic Scanline */}
-                    <div style={{ position: 'absolute', top: 0, left: '20px', right: '20px', height: '3px', background: '#fff', boxShadow: '0 0 15px 3px rgba(255,255,255,0.8)', animation: 'scanline 2s linear infinite', zIndex: 10 }}></div>
                 </div>
-
-                <h2 style={{ fontSize: '28px', color: '#0f172a', marginBottom: '12px', fontWeight: 800, letterSpacing: '-0.5px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    Encrypting Vault 
-                    <span className="spinner" style={{ width: '22px', height: '22px', borderWidth: '3px', borderColor: '#0f172a', borderTopColor: 'transparent' }}></span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-800 mb-3 tracking-tight flex items-center gap-3">
+                    Encrypting Vault <span className="w-5 h-5 border-4 border-slate-800 border-t-transparent rounded-full animate-spin"></span>
                 </h2>
-                <div style={{ background: '#ecfdf5', color: '#059669', padding: '8px 20px', borderRadius: '20px', fontSize: '13px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', animation: 'floatUp 0.5s ease forwards', boxShadow: '0 4px 15px rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)' }}>
+                <div className="bg-emerald-50 text-emerald-600 px-5 py-2 rounded-full text-xs font-extrabold uppercase tracking-widest border border-emerald-200 shadow-sm animate-[floatUp_0.5s_ease_forwards]">
                     Establishing Secure Transfer...
                 </div>
             </div>
         ) : (
-            <div style={{ textAlign: 'center', animation: 'fadeIn 0.4s ease' }}>
-                <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto 2.5rem' }}>
-                    {/* Outer dashed spinning ring */}
-                    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px dashed #cbd5e1', animation: 'spinDash 8s linear infinite' }}></div>
-                    {/* Inner fast solid ring */}
-                    <div style={{ position: 'absolute', inset: '12px', borderRadius: '50%', border: '3px solid #185FA5', borderTopColor: 'transparent', animation: 'spinDash 1s cubic-bezier(0.4, 0, 0.2, 1) infinite' }}></div>
-                    {/* Center Glowing Icon */}
-                    <div style={{ position: 'absolute', inset: '24px', background: 'linear-gradient(135deg, #185FA5, #3C3489)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pulseGlow 2s infinite' }}>
-                        <i className="ti ti-shield-lock" style={{ color: '#fff', fontSize: '26px' }}></i>
+            <div className="text-center animate-[fadeIn_0.4s_ease] flex flex-col items-center">
+                <div className="relative w-[100px] h-[100px] mb-8">
+                    <div className="absolute inset-0 rounded-full border-[3px] border-dashed border-slate-300 animate-[spinDash_8s_linear_infinite]"></div>
+                    <div className="absolute inset-[10px] rounded-full border-[3px] border-transparent border-t-blue-600 animate-[spinDash_1s_cubic-bezier(0.4,0,0.2,1)_infinite]"></div>
+                    <div className="absolute inset-[20px] bg-gradient-to-br from-blue-600 to-indigo-700 rounded-full flex items-center justify-center shadow-lg animate-[pulseGlow_2s_infinite]">
+                        <i className="ti ti-shield-lock text-3xl text-white"></i>
                     </div>
                 </div>
-                <h2 style={{ fontSize: '22px', color: '#0f172a', fontWeight: 800, marginBottom: '6px' }}>{isFetchingTest ? 'Decrypting Exam Vault...' : 'Initializing Secure Portal...'}</h2>
-                <p style={{ color: '#64748b', fontSize: '14px', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Please wait</p>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-800 mb-2 tracking-tight">
+                    {isFetchingTest ? 'Decrypting Exam Vault...' : 'Initializing Secure Portal...'}
+                </h2>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Please wait</p>
             </div>
         )}
       </div>
@@ -743,58 +739,127 @@ function StudentPortalContent() {
   return (
     <div style={{ animation: 'fadeIn 0.3s ease', width: '100%', maxWidth: '1080px', margin: '0 auto', padding: '2rem 1.5rem' }}>
       
-      {/* STEP 1: JOIN FORM */}
+      {/* STEP 1: PREMIUM JOIN FORM */}
       {step === 'join' && (
-        <div style={{ maxWidth: '460px', margin: '3rem auto' }}>
-          <div className="card" style={{ boxShadow: '0 10px 25px rgba(0,0,0,0.05)', border: 'none' }}>
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <div className="logo-icon" style={{ width: '56px', height: '56px', borderRadius: '14px', fontSize: '26px', margin: '0 auto 1rem', boxShadow: '0 4px 10px rgba(24,95,165,0.3)' }}>E</div>
-              <div style={{ fontSize: '22px', fontWeight: 600, marginBottom: '4px' }}>Join a Test</div>
-              <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>Enter your details and the 6-digit test code</div>
+        <div className="max-w-[420px] mx-auto mt-10 sm:mt-16 animate-[fadeIn_0.4s_ease]">
+          <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden p-6 sm:p-8">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl flex items-center justify-center text-3xl font-black shadow-lg shadow-blue-600/20 mx-auto mb-4">E</div>
+              <h1 className="text-2xl font-black text-slate-800 tracking-tight mb-1.5">Join a Test</h1>
+              <p className="text-sm font-medium text-slate-500">Enter your details and the 6-digit secure code.</p>
             </div>
-            <div style={{ marginBottom: '1rem' }}><label>Full Name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rahul Kumar" disabled={!!currentUser} style={currentUser ? { background: '#f1f5f9', color: '#475569', cursor: 'not-allowed' } : {}}/></div>
-            <div style={{ marginBottom: '1rem' }}><label>Roll Number (Optional)</label><input type="text" value={roll} onChange={(e) => setRoll(e.target.value)} placeholder="e.g. 2024CS001" /></div>
-            <div style={{ marginBottom: '2rem' }}><label>Test Code</label><input type="text" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ENTER CODE" style={{ textTransform: 'uppercase', letterSpacing: '6px', fontSize: '20px', fontWeight: 600, textAlign: 'center', height: '50px' }} maxLength="6" /></div>
-            {joinError && <div style={{ color: '#A32D2D', background: '#FCEBEB', padding: '10px', borderRadius: '6px', fontSize: '13px', fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}><i className="ti ti-alert-triangle"></i> {joinError}</div>}
-            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: '16px', fontWeight: 600 }} onClick={handleJoinTest}>Start Test <i className="ti ti-arrow-right"></i></button>
+            
+            <div className="space-y-4 mb-6">
+                <div>
+                    <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 block">Full Name</label>
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rahul Kumar" disabled={!!currentUser} className={`w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all ${currentUser ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : 'bg-white'}`} />
+                </div>
+                <div>
+                    <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 block">Roll Number / ID</label>
+                    <input type="text" value={roll} onChange={(e) => setRoll(e.target.value)} placeholder="e.g. 2024CS001" className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all bg-white" />
+                </div>
+                <div>
+                    <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 block">Secure Test Code</label>
+                    <input type="text" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="XXXXXX" maxLength="6" className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xl font-black text-center text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all bg-slate-50 uppercase tracking-[0.3em] placeholder:tracking-normal" />
+                </div>
+            </div>
+
+            {joinError && (
+                <div className="bg-rose-50 text-rose-600 px-4 py-3 rounded-xl text-[13px] font-bold mb-6 border border-rose-100 flex items-center gap-2 shadow-sm animate-[fadeIn_0.2s_ease]">
+                    <i className="ti ti-alert-triangle text-lg"></i> {joinError}
+                </div>
+            )}
+            
+            <button className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-[15px] rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2" onClick={handleJoinTest}>
+                Start Assessment <i className="ti ti-arrow-right text-lg"></i>
+            </button>
           </div>
         </div>
       )}
 
-      {/* STEP 2: INSTRUCTIONS */}
+      {/* STEP 2: PROFESSIONAL INSTRUCTIONS */}
       {step === 'instructions' && activeTest && (
-        <div style={{ maxWidth: '600px', margin: '2rem auto', background: '#fff', padding: '2rem', borderRadius: '12px', border: '1px solid var(--color-border-secondary)', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-            <h2 style={{ marginBottom: '1rem', fontSize: '24px', color: '#185FA5' }}><i className="ti ti-file-info"></i> Pre-Exam Instructions</h2>
+        <div className="max-w-2xl mx-auto mt-6 sm:mt-10 bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-6 sm:p-8 animate-[fadeIn_0.4s_ease]">
+            <div className="flex items-center gap-3 pb-5 border-b border-slate-100 mb-6">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-2xl shadow-inner shrink-0"><i className="ti ti-file-info"></i></div>
+                <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight leading-none mb-1">Pre-Exam Instructions</h2>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Please read carefully before starting</p>
+                </div>
+            </div>
             
             {draftToResume && (
-                <div style={{ background: '#FAEEDA', borderLeft: '4px solid #854F0B', padding: '12px', borderRadius: '6px', marginBottom: '1.5rem', color: '#633806' }}>
-                    <strong><i className="ti ti-history"></i> Session Restored:</strong> We found your previously incomplete exam session. You will resume from where you left off.
+                <div className="bg-amber-50 text-amber-800 border border-amber-200 px-5 py-4 rounded-xl mb-6 shadow-sm flex items-start gap-3">
+                    <i className="ti ti-history text-xl text-amber-600 shrink-0 mt-0.5"></i>
+                    <p className="text-[13px] font-medium leading-relaxed"><strong>Session Restored:</strong> We found your previously incomplete exam session. You will resume exactly from where you left off.</p>
                 </div>
             )}
 
-            <div style={{ fontSize: '15px', color: 'var(--color-text-primary)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-                <p style={{ marginBottom: '8px' }}><strong>Test:</strong> {activeTest?.title}</p>
-                <p style={{ marginBottom: '15px' }}><strong>Subject:</strong> {activeTest?.subject || 'N/A'}</p>
-                <ul style={{ marginLeft: '20px', color: 'var(--color-text-secondary)' }}>
-                    <li style={{ marginBottom: '8px' }}><strong>Duration:</strong> {activeTest?.duration} Minutes</li>
-                    <li style={{ marginBottom: '8px' }}><strong>Total Marks:</strong> {activeTest?.totalMarks} (Negative: {activeTest?.negMarking ? '-' + Math.abs(activeTest?.negMarking) : 'None'})</li>
-                    {activeTest?.antiCheat && <li style={{ marginBottom: '8px', color: '#A32D2D' }}><strong><i className="ti ti-shield-lock"></i> Tab-Switch Monitored:</strong> Changing tabs will auto-submit the exam.</li>}
-                    {activeTest?.fullScreenMode && <li style={{ marginBottom: '8px', color: '#A32D2D' }}><strong><i className="ti ti-maximize"></i> Full-Screen Lock:</strong> Exiting full-screen will trigger a warning.</li>}
-                </ul>
+            {/* Test Details Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl">
+                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Subject</div>
+                    <div className="text-[13px] font-black text-slate-700 truncate">{activeTest?.subject || 'General'}</div>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl col-span-1 sm:col-span-3">
+                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Test Title</div>
+                    <div className="text-[13px] font-black text-slate-700 truncate">{activeTest?.title}</div>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl col-span-2">
+                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Duration</div>
+                    <div className="text-[14px] font-black text-blue-600 flex items-center gap-1.5"><i className="ti ti-clock"></i> {activeTest?.duration} Minutes</div>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl col-span-2">
+                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Marking Scheme</div>
+                    <div className="text-[14px] font-black text-emerald-600 flex items-center gap-1.5"><i className="ti ti-target"></i> {activeTest?.totalMarks} Max <span className="text-rose-500 text-xs ml-1 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200">{activeTest?.negMarking ? `-${Math.abs(activeTest?.negMarking)} Neg` : 'No Neg'}</span></div>
+                </div>
             </div>
-            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '16px' }} onClick={startExam}><i className="ti ti-player-play"></i> {draftToResume ? 'Resume Exam Now' : 'Start Exam Now'}</button>
-            
-            {/* 🔥 SMART GO BACK BUTTON */}
-            <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '16px', marginTop: '12px' }} 
-                onClick={() => {
-                    if (isDirectJoin) {
-                        router.push('/student/radar'); // Direct aaye the toh wapas Radar pe jao
-                    } else {
-                        setStep('join'); // Form se aaye the toh wapas form pe jao
-                    }
-                }}>
-                <i className="ti ti-arrow-left"></i> Go Back
-            </button>
+
+            {/* Security Rules */}
+            {(activeTest?.antiCheat || activeTest?.fullScreenMode) && (
+                <div className="mb-8">
+                    <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">Security Protocols Active</h3>
+                    <div className="flex flex-col gap-2.5">
+                        {activeTest?.antiCheat && (
+                            <div className="flex items-start gap-3 bg-rose-50/50 border border-rose-100 p-3.5 rounded-xl">
+                                <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0"><i className="ti ti-shield-lock text-lg"></i></div>
+                                <div>
+                                    <h4 className="text-[13px] font-bold text-rose-800 mb-0.5">Proctoring Enabled</h4>
+                                    <p className="text-[12px] font-medium text-rose-700/80 leading-snug">Tab-switching, minimizing the window, or using split-screen will automatically trigger warnings and submit your exam.</p>
+                                </div>
+                            </div>
+                        )}
+                        {activeTest?.fullScreenMode && (
+                            <div className="flex items-start gap-3 bg-amber-50/50 border border-amber-100 p-3.5 rounded-xl">
+                                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0"><i className="ti ti-maximize text-lg"></i></div>
+                                <div>
+                                    <h4 className="text-[13px] font-bold text-amber-800 mb-0.5">Full-Screen Lock</h4>
+                                    <p className="text-[12px] font-medium text-amber-700/80 leading-snug">The exam will launch in full-screen mode. Exiting full-screen will be recorded as a strict violation.</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Critical Note */}
+            <div className="bg-slate-800 text-slate-300 p-4 rounded-xl text-[12px] font-medium leading-relaxed mb-6 border border-slate-700 shadow-inner">
+                <strong className="text-white flex items-center gap-1.5 mb-1"><i className="ti ti-info-square-rounded text-blue-400"></i> Critical Note:</strong> 
+                Once the exam starts, do not use the browser's back or refresh buttons. In case of an internet drop, your answers will be securely cached offline and synced automatically when the connection returns.
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                <button className="w-full sm:w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[14px] rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2" 
+                    onClick={() => {
+                        if (isDirectJoin) router.push('/student/radar');
+                        else setStep('join');
+                    }}>
+                    <i className="ti ti-arrow-left"></i> Go Back
+                </button>
+                <button className="w-full sm:w-2/3 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2" onClick={startExam}>
+                    <i className="ti ti-player-play"></i> {draftToResume ? 'Resume Assessment Now' : 'I Agree, Start Assessment'}
+                </button>
+            </div>
         </div>
       )}
 
