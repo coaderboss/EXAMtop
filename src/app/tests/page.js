@@ -1348,28 +1348,32 @@ export default function ManageTests() {
               </div>
           </div>
 
-          {/* 🔥 COMPACT DASHBOARD HERO CARD 🔥 */}
-          <div className="bg-slate-900 rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4 shadow-lg border border-slate-800 relative overflow-hidden mb-6">
-              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-blue-500 to-indigo-500"></div>
+          {/* ULTRA-COMPACT DASHBOARD HERO CARD  */}
+          <div className="bg-slate-900 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 shadow-lg border border-slate-800 relative overflow-hidden mb-6">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500"></div>
               
-              <div className="flex flex-col min-w-0 z-10">
-                  <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-extrabold text-blue-400 uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded">
+              {/* Left Column (Title & Info) */}
+              <div className="flex flex-col min-w-0 z-10 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[9px] font-extrabold text-blue-400 uppercase tracking-widest bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
                           {selectedTest.subject || 'General'}
                       </span>
-                      {selectedTest.isLocal && <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-widest bg-amber-500/10 px-2 py-0.5 rounded flex items-center gap-1"><i className="ti ti-device-floppy"></i> Local</span>}
+                      {selectedTest.isLocal && <span className="text-[9px] font-extrabold text-amber-400 uppercase tracking-widest bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 flex items-center gap-1"><i className="ti ti-device-floppy"></i> Local</span>}
                   </div>
-                  <h2 className="text-xl sm:text-2xl font-black text-white mb-2 tracking-tight truncate leading-tight">{selectedTest.title}</h2>
                   
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-300">
-                      <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 font-mono text-[11px]"><i className="ti ti-hash opacity-60"></i> {selectedTest.code}</span>
-                      <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-1"><i className="ti ti-clock text-slate-400"></i> {selectedTest.duration}m</span>
-                      <span className="bg-slate-800 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-1"><i className="ti ti-target text-slate-400"></i> {selectedTest.totalMarks} Marks</span>
+                  <h2 className="text-[18px] sm:text-xl font-black text-white mb-2.5 tracking-tight leading-snug truncate">{selectedTest.title}</h2>
+                  
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs font-bold text-slate-300">
+                      <span className="bg-slate-800/80 px-2 py-1 rounded border border-slate-700/50 font-mono text-[10px] sm:text-[11px] shadow-sm"><i className="ti ti-hash opacity-50"></i> {selectedTest.code}</span>
+                      <span className="bg-slate-800/80 px-2 py-1 rounded border border-slate-700/50 flex items-center gap-1 shadow-sm"><i className="ti ti-clock text-blue-400"></i> {selectedTest.duration}m</span>
+                      <span className="bg-slate-800/80 px-2 py-1 rounded border border-slate-700/50 flex items-center gap-1 shadow-sm"><i className="ti ti-target text-emerald-400"></i> {selectedTest.totalMarks} Mks</span>
                   </div>
               </div>
 
-              {/* Status Badge & Live Counter */}
-              <div className="shrink-0 z-10 self-start sm:self-auto flex flex-col sm:items-end gap-2">
+              {/* Right Column (Status & Live Counter - Flex Row on Mobile) */}
+              <div className="shrink-0 z-10 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2.5 w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-slate-700/50 sm:border-none">
+                  
+                  {/* Status Badge */}
                   {(() => {
                       const stNow = Date.now();
                       const stClose = selectedTest.closeDate ? new Date(selectedTest.closeDate).getTime() : null;
@@ -1380,22 +1384,29 @@ export default function ManageTests() {
                       else if (stOpen && stNow < stOpen) stStatus = 'upcoming';
 
                       return (
-                          <div className={`flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs border shadow-sm ${stStatus === 'live' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : (stStatus === 'upcoming' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-slate-800 text-slate-400 border-slate-700')}`}>
-                              {stStatus === 'live' && <><span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span> Active</>}
-                              {stStatus === 'upcoming' && <><i className="ti ti-clock"></i> Scheduled</>}
-                              {stStatus === 'closed' && <><i className="ti ti-lock"></i> Closed</>}
+                          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded font-black text-[10px] uppercase tracking-widest border ${stStatus === 'live' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : (stStatus === 'upcoming' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-slate-800/50 text-slate-400 border-slate-700/50')}`}>
+                              {stStatus === 'live' && <><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span> Active</>}
+                              {stStatus === 'upcoming' && <><i className="ti ti-clock text-xs"></i> Scheduled</>}
+                              {stStatus === 'closed' && <><i className="ti ti-lock text-xs"></i> Closed</>}
                           </div>
                       );
                   })()}
                   
-                  {/* 🔥 NAYA: REAL-TIME LIVE COUNTER BADGE 🔥 */}
-                  <div className="flex w-fit items-center gap-2 px-3 py-1.5 bg-blue-600/20 border border-blue-500/30 text-blue-300 rounded-lg font-black text-[11px] shadow-inner uppercase tracking-widest backdrop-blur-sm">
-                      {liveCount > 0 ? (
-                          <><span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse shadow-[0_0_8px_#60a5fa]"></span> {liveCount} Inside Exam</>
-                      ) : (
-                          <><i className="ti ti-ghost opacity-60"></i> 0 Inside Exam</>
-                      )}
-                  </div>
+                  {/* REDESIGNED SLEEK LIVE COUNTER BADGE */}
+                  {liveCount > 0 ? (
+                      <div className="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-rose-500/30 rounded-full text-white font-bold text-[11px] shadow-sm backdrop-blur-md">
+                          <div className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600 shadow-[0_0_6px_#e11d48]"></span>
+                          </div>
+                          <span>{liveCount} <span className="text-slate-400 font-semibold uppercase tracking-wider text-[9px] ml-0.5">In Exam</span></span>
+                      </div>
+                  ) : (
+                      <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-800/50 border border-slate-700/50 rounded-full text-slate-400 font-bold text-[11px]">
+                          <span className="w-1.5 h-1.5 bg-slate-600 rounded-full"></span>
+                          <span>0 <span className="font-semibold uppercase tracking-wider text-[9px] ml-0.5">In Exam</span></span>
+                      </div>
+                  )}
               </div>
           </div>
 
@@ -2159,16 +2170,27 @@ export default function ManageTests() {
                                                 <span className="flex items-center gap-1.5"><i className="ti ti-clock text-slate-400 text-base"></i> {t.duration} Mins</span>
                                             </div>
                                             
-                                            {/* Data Tags */}
-                                            <div className="flex items-center gap-2">
-                                                <span className="bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg text-[11px] font-bold font-mono tracking-widest border border-slate-200 shadow-sm flex items-center gap-1"><i className="ti ti-hash opacity-60"></i> {t.code}</span>
-                                                <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg text-[11px] font-bold border border-indigo-200 shadow-sm flex items-center gap-1.5"><i className="ti ti-users"></i> {subCount} Subs</span>
+                                            {/* Data Tags & Radar Badge (Mobile-First Layout) */}
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="bg-slate-50 text-slate-600 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold font-mono tracking-widest border border-slate-200 shadow-sm flex items-center gap-1"><i className="ti ti-hash opacity-60"></i> {t.code}</span>
+                                                
+                                                <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold border border-indigo-200 shadow-sm flex items-center gap-1.5"><i className="ti ti-users"></i> {subCount} Subs</span>
+                                                
+                                                {/* 🔥 THUNDER ICON FIXED: Ab ye tags ke sath same line me perfectly fit hoga 🔥 */}
+                                                {t.radarVisible && (
+                                                    <span className="bg-amber-50 text-amber-600 px-2.5 py-1.5 sm:py-1 rounded-lg border border-amber-200 shadow-sm flex items-center gap-1" title="Visible on Student Radar">
+                                                        <i className="ti ti-bolt text-[14px] animate-[pulse_2s_infinite]"></i> 
+                                                        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">On Radar</span>
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         
-                                        {/* Hover Arrow (Desktop only for sleekness) */}
-                                        <div className="hidden sm:flex w-10 h-10 rounded-full bg-slate-50 border border-slate-100 items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all shrink-0 shadow-sm">
-                                            <i className="ti ti-chevron-right text-lg transform group-hover:translate-x-0.5 transition-transform"></i>
+                                        {/* Hover Arrow (Desktop only - Mobile ka faltu border hata diya) */}
+                                        <div className="hidden sm:flex shrink-0 ml-4">
+                                            <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all shadow-sm">
+                                                <i className="ti ti-chevron-right text-lg transform group-hover:translate-x-0.5 transition-transform"></i>
+                                            </div>
                                         </div>
                                     </div>
                                 );
