@@ -112,8 +112,9 @@ function StudentPortalContent() {
     setImgLoaded(false);
   }, [curQ]);
 
-  // 1. MathJax Auto-Renderer
+ // 1. MathJax Auto-Renderer
   useEffect(() => {
+    let isCancelled = false;
     const renderMath = async () => {
       if (step === 'exam' && typeof window !== 'undefined' && window.MathJax) {
         try {
@@ -122,16 +123,22 @@ function StudentPortalContent() {
         } catch (err) {
           console.log('MathJax Error:', err);
         } finally {
-            let targetAreas = document.querySelectorAll('.q-area-content');
-            targetAreas.forEach(el => {
-                el.style.transition = 'opacity 0.25s ease-in';
-                el.style.opacity = '1'; 
-            });
+            if (!isCancelled) {
+                let targetAreas = document.querySelectorAll('.q-area-content');
+                targetAreas.forEach(el => {
+                    el.style.transition = 'opacity 0.25s ease-in';
+                    el.style.opacity = '1'; 
+                });
+            }
         }
       }
     };
-    const timer = setTimeout(renderMath, 20); 
-    return () => clearTimeout(timer);
+        // Ab React pehle aaram se raw text daalega, fir MathJax aakar usko perfectly format karega!
+    const timer = setTimeout(renderMath, 150); 
+    return () => {
+        isCancelled = true;
+        clearTimeout(timer);
+    };
   }, [curQ, step]);
 
   // Hide Global Header & Sub-Navbar during Instructions and Exam
@@ -943,16 +950,16 @@ function StudentPortalContent() {
                   {/* StaticMath applied to Question Text */}
                   <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
                   
-                 {/* 🔥 UNIVERSAL FIGURE ENGINE (With Auto-Scaling & Fallbacks) 🔥 */}
+                 {/*  UNIVERSAL FIGURE ENGINE (Smart Scaling, Centering & Fallbacks)  */}
                   {currentQuestion?.figureType && currentQuestion.figureType !== 'none' && currentQuestion.figureData && (
                     <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
                         
-                        {/* 🔥 CSS Hack: SVG height strictly controlled for Mobile/Laptop */}
+                        {/* CSS Hack: SVG height strictly controlled for Mobile/Laptop */}
                         <style>{`
-                            .svg-figure-container svg { max-width: 100%; height: auto; min-height: 80px; max-height: 220px; }
+                            .svg-figure-container svg { max-width: 100%; height: auto; min-height: 80px; max-height: 250px; }
                         `}</style>
 
-                        {/* URL & IMAGE RENDERER (With Restored Spinner & Fade-in) */}
+                        {/* URL & IMAGE RENDERER */}
                         {(currentQuestion.figureType === 'image' || currentQuestion.figureType === 'url') && (
                             <div style={{ position: 'relative', width: 'fit-content', display: 'flex', justifyContent: 'center', background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minHeight: !imgLoaded ? '100px' : 'auto', minWidth: !imgLoaded ? '150px' : 'auto' }}>
                                 
@@ -966,7 +973,7 @@ function StudentPortalContent() {
                                     key={`img-${curQ}`} 
                                     src={currentQuestion.figureData} 
                                     alt="Question Figure" 
-                                    style={{ maxWidth: '100%', maxHeight: '220px', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
+                                    style={{ maxWidth: '100%', maxHeight: '250px', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
                                     onLoad={() => setImgLoaded(true)}
                                     onError={(e) => { 
                                         setImgLoaded(true); 
@@ -977,7 +984,7 @@ function StudentPortalContent() {
                             </div>
                         )}
 
-                        {/* 🔥 RAW SVG RENDERER (Sleek & Compact) 🔥 */}
+                        {/* RAW SVG RENDERER (Perfect Centering) */}
                         {currentQuestion.figureType === 'svg' && (
                             <div 
                                 className="svg-figure-container"
@@ -988,19 +995,23 @@ function StudentPortalContent() {
 
                         {/* SMILES RENDERER */}
                         {currentQuestion.figureType === 'smiles' && (
-                            <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'inline-block', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                                <SmilesViewer smilesCode={currentQuestion.figureData} width={200} height={200} />
+                            <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                                <SmilesViewer smilesCode={currentQuestion.figureData} width={250} height={200} />
                             </div>
                         )}
 
-                        {/* TIKZ RENDERER */}
+                        {/* 🔥 SMART TIKZ RENDERER (Auto-wraps only if needed to prevent errors) 🔥 */}
                         {currentQuestion.figureType === 'tikz' && (
-                            <div className="hide-scroll" style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'inline-block', overflowX: 'auto', maxWidth: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                            <div className="hide-scroll" style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', overflowX: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                                 <img 
                                     key={`tikz-${curQ}`}
-                                    src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}')}`} 
-                                    alt="Math Graphic" 
-                                    style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain' }} 
+                                    src={`https://i.upmath.me/svg/${encodeURIComponent(
+                                        currentQuestion.figureData.includes('\\begin{tikzpicture}') 
+                                        ? currentQuestion.figureData 
+                                        : '\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}'
+                                    )}`} 
+                                    alt="TikZ Graphic" 
+                                    style={{ maxWidth: '100%', maxHeight: '250px', objectFit: 'contain' }} 
                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/500x200/f8fafc/ef4444?text=TikZ+Compilation+Failed'; }}
                                 />
                             </div>

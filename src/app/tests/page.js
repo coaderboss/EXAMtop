@@ -1138,9 +1138,19 @@ export default function ManageTests() {
                                             <SmilesViewer smilesCode={q.figureData} width={200} height={200} />
                                         </div>
                                     )}
+                                    {/* 🔥 SMART TIKZ FIX 🔥 */}
                                     {q.figureType === 'tikz' && (
                                         <div className="hide-scroll max-w-full overflow-x-auto bg-white p-2 rounded-lg border border-slate-200 shadow-sm inline-block">
-                                            <img src={`https://i.upmath.me/svg/${encodeURIComponent('\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}')}`} alt="Math Graphic" className="max-w-full max-h-[200px] object-contain" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=TikZ+Failed'; }} />
+                                            <img 
+                                                src={`https://i.upmath.me/svg/${encodeURIComponent(
+                                                    q.figureData.includes('\\begin{tikzpicture}') 
+                                                    ? q.figureData 
+                                                    : '\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}'
+                                                )}`} 
+                                                alt="Math Graphic" 
+                                                className="max-w-full max-h-[200px] object-contain" 
+                                                onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=TikZ+Failed'; }} 
+                                            />
                                         </div>
                                     )}
                                 </div>

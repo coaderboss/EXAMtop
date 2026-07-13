@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { database } from '../../lib/firebase';
-import { ref, set, get } from 'firebase/database';
+import { ref, set, get, runTransaction } from 'firebase/database';
 import SmilesViewer from '../../components/SmilesViewer';
 
 export default function CreateTest() {
@@ -39,6 +39,9 @@ export default function CreateTest() {
   const [mismatchModal, setMismatchModal] = useState(null); // For Marks Mismatch Custom Alert
   const [sysAlert, setSysAlert] = useState(null); // { title, msg, type }
   const [jsonModal, setJsonModal] = useState(null);
+  // Paste JSON Modal State
+  const [pasteModal, setPasteModal] = useState(false);
+  const [pasteText, setPasteText] = useState('');
   
   // Premium Draft State (For Custom Modal)
   const [pendingDraft, setPendingDraft] = useState(null); 
@@ -398,11 +401,13 @@ export default function CreateTest() {
         localTests.push(newTest);
         localStorage.setItem('examitop_offline_tests', JSON.stringify(localTests));
       } else {
-        const snapshot = await get(ref(database, 'tests'));
-        let currentTests = snapshot.val() || [];
-        if (!Array.isArray(currentTests)) currentTests = Object.values(currentTests).filter(item => item !== null);
-        currentTests.push(newTest);
-        await set(ref(database, 'tests'), currentTests);
+        await runTransaction(ref(database, 'tests'), (currentTests) => {
+            let testsArr = currentTests || [];
+            // Arrays ko handle karna taaki structure break na ho
+            if (!Array.isArray(testsArr)) testsArr = Object.values(testsArr).filter(item => item !== null);
+            testsArr.push(newTest);
+            return testsArr; 
+        });
       }
 
       const userIdent = currentUser ? currentUser.uid : (isOffline ? 'offline_user' : 'guest');
@@ -443,6 +448,12 @@ export default function CreateTest() {
               <button className="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-slate-200 text-blue-600 font-bold text-[13px] rounded-xl shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 active:scale-95" onClick={downloadTemplate}>
                   <i className="ti ti-download text-lg"></i> <span className="hidden sm:inline">JSON</span> Template
               </button>
+              
+              {/* NAYA: Paste JSON Button */}
+              <button className="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-slate-200 text-indigo-600 font-bold text-[13px] rounded-xl shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 active:scale-95" onClick={() => { setPasteText(''); setPasteModal(true); }}>
+                  <i className="ti ti-clipboard text-lg"></i> Paste <span className="hidden sm:inline">JSON</span>
+              </button>
+
               <label className="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-slate-200 text-emerald-600 font-bold text-[13px] rounded-xl shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-95">
                   <i className="ti ti-upload text-lg"></i> Import <span className="hidden sm:inline">JSON</span>
                   <input type="file" accept=".json" onChange={handleImport} className="hidden" />
@@ -453,7 +464,7 @@ export default function CreateTest() {
           </div>
       </div>
 
-      {/* 🔥 SLEEK INLINE DRAFT BANNER (No annoying modals!) 🔥 */}
+      {/* SLEEK INLINE DRAFT BANNER (No annoying modals!)  */}
       {pendingDraft && (
           <div className="bg-amber-50 border border-amber-200 p-4 sm:p-5 rounded-2xl mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-[slideDown_0.3s_ease]">
               <div className="flex items-center gap-3">
@@ -743,7 +754,32 @@ export default function CreateTest() {
                       )}
 
                       {q.figureType === 'smiles' && <input type="text" value={q.figureData || ''} onChange={e => updateQ(i, 'figureData', e.target.value)} placeholder="e.g. c1ccccc1" className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-mono outline-none focus:border-indigo-400 transition-colors" />}
-                      {q.figureType === 'tikz' && <textarea value={q.figureData || ''} onChange={e => updateQ(i, 'figureData', e.target.value)} placeholder="\begin{tikzpicture} ... \end{tikzpicture}" className="w-full p-3 bg-slate-900 text-emerald-400 border border-slate-800 rounded-lg text-[11px] font-mono outline-none focus:border-emerald-500 transition-colors min-h-[80px] custom-scrollbar" />}
+                      
+                      {/* 🔥 SMART TIKZ ENGINE WITH LIVE PREVIEW 🔥 */}
+                      {q.figureType === 'tikz' && (
+                        <div className="flex flex-col gap-2">
+                            <textarea 
+                                value={q.figureData || ''} 
+                                onChange={e => updateQ(i, 'figureData', e.target.value)} 
+                                placeholder="\begin{tikzpicture} ... \end{tikzpicture}" 
+                                className="w-full p-3 bg-slate-900 text-emerald-400 border border-slate-800 rounded-lg text-[11px] font-mono outline-none focus:border-emerald-500 transition-colors min-h-[80px] custom-scrollbar" 
+                            />
+                            {q.figureData && (
+                                <div className="mt-1 flex justify-center bg-white p-2 rounded-lg border border-slate-200 shadow-inner max-w-full overflow-x-auto hide-scroll">
+                                    <img 
+                                        src={`https://i.upmath.me/svg/${encodeURIComponent(
+                                            q.figureData.includes('\\begin{tikzpicture}') 
+                                            ? q.figureData 
+                                            : '\\begin{tikzpicture}\n' + q.figureData + '\n\\end{tikzpicture}'
+                                        )}`} 
+                                        alt="TikZ Preview" 
+                                        className="max-h-[150px] object-contain" 
+                                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=TikZ+Syntax+Error'; }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                      )}
                     </div>
                 </div>
 
@@ -878,6 +914,63 @@ export default function CreateTest() {
                           onClick={() => { setSuccessModal(null); router.push('/tests'); }}
                       >
                           <i className="ti ti-list-check text-lg"></i> Go to My Vault
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* 🔥 NAYA: PASTE JSON MODAL 🔥 */}
+      {pasteModal && (
+          <div className="modal-bg flex items-center justify-center p-4 sm:p-6" style={{ zIndex: 100000, backdropFilter: 'blur(8px)', background: 'rgba(15, 23, 42, 0.7)' }}>
+              <div className="bg-white w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl flex flex-col animate-[popIn_0.3s_ease]">
+                  <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center text-xl shadow-inner border border-indigo-200"><i className="ti ti-clipboard"></i></div>
+                          <div>
+                              <h3 className="text-[18px] font-black text-slate-800 m-0 leading-none tracking-tight">Paste JSON Data</h3>
+                              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">Paste your Universal Template JSON here</p>
+                          </div>
+                      </div>
+                      <button className="w-8 h-8 rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 transition-colors" onClick={() => setPasteModal(false)}>
+                          <i className="ti ti-x text-lg"></i>
+                      </button>
+                  </div>
+                  
+                  <div className="p-4 sm:p-5 flex flex-col bg-[#0d1117] h-[50vh]">
+                      <textarea 
+                          value={pasteText}
+                          onChange={(e) => setPasteText(e.target.value)}
+                          placeholder={`
+                        [
+                           {
+                            "type": "mcq | msq | integer | subjective",
+                             "section": "Physics (Optional)",
+                              "marks": 4,
+                              "text": "Your question text here...",
+                              "figureType": "none | url | svg | smiles | tikz",
+                              "figureData": "Leave empty or paste code/url here",
+                              "options": ["Opt A", "Opt B", "Opt C", "Opt D"],
+                              "correct": [0],
+                              "correctInt": null
+                             }
+                          ]`}
+                              spellCheck="false"
+                              className="w-full flex-1 bg-transparent text-[#e6edf3] font-mono text-[13px] outline-none resize-none custom-scrollbar leading-relaxed"
+                      />
+                  </div>
+
+                  <div className="p-4 sm:p-5 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0">
+                      <button className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors active:scale-95" onClick={() => setPasteModal(false)}>Cancel</button>
+                      <button className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-md shadow-indigo-600/20 transition-all active:scale-95 flex items-center gap-2" onClick={() => {
+                          if(!pasteText.trim()) {
+                              setSysAlert({ title: 'Empty Input', msg: 'Please paste some JSON code first.', type: 'warning' });
+                              return;
+                          }
+                          setPasteModal(false);
+                          validateAndImportJSON(pasteText); // 🔥 Direct purane function me bhej diya
+                      }}>
+                          <i className="ti ti-bolt"></i> Process JSON
                       </button>
                   </div>
               </div>
