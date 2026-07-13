@@ -521,9 +521,8 @@ export default function StudentResults() {
                   if (!sectionStats[sec]) sectionStats[sec] = { score: 0, max: 0, correct: 0, total: 0, time: 0 };
                   
                   sectionStats[sec].total += 1;
-                  sectionStats[sec].max += Number(item.q.marks || 0);
+                  sectionStats[sec].max += Number(item.q.marks || 0); 
                   sectionStats[sec].time += (sub.timeSpentPerQuestion?.[idx] || 0); 
-                  sectionStats[sec].max += Number(item.q.marks || 0);
                   
                   if (item.status === 'correct' || item.status === 'partial') {
                       sectionStats[sec].score += Number(item.earned || 0);
