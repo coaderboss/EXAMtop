@@ -426,7 +426,7 @@ export default function CreateTest() {
   const parsedSectionsArray = sections.split(',').map(s => s.trim()).filter(s => s);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-[fadeIn_0.3s_ease] pb-[30vh]">
+    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease] pb-[30vh]">
       
       {/* 🔥 NATIVE APP HEADER 🔥 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">

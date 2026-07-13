@@ -761,7 +761,7 @@ function StudentPortalContent() {
   const currentQuestion = activeTest?.questions?.[curQ];
 
   return (
-    <div style={{ animation: 'fadeIn 0.3s ease', width: '100%', maxWidth: '1080px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
       
       {/* STEP 1: PREMIUM JOIN FORM */}
       {step === 'join' && (

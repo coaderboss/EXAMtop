@@ -193,7 +193,7 @@ export default function EducatorRadar() {
   if (!currentUser) return <div style={{ textAlign: 'center', padding: '4rem' }}>Please login to access your Radar.</div>;
 
   return (
-    <div style={{ padding: '2rem 1.25rem', maxWidth: '850px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
+    <div className="w-full max-w-[900px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
       
       {/* 🛡️ VIEW 1: MASTER LIST */}
       {!activeTeacher && (
@@ -208,7 +208,7 @@ export default function EducatorRadar() {
                 </div>
             </div>
 
-            {/* 🔍 COMPACT SEARCH (WITH CLEAR BUG FIX) */}
+            {/* 🔍 COMPACT SEARCH */}
             <div style={{ background: '#fff', padding: '8px', borderRadius: '12px', display: 'flex', gap: '8px', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #e2e8f0', marginBottom: '2rem' }}>
                 <div style={{ position: 'relative', flex: 1 }}>
                     <i className="ti ti-hash" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#185FA5', fontSize: '18px' }}></i>
@@ -295,8 +295,8 @@ export default function EducatorRadar() {
       {/* 📊 VIEW 2: COMPACT TEACHER SPECIFIC FEED */}
       {activeTeacher && (
           <div style={{ animation: 'fadeInRight 0.2s ease' }}>
-              <button className="btn btn-ghost" style={{ padding: '6px 12px', marginBottom: '1.5rem', background: '#f8fafc', fontSize: '13px', fontWeight: 600 }} onClick={() => setActiveTeacher(null)}>
-                  <i className="ti ti-arrow-left"></i> Back
+              <button className="btn btn-ghost" style={{ padding: '8px 16px', marginBottom: '1.5rem', background: '#f1f5f9', color: '#334155', fontSize: '14px', fontWeight: 700, borderRadius: '8px', border: '1px solid #e2e8f0', transition: 'all 0.2s' }} onClick={() => setActiveTeacher(null)}>
+                  <i className="ti ti-arrow-left"></i> Back to Network
               </button>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '1.5rem' }}>
@@ -323,7 +323,7 @@ export default function EducatorRadar() {
                   }
 
                   return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                           {teacherExams.map((test) => {
                               const status = getExamStatus(test);
                               

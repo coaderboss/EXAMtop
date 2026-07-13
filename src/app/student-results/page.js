@@ -230,7 +230,7 @@ export default function StudentResults() {
   //  THE FIX 1: Premium Skeleton Loader for Student Results
   if (authLoading || fetchingResults) {
     return (
-        <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 box-border">
             {/* Header Skeleton */}
             <div style={{ marginBottom: '2rem' }}>
                 <div className="skeleton" style={{ width: '250px', height: '36px', marginBottom: '8px', borderRadius: '8px' }}></div>
@@ -277,14 +277,14 @@ export default function StudentResults() {
   // ==========================================
   if (!selectedResult) {
     return (
-      <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', animation: 'fadeIn 0.3s ease' }}>
+      <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
         <div className="page-header" style={{ marginBottom: '1.5rem' }}>
           <div className="page-title">My Past Results</div>
           <div className="page-sub">Review your evaluated papers, correct answers, and examiner remarks.</div>
         </div>
 
         {myHistory.length === 0 ? (
-          /*  PREMIUM EMPTY STATE */
+          /* PREMIUM EMPTY STATE */
           <div style={{ background: 'var(--color-background-primary)', borderRadius: '16px', padding: '3rem 2rem', textAlign: 'center', border: '2px dashed var(--color-border-secondary)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '350px' }}>
              <div style={{ width: '80px', height: '80px', background: 'var(--color-background-secondary)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
                  <i className="ti ti-file-off" style={{ fontSize: '36px', color: '#94a3b8' }}></i>
@@ -298,7 +298,7 @@ export default function StudentResults() {
              </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="flex flex-col gap-3">
             {/* CSS for Premium Blinking Effect */}
             <style>{`
                 @keyframes recentPulse {
@@ -314,46 +314,43 @@ export default function StudentResults() {
                 const isRecent = timeDiff >= 0 && timeDiff < 120000; 
                 
                 return (
-                  /* 🔥 FIX 2 & 3: COMPACT CARDS & HIGHLIGHT NEWEST SUBMISSION */
+                  /* 🔥 PHONE-OPTIMIZED CARD: Now stacks on mobile and spreads on laptop */
                   <div 
                     key={idx} 
-                    className="test-entry" 
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-xl transition-all w-full" 
                     style={{ 
-                        alignItems: 'center', 
-                        padding: '1rem 1.25rem', // Padding kam kar di (Sleek look)
                         opacity: 0,
                         animation: `staggerSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards${isRecent ? ', recentPulse 2s infinite' : ''}`,
                         animationDelay: `${idx * 0.05}s, 0s`,
                         borderLeft: h.canView ? '4px solid #185FA5' : '4px solid #f59e0b',
-                        background: isRecent ? '#f0f7ff' : 'var(--color-background-primary)', // Light blue bg for recent
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        borderRadius: '12px',
+                        background: isRecent ? '#f0f7ff' : 'var(--color-background-primary)',
                         border: isRecent ? '1px solid #185FA5' : '1px solid var(--color-border-secondary)'
                     }}
                   >
-                    <div className="te-meta" style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: '16px', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        {h.test.title} 
-                        {isRecent && <span style={{ background: '#185FA5', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>JUST NOW</span>}
-                        <span className="badge b-purple" style={{ fontSize: '11px', padding: '2px 8px', fontFamily: 'monospace' }}><i className="ti ti-hash"></i> {h.test.code}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '15px', marginTop: '6px', fontSize: '13px', color: '#64748b', flexWrap: 'wrap' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-calendar-time"></i> {h.sub.time}</span>
-                        <span style={{ fontWeight: 600, color: '#185FA5', display: 'flex', alignItems: 'center', gap: '4px' }}><i className="ti ti-target"></i> Score: {h.sub.score} / {h.test.totalMarks}</span>
-                      </div>
+                    <div className="flex-1 w-full">
+                        <div className="font-bold text-[15px] sm:text-[16px] text-slate-800 flex items-center gap-2 flex-wrap">
+                            {h.test.title} 
+                            {isRecent && <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wide font-black shadow-sm">JUST NOW</span>}
+                            <span className="bg-indigo-50 text-indigo-600 border border-indigo-100 text-[11px] px-2 py-0.5 rounded-md font-mono flex items-center gap-1 shadow-sm">
+                                <i className="ti ti-hash text-[12px]"></i> {h.test.code}
+                            </span>
+                        </div>
+                        <div className="flex gap-3 sm:gap-4 mt-2 text-[12px] sm:text-[13px] text-slate-500 flex-wrap">
+                            <span className="flex items-center gap-1.5"><i className="ti ti-calendar-time text-[14px]"></i> {h.sub.time}</span>
+                            <span className="font-bold text-blue-600 flex items-center gap-1.5"><i className="ti ti-target text-[14px]"></i> Score: {h.sub.score} / {h.test.totalMarks}</span>
+                        </div>
                     </div>
                     
-                    <div style={{ flexShrink: 0, marginLeft: '12px' }}>
-                      {h.canView ? (
-                        <button className="btn btn-primary btn-sm" style={{ padding: '8px 16px', fontSize: '13px' }} onClick={() => setSelectedResult(h)}>
-                          View Result
-                        </button>
-                      ) : (
-                        <span className="badge b-amber" style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <i className="ti ti-lock"></i> Pending
-                        </span>
-                      )}
+                    <div className="w-full sm:w-auto shrink-0 mt-1 sm:mt-0">
+                        {h.canView ? (
+                            <button className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 sm:py-2.5 px-5 rounded-lg text-[13px] transition-colors shadow-sm active:scale-95 flex justify-center items-center gap-2" onClick={() => setSelectedResult(h)}>
+                                View Result <i className="ti ti-arrow-right"></i>
+                            </button>
+                        ) : (
+                            <span className="w-full sm:w-auto bg-amber-50 text-amber-600 border border-amber-200 font-bold text-[12px] py-2 sm:py-2.5 px-5 rounded-lg flex justify-center items-center gap-1.5 shadow-sm">
+                                <i className="ti ti-lock"></i> Pending Review
+                            </span>
+                        )}
                     </div>
                   </div>
                 );
@@ -396,7 +393,7 @@ export default function StudentResults() {
   }
 
   return (
-    <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', width: '100%', animation: 'fadeIn 0.3s ease' }}>
+    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
       
       <button className="btn btn-ghost" style={{ marginBottom: '1rem', padding: 0, fontWeight: 600, color: 'var(--color-text-secondary)' }} onClick={() => { setSelectedResult(null); setSectionFilter('all_sections'); }}>
         <i className="ti ti-arrow-left"></i> Back to Results

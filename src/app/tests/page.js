@@ -778,7 +778,7 @@ export default function ManageTests() {
         // ==========================================
         // VIEW 3: EVALUATE PAPER
         // ==========================================
-        <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
+        <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
           
           {/* STATIC PREMIUM EVALUATION NAVBAR */}
           <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-2xl border-2 border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] mb-2 mt-2">
@@ -1357,7 +1357,7 @@ export default function ManageTests() {
         // ==========================================
         // VIEW 2: TEST DASHBOARD
         // ==========================================
-        <div style={{ padding: '2rem 1.5rem', maxWidth: '1080px', margin: '0 auto', animation: 'fadeIn 0.3s ease' }}>
+        <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
           
           {/* 🔥 PREMIUM TEST DASHBOARD HEADER & TABS 🔥 */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
@@ -2033,7 +2033,7 @@ export default function ManageTests() {
         // ==========================================
         // VIEW 1: MASTER VAULT (List of Tests)
         // ==========================================
-       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-[30vh] animate-[fadeIn_0.3s_ease]">
+       <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 pb-[30vh] animate-[fadeIn_0.3s_ease]">
             
             {/* 🔥 PREMIUM HEADER (Fixed Mobile Layout & Icon) 🔥 */}
             <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
