@@ -36,7 +36,15 @@ export default function GodMode() {
   // System Modals & Views
   const [sysAlert, setSysAlert] = useState(null);
   const [sysConfirm, setSysConfirm] = useState(null);
-  const [viewingSubsFor, setViewingSubsFor] = useState(null); 
+  const [viewingSubsFor, setViewingSubsFor] = useState(null);
+  
+  // 1. RADAR STATES
+  const [radarSearch, setRadarSearch] = useState('');
+  const [radarEducator, setRadarEducator] = useState(null);
+
+  // 4. VAULT STATES
+  const [vaultSearch, setVaultSearch] = useState('');
+  const [vaultFilter, setVaultFilter] = useState('all'); // 'all', 'live', 'closed'
 
   useEffect(() => {
     const handlePopState = () => {
@@ -87,6 +95,10 @@ export default function GodMode() {
     } catch (e) {
         setSysAlert({ title: 'CRITICAL FAILURE', msg: 'Database Rules blocked core access or connection failed.', type: 'error' });
     }
+    
+    // 🔥 FIX: Background me users ko chupchaap load kar lo, taaki Radar Search hamesha kaam kare!
+    fetchUsersOnDemand();
+    
     setIsLoadingData(false);
   };
 
@@ -122,81 +134,117 @@ export default function GodMode() {
   }, [currentUser, userRole, authLoading, router]);
   
   // ===============================================
-  // CHART RENDERING LOGIC (Animation & Timing Fixed)
+  // CHART RENDERING LOGIC (ADVANCED 4-CHART SYSTEM)
   // ===============================================
   const renderCharts = () => {
       let attempts = 0;
       
-      // Smart Checker: Check every 100ms if animation is complete and canvas is in DOM
       const checkReady = setInterval(() => {
           attempts++;
           const accCanvas = document.getElementById('accuracyChart');
           const trendCanvas = document.getElementById('trendChart');
+          const roleCanvas = document.getElementById('roleChart');
+          const integrityCanvas = document.getElementById('integrityChart');
           
-          // Agar 20 attempts (2 seconds) tak canvas nahi mila toh loop rok do
-          if (attempts > 20) {
-              clearInterval(checkReady);
-              return;
-          }
+          if (attempts > 20) { clearInterval(checkReady); return; }
 
-          // Jaise hi Script aur dono Canvas mil jayein, drawing start karo!
-          if (window.Chart && accCanvas && trendCanvas) {
+          if (window.Chart && accCanvas && trendCanvas && roleCanvas && integrityCanvas) {
               clearInterval(checkReady); 
               
+              // 1. Data Aggregation
               let totalCorrect = 0, totalWrong = 0, totalSkipped = 0;
-              let testAttempts = {}; 
+              let testAttempts = {}; // For Engagement & Integrity
+              let rolesCount = { student: 0, examiner: 0, admin: 0 };
 
+              // Count Roles
+              allUsers.forEach(u => {
+                  rolesCount[u.role || 'student']++;
+              });
+
+              // Process Tests & Submissions
               allTests.forEach(t => {
                   safeArray(t.submissions).forEach(s => {
+                      // Accuracy
                       totalCorrect += (s.correct || 0);
                       totalWrong += (s.wrong || 0);
                       totalSkipped += (s.skipped || 0);
                       
+                      // Trend & Integrity
                       let dateStr = (s.time || "").split(',')[0].trim();
-                      if(dateStr) testAttempts[dateStr] = (testAttempts[dateStr] || 0) + 1;
+                      if(dateStr) {
+                          if(!testAttempts[dateStr]) testAttempts[dateStr] = { total: 0, flagged: 0 };
+                          testAttempts[dateStr].total++;
+                          if(safeArray(s.cheatLogs).length > 0) testAttempts[dateStr].flagged++;
+                      }
                   });
               });
 
-              // Accuracy Chart
+              // Sort Dates
+              const dates = Object.keys(testAttempts).sort((a,b) => new Date(a) - new Date(b)).slice(-7); 
+              const trendCounts = dates.map(d => testAttempts[d].total);
+              const cleanCounts = dates.map(d => testAttempts[d].total - testAttempts[d].flagged);
+              const flaggedCounts = dates.map(d => testAttempts[d].flagged);
+
+              const commonOptions = { responsive: true, maintainAspectRatio: false, color: '#64748b', font: { family: 'sans-serif', weight: 600 } };
+
+              // CHART 1: Accuracy (Doughnut)
               if(window.accChartInstance) window.accChartInstance.destroy();
-              const ctxAcc = accCanvas.getContext('2d');
-              window.accChartInstance = new window.Chart(ctxAcc, {
+              window.accChartInstance = new window.Chart(accCanvas.getContext('2d'), {
                   type: 'doughnut',
                   data: {
                       labels: ['Correct', 'Wrong', 'Skipped'],
                       datasets: [{
                           data: [totalCorrect, totalWrong, totalSkipped],
-                          backgroundColor: ['#10B981', '#ef4444', '#334155'],
-                          borderColor: '#020617',
-                          borderWidth: 4
+                          backgroundColor: ['#10B981', '#ef4444', '#cbd5e1'],
+                          borderColor: '#ffffff', borderWidth: 4
                       }]
                   },
-                  options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'monospace' } } } }, cutout: '75%' }
+                  options: { ...commonOptions, plugins: { legend: { position: 'bottom' } }, cutout: '70%' }
               });
 
-              // Trend Chart
+              // CHART 2: Engagement Trend (Line)
               if(window.trendChartInstance) window.trendChartInstance.destroy();
-              const dates = Object.keys(testAttempts).slice(-7); 
-              const counts = dates.map(d => testAttempts[d]);
-              
-              const ctxTrend = trendCanvas.getContext('2d');
-              window.trendChartInstance = new window.Chart(ctxTrend, {
+              window.trendChartInstance = new window.Chart(trendCanvas.getContext('2d'), {
                   type: 'line',
                   data: {
                       labels: dates.length ? dates : ['No Data'],
                       datasets: [{
-                          label: 'Submissions',
-                          data: counts.length ? counts : [0],
-                          borderColor: '#f59e0b',
-                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                          borderWidth: 2,
-                          fill: true,
-                          tension: 0.4,
-                          pointBackgroundColor: '#f59e0b',
-                          pointRadius: 4
+                          label: 'Daily Submissions',
+                          data: trendCounts.length ? trendCounts : [0],
+                          borderColor: '#D4AF37', backgroundColor: 'rgba(212, 175, 55, 0.1)',
+                          borderWidth: 3, fill: true, tension: 0.4, pointBackgroundColor: '#8B0000', pointRadius: 5
                       }]
                   },
-                  options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', stepSize: 1, font: { family: 'monospace' } } }, x: { grid: { display: false }, ticks: { color: '#64748b', font: { family: 'monospace' } } } }, plugins: { legend: { display: false } } }
+                  options: { ...commonOptions, scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } }, plugins: { legend: { display: false } } }
+              });
+
+              // CHART 3: Roles Demographics (Pie)
+              if(window.roleChartInstance) window.roleChartInstance.destroy();
+              window.roleChartInstance = new window.Chart(roleCanvas.getContext('2d'), {
+                  type: 'pie',
+                  data: {
+                      labels: ['Students', 'Examiners', 'Admins'],
+                      datasets: [{
+                          data: [rolesCount.student, rolesCount.examiner, rolesCount.admin],
+                          backgroundColor: ['#185FA5', '#D4AF37', '#8B0000'],
+                          borderColor: '#ffffff', borderWidth: 3
+                      }]
+                  },
+                  options: { ...commonOptions, plugins: { legend: { position: 'bottom' } } }
+              });
+
+              // CHART 4: System Integrity (Stacked Bar)
+              if(window.integrityChartInstance) window.integrityChartInstance.destroy();
+              window.integrityChartInstance = new window.Chart(integrityCanvas.getContext('2d'), {
+                  type: 'bar',
+                  data: {
+                      labels: dates.length ? dates : ['No Data'],
+                      datasets: [
+                          { label: 'Clean Submissions', data: cleanCounts.length ? cleanCounts : [0], backgroundColor: '#10B981', borderRadius: 4 },
+                          { label: 'Proctor Flags', data: flaggedCounts.length ? flaggedCounts : [0], backgroundColor: '#8B0000', borderRadius: 4 }
+                      ]
+                  },
+                  options: { ...commonOptions, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' } } }, plugins: { legend: { position: 'bottom' } } }
               });
           }
       }, 100); 
@@ -221,6 +269,70 @@ export default function GodMode() {
       </div>
     );
   }
+
+  // 2. RADAR SEARCH FUNCTION
+  const handleRadarSearch = () => {
+      if(!radarSearch.trim()) return;
+      const query = radarSearch.toLowerCase().trim();
+      
+      // Find educator by UID, Email, or Code
+      const educator = allUsers.find(u => 
+          (u.uid && u.uid.toLowerCase() === query) || 
+          (u.email && u.email.toLowerCase() === query) || 
+          (u.examinerId && u.examinerId.toLowerCase() === query) ||
+          (u.rollNo && u.rollNo.toLowerCase() === query)
+      );
+      
+      if(!educator) {
+          setSysAlert({ title: 'Target Not Found', msg: 'No educator matches this identifier.', type: 'error' });
+          setRadarEducator(null);
+          return;
+      }
+      setRadarEducator(educator);
+  };
+
+  // 3. TOGGLE RADAR VISIBILITY FUNCTION
+  const toggleRadarVisibility = async (test) => {
+      const currentVis = test.radarVisible === true; 
+      
+      setSysConfirm({
+          title: currentVis ? 'HIDE FROM RADAR?' : 'SHOW ON RADAR?',
+          msg: `Are you sure you want to ${currentVis ? 'remove' : 'add'} "${test.title}" ${currentVis ? 'from' : 'to'} the public radar?`,
+          action: async () => {
+              try {
+                  // 🔥 FIX: Update 'radarVisible' in database
+                  await update(ref(database, `tests/${test.dbKey}`), { radarVisible: !currentVis });
+                  setAllTests(prev => prev.map(t => t.dbKey === test.dbKey ? { ...t, radarVisible: !currentVis } : t));
+                  setSysAlert({ title: 'Success', msg: `Radar visibility updated.`, type: 'success' });
+              } catch(e) {
+                  setSysAlert({ title: 'Error', msg: 'Failed to update radar status.', type: 'error' });
+              }
+          }
+      });
+  };
+
+  // 4. DISCONNECT FOLLOWER FUNCTION
+  const disconnectCitizen = async (follower, educator) => {
+      setSysConfirm({
+          title: 'SEVER CONNECTION?',
+          msg: `Forcibly disconnect ${follower.name} from ${educator.name}'s radar?`,
+          action: async () => {
+              try {
+                  const followedList = safeArray(follower.followed);
+                  // Remove educator's UID and Examiner ID from follower's list
+                  const updatedList = followedList.filter(id => id !== educator.uid && id !== educator.examinerId);
+                  
+                  await set(ref(database, `users/${follower.uid}/followed`), updatedList);
+                  
+                  // Update local state instantly
+                  setAllUsers(prev => prev.map(u => u.uid === follower.uid ? { ...u, followed: updatedList } : u));
+                  setSysAlert({ title: 'Connection Severed', msg: 'Citizen has been removed from the educator\'s radar.', type: 'success' });
+              } catch(e) {
+                  setSysAlert({ title: 'Error', msg: 'Failed to sever connection.', type: 'error' });
+              }
+          }
+      });
+  };
 
   // ===============================================
   // REAL-WORLD GOD POWERS 
@@ -324,7 +436,7 @@ export default function GodMode() {
   };
 
   // ===============================================
-  // DERIVED DATA & METRICS
+  // DERIVED DATA & METRICS (Upgraded Radar Engine)
   // ===============================================
   const liveExams = allTests.filter(t => t.isActive !== false).length;
   let totalSubsCount = 0;
@@ -337,15 +449,47 @@ export default function GodMode() {
       const subs = safeArray(t.submissions);
       totalSubsCount += subs.length;
       
+      // 1. Log Submissions
       subs.forEach(s => {
           cheatAttemptsCaught += safeArray(s.cheatLogs).length;
           if (s.time && s.name) {
-              radarFeed.push({ time: s.time, msg: `${s.name} submitted test [${t.code}] with score: ${s.score}` });
+              radarFeed.push({ 
+                  timestamp: s.timestamp || 0, 
+                  time: s.time, 
+                  msg: `${s.name} submitted test [${t.code}] with score: ${s.score}`,
+                  type: 'sub'
+              });
           }
       });
+
+      // 2. Log New Exam Creations
+      if (t.createdAt) {
+          const cName = allUsers.find(u => u.uid === t.creatorUid)?.name || 'An Examiner';
+          radarFeed.push({
+              timestamp: t.createdAt,
+              time: new Date(t.createdAt).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              msg: `${cName} forged a new exam: ${t.title} [${t.code}]`,
+              type: 'exam'
+          });
+      }
   });
 
-  radarFeed.reverse().slice(0, 8); 
+  // 3. Log New Citizen Signups
+  allUsers.forEach(u => {
+      if (u.createdAt || u.timestamp) {
+          const ts = u.createdAt || u.timestamp;
+          radarFeed.push({
+              timestamp: ts,
+              time: new Date(ts).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              msg: `${u.legalName || u.name || u.email} entered the system.`,
+              type: 'user'
+          });
+      }
+  });
+
+  // Sort strictly by latest timestamp and take top 15 events
+  radarFeed.sort((a, b) => b.timestamp - a.timestamp);
+  radarFeed = radarFeed.slice(0, 15);
 
   // ===============================================
   // VIEW 1: INDIVIDUAL SUBMISSIONS LEDGER (God Mode)
@@ -469,7 +613,8 @@ export default function GodMode() {
                 { id: 'pulse', icon: 'ti-activity-heartbeat', label: 'System Pulse' },
                 { id: 'analytics', icon: 'ti-chart-pie', label: 'Analytics' },
                 { id: 'users', icon: 'ti-users-group', label: 'Citizen Matrix' },
-                { id: 'tests', icon: 'ti-database', label: 'Global Vault' }
+                { id: 'tests', icon: 'ti-database', label: 'Global Vault' },
+                { id: 'radar', icon: 'ti-radar', label: 'Radar Ops' }
             ].map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-shrink-0 px-4 md:px-6 py-3 font-black rounded-lg transition-colors flex items-center gap-2 text-sm md:text-base ${activeTab === tab.id ? 'bg-[#8B0000] text-white' : 'bg-transparent text-slate-500 hover:bg-slate-200'}`}>
                     <i className={`ti ${tab.icon}`}></i> {tab.label}
@@ -520,17 +665,21 @@ export default function GodMode() {
                         </motion.div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-                            {/* Live System Radar (Original Colors) */}
-                            <div className="bg-[#0B0F19] rounded-2xl p-5 md:p-6 border border-slate-800">
-                                <h3 className="text-[#D4AF37] m-0 mb-4 text-base font-bold flex items-center gap-2"><i className="ti ti-radar"></i> Live System Radar</h3>
+                            {/* Live System Radar (Upgraded with Types) */}
+                            <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm">
+                                <h3 className="text-slate-900 m-0 mb-6 text-lg font-black flex items-center gap-2"><i className="ti ti-radar text-[#185FA5]"></i> Live System Radar</h3>
                                 <div className="h-[250px] overflow-y-auto pr-2 custom-scrollbar">
                                     {radarFeed.length > 0 ? radarFeed.map((feed, i) => (
-                                        <div key={i} className="border-l-2 border-slate-700 pl-3 mb-4 relative">
-                                            <div className="absolute w-2 h-2 bg-[#10B981] rounded-full -left-[5px] top-1"></div>
-                                            <div className="text-[11px] text-slate-500 mb-1 font-mono">[{feed.time}]</div>
-                                            <div className="text-[13px] text-slate-200 leading-relaxed">{feed.msg}</div>
+                                        <div key={i} className={`border-l-4 pl-4 mb-5 relative ${feed.type === 'user' ? 'border-blue-200' : feed.type === 'exam' ? 'border-purple-200' : 'border-emerald-200'}`}>
+                                            <div className={`absolute w-3 h-3 border-2 border-white rounded-full -left-[8px] top-0 shadow-sm ${feed.type === 'user' ? 'bg-blue-500' : feed.type === 'exam' ? 'bg-purple-500' : 'bg-[#10B981]'}`}></div>
+                                            <div className="text-[11px] text-slate-400 mb-1 font-black tracking-wide uppercase">
+                                                [{feed.time}] 
+                                                {feed.type === 'user' && <span className="ml-1 text-blue-500">&bull; NEW CITIZEN</span>}
+                                                {feed.type === 'exam' && <span className="ml-1 text-purple-500">&bull; EXAM FORGED</span>}
+                                            </div>
+                                            <div className="text-[14px] text-slate-700 font-semibold leading-relaxed">{feed.msg}</div>
                                         </div>
-                                    )) : <div className="text-slate-500 text-[13px] italic">No recent activity detected.</div>}
+                                    )) : <div className="text-slate-500 text-[14px] font-semibold bg-slate-50 p-4 rounded-xl text-center">No recent activity detected.</div>}
                                 </div>
                             </div>
                             
@@ -565,14 +714,45 @@ export default function GodMode() {
                 {/* TAB 2: GRAPHICAL ANALYTICS     */}
                 {/* ============================== */}
                 {activeTab === 'analytics' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-                        <div className="bg-[#0B0F19] border border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm">
-                            <h3 className="text-white text-base m-0 mb-6 font-bold flex items-center gap-2"><i className="ti ti-target text-[#D4AF37]"></i> Global Platform Accuracy</h3>
-                            <div className="h-[300px] relative w-full"><canvas id="accuracyChart"></canvas></div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 animate-[fadeIn_0.3s_ease]">
+                        
+                        {/* Box 1: Platform Accuracy */}
+                        <div className="bg-white border-2 border-slate-100 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-md transition-shadow">
+                            <h3 className="text-slate-900 text-lg m-0 mb-2 font-black flex items-center gap-2">
+                                <i className="ti ti-target text-[#185FA5] text-2xl"></i> Platform Accuracy Index
+                            </h3>
+                            <p className="text-sm text-slate-500 font-bold mb-6">Aggregate ratio of correct vs incorrect answers.</p>
+                            <div className="h-[280px] relative w-full"><canvas id="accuracyChart"></canvas></div>
                         </div>
-                        <div className="bg-[#0B0F19] border border-slate-800 rounded-2xl p-5 md:p-6 shadow-sm">
-                            <h3 className="text-white text-base m-0 mb-6 font-bold flex items-center gap-2"><i className="ti ti-trending-up text-[#D4AF37]"></i> Recent Engagement (Last 7 Days)</h3>
-                            <div className="h-[300px] relative w-full"><canvas id="trendChart"></canvas></div>
+
+                        {/* Box 2: Engagement Trend */}
+                        <div className="bg-white border-2 border-slate-100 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-md transition-shadow">
+                            <h3 className="text-slate-900 text-lg m-0 mb-2 font-black flex items-center gap-2">
+                                <i className="ti ti-activity-heartbeat text-[#D4AF37] text-2xl"></i> Platform Engagement
+                            </h3>
+                            <p className="text-sm text-slate-500 font-bold mb-6">Daily submission volume across all live exams (7 Days).</p>
+                            <div className="h-[280px] relative w-full"><canvas id="trendChart"></canvas></div>
+                        </div>
+
+                        {/* Box 3: Role Demographics */}
+                        <div className="bg-white border-2 border-slate-100 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-md transition-shadow">
+                            <h3 className="text-slate-900 text-lg m-0 mb-2 font-black flex items-center gap-2">
+                                <i className="ti ti-users text-[#185FA5] text-2xl"></i> Citizen Demographics
+                            </h3>
+                            <p className="text-sm text-slate-500 font-bold mb-6">Distribution of clearance levels and roles.</p>
+                            <div className="h-[280px] relative w-full"><canvas id="roleChart"></canvas></div>
+                        </div>
+
+                        {/* Box 4: System Integrity (Proctoring) */}
+                        <div className="bg-white border-2 border-slate-100 rounded-3xl p-6 md:p-8 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                            {/* Alert background glow for security box */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-bl-full -z-10"></div>
+                            
+                            <h3 className="text-slate-900 text-lg m-0 mb-2 font-black flex items-center gap-2">
+                                <i className="ti ti-shield-check text-[#8B0000] text-2xl"></i> Proctoring Integrity Radar
+                            </h3>
+                            <p className="text-sm text-slate-500 font-bold mb-6">Ratio of clean submissions vs intercepted cheat attempts.</p>
+                            <div className="h-[280px] relative w-full"><canvas id="integrityChart"></canvas></div>
                         </div>
                     </div>
                 )}
@@ -661,50 +841,339 @@ export default function GodMode() {
                 )}
 
                 {/* ============================== */}
-                {/* TAB 4: GLOBAL VAULT            */}
+                {/* TAB 4: GLOBAL VAULT (UPGRADED) */}
                 {/* ============================== */}
                 {activeTab === 'tests' && (
-                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden p-0">
-                        <div className="overflow-x-auto hide-scrollbar">
-                            <table className="w-full min-w-[900px] text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-[#0B0F19] text-[#D4AF37] text-[13px] uppercase tracking-wide">
-                                        <th className="p-4 font-bold">Unique Code</th>
-                                        <th className="p-4 font-bold">Exam Title</th>
-                                        <th className="p-4 font-bold text-center">Data Blocks</th>
-                                        <th className="p-4 font-bold text-center">Status</th>
-                                        <th className="p-4 font-bold text-right">God Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-200">
-                                    {allTests.map((t, i) => {
-                                        const subs = safeArray(t.submissions);
-                                        return (
-                                        <tr key={t.dbKey} className="even:bg-white odd:bg-slate-50 hover:bg-slate-100 transition-colors">
-                                            <td className="p-4 font-mono text-base text-[#A32D2D] font-black tracking-[2px]">{t.code}</td>
-                                            <td className="p-4">
-                                                <div className="font-black text-slate-900 text-[15px] mb-1">{t.title}</div>
-                                                <div className="text-xs text-slate-500 font-bold">{t.totalMarks} Marks System</div>
-                                            </td>
-                                            <td className="p-4 font-black text-[#185FA5] text-center text-lg">{subs.length}</td>
-                                            <td className="p-4 text-center">
-                                                {t.isActive !== false ? <span className="px-3 py-1.5 bg-[#EAF3DE] text-[#27500A] text-[11px] font-black rounded-full tracking-wide">LIVE</span> : <span className="px-3 py-1.5 bg-slate-200 text-slate-600 text-[11px] font-black rounded-full tracking-wide">CLOSED</span>}
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <div className="flex gap-2 justify-end flex-wrap">
-                                                    <button className="flex items-center gap-1 px-3 py-1.5 bg-[#0B0F19] text-[#D4AF37] border border-[#D4AF37] rounded-md font-bold text-[13px] hover:bg-slate-900 transition-colors" onClick={() => setViewingSubsFor(t)}>
-                                                        <i className="ti ti-eye"></i> View Vault
-                                                    </button>
-                                                    <button className="flex items-center gap-1 px-3 py-1.5 bg-[#8B0000] text-white border-none rounded-md font-bold text-[13px] hover:bg-red-800 transition-colors" onClick={() => deleteGlobalTest(t)}>
-                                                        <i className="ti ti-flame"></i> Nuke
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )})}
-                                </tbody>
-                            </table>
+                    <div className="space-y-6 md:space-y-8 animate-[fadeIn_0.3s_ease]">
+                        
+                        {/* 🎛️ Smart Control Ribbon */}
+                        <div className="bg-white border border-slate-200 shadow-sm p-5 md:p-6 rounded-3xl flex flex-col xl:flex-row justify-between items-center gap-6">
+                            
+                            {/* Search Bar */}
+                            <div className="relative w-full xl:w-[450px]">
+                                <i className="ti ti-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search by Exam Title, Code, or Creator UID..." 
+                                    value={vaultSearch} 
+                                    onChange={(e) => setVaultSearch(e.target.value)}
+                                    className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border-2 border-slate-200 text-slate-900 font-bold rounded-xl outline-none focus:border-[#185FA5] transition-all shadow-inner" 
+                                />
+                                {vaultSearch && (
+                                    <i className="ti ti-x absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 cursor-pointer hover:text-slate-600" onClick={() => setVaultSearch('')}></i>
+                                )}
+                            </div>
+
+                            {/* Quick Filters */}
+                            <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full xl:w-auto overflow-x-auto hide-scrollbar shrink-0">
+                                {['all', 'live', 'closed'].map(f => (
+                                    <button 
+                                        key={f}
+                                        onClick={() => setVaultFilter(f)}
+                                        className={`flex-1 xl:flex-none px-6 py-2.5 rounded-lg font-black text-[13px] uppercase tracking-wider transition-all ${vaultFilter === f ? 'bg-white text-[#8B0000] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        {f === 'all' ? 'All Exams' : f === 'live' ? 'Live Intakes' : 'Closed'}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
+
+                        {/* 📊 Premium Vault Table */}
+                        <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden p-0 relative">
+                            {/* Background Pattern */}
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-bl-full -z-10 opacity-50"></div>
+                            
+                            <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full min-w-[1000px] text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-[#0B0F19] text-[#D4AF37] text-[12px] uppercase tracking-widest border-b-4 border-[#8B0000]">
+                                            <th className="p-5 font-black whitespace-nowrap">Unique Code</th>
+                                            <th className="p-5 font-black">Exam Profile</th>
+                                            <th className="p-5 font-black text-center whitespace-nowrap">Data Blocks</th>
+                                            <th className="p-5 font-black text-center">Status</th>
+                                            <th className="p-5 font-black text-right">God Actions</th>
+                                        </tr>
+                                    </thead>
+                                   <tbody className="divide-y divide-slate-100">
+                                        {(() => {
+                                            // Apply Smart Filtering
+                                            const filteredVault = allTests.filter(t => {
+                                                const searchQ = vaultSearch.toLowerCase().trim();
+                                                const matchesSearch = !searchQ || 
+                                                    (t.title?.toLowerCase().includes(searchQ)) || 
+                                                    (t.code?.toLowerCase().includes(searchQ)) || 
+                                                    (t.creatorUid?.toLowerCase().includes(searchQ));
+                                                
+                                                if (!matchesSearch) return false;
+
+                                                if (vaultFilter === 'live') return t.isActive !== false;
+                                                if (vaultFilter === 'closed') return t.isActive === false;
+                                                
+                                                return true;
+                                            });
+
+                                            if (filteredVault.length === 0) {
+                                                return (
+                                                    <tr>
+                                                        <td colSpan="5" className="p-16 text-center">
+                                                            <i className="ti ti-ghost text-5xl text-slate-300 mb-3 block"></i>
+                                                            <div className="text-slate-500 font-bold text-lg">No records found in the vault.</div>
+                                                            <div className="text-slate-400 text-sm mt-1">Try adjusting your search or filters.</div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            }
+
+                                            return filteredVault.map((t, i) => {
+                                                const subs = safeArray(t.submissions);
+                                                const isLive = t.isActive !== false;
+                                                
+                                                return (
+                                                <tr key={t.dbKey} className="hover:bg-slate-50 transition-colors group">
+                                                    
+                                                    {/* Code Column with Smart Copy */}
+                                                    <td className="p-5">
+                                                        <div className="inline-flex items-center gap-2 bg-[#fff5f5] border border-[#ffcdd2] px-3 py-1.5 rounded-lg group-hover:bg-[#ffebee] transition-colors cursor-pointer"
+                                                             onClick={() => {
+                                                                 navigator.clipboard.writeText(t.code);
+                                                                 setSysAlert({ title: 'Copied!', msg: `Code ${t.code} copied to clipboard.`, type: 'success' });
+                                                             }}
+                                                             title="Click to Copy Code"
+                                                        >
+                                                            <span className="font-mono text-[15px] text-[#8B0000] font-black tracking-[2px]">{t.code}</span>
+                                                            <i className="ti ti-copy text-[#A32D2D] text-sm opacity-50 group-hover:opacity-100 transition-opacity"></i>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Profile Column with Creator Info */}
+                                                    <td className="p-5">
+                                                        <div className="font-black text-slate-900 text-[16px] mb-1.5 leading-tight">{t.title}</div>
+                                                        <div className="flex items-center gap-3 text-[11px] font-bold">
+                                                            <span className="bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500">
+                                                                <i className="ti ti-target text-slate-400"></i> {t.totalMarks} Marks System
+                                                            </span>
+                                                            <span className="text-slate-400 font-mono flex items-center gap-1" title="Creator UID">
+                                                                <i className="ti ti-user-edit text-[#D4AF37]"></i> {t.creatorUid ? t.creatorUid.substring(0,8) + '...' : 'System'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Data Blocks (Submissions) */}
+                                                    <td className="p-5 text-center">
+                                                        <div className="inline-flex flex-col items-center justify-center bg-blue-50 w-14 h-14 rounded-2xl border border-blue-100">
+                                                            <span className="font-black text-[#185FA5] text-xl leading-none">{subs.length}</span>
+                                                            <span className="text-[9px] text-blue-500 font-black uppercase tracking-widest mt-1">Subs</span>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Status Badge */}
+                                                    <td className="p-5 text-center">
+                                                        {isLive ? 
+                                                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#f0fdf4] text-[#166534] border border-[#bbf7d0] text-[11px] font-black rounded-full tracking-wider shadow-sm">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-[#166534] animate-pulse"></span> LIVE
+                                                            </span> 
+                                                            : 
+                                                            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 text-slate-500 border border-slate-300 text-[11px] font-black rounded-full tracking-wider shadow-sm">
+                                                                <i className="ti ti-lock text-xs"></i> CLOSED
+                                                            </span>
+                                                        }
+                                                    </td>
+
+                                                    {/* Actions */}
+                                                    <td className="p-5 text-right">
+                                                        <div className="flex gap-2 justify-end flex-wrap">
+                                                            <button className="flex items-center gap-1.5 px-4 py-2 bg-white text-[#D4AF37] border-2 border-[#D4AF37] rounded-xl font-bold text-[13px] hover:bg-[#fff8e7] hover:shadow-md transition-all active:scale-95" onClick={() => setViewingSubsFor(t)}>
+                                                                <i className="ti ti-microscope text-base"></i> View Vault
+                                                            </button>
+                                                            <button className="flex items-center gap-1.5 px-4 py-2 bg-[#8B0000] text-white border-none rounded-xl font-bold text-[13px] hover:bg-red-900 hover:shadow-md hover:shadow-red-900/20 transition-all active:scale-95" onClick={() => deleteGlobalTest(t)}>
+                                                                <i className="ti ti-flame text-base"></i> Nuke
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        )
+                                        })()}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ============================== */}
+                {/* TAB 5: RADAR OPS (NEW FEATURE) */}
+                {/* ============================== */}
+                {activeTab === 'radar' && (
+                    <div className="space-y-6 md:space-y-8 animate-[fadeIn_0.3s_ease]">
+                        
+                        {/* 🔍 Search Panel */}
+                        <div className="bg-white border border-slate-200 shadow-sm p-6 md:p-8 rounded-3xl">
+                            <h3 className="text-slate-900 m-0 mb-5 text-lg font-black flex items-center gap-2">
+                                <i className="ti ti-radar text-[#D4AF37] text-2xl"></i> Target Educator Search
+                            </h3>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <div className="relative flex-1">
+                                    <i className="ti ti-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Enter Educator's UID, Email, or Code (EXT-XXXX)..." 
+                                        value={radarSearch} 
+                                        onChange={(e) => setRadarSearch(e.target.value)} 
+                                        onKeyDown={(e) => e.key === 'Enter' && handleRadarSearch()} 
+                                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-200 text-slate-900 font-bold rounded-xl outline-none focus:border-[#8B0000] transition-colors" 
+                                    />
+                                </div>
+                                <button 
+                                    className="px-8 py-4 bg-[#8B0000] text-white font-black tracking-wide rounded-xl border-none hover:bg-red-900 transition-colors shadow-lg shadow-red-900/20 active:scale-95" 
+                                    onClick={handleRadarSearch}
+                                >
+                                    Locate Target
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 🎯 Educator Results Panel */}
+                        {radarEducator && (
+                            <div className="bg-white border-2 border-[#D4AF37] rounded-3xl p-6 md:p-8 shadow-xl shadow-[#D4AF37]/10 animate-[fadeIn_0.3s_ease]">
+                                
+                                {/* Header Info */}
+                                <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between border-b-2 border-slate-100 pb-6 mb-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-16 h-16 bg-[#fff8e7] text-[#854F0B] border-2 border-[#D4AF37] rounded-2xl flex items-center justify-center text-2xl font-black shadow-inner shrink-0">
+                                            {radarEducator.name ? radarEducator.name.charAt(0).toUpperCase() : 'U'}
+                                        </div>
+                                        <div>
+                                            <h2 className="m-0 text-xl font-black text-slate-900">{radarEducator.legalName || radarEducator.name}</h2>
+                                            <div className="text-sm text-slate-500 font-bold font-mono mt-1">
+                                                {radarEducator.email} &bull; <span className="text-[#8B0000]">{radarEducator.examinerId || radarEducator.rollNo || radarEducator.uid}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex gap-4 items-center w-full md:w-auto">
+                                        <div className="bg-slate-50 px-5 py-2.5 rounded-xl border border-slate-200 text-center shadow-sm shrink-0 flex gap-3 items-center">
+                                            <div className="text-2xl font-black text-[#8B0000] leading-none">
+                                                {/* 🔥 FIX 1: u.followed property is checked instead of following */}
+                                                {allUsers.filter(u => {
+                                                    if(!u.followed) return false;
+                                                    if(Array.isArray(u.followed)) return u.followed.includes(radarEducator.uid) || u.followed.includes(radarEducator.examinerId);
+                                                    if(typeof u.followed === 'object') return !!u.followed[radarEducator.uid] || !!u.followed[radarEducator.examinerId];
+                                                    return false;
+                                                }).length}
+                                            </div>
+                                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Active<br/>Followers</div>
+                                        </div>
+
+                                        <button 
+                                            className="px-5 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 flex-1 md:flex-none h-full"
+                                            onClick={() => setRadarEducator(null)}
+                                        >
+                                            <i className="ti ti-x"></i> <span className="hidden sm:inline">Clear</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Detailed Split Layout */}
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    
+                                    {/* Column 1: Followers List */}
+                                    {(() => {
+                                        // 🔥 FIX 1 (Again): Corrected property check to u.followed
+                                        const followersList = allUsers.filter(u => {
+                                            if(!u.followed) return false;
+                                            if(Array.isArray(u.followed)) return u.followed.includes(radarEducator.uid) || u.followed.includes(radarEducator.examinerId);
+                                            if(typeof u.followed === 'object') return !!u.followed[radarEducator.uid] || !!u.followed[radarEducator.examinerId];
+                                            return false;
+                                        });
+
+                                        return (
+                                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-3">
+                                                    {followersList.length === 0 ? (
+                                                        <div className="text-sm text-slate-400 font-semibold bg-slate-50 p-4 rounded-xl text-center border border-slate-100">No followers yet.</div>
+                                                    ) : (
+                                                        followersList.map(f => (
+                                                            <div key={f.uid} className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center gap-3 hover:border-[#D4AF37] transition-colors group">
+                                                                <div className="flex items-center gap-3 min-w-0">
+                                                                    <div className="w-10 h-10 bg-[#fff8e7] text-[#854F0B] rounded-lg flex items-center justify-center font-black text-sm shrink-0 border border-[#D4AF37]">
+                                                                        {f.name ? f.name.charAt(0).toUpperCase() : 'U'}
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <div className="text-[13px] font-bold text-slate-800 truncate">{f.name}</div>
+                                                                        <div className="text-[11px] font-mono text-slate-500 truncate">{f.email}</div>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                {/* Disconnect Citizen Action */}
+                                                                <button 
+                                                                    className="w-9 h-9 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-[#8B0000] hover:border-[#ffcdd2] hover:bg-[#fff5f5] flex items-center justify-center transition-all opacity-100 lg:opacity-0 group-hover:opacity-100 shrink-0"
+                                                                    onClick={() => disconnectCitizen(f, radarEducator)}
+                                                                    title="Sever Connection"
+                                                                >
+                                                                    <i className="ti ti-plug-x text-lg"></i>
+                                                                </button>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Column 2: Public Radar Exams */}
+                                    {(() => {
+                                        const eduTests = allTests.filter(t => t.creatorUid === radarEducator.uid);
+                                        
+                                        return (
+                                            <div className="lg:col-span-2">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest m-0">Vault & Radar Exams</h3>
+                                                    <span className="bg-[#185FA5] text-white text-xs font-black px-2.5 py-1 rounded-md">{eduTests.length} Total</span>
+                                                </div>
+
+                                                <div className="max-h-[350px] overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4">
+                                                    {eduTests.length === 0 ? (
+                                                        <div className="text-sm text-slate-400 font-semibold bg-slate-50 p-6 rounded-xl text-center border border-slate-100 flex flex-col items-center gap-2">
+                                                            <i className="ti ti-ghost text-3xl text-[#8B0000] opacity-50"></i>
+                                                            No exams created by this educator.
+                                                        </div>
+                                                    ) : (
+                                                        eduTests.map(test => {
+                                                            // 🔥 FIX 2: Strict check for radarVisible === true
+                                                            const isVisible = test.radarVisible === true; 
+                                                            
+                                                            return (
+                                                                <div key={test.dbKey} className={`p-4 rounded-xl border-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors ${isVisible ? 'bg-[#f0fdf4] border-[#bbf7d0]' : 'bg-slate-50 border-slate-200'}`}>
+                                                                    <div>
+                                                                        <div className="text-[15px] font-black text-slate-900 mb-1">{test.title}</div>
+                                                                        <div className="flex items-center gap-3 text-xs font-bold font-mono">
+                                                                            <span className="text-[#8B0000]">{test.code}</span>
+                                                                            <span className="text-slate-400">&bull;</span>
+                                                                            <span className={test.isActive !== false ? 'text-[#166534]' : 'text-slate-500'}>
+                                                                                {test.isActive !== false ? 'LIVE' : 'CLOSED'}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    <div className="shrink-0 w-full sm:w-auto">
+                                                                        <button 
+                                                                            className={`w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 transition-colors border-2 ${isVisible ? 'bg-white text-[#166534] border-[#bbf7d0] hover:bg-[#dcfce7]' : 'bg-white text-slate-500 border-slate-300 hover:bg-slate-100'}`}
+                                                                            onClick={() => toggleRadarVisibility(test)}
+                                                                        >
+                                                                            <i className={`ti ${isVisible ? 'ti-eye' : 'ti-eye-off'} text-lg`}></i>
+                                                                            {isVisible ? 'Visible on Radar' : 'Add to Radar'}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </motion.div>
