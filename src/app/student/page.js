@@ -926,193 +926,274 @@ function StudentPortalContent() {
               </div>
           )}
 
-        <div className="test-layout" style={{ marginTop: '1rem' }}>
+       {/* 🔥 DESKTOP & MOBILE PERFECT SPLIT LAYOUT + STICKY NAV 🔥 */}
+          <style>{`
             
-            <div className="q-area" style={{ display: 'flex', flexDirection: 'column', minHeight: '65vh' }}> 
-              
-              {/* SMART SPACE-SAVING HEADER FOR MOBILE */}
-              <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)', paddingBottom: '0.75rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div className="q-num-badge" style={{ width: '36px', height: '36px', fontSize: '16px', flexShrink: 0 }}>{curQ + 1}</div>
-                        <span className={`badge ${getBadge(currentQuestion?.type)}`}>{getLabel(currentQuestion?.type)}</span>
+          `}</style>
+
+        <div className="split-exam-layout">
+            
+            {/* ======================================= */}
+            {/* LEFT PANE: INDEPENDENT QUESTION SECTION */}
+            {/* ======================================= */}
+            <div className="q-area-wrapper">
+                <div className="q-area-scroll custom-scrollbar">
+                  
+                  {/* HEADER */}
+                  <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--color-border-secondary)', paddingBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div className="q-num-badge" style={{ width: '36px', height: '36px', fontSize: '16px', flexShrink: 0 }}>{curQ + 1}</div>
+                            <span className={`badge ${getBadge(currentQuestion?.type)}`}>{getLabel(currentQuestion?.type)}</span>
+                        </div>
+                        {answers[curQ]?.marked && <span className="badge b-amber" style={{ alignSelf: 'flex-start' }}><i className="ti ti-bookmark" style={{ fontSize: '12px' }}></i> Marked</span>}
                     </div>
-                    {answers[curQ]?.marked && <span className="badge b-amber" style={{ alignSelf: 'flex-start' }}><i className="ti ti-bookmark" style={{ fontSize: '12px' }}></i> Marked</span>}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
-                    <span className="badge b-blue" style={{ fontSize: '13px', fontWeight: 600 }}>{currentQuestion?.marks} Marks</span>
-                    {currentQuestion?.section && <span className="badge b-purple" style={{ fontSize: '11px', fontWeight: 600 }}><i className="ti ti-layout-grid-add"></i> {currentQuestion.section}</span>}
-                </div>
-              </div>
-              
-              <div className="q-area-content" style={{ opacity: 0, flex: 1 }}>
-                  
-                  {/* StaticMath applied to Question Text */}
-                  <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
-                  
-                 {/*  UNIVERSAL FIGURE ENGINE (Smart Scaling, Centering & Fallbacks)  */}
-                  {currentQuestion?.figureType && currentQuestion.figureType !== 'none' && currentQuestion.figureData && (
-                    <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
-                        
-                        {/* CSS Hack: SVG height strictly controlled for Mobile/Laptop */}
-                        <style>{`
-                            .svg-figure-container svg { max-width: 100%; height: auto; min-height: 80px; max-height: 250px; }
-                        `}</style>
-
-                        {/* URL & IMAGE RENDERER */}
-                        {(currentQuestion.figureType === 'image' || currentQuestion.figureType === 'url') && (
-                            <div style={{ position: 'relative', width: 'fit-content', display: 'flex', justifyContent: 'center', background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minHeight: !imgLoaded ? '100px' : 'auto', minWidth: !imgLoaded ? '150px' : 'auto' }}>
-                                
-                                {!imgLoaded && (
-                                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-                                        <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '3px' }}></div>
-                                    </div>
-                                )}
-                                
-                                <img 
-                                    key={`img-${curQ}`} 
-                                    src={currentQuestion.figureData} 
-                                    alt="Question Figure" 
-                                    style={{ maxWidth: '100%', maxHeight: '250px', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} 
-                                    onLoad={() => setImgLoaded(true)}
-                                    onError={(e) => { 
-                                        setImgLoaded(true); 
-                                        e.target.onerror = null; 
-                                        e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=Image+Load+Failed'; 
-                                    }} 
-                                />
-                            </div>
-                        )}
-
-                        {/* RAW SVG RENDERER (Perfect Centering) */}
-                        {currentQuestion.figureType === 'svg' && (
-                            <div 
-                                className="svg-figure-container"
-                                style={{ background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', overflowX: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
-                                dangerouslySetInnerHTML={{ __html: currentQuestion.figureData }} 
-                            />
-                        )}
-
-                        {/* SMILES RENDERER */}
-                        {currentQuestion.figureType === 'smiles' && (
-                            <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                                <SmilesViewer smilesCode={currentQuestion.figureData} width={250} height={200} />
-                            </div>
-                        )}
-
-                        {/* 🔥 SMART TIKZ RENDERER (Auto-wraps only if needed to prevent errors) 🔥 */}
-                        {currentQuestion.figureType === 'tikz' && (
-                            <div className="hide-scroll" style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', overflowX: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                                <img 
-                                    key={`tikz-${curQ}`}
-                                    src={`https://i.upmath.me/svg/${encodeURIComponent(
-                                        currentQuestion.figureData.includes('\\begin{tikzpicture}') 
-                                        ? currentQuestion.figureData 
-                                        : '\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}'
-                                    )}`} 
-                                    alt="TikZ Graphic" 
-                                    style={{ maxWidth: '100%', maxHeight: '250px', objectFit: 'contain' }} 
-                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/500x200/f8fafc/ef4444?text=TikZ+Compilation+Failed'; }}
-                                />
-                            </div>
-                        )}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
+                        <span className="badge b-blue" style={{ fontSize: '13px', fontWeight: 600 }}>{currentQuestion?.marks} Marks</span>
+                        {currentQuestion?.section && <span className="badge b-purple" style={{ fontSize: '11px', fontWeight: 600 }}><i className="ti ti-layout-grid-add"></i> {currentQuestion.section}</span>}
                     </div>
-                  )}
-                    
-                  
-                  {/* OPTIONS AREA */}
-                  <div>
-                      {currentQuestion?.type === 'mcq' && currentQuestion.options.map((opt, j) => (
-                          <button key={j} className={`opt-btn ${answers[curQ]?.val === j ? 'sel' : ''}`} onClick={() => pickMCQ(curQ, j)}>
-                              <div className="olabel">{answers[curQ]?.val === j ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                              <div className="hide-scroll" style={{ width: '100%', maxWidth: '100%', padding: '2px 0' }}>
-                                {opt.startsWith('[smiles]') ? (
-                                    <div style={{ pointerEvents: 'none' }}><SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} /></div>
-                                ) : (
-                                    <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px', whiteSpace: 'normal', wordBreak: 'break-word' }} />
-                                )}
-                             </div>
-                          </button>
-                      ))}
-                      
-                      {currentQuestion?.type === 'msq' && currentQuestion.options.map((opt, j) => {
-                          const isSelected = Array.isArray(answers[curQ]?.val) && answers[curQ].val.includes(j);
-                          return (
-                              <button key={j} className={`opt-btn ${isSelected ? 'sel' : ''}`} onClick={() => pickMSQ(curQ, j)}>
-                                  <div className="olabel" style={{ borderRadius: '4px' }}>{isSelected ? <i className="ti ti-check"></i> : String.fromCharCode(65 + j)}</div>
-                                  <div className="hide-scroll" style={{ width: '100%', maxWidth: '100%', padding: '2px 0' }}>
-                                  {opt.startsWith('[smiles]') ? (
-                                    <div style={{ pointerEvents: 'none' }}><SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} /></div>
-                                 ) : (
-                                    <StaticMath isBlock={false} html={opt} style={{ fontSize: '15px', whiteSpace: 'normal', wordBreak: 'break-word' }} />
-                                  )}
-                                </div>
-                              </button>
-                          );
-                      })}
-
-                      {currentQuestion?.type === 'integer' && (
-                          <div style={{ marginBottom: '1rem' }}>
-                              <label style={{ fontSize: '15px' }}>Enter your integer answer below:</label>
-                              <input type="number" value={answers[curQ]?.val !== null ? answers[curQ].val : ''} onChange={(e) => pickInt(curQ, e.target.value)} style={{ maxWidth: '250px', fontSize: '20px', fontWeight: 600, textAlign: 'center', padding: '12px' }} placeholder="0" />
-                          </div>
-                      )}
-
-                      {currentQuestion?.type === 'subjective' && (
-                          <div style={{ marginBottom: '1rem' }}>
-                              <label style={{ fontSize: '15px' }}>Type your descriptive answer below:</label>
-                              <textarea value={answers[curQ]?.val || ''} onChange={(e) => pickSubj(curQ, e.target.value)} style={{ minHeight: '160px', fontSize: '15px' }} placeholder="Write your detailed answer here..."></textarea>
-                          </div>
-                      )}
                   </div>
-              </div> 
+                  
+                  <div className="q-area-content" style={{ opacity: 0, flex: 1 }}>
+                      
+                      <StaticMath isBlock={true} html={currentQuestion?.text} style={{ fontSize: '16px', lineHeight: 1.7, marginBottom: '2rem', color: 'var(--color-text-primary)', fontWeight: 500 }} />
+                      
+                      {/* UNIVERSAL FIGURE ENGINE */}
+                      {currentQuestion?.figureType && currentQuestion.figureType !== 'none' && currentQuestion.figureData && (
+                        <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center', width: '100%' }}>
+                            <style>{` .svg-figure-container svg { max-width: 100%; height: auto; min-height: 80px; max-height: 250px; } `}</style>
 
-              {/* ACTION BUTTONS */}
-              <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem', flexWrap: 'wrap' }}>
-                <button className="btn btn-sm" onClick={() => toggleMark(curQ)} style={answers[curQ]?.marked ? { color: '#633806', borderColor: '#FAC775', background: '#FAEEDA', fontWeight: 600 } : {}}>
-                  <i className="ti ti-bookmark"></i> {answers[curQ]?.marked ? 'Unmark' : 'Mark for Review'}
-                </button>
-                {answers[curQ]?.val !== null && (!Array.isArray(answers[curQ].val) || answers[curQ].val.length > 0) && (
-                    <button className="btn btn-sm btn-danger" onClick={() => clearAns(curQ)}><i className="ti ti-eraser"></i> Clear Selection</button>
-                )}
-              </div>
-              
-              {/* BOTTOM NAVIGATION ACTIONS */}
-              <div className="mobile-sticky-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '1.5rem' }}>
-                  <button className="btn" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ - 1)} disabled={curQ === 0}>
-                      <i className="ti ti-arrow-left"></i> <span className="hide-mobile">Prev</span>
-                  </button>
-                  
-                  <button className="btn hide-desktop" style={{ width: '60px', padding: '14px', background: '#f8fafc', justifyContent: 'center', border: '1px solid #cbd5e1', flexShrink: 0 }} onClick={() => setIsMobilePaletteOpen(!isMobilePaletteOpen)}>
-                      <i className="ti ti-layout-grid" style={{ fontSize: '24px', color: '#185FA5' }}></i>
-                  </button>
-                  
-                  {curQ < (activeTest?.questions?.length || 1) - 1 ? (
-                      <button className="btn btn-primary" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ + 1)}>
-                          <span className="hide-mobile">Next</span> <i className="ti ti-arrow-right"></i>
-                      </button>
-                  ) : (
-                      <button className="btn btn-success" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0', fontWeight: 600 }} onClick={confirmAndSubmit}>
-                          <i className="ti ti-check"></i> Submit
-                      </button>
-                  )}
-              </div>
+                            {(currentQuestion.figureType === 'image' || currentQuestion.figureType === 'url') && (
+                                <div style={{ position: 'relative', width: 'fit-content', display: 'flex', justifyContent: 'center', background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minHeight: !imgLoaded ? '100px' : 'auto', minWidth: !imgLoaded ? '150px' : 'auto' }}>
+                                    {!imgLoaded && (
+                                        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
+                                            <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '3px' }}></div>
+                                        </div>
+                                    )}
+                                    <img key={`img-${curQ}`} src={currentQuestion.figureData} alt="Question Figure" style={{ maxWidth: '100%', maxHeight: '250px', objectFit: 'contain', opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }} onLoad={() => setImgLoaded(true)} onError={(e) => { setImgLoaded(true); e.target.onerror = null; e.target.src = 'https://via.placeholder.com/400x150/f8fafc/ef4444?text=Image+Load+Failed'; }} />
+                                </div>
+                            )}
+
+                            {currentQuestion.figureType === 'svg' && (
+                                <div className="svg-figure-container" style={{ background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', overflowX: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }} dangerouslySetInnerHTML={{ __html: currentQuestion.figureData }} />
+                            )}
+
+                            {currentQuestion.figureType === 'smiles' && (
+                                <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                                    <SmilesViewer smilesCode={currentQuestion.figureData} width={250} height={200} />
+                                </div>
+                            )}
+
+                            {currentQuestion.figureType === 'tikz' && (
+                                <div className="hide-scroll" style={{ background: '#fff', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', overflowX: 'auto', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                                    <img key={`tikz-${curQ}`} src={`https://i.upmath.me/svg/${encodeURIComponent(currentQuestion.figureData.includes('\\begin{tikzpicture}') ? currentQuestion.figureData : '\\begin{tikzpicture}\n' + currentQuestion.figureData + '\n\\end{tikzpicture}')}`} alt="TikZ Graphic" style={{ maxWidth: '100%', maxHeight: '250px', objectFit: 'contain' }} onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/500x200/f8fafc/ef4444?text=TikZ+Compilation+Failed'; }} />
+                                </div>
+                            )}
+                        </div>
+                      )}
+                      
+                      {/* 🔥 PREMIUM TAILWIND OPTIONS AREA 🔥 */}
+                      <div className="flex flex-col gap-3 mt-2 mb-6">
+                          
+                          {/* MCQ Options */}
+                          {currentQuestion?.type === 'mcq' && currentQuestion.options.map((opt, j) => {
+                              const isSelected = answers[curQ]?.val === j;
+                              return (
+                                  <button key={j} 
+                                      className={`group relative flex items-start w-full text-left p-3.5 rounded-2xl border-2 transition-all duration-200 ease-in-out active:scale-[0.99] ${isSelected ? 'bg-blue-50/50 border-blue-500 shadow-[0_4px_20px_rgba(59,130,246,0.12)]' : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-slate-50 hover:shadow-sm'}`} 
+                                      onClick={() => pickMCQ(curQ, j)}
+                                  >
+                                      <div className={`shrink-0 w-7 h-7 mt-0.5 rounded-full flex items-center justify-center font-black text-sm transition-colors duration-200 ${isSelected ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600'}`}>
+                                          {isSelected ? <i className="ti ti-check text-lg"></i> : String.fromCharCode(65 + j)}
+                                      </div>
+                                      <div className="ml-3.5 flex-1 overflow-x-auto hide-scroll pt-0.5">
+                                        {opt.startsWith('[smiles]') ? (
+                                            <div style={{ pointerEvents: 'none' }}><SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} /></div>
+                                        ) : (
+                                            <StaticMath isBlock={false} html={opt} style={{ fontSize: '15.5px', whiteSpace: 'normal', wordBreak: 'break-word', color: isSelected ? '#1e293b' : '#334155', fontWeight: isSelected ? '600' : '500' }} />
+                                        )}
+                                     </div>
+                                  </button>
+                              );
+                          })}
+                          
+                          {/* MSQ Options */}
+                          {currentQuestion?.type === 'msq' && currentQuestion.options.map((opt, j) => {
+                              const isSelected = Array.isArray(answers[curQ]?.val) && answers[curQ].val.includes(j);
+                              return (
+                                  <button key={j} 
+                                      className={`group relative flex items-start w-full text-left p-3.5 rounded-2xl border-2 transition-all duration-200 ease-in-out active:scale-[0.99] ${isSelected ? 'bg-emerald-50/50 border-emerald-500 shadow-[0_4px_20px_rgba(16,185,129,0.12)]' : 'bg-white border-slate-200 hover:border-emerald-300 hover:bg-slate-50 hover:shadow-sm'}`} 
+                                      onClick={() => pickMSQ(curQ, j)}
+                                  >
+                                      <div className={`shrink-0 w-7 h-7 mt-0.5 rounded-lg flex items-center justify-center font-black text-sm transition-colors duration-200 ${isSelected ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30' : 'bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'}`}>
+                                          {isSelected ? <i className="ti ti-check text-lg"></i> : String.fromCharCode(65 + j)}
+                                      </div>
+                                      <div className="ml-3.5 flex-1 overflow-x-auto hide-scroll pt-0.5">
+                                          {opt.startsWith('[smiles]') ? (
+                                            <div style={{ pointerEvents: 'none' }}><SmilesViewer smilesCode={opt.replace('[smiles]', '').trim()} width={150} height={150} /></div>
+                                         ) : (
+                                            <StaticMath isBlock={false} html={opt} style={{ fontSize: '15.5px', whiteSpace: 'normal', wordBreak: 'break-word', color: isSelected ? '#1e293b' : '#334155', fontWeight: isSelected ? '600' : '500' }} />
+                                          )}
+                                      </div>
+                                  </button>
+                              );
+                          })}
+
+                          {/* Integer Input */}
+                          {currentQuestion?.type === 'integer' && (
+                              <div className="bg-amber-50/30 border border-amber-200 p-5 rounded-2xl">
+                                  <label className="text-[13px] font-bold text-amber-800 uppercase tracking-widest mb-3 block">Enter Integer Answer</label>
+                                  <input type="number" value={answers[curQ]?.val !== null ? answers[curQ].val : ''} onChange={(e) => pickInt(curQ, e.target.value)} placeholder="0" className="w-full max-w-[200px] bg-white border-2 border-amber-300 text-2xl font-black text-slate-800 rounded-xl px-4 py-3 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all text-center shadow-inner" />
+                              </div>
+                          )}
+
+                          {/* Subjective Input */}
+                          {currentQuestion?.type === 'subjective' && (
+                              <div className="bg-purple-50/30 border border-purple-200 p-5 rounded-2xl flex flex-col h-full">
+                                  <label className="text-[13px] font-bold text-purple-800 uppercase tracking-widest mb-3 block">Descriptive Answer</label>
+                                  <textarea value={answers[curQ]?.val || ''} onChange={(e) => pickSubj(curQ, e.target.value)} placeholder="Type your detailed answer here..." className="w-full flex-1 min-h-[200px] bg-white border-2 border-purple-200 text-[15px] font-medium text-slate-700 rounded-xl px-5 py-4 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all resize-none shadow-inner leading-relaxed custom-scrollbar"></textarea>
+                              </div>
+                          )}
+                      </div>
+
+                      {/* MARK / CLEAR BUTTONS */}
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '1.5rem', flexWrap: 'wrap', paddingBottom: '1rem' }}>
+                        <button className="btn btn-sm" onClick={() => toggleMark(curQ)} style={answers[curQ]?.marked ? { color: '#633806', borderColor: '#FAC775', background: '#FAEEDA', fontWeight: 600 } : {}}>
+                          <i className="ti ti-bookmark"></i> {answers[curQ]?.marked ? 'Unmark' : 'Mark for Review'}
+                        </button>
+                        {answers[curQ]?.val !== null && (!Array.isArray(answers[curQ].val) || answers[curQ].val.length > 0) && (
+                            <button className="btn btn-sm btn-danger" onClick={() => clearAns(curQ)}><i className="ti ti-eraser"></i> Clear Selection</button>
+                        )}
+                      </div>
+                  </div> 
+                </div>
+
+                {/* BOTTOM NAVIGATION ACTIONS (Always sticky at bottom) */}
+                <div className="q-area-footer">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                        <button className="btn" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ - 1)} disabled={curQ === 0}>
+                            <i className="ti ti-arrow-left"></i> <span className="hide-mobile">Prev</span>
+                        </button>
+                        
+                        {/* Mobile Grid Button */}
+                        <button className="btn hide-desktop" style={{ width: '60px', padding: '14px', background: '#f8fafc', justifyContent: 'center', border: '1px solid #cbd5e1', flexShrink: 0 }} onClick={() => setIsMobilePaletteOpen(!isMobilePaletteOpen)}>
+                            <i className="ti ti-layout-grid" style={{ fontSize: '24px', color: '#185FA5' }}></i>
+                        </button>
+                        
+                        {curQ < (activeTest?.questions?.length || 1) - 1 ? (
+                            <button className="btn btn-primary" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0' }} onClick={() => changeQuestion(curQ + 1)}>
+                                <span className="hide-mobile">Next</span> <i className="ti ti-arrow-right"></i>
+                            </button>
+                        ) : (
+                            <button className="btn btn-success" style={{ flex: 1, padding: '14px', justifyContent: 'center', minWidth: '0', fontWeight: 600 }} onClick={confirmAndSubmit}>
+                                <i className="ti ti-check"></i> Submit
+                            </button>
+                        )}
+                    </div>
+                </div>
             </div>
-            
-           {/* 🔥 NAYA: SIDEBAR PALETTE (FLEXIBLE HEIGHT FIX FOR MOBILE) */}
-           <div className={`sidebar-panel ${!isMobilePaletteOpen ? 'hide-mobile' : ''}`} style={isMobilePaletteOpen ? { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, margin: 0, borderRadius: '24px 24px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.15)', padding: '20px', display: 'flex', flexDirection: 'column', maxHeight: '85vh', background: 'var(--color-background-primary)' } : {}}>
+
+            {/* ======================================= */}
+            {/* RIGHT PANE: DESKTOP ONLY FIXED PALETTE  */}
+            {/* ======================================= */}
+            <div className="desktop-palette">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 1.25rem 0' }}>
                   <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Question Palette</div>
-                  {isMobilePaletteOpen && <button className="btn btn-ghost" style={{ padding: '4px 8px' }} onClick={() => setIsMobilePaletteOpen(false)}><i className="ti ti-x" style={{ fontSize: '24px' }}></i></button>}
               </div>
               
-              <div className="legend-row" style={{ padding: '0 4px', marginBottom: '1.25rem' }}>
+              <div className="legend-row" style={{ padding: '0 4px', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '8px' }}>
                 <div className="leg"><div className="leg-dot" style={{ background: 'var(--color-background-primary)', border: '1px solid var(--color-border-primary)' }}></div>Unvisited</div>
                 <div className="leg"><div className="leg-dot" style={{ background: '#185FA5' }}></div>Answered</div>
                 <div className="leg"><div className="leg-dot" style={{ background: '#FAC775' }}></div>Marked</div>
               </div>
               
-              <div className="hide-scroll" style={{ flex: isMobilePaletteOpen ? 1 : 'none', maxHeight: isMobilePaletteOpen ? 'none' : '55vh', overflowY: 'auto', padding: '4px 10px', margin: '0 -10px' }}>
+              <div className="desktop-palette-scroll custom-scrollbar">
+                  {activeTest?.sections && activeTest.sections.length > 0 ? (
+                      activeTest.sections.map(sec => {
+                          let secAttempted = 0;
+                          let secTotal = 0;
+                          let secHTML = [];
+
+                          activeTest.questions.forEach((qq, i) => {
+                              if (qq.section === sec || (!qq.section && sec === activeTest.sections[0])) {
+                                  secTotal++;
+                                  let a = answers[i];
+                                  let isDone = a?.val !== null && (!Array.isArray(a?.val) || a.val.length > 0);
+                                  if (isDone) secAttempted++;
+                                  let cls = (a?.marked && isDone) ? 'p-both' : a?.marked ? 'p-marked' : isDone ? 'p-answered' : 'p-unanswered';
+                                  secHTML.push(<button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => changeQuestion(i)}>{secTotal}</button>);
+                              }
+                          });
+
+                          if (secTotal === 0) return null;
+
+                          return (
+                              <div key={sec} style={{ marginBottom: '1.5rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 12px 0' }}>
+                                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}><i className="ti ti-folder"></i> {sec}</div>
+                                      <div style={{ fontSize: '11px', fontWeight: 700, background: secAttempted === secTotal ? '#EAF3DE' : '#E6F1FB', color: secAttempted === secTotal ? '#27500A' : '#185FA5', padding: '4px 10px', borderRadius: '12px', border: `1px solid ${secAttempted === secTotal ? '#C0DD97' : '#CECBF6'}` }}>Attempted: {secAttempted}/{secTotal}</div>
+                                  </div>
+                                  <div className="palette-grid">{secHTML}</div>
+                              </div>
+                          );
+                      })
+                  ) : (
+                      <div className="palette-grid">
+                          {activeTest?.questions?.map((_, i) => {
+                              let a = answers[i];
+                              let isDone = a?.val !== null && (!Array.isArray(a?.val) || a.val.length > 0);
+                              let cls = (a?.marked && isDone) ? 'p-both' : a?.marked ? 'p-marked' : isDone ? 'p-answered' : 'p-unanswered';
+                              return (<button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => changeQuestion(i)}>{i + 1}</button>);
+                          })}
+                      </div>
+                  )}
+              </div>
+
+              {/* Submit button at the very bottom of Desktop Palette */}
+              <div style={{ flexShrink: 0, paddingTop: '1rem', marginTop: '1rem', borderTop: '1px solid var(--color-border-secondary)' }}>
+                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontWeight: 700, padding: '14px', fontSize: '15px' }} onClick={confirmAndSubmit}><i className="ti ti-send"></i> Submit Final Test</button>
+              </div>
+            </div>
+            
+           {/* ======================================= */}
+           {/* MOBILE POPUP PALETTE (PREMIUM TAILWIND) */}
+           {/* ======================================= */}
+           
+           {/* 1. Enhanced Blur Overlay (Clicks outside will close) */}
+           {isMobilePaletteOpen && (
+               <div className="hide-desktop fixed inset-0 z-[995] bg-slate-900/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease]" 
+                    onClick={() => setIsMobilePaletteOpen(false)}>
+               </div>
+           )}
+
+           {/* 2. Premium Bottom Sheet Palette */}
+           <div className={`hide-desktop fixed bottom-0 left-0 right-0 z-[1000] bg-white rounded-t-[32px] shadow-[0_-15px_40px_rgba(0,0,0,0.2)] flex flex-col transition-transform duration-300 ${isMobilePaletteOpen ? 'translate-y-0' : 'translate-y-full'}`} 
+                style={{ maxHeight: '88vh', height: isMobilePaletteOpen ? 'auto' : '0' }}>
+              
+              {/* Premium Drag Indicator */}
+              <div className="w-full flex justify-center pt-3 pb-2 shrink-0 cursor-pointer" onClick={() => setIsMobilePaletteOpen(false)}>
+                  <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+              </div>
+
+              {/* Header */}
+              <div className="px-5 pb-4 shrink-0 flex justify-between items-center">
+                  <div className="text-[18px] font-black text-slate-800 tracking-tight">Question Palette</div>
+                  <button className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center active:scale-95 transition-all" onClick={() => setIsMobilePaletteOpen(false)}>
+                      <i className="ti ti-x text-lg"></i>
+                  </button>
+              </div>
+              
+              {/* Legends */}
+              <div className="px-5 shrink-0">
+                  <div className="flex flex-wrap gap-4 mb-4 bg-slate-50 p-3 rounded-2xl border border-slate-100 justify-center">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600"><div className="w-3 h-3 rounded-full bg-white border border-slate-300"></div>Unvisited</div>
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600"><div className="w-3 h-3 rounded-full bg-[#185FA5]"></div>Answered</div>
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600"><div className="w-3 h-3 rounded-full bg-[#FAC775]"></div>Marked</div>
+                  </div>
+              </div>
+              
+              {/* Scrollable Questions Area */}
+              <div className="flex-1 overflow-y-auto px-5 pb-5 custom-scrollbar">
                   {activeTest?.sections && activeTest.sections.length > 0 ? (
                       activeTest.sections.map(sec => {
                           let secAttempted = 0;
@@ -1130,7 +1211,7 @@ function StudentPortalContent() {
                                   let cls = (a?.marked && isDone) ? 'p-both' : a?.marked ? 'p-marked' : isDone ? 'p-answered' : 'p-unanswered';
                                   
                                   secHTML.push(
-                                      <button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => changeQuestion(i)}>
+                                      <button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => { changeQuestion(i); setIsMobilePaletteOpen(false); }}>
                                           {secTotal}
                                       </button>
                                   );
@@ -1140,13 +1221,13 @@ function StudentPortalContent() {
                           if (secTotal === 0) return null;
 
                           return (
-                              <div key={sec} style={{ marginBottom: '1.5rem' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 12px 0' }}>
-                                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                          <i className="ti ti-folder"></i> {sec}
+                              <div key={sec} className="mb-6">
+                                  <div className="flex justify-between items-center mb-3">
+                                      <div className="text-[12px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                          <i className="ti ti-folder text-blue-500 text-sm"></i> {sec}
                                       </div>
-                                      <div style={{ fontSize: '11px', fontWeight: 700, background: secAttempted === secTotal ? '#EAF3DE' : '#E6F1FB', color: secAttempted === secTotal ? '#27500A' : '#185FA5', padding: '4px 10px', borderRadius: '12px', border: `1px solid ${secAttempted === secTotal ? '#C0DD97' : '#CECBF6'}` }}>
-                                          Attempted: {secAttempted}/{secTotal}
+                                      <div className={`text-[10px] font-bold px-3 py-1 rounded-full border ${secAttempted === secTotal ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                          {secAttempted}/{secTotal}
                                       </div>
                                   </div>
                                   <div className="palette-grid">{secHTML}</div>
@@ -1160,7 +1241,7 @@ function StudentPortalContent() {
                               let isDone = a?.val !== null && (!Array.isArray(a?.val) || a.val.length > 0);
                               let cls = (a?.marked && isDone) ? 'p-both' : a?.marked ? 'p-marked' : isDone ? 'p-answered' : 'p-unanswered';
                               return (
-                                  <button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => changeQuestion(i)}>
+                                  <button key={i} className={`pal-btn ${cls} ${i === curQ ? 'p-current' : ''}`} onClick={() => { changeQuestion(i); setIsMobilePaletteOpen(false); }}>
                                       {i + 1}
                                   </button>
                               );
@@ -1168,10 +1249,15 @@ function StudentPortalContent() {
                       </div>
                   )}
               </div>
-              <div className="divider" style={{ margin: '1rem 0' }}></div>
-              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontWeight: 700, padding: '14px', fontSize: '15px' }} onClick={confirmAndSubmit}><i className="ti ti-send"></i> Submit Final Test</button>
-            </div>            
-          </div>
+              
+              {/* Fixed Bottom Submit Button */}
+              <div className="p-4 bg-white border-t border-slate-100 shrink-0">
+                  <button className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl font-bold text-[15px] shadow-lg shadow-blue-600/20 flex justify-center items-center gap-2 transition-transform active:scale-95" onClick={confirmAndSubmit}>
+                      <i className="ti ti-send text-lg"></i> Submit Final Test
+                  </button>
+              </div>
+           </div>            
+        </div>            
 
           {/* VIRTUAL ROUGH PAD (Floating) */}
           {showRoughPad && (

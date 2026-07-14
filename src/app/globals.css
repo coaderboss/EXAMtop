@@ -1091,7 +1091,7 @@ mjx-container[display="true"]::-webkit-scrollbar {
               .warn-row { flex-direction: column; align-items: flex-start !important; gap: 6px !important; padding: 10px !important; }
               .warn-divider { display: none; }
               .warn-text { font-size: 12px !important; line-height: 1.4; }
-          }
+}
 
 
 /* 🔥 Premium Pill Navigation (Safe CSS) 🔥 */
@@ -1123,4 +1123,95 @@ mjx-container[display="true"]::-webkit-scrollbar {
                 background: #fff;
                 color: #0f172a;
                 box-shadow: 0 4px 12px rgba(255,255,255,0.1);
+}
+
+
+/* Base Mobile Layout */
+            .split-exam-layout { 
+                display: flex; 
+                flex-direction: column; 
+                margin-top: 1rem; 
             }
+            .desktop-palette { display: none; }
+            
+            .q-area-wrapper {
+                display: flex;
+                flex-direction: column;
+                flex: 1;
+            }
+            
+            .q-area-scroll {
+                flex: 1;
+                padding-bottom: 90px; /* Space for fixed mobile footer */
+            }
+
+            /* 🔥 FIX 1: FOOLPROOF FIXED FOOTER FOR MOBILE (No Fluctuation) 🔥 */
+            .q-area-footer {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: var(--color-background-primary);
+                padding: 1rem;
+                border-top: 1px solid var(--color-border-secondary);
+                z-index: 90;
+                box-shadow: 0 -4px 20px rgba(0,0,0,0.05);
+            }
+            
+            /* 🔥 FIX 2: REMOVE BROWSER DEFAULT BLACK FOCUS RING IN LAPTOP 🔥 */
+            .pal-btn { outline: none !important; }
+            .pal-btn:focus { outline: none !important; }
+            
+            .palette-grid { padding: 4px; }
+            .pal-btn.p-current { box-shadow: 0 0 0 2px #A32D2D !important; z-index: 2; position: relative; } 
+
+            /* Desktop Specific Layout */
+            @media (min-width: 1024px) {
+                .split-exam-layout {
+                    display: grid;
+                    grid-template-columns: 1fr 340px; 
+                    gap: 1.5rem;
+                    height: calc(100vh - 170px); 
+                    overflow: hidden; 
+                    min-height: 0;
+                }
+                .q-area-wrapper {
+                    height: 100%;
+                    min-height: 0; 
+                    overflow: hidden; 
+                    position: relative; /* Important for absolute footer */
+                }
+                .q-area-scroll {
+                    overflow-y: auto;
+                    padding-right: 15px;
+                    padding-bottom: 80px; 
+                    height: 100%;
+                }
+                /* 🔥 FIX 3: KEEP FOOTER AT BOTTOM WITHOUT SCROLLING ON LAPTOP 🔥 */
+                .q-area-footer {
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    padding: 1rem 15px 0.5rem 0;
+                    box-shadow: none;
+                }
+                .desktop-palette {
+                    display: flex;
+                    flex-direction: column;
+                    height: 100%;
+                    min-height: 0;
+                    border-left: 1px solid var(--color-border-secondary);
+                    padding-left: 1.5rem;
+                }
+                .desktop-palette-scroll {
+                    flex: 1;
+                    overflow-y: auto;
+                    min-height: 0;
+                    padding: 4px 10px 10px 4px; 
+                }
+                .sidebar-panel { display: none !important; } 
+                .hide-desktop { display: none !important; } 
+                .mobile-overlay { display: none !important; }
+}            
+
