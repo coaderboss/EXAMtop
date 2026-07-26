@@ -1077,7 +1077,7 @@ export default function HomePage() {
               <ul className="space-y-3 md:space-y-4">
                 <li>
                   <a
-                    href="#"
+                    href="/privacy"
                     className="text-slate-400 hover:text-white transition-colors text-sm font-medium flex items-center gap-2"
                   >
                     <i className="ti ti-chevron-right text-[10px] text-[#185FA5]"></i>{" "}
@@ -1086,29 +1086,29 @@ export default function HomePage() {
                 </li>
                 <li>
                   <a
-                    href="#"
+                    href="/terms"
                     className="text-slate-400 hover:text-white transition-colors text-sm font-medium flex items-center gap-2"
                   >
                     <i className="ti ti-chevron-right text-[10px] text-[#185FA5]"></i>{" "}
-                    Terms of Service
+                    Terms & Conditions
                   </a>
                 </li>
                 <li>
                   <a
-                    href="#"
+                    href="/refund"
                     className="text-slate-400 hover:text-white transition-colors text-sm font-medium flex items-center gap-2"
                   >
                     <i className="ti ti-chevron-right text-[10px] text-[#185FA5]"></i>{" "}
-                    Documentation
+                    Refund Policy
                   </a>
                 </li>
                 <li>
                   <a
-                    href="#"
+                    href="/contact"
                     className="text-slate-400 hover:text-white transition-colors text-sm font-medium flex items-center gap-2"
                   >
                     <i className="ti ti-chevron-right text-[10px] text-[#185FA5]"></i>{" "}
-                    Help Center
+                    Contact Us
                   </a>
                 </li>
               </ul>
