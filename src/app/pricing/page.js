@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { database } from "../../lib/firebase";
 import { ref, get, update } from "firebase/database";
+import jsPDF from "jspdf";
 
 export default function PricingPage() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
@@ -12,7 +13,17 @@ export default function PricingPage() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [sysAlert, setSysAlert] = useState(null);
 
-  // Security Check: Only Examiners/Admins allowed
+  const [canCloseModal, setCanCloseModal] = useState(false);
+
+  // Popup aane par 1.5s ka timeout lagana
+  useEffect(() => {
+    if (sysAlert) {
+      setCanCloseModal(false);
+      const timer = setTimeout(() => setCanCloseModal(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [sysAlert]);
+
   useEffect(() => {
     if (
       !authLoading &&
@@ -22,7 +33,6 @@ export default function PricingPage() {
     }
   }, [currentUser, userRole, authLoading, router]);
 
-  // On-Demand Gateway Fetcher
   const loadRazorpayScript = (src) => {
     return new Promise((resolve) => {
       const script = document.createElement("script");
@@ -31,6 +41,68 @@ export default function PricingPage() {
       script.onerror = () => resolve(false);
       document.body.appendChild(script);
     });
+  };
+
+  // PDF Receipt Generator
+  const downloadReceipt = (receiptData) => {
+    const doc = new jsPDF();
+
+    // Header
+    doc.setFontSize(24);
+    doc.setTextColor(24, 95, 165); // ExamiTop Blue
+    doc.text("ExamiTop", 20, 20);
+
+    doc.setFontSize(14);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Payment Receipt", 20, 30);
+
+    // Line separator
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, 35, 190, 35);
+
+    // Customer & Invoice Details
+    doc.setFontSize(11);
+    doc.setTextColor(50, 50, 50);
+    doc.text(`Date: ${receiptData.date}`, 20, 45);
+    doc.text(`Transaction ID: ${receiptData.txId}`, 20, 52);
+    doc.text(
+      `Billed To: ${currentUser?.displayName || "ExamiTop User"}`,
+      20,
+      59,
+    );
+    doc.text(`Email: ${currentUser?.email || "N/A"}`, 20, 66);
+
+    // Table Header
+    doc.setFillColor(245, 245, 245);
+    doc.rect(20, 75, 170, 10, "F");
+    doc.setFontSize(12);
+    doc.setFont(undefined, "bold");
+    doc.text("Description", 25, 82);
+    doc.text("Amount", 160, 82);
+
+    // Table Content
+    doc.setFont(undefined, "normal");
+    doc.text(receiptData.planName, 25, 95);
+    doc.text(`Rs. ${receiptData.amount}`, 160, 95);
+
+    doc.line(20, 105, 190, 105);
+
+    // Total
+    doc.setFontSize(14);
+    doc.setFont(undefined, "bold");
+    doc.text("Total Paid:", 125, 115);
+    doc.setTextColor(16, 185, 129); // Emerald Green
+    doc.text(`Rs. ${receiptData.amount}`, 160, 115);
+
+    // Footer
+    doc.setFontSize(10);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont(undefined, "normal");
+    doc.text("Thank you for choosing ExamiTop!", 20, 140);
+    doc.text("For support, contact: support.examitop@gmail.com", 20, 146);
+
+    // Save PDF
+    doc.save(`ExamiTop_Receipt_${receiptData.txId}.pdf`);
   };
 
   const handlePayment = async (
@@ -51,106 +123,149 @@ export default function PricingPage() {
       return;
     }
 
-    //   THE DEMO LOCK: Gateway Opening Soon
-    // Jab real payment on karni ho, bas in 5 lines ko delete ya comment kar dena
-    setSysAlert({
-      title: "Gateway Opening Soon",
-      msg: "Our payment gateway is currently under global testing. Please contact the platform admin to exceed your token limit or upgrade your plan.",
-      type: "warning",
-    });
-    return;
-    // 🛑 Execution yahi ruk jayega. Real Razorpay aage hai.
-
     setIsProcessingPayment(true);
-    const res = await loadRazorpayScript(
-      "https://checkout.razorpay.com/v1/checkout.js",
-    );
-    if (!res) {
+
+    try {
+      // 1. Backend se Secure Order ID generate karwana
+      const orderRes = await fetch("/api/razorpay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      const orderData = await orderRes.json();
+
+      if (!orderRes.ok) throw new Error("Failed to create order");
+
+      // 2. Razorpay Script Load karna
+      const res = await loadRazorpayScript(
+        "https://checkout.razorpay.com/v1/checkout.js",
+      );
+      if (!res) {
+        setSysAlert({
+          title: "Network Error",
+          msg: "Failed to load payment gateway. Check your internet.",
+          type: "error",
+        });
+        setIsProcessingPayment(false);
+        return;
+      }
+
+      // 3. Payment Gateway Open karna
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: amount * 100,
+        currency: "INR",
+        name: "ExamiTop Engine",
+        description: makeUnlimited
+          ? "1 Year Unlimited Pro Access"
+          : `${tokensToAdd} Premium Test Tokens`,
+        image: "/logo.png",
+        order_id: orderData.id,
+        handler: async function (response) {
+          try {
+            // 🚨 THE SAFETY NET: Verify signature strictly in backend before DB update
+            const verifyRes = await fetch("/api/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+            const verifyData = await verifyRes.json();
+
+            if (!verifyData.success) {
+              throw new Error("Security breach: Payment signature mismatch.");
+            }
+
+            // 4. Payment 100% Verify ho gayi! Ab Firebase update karo
+            const userRef = ref(database, `users/${currentUser.uid}`);
+            const snapshot = await get(userRef);
+            const userData = snapshot.val() || {};
+
+            let currentQuota = userData.available_quota || 0;
+            const history = userData.billingHistory || [];
+            const now = new Date().toISOString();
+
+            const newRecord = {
+              date: now,
+              plan: planName,
+              tokensAdded: tokensToAdd,
+              type: makeUnlimited ? "Subscription" : "Tokens",
+              source: "Razorpay Gateway",
+              paymentId: response.razorpay_payment_id,
+            };
+
+            let updates = {
+              billingHistory: [newRecord, ...history],
+              last_upgrade_date: now,
+              last_upgrade_plan: planName,
+            };
+
+            if (makeUnlimited) {
+              updates.is_unlimited = true;
+              const expiry = new Date();
+              expiry.setFullYear(expiry.getFullYear() + 1);
+              updates.unlimited_expiry_date = expiry.toISOString();
+            } else {
+              updates.available_quota = currentQuota + tokensToAdd;
+            }
+
+            await update(userRef, updates);
+
+            // Yahan update karna hai (Line 135 ke aas-pass)
+            setSysAlert({
+              title: "Payment Successful! 🎉",
+              msg: `Transaction ID: ${response.razorpay_payment_id}. Your account has been upgraded.`,
+              type: "success",
+              receiptData: {
+                txId: response.razorpay_payment_id,
+                amount: amount,
+                planName: planName,
+                date: new Date().toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                }),
+              },
+              action: () => {
+                window.location.href = "/tests";
+              },
+            });
+          } catch (error) {
+            setSysAlert({
+              title: "Verification Error",
+              msg: "Payment verification failed. If money was deducted, contact support.",
+              type: "error",
+            });
+          }
+        },
+        prefill: {
+          name: currentUser?.displayName || "Examiner",
+          email: currentUser?.email || "",
+        },
+        theme: { color: "#185FA5" },
+        modal: {
+          ondismiss: function () {
+            setIsProcessingPayment(false);
+          },
+        },
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+    } catch (error) {
+      console.error(error);
       setSysAlert({
-        title: "Network Error",
-        msg: "Failed to load payment gateway. Check your internet.",
+        title: "Server Error",
+        msg: "Could not initialize secure payment. Try again later.",
         type: "error",
       });
       setIsProcessingPayment(false);
-      return;
     }
-
-    const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-      amount: amount * 100,
-      currency: "INR",
-      name: "ExamiTop Engine",
-      description: makeUnlimited
-        ? "1 Year Unlimited Pro Access"
-        : `${tokensToAdd} Premium Test Tokens`,
-      image: "/logo.png",
-      handler: async function (response) {
-        try {
-          const userRef = ref(database, `users/${currentUser.uid}`);
-          const snapshot = await get(userRef);
-          const userData = snapshot.val() || {};
-
-          let currentQuota = userData.available_quota || 0;
-          const history = userData.billingHistory || [];
-          const now = new Date().toISOString();
-
-          const newRecord = {
-            date: now,
-            plan: planName,
-            tokensAdded: tokensToAdd,
-            type: makeUnlimited ? "Subscription" : "Tokens",
-            source: "Razorpay Gateway",
-            paymentId: response.razorpay_payment_id,
-          };
-
-          let updates = {
-            billingHistory: [newRecord, ...history],
-            last_upgrade_date: now,
-            last_upgrade_plan: planName,
-          };
-
-          if (makeUnlimited) {
-            updates.is_unlimited = true;
-            const expiry = new Date();
-            expiry.setFullYear(expiry.getFullYear() + 1);
-            updates.unlimited_expiry_date = expiry.toISOString();
-          } else {
-            updates.available_quota = currentQuota + tokensToAdd;
-          }
-
-          await update(userRef, updates);
-
-          setSysAlert({
-            title: "Payment Successful! 🎉",
-            msg: `Transaction ID: ${response.razorpay_payment_id}. Your account has been upgraded.`,
-            type: "success",
-            action: () => router.push("/tests"),
-          });
-        } catch (error) {
-          setSysAlert({
-            title: "Database Error",
-            msg: "Payment received but failed to update quota. Contact support.",
-            type: "error",
-          });
-        }
-      },
-      prefill: {
-        name: currentUser?.displayName || "Examiner",
-        email: currentUser?.email || "",
-      },
-      theme: { color: "#185FA5" },
-      modal: {
-        ondismiss: function () {
-          setIsProcessingPayment(false);
-        },
-      },
-    };
-
-    const paymentObject = new window.Razorpay(options);
-    paymentObject.open();
   };
 
-  // Premium Loading State
   if (authLoading || !currentUser) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
@@ -170,7 +285,6 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 animate-[fadeIn_0.4s_ease]">
-      {/* Hero Section */}
       <div className="bg-gradient-to-br from-[#185FA5] to-[#0A2E5C] pt-20 pb-32 px-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
         <div className="w-96 h-96 bg-blue-400/20 rounded-full absolute -top-20 -right-20 blur-3xl"></div>
@@ -190,9 +304,7 @@ export default function PricingPage() {
         </div>
       </div>
 
-      {/* Pricing Cards Section */}
       <div className="max-w-6xl mx-auto px-4 -mt-20 relative z-20">
-        {/* Current Balance Banner */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8 max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div>
             <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-1">
@@ -220,7 +332,6 @@ export default function PricingPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-          {/* Plan 1: Starter */}
           <div className="bg-white border-2 border-slate-200 rounded-3xl p-8 flex flex-col transition-all duration-300 ease-out hover:-translate-y-3 hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)] hover:border-blue-400 group cursor-pointer relative">
             <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 text-2xl mb-4 group-hover:text-blue-500 transition-colors border border-slate-100">
               <i className="ti ti-rocket"></i>
@@ -269,7 +380,6 @@ export default function PricingPage() {
             </button>
           </div>
 
-          {/* Plan 2: Growth (Highlighted) */}
           <div className="bg-white border-2 border-[#185FA5] rounded-3xl p-8 flex flex-col relative transition-all duration-300 ease-out hover:-translate-y-3 hover:shadow-[0_20px_40px_rgba(24,95,165,0.15)] group cursor-pointer">
             <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#185FA5] text-white text-[11px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-md">
               Most Popular
@@ -321,7 +431,6 @@ export default function PricingPage() {
             </button>
           </div>
 
-          {/* Plan 3: Unlimited VIP */}
           <div className="bg-gradient-to-b from-[#111827] to-[#020617] border-2 border-slate-800 rounded-3xl p-8 flex flex-col relative transition-all duration-300 ease-out hover:-translate-y-3 hover:shadow-[0_20px_40px_rgba(212,175,55,0.15)] hover:border-[#D4AF37] overflow-hidden group cursor-pointer">
             <div className="absolute top-0 right-0 w-32 h-32 bg-[#D4AF37]/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-[#D4AF37] text-2xl mb-4 border border-slate-700 group-hover:bg-[#D4AF37] group-hover:text-black transition-colors relative z-10">
@@ -374,7 +483,6 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* Trust Badges / Footer */}
         <div className="mt-12 text-center border-t border-slate-200 pt-8 max-w-4xl mx-auto">
           <div className="flex flex-wrap justify-center items-center gap-6 md:gap-12 mb-6 opacity-60 grayscale">
             <div className="flex items-center gap-2 font-black text-slate-800 text-lg">
@@ -405,7 +513,17 @@ export default function PricingPage() {
 
       {/* Alert Modal */}
       {sysAlert && (
-        <div className="fixed inset-0 flex items-center justify-center p-4 z-[99999] bg-slate-900/60 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-[99999] bg-slate-900/60 backdrop-blur-sm"
+          onClick={(e) => {
+            // Drag Prevention & Timeout Logic:
+            // e.target === e.currentTarget check karta hai ki click sirf bahar (blank screen) hua hai, modal ke andar nahi
+            if (canCloseModal && e.target === e.currentTarget) {
+              if (sysAlert.action) sysAlert.action();
+              setSysAlert(null);
+            }
+          }}
+        >
           <div className="bg-white w-full max-w-md rounded-3xl p-8 text-center shadow-2xl animate-[popIn_0.3s_ease] border border-slate-100">
             <div
               className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-inner ${sysAlert.type === "success" ? "bg-emerald-50 text-emerald-500 border border-emerald-100" : sysAlert.type === "error" ? "bg-rose-50 text-rose-500 border border-rose-100" : "bg-amber-50 text-amber-500 border border-amber-100"}`}
@@ -420,15 +538,31 @@ export default function PricingPage() {
             <p className="text-[15px] text-slate-500 mb-8 font-medium leading-relaxed">
               {sysAlert.msg}
             </p>
-            <button
-              className={`w-full py-4 text-white font-black text-base rounded-xl transition-transform active:scale-95 shadow-md ${sysAlert.type === "success" ? "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20" : sysAlert.type === "error" ? "bg-rose-500 hover:bg-rose-600 shadow-rose-500/20" : "bg-[#185FA5] hover:bg-blue-700 shadow-blue-600/20"}`}
-              onClick={() => {
-                if (sysAlert.action) sysAlert.action();
-                setSysAlert(null);
-              }}
-            >
-              Acknowledge
-            </button>
+
+            {/* Modal Buttons (Receipt & Acknowledge) */}
+            <div className="flex flex-col gap-3">
+              {sysAlert.type === "success" && sysAlert.receiptData && (
+                <button
+                  className="w-full py-3.5 text-[#185FA5] font-black text-base rounded-xl border-2 border-[#185FA5] hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                  onClick={() => downloadReceipt(sysAlert.receiptData)}
+                >
+                  <i className="ti ti-file-download text-xl"></i> Download
+                  Receipt
+                </button>
+              )}
+
+              <button
+                className={`w-full py-4 text-white font-black text-base rounded-xl transition-transform active:scale-95 shadow-md ${sysAlert.type === "success" ? "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20" : sysAlert.type === "error" ? "bg-rose-500 hover:bg-rose-600 shadow-rose-500/20" : "bg-[#185FA5] hover:bg-blue-700 shadow-blue-600/20"}`}
+                onClick={() => {
+                  if (sysAlert.action) sysAlert.action();
+                  setSysAlert(null);
+                }}
+              >
+                {sysAlert.type === "success"
+                  ? "Continue to Vault"
+                  : "Acknowledge"}
+              </button>
+            </div>
           </div>
         </div>
       )}

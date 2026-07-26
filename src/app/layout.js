@@ -113,6 +113,24 @@ function Header() {
     }
   }, []);
 
+  // 3. CLICK OUTSIDE TO CLOSE SETTINGS
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Agar settingsRef hai aur jis element par click hua hai wo settingsRef ke andar nahi hai
+      if (settingsRef.current && !settingsRef.current.contains(event.target)) {
+        setIsSettingsOpen(false);
+      }
+    };
+    if (isSettingsOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isSettingsOpen]);
+
   const toggleDarkMode = () => {
     const body = document.documentElement;
     if (body.getAttribute("data-theme") === "dark") {
