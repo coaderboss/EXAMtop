@@ -663,21 +663,21 @@ function StudentPortalContent() {
       }
 
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(e => {});
+      
+      // 🔥 THE FIX: Solid Redirect Logic (No hanging UI) 🔥
+      setIsSubmitting(false); // Spinner band karo
 
       if (activeTest.resultVis === 'manual') {
           setSysModal({
               type: 'success',
               msg: 'Test Submitted Successfully! Your answers have been saved securely. Examiner will declare results later.',
               action: () => {
-                  try { router.push('/student-dashboard'); } 
-                  catch (e) { window.location.href = '/student-dashboard'; }
+                 router.replace('/student-results'); // Redirect smoothly
               }
           });
       } else {
-          setTimeout(() => {
-              try { router.push('/student-results'); } 
-              catch (e) { window.location.href = '/student-results'; }
-          }, 1500);
+          // Instant result case
+          router.replace('/student-results');
       }
 
     } catch (error) {

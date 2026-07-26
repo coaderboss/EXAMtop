@@ -35,7 +35,9 @@ export const AuthProvider = ({ children }) => {
                 role: userData.role,
                 profileLocked: userData.profileLocked || false,
                 rollNo: userData.rollNo || null,
-                examinerId: userData.examinerId || null
+                examinerId: userData.examinerId || null,
+                available_quota: userData.available_quota !== undefined ? userData.available_quota : 3, 
+                is_unlimited: userData.is_unlimited || false 
             });
           } else {
             setUserRole('student'); 
@@ -73,13 +75,15 @@ export const AuthProvider = ({ children }) => {
       let isLocked = false;
       let legalName = null;
 
-      if (!snapshot.exists()) {
+     if (!snapshot.exists()) {
         await set(userRef, {
           name: user.displayName,
           email: user.email,
           uid: user.uid,
           role: intendedRole,
-          profileLocked: false 
+          profileLocked: false,
+          available_quota: 3, 
+          is_unlimited: false 
         });
       } else {
         const userData = snapshot.val();

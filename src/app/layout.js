@@ -289,6 +289,14 @@ function Header() {
                                 </button>
                                 {currentUser && userRole !== 'guest' && (
                                     <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid var(--color-border-secondary)' }}>
+                                        
+                                        {/*Sirf Examiner ko dikhega My Plan*/}
+                                        {userRole === 'examiner' && (
+                                            <button onClick={() => { router.push('/pricing'); setIsSettingsOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'transparent', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', color: 'var(--color-text-primary)', fontSize: '13px', fontWeight: 700, borderRadius: '10px', transition: 'background 0.2s' }} onMouseOver={(e) => e.currentTarget.style.background='var(--color-background-secondary)'} onMouseOut={(e) => e.currentTarget.style.background='transparent'}>
+                                                <i className="ti ti-bolt" style={{ fontSize: '18px', color: '#185FA5' }}></i> Upgrade Plan
+                                            </button>
+                                        )}
+
                                         <button onClick={() => { setShowProfile(true); setIsSettingsOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'transparent', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', color: 'var(--color-text-primary)', fontSize: '13px', fontWeight: 700, borderRadius: '10px', transition: 'background 0.2s' }} onMouseOver={(e) => e.currentTarget.style.background='var(--color-background-secondary)'} onMouseOut={(e) => e.currentTarget.style.background='transparent'}>
                                             <i className="ti ti-user-circle" style={{ fontSize: '18px', color: '#f59e0b' }}></i> My Profile
                                         </button>

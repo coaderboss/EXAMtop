@@ -9,7 +9,7 @@ import { ref, set, update, remove, get, onValue } from 'firebase/database';
 import FigureRenderer from '../../components/FigureRenderer'; 
 import SmilesViewer from '../../components/SmilesViewer';
 
-// 🔥 THE MASTER FIX: MathJax React Re-render Protector
+// THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
   if (isBlock) return <div className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
   return <span className={className} style={style} dangerouslySetInnerHTML={{ __html: html || '' }} />;
@@ -17,7 +17,6 @@ const StaticMath = memo(({ html, isBlock, style, className }) => {
 
 export default function ManageTests() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
-  //  THE FIX: Naye On-Demand fetch functions ko destructure kiya hai
   const { tests, setTests, loadingData, fetchMyTests } = useData();
   const router = useRouter();
 
@@ -481,6 +480,20 @@ export default function ManageTests() {
     link.href = url;
     link.download = `${t.title.replace(/ /g, "_")}_Results.csv`;
     link.click();
+  };
+
+  const toggleRankPublish = async (t) => {
+    try {
+      const newState = !t.ranksPublished;
+      await updateTestGlobal({ ...t, ranksPublished: newState });
+      setSysAlert({ 
+          title: newState ? 'Ranks Published' : 'Ranks Hidden', 
+          msg: newState ? 'Students can now view their leaderboard rank.' : 'Leaderboard rank is now hidden from students.', 
+          type: 'success' 
+      });
+    } catch (e) { 
+      setSysAlert({ title: 'Error', msg: 'Failed to update rank visibility.', type: 'error' }); 
+    }
   };
 
   const printTestPaper = (t) => {
@@ -1670,7 +1683,7 @@ export default function ManageTests() {
                           </h3>
                       </div>
                       
-                      <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                           {/* Search Bar */}
                           <div className="relative flex-1 sm:min-w-[260px]">
                               <i className="ti ti-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none"></i>
@@ -1682,6 +1695,16 @@ export default function ManageTests() {
                                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm" 
                               />
                           </div>
+                          
+                          {/* 🔥 NAYA: Publish Ranks Button 🔥 */}
+                          <button 
+                              className={`flex items-center justify-center gap-2 px-5 py-2.5 font-bold text-[13px] sm:text-sm rounded-xl transition-colors active:scale-95 shadow-sm whitespace-nowrap border ${selectedTest.ranksPublished ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'}`} 
+                              onClick={() => toggleRankPublish(selectedTest)}
+                          >
+                              <i className={`ti ${selectedTest.ranksPublished ? 'ti-eye-off' : 'ti-medal'} text-lg`}></i> 
+                              {selectedTest.ranksPublished ? 'Hide Ranks' : 'Publish Ranks'}
+                          </button>
+
                           {/* Export CSV Button */}
                           <button 
                               className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[13px] sm:text-sm rounded-xl hover:bg-emerald-100 transition-colors active:scale-95 shadow-sm whitespace-nowrap" 
@@ -1731,12 +1754,15 @@ export default function ManageTests() {
                                           
                                           {/* Status / Score display */}
                                           <div className="text-left sm:text-right shrink-0">
-                                              {s.evaluated || selectedTest.resultVis === 'instant' ? (
+                                              {/* Added 'selectedTest.released' condition */}
+                                              {s.evaluated || selectedTest.resultVis === 'instant' || selectedTest.released ? (
                                                   <div className="flex flex-col items-start sm:items-end">
                                                       <div className="text-[16px] sm:text-[18px] font-black text-blue-700 leading-none mb-1.5">
                                                           {s.score} <span className="text-[11px] sm:text-[12px] font-bold text-slate-400">/ {selectedTest.totalMarks}</span>
                                                       </div>
-                                                      <div className="text-[9px] font-extrabold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1"><i className="ti ti-check"></i> Evaluated</div>
+                                                      <div className="text-[9px] font-extrabold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1">
+                                                          <i className="ti ti-check"></i> {s.evaluated ? 'Evaluated' : 'Published'}
+                                                      </div>
                                                   </div>
                                               ) : (
                                                   <div className="flex flex-col items-start sm:items-end">
@@ -1778,8 +1804,8 @@ export default function ManageTests() {
 
           {/* MODALS INLINE */}
           {modalType === 'editKey' && (
-              <div className="modal-bg" style={{ zIndex: 1000 }}>
-                  <div className="modal-box" style={{ maxWidth: '800px' }}>
+            <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 100000, background: 'rgba(15, 23, 42, 0.3)', backdropFilter: 'blur(8px)' }}>
+             <div className="modal-box" style={{ maxWidth: '800px', animation: 'popIn 0.3s ease' }}>
                       <h3 style={{ marginBottom: '1rem', color: '#185FA5', display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-key"></i> Smart Key Update</h3>
                       <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '1.5rem', lineHeight: 1.6 }}>Fix any wrong answers in your key below. When you save, all <strong>{selectedTest.submissions?.length || 0}</strong> existing student submissions will be automatically re-graded instantly.</p>
                       
@@ -1835,11 +1861,11 @@ export default function ManageTests() {
               </div>
           )}
 
-         {/* 🔥 UPGRADED EDIT SETTINGS MODAL (Ultra Premium SaaS Style) 🔥 */}
+         {/* UPGRADED EDIT SETTINGS MODAL (Ultra Premium SaaS Style)  */}
           {modalType === 'editSettings' && (
-              <div className="modal-bg flex items-center justify-center p-4" style={{ zIndex: 10000, backdropFilter: 'blur(5px)', background: 'rgba(15, 23, 42, 0.6)' }}>
-                  <div className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-[popIn_0.3s_cubic-bezier(0.16,1,0.3,1)_forwards]">
-                      
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 100000, background: 'rgba(15, 23, 42, 0.3)', backdropFilter: 'blur(8px)' }}>
+             <div className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-[popIn_0.3s_cubic-bezier(0.16,1,0.3,1)_forwards]">                      
+
                       {/* Modal Header */}
                       <div className="bg-slate-50 p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
                           <div className="flex items-center gap-3">
@@ -1951,9 +1977,9 @@ export default function ManageTests() {
           )}
 
           {/* Custom CSS Bell Curve & Analytics */}
-          {modalType === 'analytics' && (
-              <div className="modal-bg" style={{ zIndex: 1000 }}>
-                  <div className="modal-box" style={{ maxWidth: '900px' }}>
+         {modalType === 'analytics' && (
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 100000, background: 'rgba(15, 23, 42, 0.3)', backdropFilter: 'blur(8px)' }}>
+             <div className="modal-box" style={{ maxWidth: '900px', animation: 'popIn 0.3s ease' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
                           <h3 style={{ color: '#185FA5', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><i className="ti ti-chart-bar" style={{ fontSize: '24px' }}></i> Class Analytics</h3>
                           <button className="btn btn-sm" onClick={() => setModalType(null)}>Close</button>
@@ -2035,28 +2061,30 @@ export default function ManageTests() {
         // ==========================================
        <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 pb-[30vh] animate-[fadeIn_0.3s_ease]">
             
-            {/* 🔥 PREMIUM HEADER (Fixed Mobile Layout & Icon) 🔥 */}
-            <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
-                {/* Fixed Icon: Using an inline SVG so it never fails to load */}
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-[0_8px_20px_rgb(37,99,235,0.25)] shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                </div>
-                
-                <div className="flex flex-col min-w-0 justify-center">
-                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                        <h2 className="text-xl sm:text-[28px] font-black text-slate-800 tracking-tight leading-none m-0 truncate">My Tests Vault</h2>
-                        
-                        {/* Followers Pill (Moved next to title for compactness) */}
-                        <div className="bg-blue-50 text-blue-700 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold border border-blue-100 flex items-center gap-1 shadow-sm shrink-0">
-                            <i className="ti ti-users text-sm"></i>
-                            {followerCount} Followers
+           {/* 🔥 PREMIUM HEADER (Clean Mobile Layout without Badge) 🔥 */}
+            <div className="flex flex-col gap-4 mb-6 sm:mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+                    
+                    {/* Icon, Title & Followers */}
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0 w-full">
+                        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-[0_8px_20px_rgb(37,99,235,0.25)] shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                        </div>
+                        <div className="flex flex-col min-w-0 justify-center flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h2 className="text-xl sm:text-[28px] font-black text-slate-800 tracking-tight leading-none m-0 truncate">My Tests Vault</h2>
+                                <div className="bg-slate-100 text-slate-600 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold border border-slate-200 flex items-center gap-1 shadow-sm shrink-0">
+                                    <i className="ti ti-users text-sm"></i> {followerCount} Followers
+                                </div>
+                            </div>
+                            <p className="text-[12px] sm:text-[13px] font-medium text-slate-500 mt-1.5 sm:mt-2 truncate">
+                                Manage assessments, control intakes, and review results.
+                            </p>
                         </div>
                     </div>
-                    <p className="text-[12px] sm:text-[13px] font-medium text-slate-500 mt-1.5 sm:mt-2 truncate">
-                        Manage assessments, control intakes, and review results.
-                    </p>
+
                 </div>
             </div>
 
@@ -2251,30 +2279,32 @@ export default function ManageTests() {
           </div>
       )}
 
+      {/* 🔥 PREMIUM SYSTEM ALERT MODAL 🔥 */}
       {sysAlert && (
-          <div className="modal-bg" style={{ zIndex: 9999 }}>
-              <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2rem' }}>
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', margin: '0 auto 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', background: sysAlert.type === 'success' ? '#EAF3DE' : sysAlert.type === 'error' ? '#FCEBEB' : '#FEF5E5', color: sysAlert.type === 'success' ? '#3B6D11' : sysAlert.type === 'error' ? '#A32D2D' : '#d97706' }}>
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 99999, background: 'rgba(15, 23, 42, 0.3)', backdropFilter: 'blur(8px)' }}>
+              <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] p-6 sm:p-8 text-center animate-[popIn_0.3s_cubic-bezier(0.16,1,0.3,1)] border border-slate-100">
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl mx-auto mb-5 shadow-inner border ${sysAlert.type === 'success' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' : sysAlert.type === 'error' ? 'bg-rose-50 text-rose-500 border-rose-100' : 'bg-amber-50 text-amber-500 border-amber-100'}`}>
                       <i className={`ti ${sysAlert.type === 'success' ? 'ti-check' : sysAlert.type === 'error' ? 'ti-x' : 'ti-alert-triangle'}`}></i>
                   </div>
-                  <h3 style={{ fontSize: '20px', marginBottom: '10px' }}>{sysAlert.title}</h3>
-                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', lineHeight: 1.5 }}>{sysAlert.msg}</p>
-                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }} onClick={() => setSysAlert(null)}>Okay</button>
+                  <h3 className="text-xl font-black text-slate-800 mb-2 tracking-tight">{sysAlert.title}</h3>
+                  <p className="text-sm font-semibold text-slate-500 mb-6 leading-relaxed">{sysAlert.msg}</p>
+                  <button className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95" onClick={() => setSysAlert(null)}>Okay, Got it</button>
               </div>
           </div>
       )}
 
+      {/* 🔥 PREMIUM SYSTEM CONFIRM MODAL 🔥 */}
       {sysConfirm && (
-          <div className="modal-bg" style={{ zIndex: 9999 }}>
-              <div className="modal-box" style={{ maxWidth: '400px', textAlign: 'center', padding: '2rem' }}>
-                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', margin: '0 auto 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', background: '#FCEBEB', color: '#A32D2D' }}>
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 99999, background: 'rgba(15, 23, 42, 0.3)', backdropFilter: 'blur(8px)' }}>
+              <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] p-6 sm:p-8 text-center animate-[popIn_0.3s_cubic-bezier(0.16,1,0.3,1)] border border-slate-100">
+                  <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-500 border border-rose-100 flex items-center justify-center text-3xl mx-auto mb-5 shadow-inner">
                       <i className="ti ti-alert-circle"></i>
                   </div>
-                  <h3 style={{ fontSize: '20px', marginBottom: '10px' }}>{sysConfirm.title}</h3>
-                  <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', lineHeight: 1.5 }}>{sysConfirm.msg}</p>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                      <button className="btn" style={{ flex: 1, justifyContent: 'center', padding: '12px' }} onClick={() => setSysConfirm(null)}>Cancel</button>
-                      <button className="btn btn-danger" style={{ flex: 1, justifyContent: 'center', padding: '12px' }} onClick={() => { sysConfirm.action(); setSysConfirm(null); }}>Yes, Proceed</button>
+                  <h3 className="text-xl font-black text-slate-800 mb-2 tracking-tight">{sysConfirm.title}</h3>
+                  <p className="text-sm font-semibold text-slate-500 mb-6 leading-relaxed">{sysConfirm.msg}</p>
+                  <div className="flex gap-3">
+                      <button className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[15px] rounded-xl transition-all active:scale-95" onClick={() => setSysConfirm(null)}>Cancel</button>
+                      <button className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-rose-600/20 transition-all active:scale-95" onClick={() => { sysConfirm.action(); setSysConfirm(null); }}>Yes, Proceed</button>
                   </div>
               </div>
           </div>

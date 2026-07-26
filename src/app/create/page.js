@@ -47,6 +47,15 @@ export default function CreateTest() {
   const [pendingDraft, setPendingDraft] = useState(null); 
   const [successModal, setSuccessModal] = useState(null); // Custom popup state
 
+  //  Limit Exceeded Modal State
+  const [limitExceededModal, setLimitExceededModal] = useState(false);
+  const [isProcessingSave, setIsProcessingSave] = useState(false);
+
+  //Pre-fetch Quota State 
+  const [userQuota, setUserQuota] = useState(3);
+  const [isUnlimited, setIsUnlimited] = useState(false);
+  const [isFetchingQuota, setIsFetchingQuota] = useState(true);
+
   // Questions State
   const [qList, setQList] = useState([]);
 
@@ -101,6 +110,24 @@ export default function CreateTest() {
     }, 5000);
     return () => clearInterval(interval);
   }, [title, subject, sections, duration, totalMarks, negMarking, expiryDate, access, resultVis, scoreVis, allowChange, showPalette, allowNav, randomOrder, shuffleOpts, antiCheat, fullScreenMode, qList, sectionRules, currentUser, isOffline]);
+
+
+  // 🔥 QUICK QUOTA CHECK ON MOUNT 🔥
+  useEffect(() => {
+      if (currentUser && !isOffline) {
+          const userRef = ref(database, `users/${currentUser.uid}`);
+          get(userRef).then(snap => {
+              if (snap.exists()) {
+                  const data = snap.val();
+                  setUserQuota(data.available_quota !== undefined ? data.available_quota : 3);
+                  setIsUnlimited(data.is_unlimited || false);
+              }
+              setIsFetchingQuota(false);
+          }).catch(() => setIsFetchingQuota(false));
+      } else {
+          setIsFetchingQuota(false);
+      }
+  }, [currentUser, isOffline]);
 
   // --- Handlers for Offline Mode ---
   const toggleOfflineMode = () => {
@@ -352,6 +379,12 @@ export default function CreateTest() {
   };
 
   const saveTest = () => {
+    // Early Block Agar Tokens Zero Hain
+    const hasTokens = isUnlimited || userQuota > 0;
+    if (!isOffline && !isFetchingQuota && !hasTokens) {
+        setLimitExceededModal(true);
+        return;
+    }
     //  Teeno Alerts ko SysAlert se replace kar diya
     if (!isOffline && !currentUser) { setSysAlert({ title: 'Authentication Error', msg: "Login Required! You need to log in to save this test to the cloud.", type: 'error' }); return; }
     if (!title.trim()) { setSysAlert({ title: 'Missing Field', msg: 'Please enter a test title before saving.', type: 'warning' }); return; }
@@ -380,8 +413,39 @@ export default function CreateTest() {
     proceedWithSave(totalMarks);
   };
 
-  // --- Actual DB Saving Logic ---
   const proceedWithSave = async (finalMarks) => {
+    setIsProcessingSave(true);
+
+    // 🔥 FREEMIUM QUOTA CHECK LOGIC 🔥
+    if (!isOffline && currentUser) {
+        try {
+            const userRef = ref(database, `users/${currentUser.uid}`);
+            const snapshot = await get(userRef);
+            const userData = snapshot.val() || {};
+            
+            let currentQuota = userData.available_quota !== undefined ? userData.available_quota : 3; 
+            const isUnlimited = userData.is_unlimited || false;
+            
+            if (!isUnlimited && currentQuota <= 0) {
+                setMismatchModal(null);
+                setLimitExceededModal(true); // 🔥 FIX: Trigger Naya Modal
+                setIsProcessingSave(false);
+                return; // Code yahi ruk jayega
+            }
+
+            // Agar unlimited nahi hai toh 1 Token minus karo
+            if (!isUnlimited) {
+                await set(userRef, { ...userData, available_quota: currentQuota - 1 });
+            }
+
+        } catch (err) {
+            console.error("Quota check failed", err);
+            setSysAlert({ title: 'Network Error', msg: 'Failed to verify account limits. Try again.', type: 'error' });
+            setIsProcessingSave(false);
+            return;
+        }
+    }
+
     const testCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     const parsedSections = sections.split(',').map(s => s.trim()).filter(s => s);
 
@@ -391,7 +455,7 @@ export default function CreateTest() {
       allowChange, showPalette, allowNav, randomOrder, shuffleOpts, antiCheat, fullScreenMode,
       creatorUid: isOffline ? 'offline_creator' : currentUser.uid,
       questions: qList, submissions: [], released: false, isActive: true,
-      sectionRules, // 🔥 NAYA: Database me rules save honge
+      sectionRules, 
       createdAt: new Date().toLocaleDateString('en-IN'), isLocal: isOffline
     };
 
@@ -403,7 +467,6 @@ export default function CreateTest() {
       } else {
         await runTransaction(ref(database, 'tests'), (currentTests) => {
             let testsArr = currentTests || [];
-            // Arrays ko handle karna taaki structure break na ho
             if (!Array.isArray(testsArr)) testsArr = Object.values(testsArr).filter(item => item !== null);
             testsArr.push(newTest);
             return testsArr; 
@@ -414,8 +477,13 @@ export default function CreateTest() {
       localStorage.removeItem('exam_draft_creator_' + userIdent);
 
       setMismatchModal(null);
+      setIsProcessingSave(false);
       setSuccessModal({ code: testCode, mode: isOffline ? 'Local Device' : 'Cloud' });  
-    } catch (error) { console.error(error); alert("Error saving test: " + error.message); }
+    } catch (error) { 
+        console.error(error); 
+        setIsProcessingSave(false);
+        setSysAlert({ title: 'Error', msg: error.message, type: 'error' }); 
+    }
   };
 
   if (authLoading) return <div className="spinner-container" style={{ paddingTop: '10vh' }}><div className="spinner"></div></div>;
@@ -458,9 +526,21 @@ export default function CreateTest() {
                   <i className="ti ti-upload text-lg"></i> Import <span className="hidden sm:inline">JSON</span>
                   <input type="file" accept=".json" onChange={handleImport} className="hidden" />
               </label>
-              <button className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white font-bold text-[13px] rounded-xl shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2" onClick={saveTest}>
-                  <i className="ti ti-device-floppy text-lg"></i> Save & Publish
-              </button>
+              {(() => {
+                  const hasTokens = isUnlimited || userQuota > 0;
+                  const isRed = !isOffline && !isFetchingQuota && !hasTokens;
+                  return (
+                      <button 
+                          className={`w-full sm:w-auto px-6 py-2.5 text-white font-bold text-[13px] rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait ${isRed ? 'bg-rose-600 shadow-rose-600/20 hover:bg-rose-700' : 'bg-blue-600 shadow-blue-600/20 hover:bg-blue-700'}`} 
+                          onClick={saveTest} 
+                          disabled={isProcessingSave}
+                      >
+                          {isProcessingSave ? <><i className="ti ti-loader animate-spin text-lg"></i> Processing...</> : 
+                           isRed ? <><i className="ti ti-ban text-lg"></i> Zero Tokens Left</> :
+                           <><i className="ti ti-device-floppy text-lg"></i> Save & Publish</>}
+                      </button>
+                  );
+              })()}
           </div>
       </div>
 
@@ -882,6 +962,42 @@ export default function CreateTest() {
                   <h3 className="text-xl font-black text-slate-800 mb-2 tracking-tight">{sysAlert.title}</h3>
                   <p className="text-sm font-semibold text-slate-500 mb-6 leading-relaxed">{sysAlert.msg}</p>
                   <button className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95" onClick={() => setSysAlert(null)}>Okay</button>
+              </div>
+          </div>
+      )}
+
+      {/* 🔥 THE NEW: LIMIT EXCEEDED MODAL 🔥 */}
+      {limitExceededModal && (
+          <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 999999, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)' }} onClick={() => setLimitExceededModal(false)}>
+              <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] text-center animate-[popIn_0.3s_cubic-bezier(0.16,1,0.3,1)] border border-slate-200 flex flex-col" onClick={(e) => e.stopPropagation()}>
+                  
+                  <div className="p-8 pb-6 bg-slate-50 flex flex-col items-center border-b border-slate-100">
+                      <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-4xl mb-4 border border-rose-100 shadow-inner">
+                          <i className="ti ti-ban"></i>
+                      </div>
+                      <h2 className="text-2xl font-black text-slate-800 tracking-tight m-0">Out of Tokens</h2>
+                      <p className="text-sm font-semibold text-slate-500 mt-2">
+                          You need at least <strong>1 Test Token</strong> to publish this exam. Don't worry, your test is saved as a Draft!
+                      </p>
+                  </div>
+
+                  <div className="p-6 bg-white flex flex-col gap-3">
+                      <button 
+                          className="w-full py-3.5 bg-[#185FA5] text-white font-bold text-[15px] rounded-xl shadow-md shadow-[#185FA5]/20 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center justify-center gap-2"
+                          onClick={() => {
+                              setLimitExceededModal(false);
+                              router.push('/pricing'); 
+                          }}
+                      >
+                          <i className="ti ti-rocket text-lg"></i> Upgrade Plan Now
+                      </button>
+                      <button 
+                          className="w-full py-3.5 bg-slate-100 text-slate-600 font-bold text-[15px] rounded-xl hover:bg-slate-200 transition-colors active:scale-95"
+                          onClick={() => setLimitExceededModal(false)}
+                      >
+                          Keep as Draft & Close
+                      </button>
+                  </div>
               </div>
           </div>
       )}

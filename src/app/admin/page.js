@@ -46,6 +46,11 @@ export default function GodMode() {
   const [vaultSearch, setVaultSearch] = useState('');
   const [vaultFilter, setVaultFilter] = useState('all'); // 'all', 'live', 'closed'
 
+  // 5. EXAMINER OPS STATES
+  const [examinerSearch, setExaminerSearch] = useState('');
+  const [examinerPage, setExaminerPage] = useState(1);
+  const [selectedExaminer, setSelectedExaminer] = useState(null);
+
   useEffect(() => {
     const handlePopState = () => {
         if (viewingSubsFor) {
@@ -391,6 +396,72 @@ export default function GodMode() {
       });
   };
 
+ const adminUpgradeExaminer = async (uid, planType, customTokens = 0, planName = '') => {
+      const targetUser = allUsers.find(u => u.uid === uid);
+      if (!targetUser) return;
+
+      let updates = {};
+      let msg = '';
+      const now = new Date().toISOString();
+
+      // 🔥 NAYA: History Record Prepare Karo 🔥
+      const history = targetUser.billingHistory || [];
+      const newRecord = {
+          date: now,
+          plan: planName,
+          tokensAdded: customTokens,
+          type: planType === 'revoke' ? 'Revoke' : (planType === 'unlimited' ? 'Subscription' : 'Tokens'),
+          source: 'Admin Override' // Aage chal ke jab Razorpay live hoga, toh yahan 'Razorpay API' likha aayega
+      };
+
+      if (planType === 'unlimited') {
+          const expiry = new Date();
+          expiry.setFullYear(expiry.getFullYear() + 1); // 1 Year from now
+          updates = { 
+              is_unlimited: true, 
+              unlimited_expiry_date: expiry.toISOString(),
+              last_upgrade_date: now,
+              last_upgrade_plan: planName,
+              billingHistory: [newRecord, ...history] // Naya record sabse upar
+          };
+          msg = `Granted 1-Year UNLIMITED PRO to ${targetUser.name || targetUser.email}`;
+      } else if (planType === 'revoke') {
+          updates = { 
+              is_unlimited: false, 
+              unlimited_expiry_date: null,
+              billingHistory: [newRecord, ...history]
+          };
+          msg = `Revoked UNLIMITED PRO access from ${targetUser.name || targetUser.email}`;
+      } else {
+          const current = targetUser.available_quota || 0;
+          updates = { 
+              available_quota: current + customTokens,
+              last_upgrade_date: now,
+              last_upgrade_plan: planName,
+              billingHistory: [newRecord, ...history]
+          };
+          msg = `Added ${customTokens} Tokens to ${targetUser.name || targetUser.email}`;
+      }
+
+      setSysConfirm({
+          title: 'OVERRIDE PLAN?',
+          msg: `Execute manual billing override?\nACTION: ${msg}`,
+          action: async () => {
+              try {
+                  await update(ref(database, `users/${uid}`), updates);
+                  // Update Local State instantly
+                  setAllUsers(prev => prev.map(u => u.uid === uid ? { ...u, ...updates } : u));
+                  if (selectedExaminer && selectedExaminer.uid === uid) {
+                      setSelectedExaminer({ ...selectedExaminer, ...updates });
+                  }
+                  setSysAlert({ title: 'Upgrade Successful', msg: msg, type: 'success' });
+              } catch (e) {
+                  setSysAlert({ title: 'Error', msg: 'Failed to force upgrade.', type: 'error' });
+              }
+          }
+      });
+  };
+
   const deleteGlobalTest = (t) => {
       setSysConfirm({
           title: 'ERADICATE TEST?',
@@ -613,6 +684,7 @@ export default function GodMode() {
                 { id: 'pulse', icon: 'ti-activity-heartbeat', label: 'System Pulse' },
                 { id: 'analytics', icon: 'ti-chart-pie', label: 'Analytics' },
                 { id: 'users', icon: 'ti-users-group', label: 'Citizen Matrix' },
+                { id: 'examiners', icon: 'ti-briefcase', label: 'Examiners Ops' }, // 🔥 NAYA TAB
                 { id: 'tests', icon: 'ti-database', label: 'Global Vault' },
                 { id: 'radar', icon: 'ti-radar', label: 'Radar Ops' }
             ].map(tab => (
@@ -1172,6 +1244,232 @@ export default function GodMode() {
                                         );
                                     })()}
                                 </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ============================== */}
+                {/* TAB 6: EXAMINERS OPS (NEW)     */}
+                {/* ============================== */}
+                {activeTab === 'examiners' && (
+                    <div className="space-y-6 md:space-y-8 animate-[fadeIn_0.3s_ease]">
+                        
+                        {selectedExaminer ? (
+                            /* --- EXAMINER DETAIL & UPGRADE VIEW --- */
+                            <div className="bg-white border-2 border-[#185FA5] rounded-3xl p-6 md:p-8 shadow-xl animate-[fadeIn_0.3s_ease]">
+                                <button className="mb-6 px-4 py-2 font-black text-[#185FA5] bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2" onClick={() => setSelectedExaminer(null)}>
+                                    <i className="ti ti-arrow-left"></i> BACK TO EXAMINERS
+                                </button>
+                                
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    {/* Educator Profile & Stats */}
+                                    <div className="lg:col-span-1 flex flex-col gap-6">
+                                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex flex-col items-center text-center shadow-sm">
+                                            <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl font-black shadow-inner mb-4 border border-blue-200">
+                                                {selectedExaminer.name ? selectedExaminer.name.charAt(0).toUpperCase() : 'E'}
+                                            </div>
+                                            <h2 className="text-xl font-black text-slate-900 m-0">{selectedExaminer.legalName || selectedExaminer.name}</h2>
+                                            <div className="text-sm text-slate-500 font-mono font-bold mt-1">{selectedExaminer.email}</div>
+                                            <div className="mt-4 inline-flex items-center gap-1.5 bg-[#0B0F19] text-[#D4AF37] px-3 py-1.5 rounded-lg text-xs font-black tracking-widest uppercase">
+                                                <i className="ti ti-id"></i> {selectedExaminer.uid.substring(0,8)}
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-white border border-slate-200 p-4 rounded-xl text-center shadow-sm">
+                                                <i className="ti ti-files text-2xl text-[#185FA5] mb-2 block"></i>
+                                                <div className="text-2xl font-black text-slate-800">{allTests.filter(t => t.creatorUid === selectedExaminer.uid).length}</div>
+                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Exams Created</div>
+                                            </div>
+                                            <div className="bg-white border border-slate-200 p-4 rounded-xl text-center shadow-sm">
+                                                <i className="ti ti-coin text-2xl text-emerald-500 mb-2 block"></i>
+                                                <div className="text-2xl font-black text-slate-800">{selectedExaminer.is_unlimited ? '∞' : (selectedExaminer.available_quota || 0)}</div>
+                                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Tokens Left</div>
+                                            </div>
+                                        </div>
+
+                                        {selectedExaminer.last_upgrade_date && (
+                                            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl shadow-sm">
+                                                <div className="text-[11px] font-black text-emerald-600 uppercase tracking-widest mb-2 flex items-center gap-1.5"><i className="ti ti-history"></i> Last Upgrade History</div>
+                                                <div className="text-sm font-bold text-slate-800">{selectedExaminer.last_upgrade_plan || 'Manual Admin Override'}</div>
+                                                <div className="text-xs text-slate-500 font-mono mt-1">{new Date(selectedExaminer.last_upgrade_date).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Manual Upgrade Panel & Billing History Wrapper */}
+                                    <div className="lg:col-span-2 flex flex-col gap-6">
+                                        
+                                        {/* Admin Billing Override Panel */}
+                                        <div className="bg-[#0B0F19] rounded-2xl p-6 md:p-8 border border-slate-800 shadow-xl relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-48 h-48 bg-[#D4AF37]/10 rounded-full blur-3xl pointer-events-none"></div>
+                                            <h3 className="text-[#D4AF37] m-0 mb-6 text-xl font-black flex items-center gap-2">
+                                                <i className="ti ti-bolt text-2xl"></i> Admin Billing Override
+                                            </h3>
+
+                                            {selectedExaminer.is_unlimited ? (
+                                                <div className="bg-gradient-to-r from-[#D4AF37]/20 to-[#D4AF37]/5 border border-[#D4AF37]/40 rounded-xl p-5 mb-6">
+                                                    <div className="flex items-center gap-3 text-[#D4AF37] mb-2">
+                                                        <i className="ti ti-crown text-3xl"></i>
+                                                        <div>
+                                                            <div className="font-black text-lg">PRO UNLIMITED ACTIVE</div>
+                                                            <div className="text-sm opacity-80 font-mono">Valid until: {new Date(selectedExaminer.unlimited_expiry_date).toLocaleDateString('en-IN')}</div>
+                                                        </div>
+                                                    </div>
+                                                    <button className="mt-4 px-5 py-2.5 bg-[#8B0000] text-white font-bold rounded-lg hover:bg-red-900 transition-colors" onClick={() => adminUpgradeExaminer(selectedExaminer.uid, 'revoke', 0, 'Unlimited Access Revoked')}>Revoke Unlimited Access</button>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                                                    <button className="bg-slate-800 border border-slate-700 p-5 rounded-xl text-left hover:bg-slate-700 hover:border-blue-500 transition-all group" onClick={() => adminUpgradeExaminer(selectedExaminer.uid, 'tokens', 10, 'Starter Pack (Admin Gift)')}>
+                                                        <div className="text-[#185FA5] font-black text-lg mb-1 group-hover:text-blue-400">+10 Tokens</div>
+                                                        <div className="text-xs text-slate-400 font-semibold">Starter Pack Equiv (Free)</div>
+                                                    </button>
+                                                    <button className="bg-slate-800 border border-slate-700 p-5 rounded-xl text-left hover:bg-slate-700 hover:border-emerald-500 transition-all group" onClick={() => adminUpgradeExaminer(selectedExaminer.uid, 'tokens', 30, 'Growth Pack (Admin Gift)')}>
+                                                        <div className="text-[#10B981] font-black text-lg mb-1 group-hover:text-emerald-400">+30 Tokens</div>
+                                                        <div className="text-xs text-slate-400 font-semibold">Growth Pack Equiv (Free)</div>
+                                                    </button>
+                                                    <button className="bg-slate-800 border border-slate-700 p-5 rounded-xl text-left hover:bg-slate-700 hover:border-[#D4AF37] transition-all group sm:col-span-2" onClick={() => adminUpgradeExaminer(selectedExaminer.uid, 'unlimited', 0, '1 Year Unlimited (Admin Override)')}>
+                                                        <div className="text-[#D4AF37] font-black text-lg mb-1 flex items-center gap-2"><i className="ti ti-crown"></i> Grant 1-Year Unlimited PRO</div>
+                                                        <div className="text-xs text-slate-400 font-semibold">Full platform access for 365 days.</div>
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {/* Custom Token Injection */}
+                                            <div className="bg-slate-800/50 p-5 rounded-xl border border-slate-700/50 flex flex-col sm:flex-row gap-4 items-end">
+                                                <div className="w-full">
+                                                    <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5 block">Custom Token Injection</label>
+                                                    <input type="number" id="customTokensInput" placeholder="E.g., 5" className="w-full p-3 bg-slate-900 border border-slate-700 text-white rounded-lg outline-none focus:border-[#D4AF37]" />
+                                                </div>
+                                                <button className="px-6 py-3 bg-[#185FA5] text-white font-black rounded-lg hover:bg-blue-600 transition-colors w-full sm:w-auto" onClick={() => {
+                                                    const val = parseInt(document.getElementById('customTokensInput').value);
+                                                    if (val && val > 0) {
+                                                        adminUpgradeExaminer(selectedExaminer.uid, 'tokens', val, `Custom Injection (${val} Tokens)`);
+                                                        document.getElementById('customTokensInput').value = '';
+                                                    }
+                                                }}>Inject Tokens</button>
+                                            </div>
+                                        </div>
+
+                                        {/* 🔥 NAYA: Billing & Transaction History Panel 🔥 */}
+                                        <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm">
+                                            <h3 className="text-slate-900 m-0 mb-6 text-lg font-black flex items-center gap-2">
+                                                <i className="ti ti-receipt text-[#185FA5] text-2xl"></i> Transaction & Billing History
+                                            </h3>
+                                            
+                                            {(!selectedExaminer.billingHistory || selectedExaminer.billingHistory.length === 0) ? (
+                                                <div className="text-center py-10 bg-slate-50 border border-slate-100 rounded-xl">
+                                                    <i className="ti ti-ghost text-4xl text-slate-300 mb-3 block"></i>
+                                                    <div className="text-sm font-bold text-slate-500">No transaction history found.</div>
+                                                </div>
+                                            ) : (
+                                                <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-3">
+                                                    {selectedExaminer.billingHistory.map((txn, idx) => (
+                                                        <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-blue-200 transition-colors">
+                                                            <div>
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <div className="font-black text-slate-800 text-[15px]">{txn.plan}</div>
+                                                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${txn.source === 'Admin Override' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                                                                        {txn.source}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-[12px] font-bold text-slate-500 font-mono">
+                                                                    {new Date(txn.date).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="shrink-0 flex items-center justify-end">
+                                                                {txn.type === 'Revoke' ? (
+                                                                    <span className="text-rose-600 font-black text-sm bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200">- Access Revoked</span>
+                                                                ) : txn.type === 'Subscription' ? (
+                                                                    <span className="text-[#D4AF37] font-black text-sm bg-[#fff8e7] px-3 py-1.5 rounded-lg border border-[#D4AF37]/50 flex items-center gap-1.5"><i className="ti ti-crown text-lg"></i> 1 Year Pro</span>
+                                                                ) : (
+                                                                    <span className="text-emerald-600 font-black text-sm bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">+{txn.tokensAdded} Tokens</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            /* --- EXAMINERS LIST VIEW --- */
+                            <div className="bg-white border border-slate-200 shadow-sm p-6 md:p-8 rounded-3xl">
+                                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 border-b border-slate-100 pb-6">
+                                    <h3 className="text-slate-900 m-0 text-xl font-black flex items-center gap-2">
+                                        <i className="ti ti-briefcase text-[#185FA5]"></i> Registered Examiners
+                                    </h3>
+                                    <div className="relative w-full sm:w-[350px]">
+                                        <i className="ti ti-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search by Name, Email, or UID..." 
+                                            value={examinerSearch} 
+                                            onChange={(e) => { setExaminerSearch(e.target.value); setExaminerPage(1); }} 
+                                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-800 font-semibold rounded-xl outline-none focus:border-[#185FA5] transition-colors" 
+                                        />
+                                    </div>
+                                </div>
+
+                                {(() => {
+                                    const exList = allUsers.filter(u => u.role === 'examiner' || u.role === 'admin'); // Admins are also examiners
+                                    const filteredEx = exList.filter(u => {
+                                        const q = examinerSearch.toLowerCase().trim();
+                                        return !q || (u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.uid?.toLowerCase().includes(q) || u.legalName?.toLowerCase().includes(q));
+                                    });
+
+                                    const itemsPerPage = 8;
+                                    const totalPages = Math.ceil(filteredEx.length / itemsPerPage);
+                                    const paginatedEx = filteredEx.slice((examinerPage - 1) * itemsPerPage, examinerPage * itemsPerPage);
+
+                                    if (filteredEx.length === 0) {
+                                        return <div className="text-center py-10 text-slate-500 font-semibold bg-slate-50 rounded-xl">No examiners found matching your criteria.</div>;
+                                    }
+
+                                    return (
+                                        <>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                                                {paginatedEx.map(ex => {
+                                                    const examsCreated = allTests.filter(t => t.creatorUid === ex.uid).length;
+                                                    return (
+                                                        <div key={ex.uid} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 hover:border-[#185FA5] hover:shadow-md transition-all cursor-pointer group flex flex-col" onClick={() => setSelectedExaminer(ex)}>
+                                                            <div className="flex items-start justify-between mb-3">
+                                                                <div className="w-12 h-12 bg-white text-[#185FA5] rounded-xl flex items-center justify-center font-black text-xl shadow-sm border border-slate-100 group-hover:bg-[#185FA5] group-hover:text-white transition-colors">
+                                                                    {ex.name ? ex.name.charAt(0).toUpperCase() : 'E'}
+                                                                </div>
+                                                                {ex.is_unlimited ? (
+                                                                    <span className="bg-[#fff8e7] text-[#854F0B] border border-[#D4AF37] px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest"><i className="ti ti-crown"></i> PRO</span>
+                                                                ) : (
+                                                                    <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest">{ex.available_quota || 0} Tokens</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="font-bold text-slate-900 text-[15px] truncate">{ex.legalName || ex.name}</div>
+                                                            <div className="text-[11px] font-semibold text-slate-500 truncate mb-4">{ex.email}</div>
+                                                            <div className="mt-auto pt-3 border-t border-slate-200 flex justify-between items-center text-[11px] font-bold text-slate-400">
+                                                                <span><i className="ti ti-files"></i> {examsCreated} Exams</span>
+                                                                <span className="text-[#185FA5] opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">Manage <i className="ti ti-arrow-right"></i></span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Pagination */}
+                                            {totalPages > 1 && (
+                                                <div className="flex justify-center items-center gap-3 pt-4 border-t border-slate-100">
+                                                    <button disabled={examinerPage === 1} onClick={() => setExaminerPage(prev => prev - 1)} className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 disabled:opacity-50 transition-colors"><i className="ti ti-chevron-left"></i></button>
+                                                    <span className="text-sm font-bold text-slate-600">Page {examinerPage} of {totalPages}</span>
+                                                    <button disabled={examinerPage === totalPages} onClick={() => setExaminerPage(prev => prev + 1)} className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 disabled:opacity-50 transition-colors"><i className="ti ti-chevron-right"></i></button>
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         )}
                     </div>

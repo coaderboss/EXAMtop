@@ -317,14 +317,21 @@ export default function StudentResults() {
                   /* 🔥 PHONE-OPTIMIZED CARD: Now stacks on mobile and spreads on laptop */
                   <div 
                     key={idx} 
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-xl transition-all w-full" 
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-xl w-full" 
                     style={{ 
                         opacity: 0,
-                        animation: `staggerSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards${isRecent ? ', recentPulse 2s infinite' : ''}`,
+                        /* 🔥 FIX: Separated animation properties to fix React rerender console error 🔥 */
+                        animationName: isRecent ? 'staggerSlide, recentPulse' : 'staggerSlide',
+                        animationDuration: isRecent ? '0.4s, 2s' : '0.4s',
+                        animationTimingFunction: isRecent ? 'cubic-bezier(0.16, 1, 0.3, 1), ease' : 'cubic-bezier(0.16, 1, 0.3, 1)',
+                        animationFillMode: 'forwards, none',
+                        animationIterationCount: isRecent ? '1, infinite' : '1',
                         animationDelay: `${idx * 0.05}s, 0s`,
                         borderLeft: h.canView ? '4px solid #185FA5' : '4px solid #f59e0b',
-                        background: isRecent ? '#f0f7ff' : 'var(--color-background-primary)',
-                        border: isRecent ? '1px solid #185FA5' : '1px solid var(--color-border-secondary)'
+                        backgroundColor: isRecent ? '#f0f7ff' : 'var(--color-background-primary)',
+                        borderTop: isRecent ? '1px solid #185FA5' : '1px solid var(--color-border-secondary)',
+                        borderRight: isRecent ? '1px solid #185FA5' : '1px solid var(--color-border-secondary)',
+                        borderBottom: isRecent ? '1px solid #185FA5' : '1px solid var(--color-border-secondary)'
                     }}
                   >
                     <div className="flex-1 w-full">
@@ -337,7 +344,13 @@ export default function StudentResults() {
                         </div>
                         <div className="flex gap-3 sm:gap-4 mt-2 text-[12px] sm:text-[13px] text-slate-500 flex-wrap">
                             <span className="flex items-center gap-1.5"><i className="ti ti-calendar-time text-[14px]"></i> {h.sub.time}</span>
-                            <span className="font-bold text-blue-600 flex items-center gap-1.5"><i className="ti ti-target text-[14px]"></i> Score: {h.sub.score} / {h.test.totalMarks}</span>
+                            
+                            {/* 🔥 FIX: Score sirf tabhi dikhega jab Test resultVis === 'instant' ho ya released === true ho 🔥 */}
+                            {h.canView ? (
+                                <span className="font-bold text-blue-600 flex items-center gap-1.5"><i className="ti ti-target text-[14px]"></i> Score: {h.sub.score} / {h.test.totalMarks}</span>
+                            ) : (
+                                <span className="font-bold text-amber-600 flex items-center gap-1.5"><i className="ti ti-lock text-[14px]"></i> Score Hidden</span>
+                            )}
                         </div>
                     </div>
                     
@@ -498,6 +511,9 @@ export default function StudentResults() {
           const percentage = test.totalMarks > 0 ? ((sub.score / test.totalMarks) * 100).toFixed(1) : 0;
           const accuracyCalc = totalAttempted > 0 ? ((sub.correct / totalAttempted) * 100).toFixed(1) : 0;
           const attemptRate = totalQs > 0 ? ((totalAttempted / totalQs) * 100).toFixed(1) : 0;
+          const allScores = test.submissions ? test.submissions.map(s => s.score) : [];
+          const myRank = allScores.filter(score => score > sub.score).length + 1;
+          const totalParticipants = allScores.length;
           
           // Negative Marks Calculation
           const negMarks = (sub.wrong * (test.negMarking || 0)).toFixed(2);
@@ -568,6 +584,19 @@ export default function StudentResults() {
                               {sub.score} <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 600 }}>/ {test.totalMarks}</span>
                           </div>
                       </div>
+
+                      {/*Class Rank Card (Only if Examiner Published Ranks)*/}
+                      {test.ranksPublished && (
+                          <div style={{ flex: '0 0 auto', minWidth: '150px', background: 'linear-gradient(135deg, #6366f1, #4338ca)', padding: '12px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 10px rgba(99,102,241,0.2)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}><i className="ti ti-medal"></i></div>
+                                  <div style={{ fontSize: '11px', color: '#e0e7ff', fontWeight: 700, textTransform: 'uppercase' }}>Your Rank</div>
+                              </div>
+                              <div style={{ fontSize: '22px', fontWeight: 800 }}>
+                                  {myRank} <span style={{ fontSize: '14px', color: '#a5b4fc', fontWeight: 600 }}>/ {totalParticipants}</span>
+                              </div>
+                          </div>
+                      )}
 
                       {/* Overall Percentage */}
                       <div style={{ flex: '0 0 auto', minWidth: '140px', background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
