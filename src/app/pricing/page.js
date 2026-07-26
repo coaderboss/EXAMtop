@@ -436,15 +436,21 @@ export default function PricingPage() {
             <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-[#D4AF37] text-2xl mb-4 border border-slate-700 group-hover:bg-[#D4AF37] group-hover:text-black transition-colors relative z-10">
               <i className="ti ti-infinity"></i>
             </div>
-            <div className="text-sm font-black text-[#D4AF37] uppercase tracking-widest mb-2 relative z-10">
-              Unlimited VIP
+            <div className="text-sm font-black text-[#D4AF37] uppercase tracking-widest mb-2 relative z-10 flex items-center justify-between">
+              <span>Unlimited VIP</span>
+              <span className="bg-rose-500 text-white text-[9px] px-2 py-1 rounded-full animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.4)]">60% OFF - LAUNCH OFFER</span>
             </div>
-            <div className="flex items-end gap-1 mb-2 relative z-10">
-              <div className="text-5xl font-black text-white leading-none">
-                ₹199
+            <div className="flex flex-col mb-2 relative z-10">
+              <div className="text-lg font-bold text-slate-500 line-through mb-0.5">
+                ₹499
               </div>
-              <div className="text-sm font-bold text-slate-500 mb-1">
-                / Year
+              <div className="flex items-end gap-1">
+                <div className="text-5xl font-black text-white leading-none">
+                  ₹199
+                </div>
+                <div className="text-sm font-bold text-slate-400 mb-1">
+                  / Year
+                </div>
               </div>
             </div>
             <p className="text-slate-400 text-sm font-medium mb-6 h-10 relative z-10">
