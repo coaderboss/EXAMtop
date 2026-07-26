@@ -1125,9 +1125,7 @@ export default function HomePage() {
                     <i className="ti ti-mail text-lg"></i>
                   </div>
                   <span className="text-slate-400 text-sm font-medium group-hover:text-slate-300 transition-colors">
-                    hello@examitop.app
-                    <br />
-                    support@examitop.app
+                    support.examitop@gmail.com
                   </span>
                 </li>
                 <li className="flex items-start gap-3 group cursor-pointer">
@@ -1135,9 +1133,9 @@ export default function HomePage() {
                     <i className="ti ti-map-pin text-lg"></i>
                   </div>
                   <span className="text-slate-400 text-sm font-medium group-hover:text-slate-300 transition-colors">
-                    ExamiTop Global HQ
+                    ExamiTop 
                     <br />
-                    Cyber City, Bangalore
+                    Mainpuri, Uttar Pradesh
                   </span>
                 </li>
               </ul>
