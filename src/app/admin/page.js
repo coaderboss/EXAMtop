@@ -57,6 +57,9 @@ export default function GodMode() {
   const [examinerPage, setExaminerPage] = useState(1);
   const [selectedExaminer, setSelectedExaminer] = useState(null);
 
+  // NAYA STATE: Error Logs ke liye
+  const [systemErrors, setSystemErrors] = useState([]);
+
   useEffect(() => {
     const handlePopState = () => {
       if (viewingSubsFor) {
@@ -100,6 +103,23 @@ export default function GodMode() {
         setPlatformInstalls(statsSnap.exists() ? statsSnap.val() : 42);
       } catch (err) {
         setPlatformInstalls(42);
+      }
+
+      // FETCH SYSTEM ERRORS
+      try {
+        const errorsSnap = await get(ref(database, "system_errors"));
+        let eData = [];
+        if (errorsSnap.exists()) {
+          const rawErrors = errorsSnap.val();
+          Object.keys(rawErrors).forEach((key) => {
+            eData.push({ ...rawErrors[key], id: key });
+          });
+        }
+        // Sabse nayi error sabse upar
+        eData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setSystemErrors(eData);
+      } catch (err) {
+        console.error("Failed to fetch errors", err);
       }
 
       try {
@@ -600,6 +620,22 @@ export default function GodMode() {
     });
   };
 
+  const markErrorResolved = async (errorId) => {
+    try {
+      await update(ref(database, `system_errors/${errorId}`), { status: "resolved" });
+      setSystemErrors((prev) =>
+        prev.map((e) => (e.id === errorId ? { ...e, status: "resolved" } : e))
+      );
+      setSysAlert({
+        title: "Error Resolved",
+        msg: "The system error has been marked as resolved.",
+        type: "success",
+      });
+    } catch (e) {
+      setSysAlert({ title: "Failed", msg: "Could not update error status.", type: "error" });
+    }
+  };
+
   const adminUpgradeExaminer = async (
     uid,
     planType,
@@ -613,19 +649,23 @@ export default function GodMode() {
     let msg = "";
     const now = new Date().toISOString();
 
-    //   NAYA: History Record Prepare Karo  
+    // NAYA: TXN ID and Amount generation
     const history = targetUser.billingHistory || [];
+    const generateTxnId = () => "TXN" + Date.now().toString().slice(-6) + Math.random().toString(36).substring(2, 6).toUpperCase();
+    
+    // Amount decide karo (Admin override hai isliye actual money nahi katti, par bill jaisa dikhega)
+    let estimatedAmount = 0;
+    if (planType === "unlimited") estimatedAmount = 199; // Unlimited plan price
+    else if (planType === "tokens") estimatedAmount = customTokens * 5; // Basic logic: Rs 5 per token
+
     const newRecord = {
+      txnId: generateTxnId(),
+      amount: estimatedAmount,
       date: now,
       plan: planName,
       tokensAdded: customTokens,
-      type:
-        planType === "revoke"
-          ? "Revoke"
-          : planType === "unlimited"
-            ? "Subscription"
-            : "Tokens",
-      source: "Admin Override", // Aage chal ke jab Razorpay live hoga, toh yahan 'Razorpay API' likha aayega
+      type: planType === "revoke" ? "Revoke" : planType === "unlimited" ? "Subscription" : "Tokens",
+      source: "Admin Override", 
     };
 
     if (planType === "unlimited") {
@@ -1048,6 +1088,7 @@ export default function GodMode() {
           { id: "examiners", icon: "ti-briefcase", label: "Examiners Ops" }, //   NAYA TAB
           { id: "tests", icon: "ti-database", label: "Global Vault" },
           { id: "radar", icon: "ti-radar", label: "Radar Ops" },
+          { id: "logs", icon: "ti-bug", label: "System Logs" },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -2176,46 +2217,44 @@ export default function GodMode() {
                             </div>
                           </div>
                         ) : (
-                          <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-3">
+                          <div className="max-h-[400px] overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-4">
                             {selectedExaminer.billingHistory.map((txn, idx) => (
                               <div
                                 key={idx}
-                                className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-blue-200 transition-colors"
+                                className="p-4 sm:p-5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col md:flex-row justify-between md:items-center gap-4 hover:border-[#185FA5] transition-colors"
                               >
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <div className="font-black text-slate-800 text-[15px]">
+                                <div className="flex-1">
+                                  <div className="flex flex-wrap items-center gap-2.5 mb-2">
+                                    <div className="font-black text-slate-900 text-[15px] sm:text-[16px]">
                                       {txn.plan}
                                     </div>
                                     <span
-                                      className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${txn.source === "Admin Override" ? "bg-amber-100 text-amber-700 border border-amber-200" : "bg-emerald-100 text-emerald-700 border border-emerald-200"}`}
+                                      className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0 ${txn.source === "Admin Override" ? "bg-amber-100 text-amber-700 border border-amber-200" : "bg-emerald-100 text-emerald-700 border border-emerald-200"}`}
                                     >
                                       {txn.source}
                                     </span>
                                   </div>
-                                  <div className="text-[12px] font-bold text-slate-500 font-mono">
-                                    {new Date(txn.date).toLocaleString(
-                                      "en-IN",
-                                      {
-                                        dateStyle: "medium",
-                                        timeStyle: "short",
-                                      },
-                                    )}
+                                  <div className="flex flex-wrap items-center gap-3 text-[11px] sm:text-[12px] font-bold text-slate-500 font-mono bg-white px-3 py-1.5 rounded-lg border border-slate-200 w-fit">
+                                    <span className="text-[#185FA5]"><i className="ti ti-fingerprint"></i> {txn.txnId || 'TXN-LEGACY'}</span>
+                                    <span className="hidden sm:inline text-slate-300">|</span>
+                                    <span><i className="ti ti-clock"></i> {new Date(txn.date).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</span>
                                   </div>
                                 </div>
 
-                                <div className="shrink-0 flex items-center justify-end">
+                                <div className="shrink-0 flex items-center justify-between md:justify-end w-full md:w-auto gap-4 pt-3 md:pt-0 border-t border-slate-200 md:border-0 mt-2 md:mt-0">
+                                  <div className="text-xl sm:text-2xl font-black text-slate-800">
+                                    ₹{txn.amount || 0}
+                                  </div>
                                   {txn.type === "Revoke" ? (
-                                    <span className="text-rose-600 font-black text-sm bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200">
+                                    <span className="text-rose-600 font-black text-xs sm:text-sm bg-rose-50 px-4 py-2 rounded-xl border border-rose-200">
                                       - Access Revoked
                                     </span>
                                   ) : txn.type === "Subscription" ? (
-                                    <span className="text-[#D4AF37] font-black text-sm bg-[#fff8e7] px-3 py-1.5 rounded-lg border border-[#D4AF37]/50 flex items-center gap-1.5">
-                                      <i className="ti ti-crown text-lg"></i> 1
-                                      Year Pro
+                                    <span className="text-[#D4AF37] font-black text-xs sm:text-sm bg-[#fff8e7] px-4 py-2 rounded-xl border border-[#D4AF37]/50 flex items-center gap-1.5">
+                                      <i className="ti ti-crown text-lg"></i> 1 Year Pro
                                     </span>
                                   ) : (
-                                    <span className="text-emerald-600 font-black text-sm bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                                    <span className="text-emerald-600 font-black text-xs sm:text-sm bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200">
                                       +{txn.tokensAdded} Tokens
                                     </span>
                                   )}
@@ -2361,6 +2400,45 @@ export default function GodMode() {
                       </>
                     );
                   })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ============================== */}
+          {/* TAB 7: SYSTEM ERROR LOGS       */}
+          {/* ============================== */}
+          {activeTab === "logs" && (
+            <div className="bg-white border border-slate-200 p-6 md:p-8 rounded-3xl shadow-sm animate-[fadeIn_0.3s_ease]">
+              <h3 className="text-slate-900 m-0 mb-6 text-xl font-black flex items-center gap-2">
+                <i className="ti ti-bug text-[#A32D2D]"></i> System Error Logs
+              </h3>
+              {systemErrors.length === 0 ? (
+                <div className="text-center py-12 bg-emerald-50 rounded-2xl border border-emerald-100">
+                  <i className="ti ti-shield-check text-5xl text-emerald-500 mb-3 block"></i>
+                  <div className="font-bold text-emerald-700 text-lg">System is 100% stable. No errors logged.</div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+                  {systemErrors.map((err) => (
+                    <div key={err.id} className={`p-5 rounded-2xl border-l-4 flex flex-col md:flex-row justify-between md:items-center gap-4 ${err.status === 'resolved' ? 'bg-slate-50 border-emerald-400' : 'bg-red-50 border-red-500'}`}>
+                      <div className="flex-1 overflow-hidden">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md ${err.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-500 text-white shadow-sm shadow-red-500/30'}`}>
+                            {err.status}
+                          </span>
+                          <span className="text-xs font-bold text-slate-500"><i className="ti ti-clock"></i> {new Date(err.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div className="font-black text-slate-800 text-[15px] mb-1.5 break-words">{err.message}</div>
+                        <div className="text-xs text-slate-500 font-mono break-words bg-white/50 p-2 rounded-lg border border-slate-200/50">{err.url}</div>
+                      </div>
+                      {err.status !== 'resolved' && (
+                        <button onClick={() => markErrorResolved(err.id)} className="px-5 py-2.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-500 hover:text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shrink-0 active:scale-95">
+                          <i className="ti ti-check"></i> Mark Resolved
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
