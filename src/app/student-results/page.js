@@ -1007,9 +1007,15 @@ export default function StudentResults() {
             : 0;
         const attemptRate =
           totalQs > 0 ? ((totalAttempted / totalQs) * 100).toFixed(1) : 0;
-        const allScores = test.submissions
-          ? test.submissions.map((s) => s.score)
-          : [];
+        // FIX: Ensure submissions is an Array before calling map
+        let parsedSubmissions = [];
+        if (test.submissions) {
+          parsedSubmissions = Array.isArray(test.submissions)
+            ? test.submissions
+            : Object.values(test.submissions);
+        }
+
+        const allScores = parsedSubmissions.map((s) => s?.score || 0);
         const myRank =
           allScores.filter((score) => score > sub.score).length + 1;
         const totalParticipants = allScores.length;
