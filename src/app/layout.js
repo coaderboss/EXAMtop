@@ -11,7 +11,7 @@ import { ref, update, remove } from "firebase/database";
 import Script from "next/script";
 
 function Header() {
-  const { currentUser, userRole, loginWithGoogle, logout } = useAuth();
+  const { currentUser, userRole, loginWithGoogle, loginWithEmail, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -30,6 +30,13 @@ function Header() {
     rollNo: "",
   });
   const settingsRef = useRef(null);
+
+  //  Login Modal States (Profile States ke theek neeche add karo)
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   //  1. CLEAN SHUTTER STATES & REFS
   const [isNavVisible, setIsNavVisible] = useState(true);
@@ -736,7 +743,7 @@ function Header() {
               </button>
             ) : (
               <button
-                onClick={() => handleLogin("student")}
+                onClick={() => setShowLoginModal(true)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -753,10 +760,7 @@ function Header() {
                   transition: "all 0.2s ease",
                 }}
               >
-                <i
-                  className="ti ti-brand-google"
-                  style={{ fontSize: "18px" }}
-                ></i>{" "}
+                <i className="ti ti-login" style={{ fontSize: "18px" }}></i>{" "}
                 <span className="hide-mobile">Login</span>
               </button>
             )}
@@ -1383,6 +1387,77 @@ function Header() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PREMIUM DUAL-LOGIN MODAL */}
+      {showLoginModal && !currentUser && (
+        <div className="modal-bg" style={{ zIndex: 999999, padding: "20px" }} onClick={() => setShowLoginModal(false)}>
+          <div className="modal-box animate-[fadeIn_0.3s_ease]" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "420px", width: "100%", padding: "30px", borderRadius: "24px", background: "#fff", position: "relative", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }}>
+            <button onClick={() => setShowLoginModal(false)} style={{ position: "absolute", right: "20px", top: "20px", background: "#f8fafc", border: "none", width: "32px", height: "32px", borderRadius: "50%", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "0.2s" }} onMouseOver={(e) => e.currentTarget.style.background = "#e2e8f0"} onMouseOut={(e) => e.currentTarget.style.background = "#f8fafc"}>
+              <i className="ti ti-x text-lg"></i>
+            </button>
+            
+            <div style={{ textAlign: "center", marginBottom: "24px" }}>
+              <div style={{ width: "56px", height: "56px", background: "linear-gradient(135deg, #185FA5, #3C3489)", color: "#fff", borderRadius: "16px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", margin: "0 auto 16px", boxShadow: "0 4px 15px rgba(24,95,165,0.3)" }}>
+                <i className="ti ti-user-scan"></i>
+              </div>
+              <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#0f172a", marginBottom: "8px" }}>Welcome to ExamiTop</h2>
+              <p style={{ fontSize: "14px", color: "#64748b", fontWeight: 500 }}>Login using Google or your Lab ID.</p>
+            </div>
+
+            {loginError && (
+              <div style={{ background: "#fef2f2", color: "#ef4444", padding: "12px", borderRadius: "10px", fontSize: "12px", fontWeight: 700, marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px", border: "1px solid #fecaca" }}>
+                <i className="ti ti-alert-triangle text-lg"></i> {loginError}
+              </div>
+            )}
+
+            {/* Email / Password Form */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "20px" }}>
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px", display: "block" }}>Institution Email / Lab ID</label>
+                <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="lab01@university.edu" style={{ width: "100%", padding: "14px 16px", borderRadius: "12px", border: "2px solid #e2e8f0", fontSize: "14px", fontWeight: 600, color: "#334155", outline: "none", transition: "border 0.2s" }} onFocus={(e)=>e.target.style.borderColor="#185FA5"} onBlur={(e)=>e.target.style.borderColor="#e2e8f0"} />
+              </div>
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px", display: "block" }}>Secure Password</label>
+                <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" style={{ width: "100%", padding: "14px 16px", borderRadius: "12px", border: "2px solid #e2e8f0", fontSize: "14px", fontWeight: 600, color: "#334155", outline: "none", transition: "border 0.2s" }} onFocus={(e)=>e.target.style.borderColor="#185FA5"} onBlur={(e)=>e.target.style.borderColor="#e2e8f0"} />
+              </div>
+              <button 
+                disabled={isLoggingIn}
+                onClick={async () => {
+                  if(!loginEmail || !loginPassword) { setLoginError("Please fill in both fields."); return; }
+                  setIsLoggingIn(true); setLoginError("");
+                  const res = await loginWithEmail(loginEmail, loginPassword, "student");
+                  if(!res.success) { setLoginError("Invalid credentials. Try again."); setIsLoggingIn(false); }
+                  else { setShowLoginModal(false); setIsLoggingIn(false); }
+                }}
+                style={{ width: "100%", padding: "14px", background: "#185FA5", color: "#fff", border: "none", borderRadius: "12px", fontWeight: 700, fontSize: "15px", cursor: isLoggingIn ? "not-allowed" : "pointer", boxShadow: "0 4px 15px rgba(24,95,165,0.2)", marginTop: "6px", transition: "transform 0.1s" }}
+                onMouseOver={(e) => !isLoggingIn && (e.currentTarget.style.transform = "scale(0.98)")}
+                onMouseOut={(e) => !isLoggingIn && (e.currentTarget.style.transform = "scale(1)")}
+              >
+                {isLoggingIn ? "Authenticating..." : "Login to Terminal"}
+              </button>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+              <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
+              <div style={{ fontSize: "11px", fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>OR</div>
+              <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }}></div>
+            </div>
+
+            {/* Google Auth Option (Old System Preserved) */}
+            <button 
+              onClick={async () => {
+                  setShowLoginModal(false);
+                  await handleLogin("student");
+              }}
+              style={{ width: "100%", padding: "14px", background: "#fff", color: "#334155", border: "2px solid #e2e8f0", borderRadius: "12px", fontWeight: 700, fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", transition: "all 0.2s" }}
+              onMouseOver={(e) => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#e2e8f0"; }}
+            >
+              <i className="ti ti-brand-google text-[20px]" style={{ color: "#ea4335" }}></i> Continue with Google
+            </button>
           </div>
         </div>
       )}

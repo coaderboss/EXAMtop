@@ -7,12 +7,40 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export default function HomePage() {
   const router = useRouter();
-  const { currentUser, userRole, loginWithGoogle, loginAsGuest } = useAuth();
-
+  const { currentUser, userRole, loginWithGoogle, loginAsGuest, loginWithEmail, registerWithEmail, resetPassword } = useAuth();
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  // 🛡️ THE BULLETPROOF INTERCEPTOR
+  // NAYA: Modal View States
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [modalView, setModalView] = useState("login"); // 'login', 'register', 'forgot'
+  const [loginRole, setLoginRole] = useState("student");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [successMsg, setSuccessMsg] = useState(""); // NAYA: Success message ke liye
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // NAYA: Registration States
+  const [regName, setRegName] = useState("");
+  const [regCollege, setRegCollege] = useState("");
+  const [regRoll, setRegRoll] = useState("");
+  const [regConfirmPassword, setRegConfirmPassword] = useState("");
+
+  // NAYA: Form ko saaf karne ka function
+  const clearFormStates = () => {
+    setLoginEmail("");
+    setLoginPassword("");
+    setRegName("");
+    setRegCollege("");
+    setRegRoll("");
+    setRegConfirmPassword("");
+    setLoginError("");
+    setSuccessMsg("");
+    setModalView("login"); // Wapas default login view par le aao
+  };
+
+  // 🛡️ THE BULLETPROOF INTERCEPTOR (FIXED: Ignoring Modal Clicks)
   useEffect(() => {
     const handleGlobalLoginClick = (e) => {
       const target = e.target.closest('button, a, .btn, [role="button"]');
@@ -20,7 +48,8 @@ export default function HomePage() {
         target &&
         target.textContent &&
         target.textContent.includes("Login") &&
-        !target.closest("#portals")
+        !target.closest("#portals") &&
+        !target.closest(".fixed") // Agar click Modal (fixed screen) ke andar hua hai, toh usko mat roko!
       ) {
         e.preventDefault();
         e.stopPropagation();
@@ -940,11 +969,13 @@ export default function HomePage() {
                 <button
                   onClick={() => {
                     localStorage.setItem("isOfflineMode", "false");
-                    loginWithGoogle("examiner");
+                    clearFormStates(); // Purana data saaf karo
+                    setLoginRole("examiner"); 
+                    setShowLoginModal(true);  
                   }}
                   className="mt-auto w-full py-5 bg-white border-2 border-slate-200 text-slate-800 hover:bg-[#008b13] hover:border-[#008b13] hover:text-white rounded-2xl font-black text-[16px] transition-all flex justify-center items-center gap-3 active:scale-95 shadow-sm group-hover:shadow-md"
                 >
-                  Examinor Access <i className="ti ti-arrow-right text-xl"></i>
+                  Examiner Access <i className="ti ti-arrow-right text-xl"></i>
                 </button>
               </div>
             </motion.div>
@@ -975,7 +1006,9 @@ export default function HomePage() {
                   <button
                     onClick={() => {
                       localStorage.setItem("isOfflineMode", "false");
-                      loginWithGoogle("student");
+                      clearFormStates(); // Purana data saaf karo
+                      setLoginRole("student"); 
+                      setShowLoginModal(true); 
                     }}
                     className="flex-1 py-5 bg-[#1487c1] text-white rounded-2xl font-black text-[16px] hover:bg-[#0C447C] transition-all flex justify-center items-center gap-3 shadow-lg shadow-[#185FA5]/20 active:scale-95"
                   >
@@ -1269,6 +1302,204 @@ export default function HomePage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* PREMIUM DUAL-LOGIN / REGISTER / FORGOT MODAL FOR HOME PAGE */}
+      {showLoginModal && !currentUser && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 sm:p-5 bg-slate-900/60 backdrop-blur-sm custom-scrollbar overflow-y-auto" onClick={() => { setShowLoginModal(false); setModalView("login"); setLoginError(""); setSuccessMsg(""); }}>
+          <div className="animate-[fadeIn_0.3s_ease] w-full max-w-[420px] p-6 sm:p-[30px] rounded-[24px] bg-white relative shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] my-auto" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => { setShowLoginModal(false); setModalView("login"); setLoginError(""); setSuccessMsg(""); }} className="absolute right-4 top-4 sm:right-5 sm:top-5 bg-slate-50 border-none w-8 h-8 rounded-full text-slate-500 cursor-pointer flex items-center justify-center transition-all hover:bg-slate-200">
+              <i className="ti ti-x text-lg"></i>
+            </button>
+            
+            <div className="text-center mb-6 mt-2">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-[#185FA5] to-[#3C3489] text-white rounded-2xl flex items-center justify-center text-2xl sm:text-3xl mx-auto mb-4 shadow-[0_4px_15px_rgba(24,95,165,0.3)]">
+                <i className={loginRole === "examiner" ? "ti ti-briefcase" : "ti ti-school"}></i>
+              </div>
+              <h2 className="text-[20px] sm:text-[22px] font-black text-slate-900 mb-1.5 leading-tight">
+                {modalView === "register" ? `Create ${loginRole === "examiner" ? "Examiner" : "Student"} Account` : 
+                 modalView === "forgot" ? "Reset Password" :
+                 `${loginRole === "examiner" ? "Examiner" : "Student"} Login`}
+              </h2>
+              <p className="text-[13px] sm:text-sm text-slate-500 font-medium">
+                {modalView === "register" ? "Fill details to get a verification link." : 
+                 modalView === "forgot" ? "Enter your email to receive a reset link." :
+                 "Use your verified Email or Google Account."}
+              </p>
+            </div>
+
+            {loginError && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-xl text-[12px] sm:text-xs font-bold mb-5 flex items-start gap-2 border border-red-200 leading-snug">
+                <i className="ti ti-alert-triangle text-base sm:text-lg shrink-0 mt-0.5"></i> <span>{loginError}</span>
+              </div>
+            )}
+            {successMsg && (
+              <div className="bg-emerald-50 text-emerald-700 p-3 rounded-xl text-[12px] sm:text-xs font-bold mb-5 flex items-start gap-2 border border-emerald-200 leading-snug">
+                <i className="ti ti-circle-check text-base sm:text-lg shrink-0 mt-0.5"></i> <span>{successMsg}</span>
+              </div>
+            )}
+
+            {/* === LOGIN VIEW === */}
+            {modalView === "login" && (
+              <div className="flex flex-col gap-3.5 mb-5">
+                <div>
+                  <label className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Email Address</label>
+                  <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="you@domain.com" className="w-full p-3 sm:p-3.5 rounded-xl border-2 border-slate-200 text-[13px] sm:text-sm font-bold text-slate-700 outline-none focus:border-[#185FA5] transition-colors" />
+                </div>
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest block">Password</label>
+                    <span onClick={() => { setModalView("forgot"); setLoginError(""); setSuccessMsg(""); }} className="text-[10px] sm:text-[11px] font-bold text-[#185FA5] cursor-pointer hover:underline">Forgot?</span>
+                  </div>
+                  <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" className="w-full p-3 sm:p-3.5 rounded-xl border-2 border-slate-200 text-[13px] sm:text-sm font-bold text-slate-700 outline-none focus:border-[#185FA5] transition-colors" />
+                </div>
+                <button 
+                  disabled={isLoggingIn}
+                  onClick={async () => {
+                  if(!loginEmail || !loginPassword) { setLoginError("Please fill in both fields."); return; }
+                  setIsLoggingIn(true); setLoginError(""); setSuccessMsg("");
+                  
+                  try {
+                    const res = await loginWithEmail(loginEmail, loginPassword);
+                    if(!res.success) { 
+                      setLoginError(res.error); 
+                    } else { 
+                      setSuccessMsg("Login Successful! Redirecting...");
+                      // 1 second me Modal gayab aur page change!
+                      setTimeout(() => {
+                        setShowLoginModal(false);
+                        router.push(loginRole === 'examiner' ? '/tests' : '/student-dashboard');
+                      }, 800);
+                    }
+                  } catch(err) {
+                    setLoginError("Fatal Error: " + err.message);
+                  } finally {
+                    setIsLoggingIn(false);
+                  }
+                }}
+                  className={`w-full p-3.5 bg-[#185FA5] text-white border-none rounded-xl font-black text-[14px] sm:text-[15px] shadow-[0_4px_15px_rgba(24,95,165,0.2)] mt-1.5 transition-transform ${isLoggingIn ? "opacity-80" : "hover:scale-[0.98]"}`}
+                >
+                  {isLoggingIn ? "Authenticating..." : "Login to Terminal"}
+                </button>
+
+                <div className="text-center mt-2">
+                  <span className="text-xs text-slate-500 font-medium">New here? </span>
+                  <span onClick={() => { setModalView("register"); setLoginError(""); setSuccessMsg(""); }} className="text-xs font-bold text-[#185FA5] cursor-pointer hover:underline">Create an Account</span>
+                </div>
+
+                <div className="flex items-center gap-3 my-1">
+                  <div className="flex-1 h-px bg-slate-200"></div>
+                  <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest">OR</div>
+                  <div className="flex-1 h-px bg-slate-200"></div>
+                </div>
+
+                <button 
+                  onClick={async () => {
+                      setShowLoginModal(false);
+                      await loginWithGoogle(loginRole);
+                  }}
+                  className="w-full p-3 sm:p-3.5 bg-white text-slate-700 border-2 border-slate-200 hover:bg-slate-50 rounded-xl font-black text-[13px] sm:text-sm flex items-center justify-center gap-2.5 transition-colors cursor-pointer"
+                >
+                  <i className="ti ti-brand-google text-lg sm:text-xl text-red-500"></i> Continue with Google
+                </button>
+              </div>
+            )}
+
+            {/* === REGISTER VIEW === */}
+            {modalView === "register" && (
+              <div className="flex flex-col gap-3 mb-2">
+                <div>
+                  <label className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Full Name (Legal) <span className="text-red-500">*</span></label>
+                  <input type="text" value={regName} onChange={(e) => setRegName(e.target.value)} placeholder="e.g. Rahul Kumar" className="w-full p-3 rounded-xl border-2 border-slate-200 text-[13px] font-bold text-slate-700 outline-none focus:border-[#185FA5]" />
+                  <p className="text-[9px] text-slate-400 mt-0.5">This name will be locked on your certificate.</p>
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Institution</label>
+                    <input type="text" value={regCollege} onChange={(e) => setRegCollege(e.target.value)} placeholder="Optional" className="w-full p-3 rounded-xl border-2 border-slate-200 text-[13px] font-bold text-slate-700 outline-none focus:border-[#185FA5]" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Roll No / ID</label>
+                    <input type="text" value={regRoll} onChange={(e) => setRegRoll(e.target.value)} placeholder="Optional" className="w-full p-3 rounded-xl border-2 border-slate-200 text-[13px] font-bold text-slate-700 outline-none focus:border-[#185FA5]" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Email <span className="text-red-500">*</span></label>
+                  <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="Valid email required" className="w-full p-3 rounded-xl border-2 border-slate-200 text-[13px] font-bold text-slate-700 outline-none focus:border-[#185FA5]" />
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <label className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Password <span className="text-red-500">*</span></label>
+                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" className="w-full p-3 rounded-xl border-2 border-slate-200 text-[13px] font-bold text-slate-700 outline-none focus:border-[#185FA5]" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Confirm <span className="text-red-500">*</span></label>
+                    <input type="password" value={regConfirmPassword} onChange={(e) => setRegConfirmPassword(e.target.value)} placeholder="••••••••" className="w-full p-3 rounded-xl border-2 border-slate-200 text-[13px] font-bold text-slate-700 outline-none focus:border-[#185FA5]" />
+                  </div>
+                </div>
+
+                <button 
+                  disabled={isLoggingIn}
+                  onClick={async () => {
+                    if(!regName || !loginEmail || !loginPassword || !regConfirmPassword) { setLoginError("Please fill all required (*) fields."); return; }
+                    if(loginPassword !== regConfirmPassword) { setLoginError("Passwords do not match."); return; }
+                    if(loginPassword.length < 6) { setLoginError("Password must be at least 6 characters."); return; }
+                    
+                    setIsLoggingIn(true); setLoginError(""); setSuccessMsg("");
+                    const res = await registerWithEmail(loginEmail, loginPassword, regName, regCollege, regRoll, loginRole);
+                    if(!res.success) { 
+                      setLoginError(res.error); 
+                      setIsLoggingIn(false); 
+                    } else { 
+                      setSuccessMsg("Verification link sent! Please check your email to activate your account before logging in.");
+                      setModalView("login"); // Bhejo wapas login screen pe
+                      setLoginPassword(""); setRegConfirmPassword("");
+                      setIsLoggingIn(false); 
+                    }
+                  }}
+                  className={`w-full p-3.5 bg-[#10B981] text-white border-none rounded-xl font-black text-[14px] sm:text-[15px] shadow-[0_4px_15px_rgba(16,185,129,0.2)] mt-2 transition-transform ${isLoggingIn ? "opacity-80" : "hover:scale-[0.98]"}`}
+                >
+                  {isLoggingIn ? "Creating..." : "Create Account"}
+                </button>
+                <div className="text-center mt-2">
+                  <span className="text-xs text-slate-500 font-medium">Already have an account? </span>
+                  <span onClick={() => { setModalView("login"); setLoginError(""); setSuccessMsg(""); }} className="text-xs font-bold text-[#185FA5] cursor-pointer hover:underline">Log In</span>
+                </div>
+              </div>
+            )}
+
+            {/* === FORGOT PASSWORD VIEW === */}
+            {modalView === "forgot" && (
+              <div className="flex flex-col gap-3.5 mb-2">
+                <div>
+                  <label className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Registered Email Address</label>
+                  <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="you@domain.com" className="w-full p-3.5 rounded-xl border-2 border-slate-200 text-[13px] sm:text-sm font-bold text-slate-700 outline-none focus:border-[#185FA5] transition-colors" />
+                </div>
+                <button 
+                  disabled={isLoggingIn}
+                  onClick={async () => {
+                    if(!loginEmail) { setLoginError("Please enter your email address."); return; }
+                    setIsLoggingIn(true); setLoginError(""); setSuccessMsg("");
+                    const res = await resetPassword(loginEmail);
+                    if(!res.success) { setLoginError(res.error); setIsLoggingIn(false); }
+                    else { 
+                      setSuccessMsg("Password reset link sent! Check your inbox."); 
+                      setIsLoggingIn(false); 
+                      setTimeout(() => { setModalView("login"); setSuccessMsg(""); }, 4000);
+                    }
+                  }}
+                  className={`w-full p-3.5 bg-slate-800 text-white border-none rounded-xl font-black text-[14px] sm:text-[15px] shadow-[0_4px_15px_rgba(0,0,0,0.2)] mt-1.5 transition-transform ${isLoggingIn ? "opacity-80" : "hover:scale-[0.98]"}`}
+                >
+                  {isLoggingIn ? "Sending..." : "Send Reset Link"}
+                </button>
+                <div className="text-center mt-3">
+                  <span onClick={() => { setModalView("login"); setLoginError(""); setSuccessMsg(""); }} className="text-xs font-bold text-slate-500 cursor-pointer hover:text-slate-800 transition-colors"><i className="ti ti-arrow-left"></i> Back to Login</span>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
