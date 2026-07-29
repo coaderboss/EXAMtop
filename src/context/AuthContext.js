@@ -16,11 +16,14 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
+ useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Agar naya email user hai aur verify nahi hai, toh DB read mat karo!
-        if (user.providerData.some(p => p.providerId === 'password') && !user.emailVerified) {
+        // 🛡️ THE FIX: Security Guard ko VIP Pass ke baare me batao
+        const isOfficialAccount = user.email && user.email.toLowerCase().endsWith('@examitop.in');
+
+        // Agar naya email user hai, verify nahi hai, AUR official (@ExamiTop.in) account nahi hai, tabhi block karo!
+        if (user.providerData.some(p => p.providerId === 'password') && !user.emailVerified && !isOfficialAccount) {
            setCurrentUser(null);
            setUserRole(null);
            setLoading(false);
@@ -30,11 +33,12 @@ export const AuthProvider = ({ children }) => {
         try {
           const userRef = ref(database, `users/${user.uid}`);
           const snapshot = await get(userRef);
+          
           if (snapshot.exists()) {
             const userData = snapshot.val();
             setUserRole(userData.role);
             
-            //  THE MASTER OVERRIDE: Ab puri app me 'displayName' ki jagah legalName dikhega
+            // THE MASTER OVERRIDE: Ab puri app me 'displayName' ki jagah legalName dikhega
             setCurrentUser({
                 uid: user.uid,
                 email: user.email,
@@ -48,8 +52,27 @@ export const AuthProvider = ({ children }) => {
                 is_unlimited: userData.is_unlimited || false 
             });
           } else {
-            setUserRole('student'); 
-            setCurrentUser({ uid: user.uid, email: user.email, displayName: user.displayName, profileLocked: false });
+            // 🛠️ Auto-Create DB Record for Manual Firebase Auth Users
+            const defaultRole = 'student'; 
+            
+            await set(userRef, {
+              name: user.email.split('@')[0], 
+              email: user.email,
+              uid: user.uid,
+              role: defaultRole,
+              profileLocked: false,
+              available_quota: 3,
+              is_unlimited: false
+            });
+
+            setUserRole(defaultRole); 
+            setCurrentUser({ 
+              uid: user.uid, 
+              email: user.email, 
+              displayName: user.email.split('@')[0], 
+              role: defaultRole,
+              profileLocked: false 
+            });
           }
         } catch (err) {
           console.error("Error fetching role:", err);
@@ -129,7 +152,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // --- MANUAL EMAIL LOGIN (ULTRA CLEAN & CRASH-PROOF) ---
+ // --- MANUAL EMAIL LOGIN (ULTRA CLEAN & CRASH-PROOF) ---
   const loginWithEmail = async (email, password) => {
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
@@ -137,12 +160,13 @@ export const AuthProvider = ({ children }) => {
       // Force status check
       await result.user.reload();
       
-      if (!auth.currentUser.emailVerified) {
+      // Strictly bypass verification ONLY for @ExamiTop.in
+      const isOfficialAccount = email.toLowerCase().endsWith('@examitop.in');
+      
+      if (!auth.currentUser.emailVerified && !isOfficialAccount) {
         await signOut(auth);
         return { success: false, error: "Email not verified! Please check your inbox/spam." };
       }
-      
-      // Yahan se aage ka kaam (Database check, State update, Routing) 
       // onAuthStateChanged khud background me kar lega!
       return { success: true };
     } catch (error) {
@@ -155,6 +179,14 @@ export const AuthProvider = ({ children }) => {
   // --- MANUAL EMAIL REGISTRATION (WITH VERIFICATION & NAME LOCK) ---
   const registerWithEmail = async (email, password, name, college, rollNo, role) => {
     try {
+      // 🛑 STRICT SECURITY BLOCK: Public users cannot create @ExamiTop.in accounts
+      if (email.toLowerCase().endsWith('@examitop.in')) {
+       return { 
+          success: false, 
+          error: "Registration failed: This email domain is restricted. Please use a valid personal email." 
+        };
+      }
+
       const result = await createUserWithEmailAndPassword(auth, email, password);
       const user = result.user;
 

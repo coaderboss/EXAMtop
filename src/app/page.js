@@ -68,11 +68,19 @@ export default function HomePage() {
 
   useEffect(() => {
     setIsMounted(true);
-    if (currentUser) {
-      if (userRole === "student" || userRole === "guest")
+    // 🛡️ FIX: Wait for both user and role to load
+    if (currentUser && userRole) {
+      // 1. Agar profile locked nahi hai, toh ONLY onboarding bhejo
+      if (currentUser.profileLocked === false) {
+        router.push("/onboarding");
+      } 
+      // 2. Agar profile locked hai, tab unki aukaat ke hisaab se bhejo
+      else if (userRole === "student" || userRole === "guest") {
         router.push("/student-dashboard");
-      else if (userRole === "examiner" || userRole === "admin")
+      } 
+      else if (userRole === "examiner" || userRole === "admin") {
         router.push("/tests");
+      }
     }
   }, [currentUser, userRole, router]);
 
@@ -1364,10 +1372,10 @@ export default function HomePage() {
                       setLoginError(res.error); 
                     } else { 
                       setSuccessMsg("Login Successful! Redirecting...");
-                      // 1 second me Modal gayab aur page change!
                       setTimeout(() => {
                         setShowLoginModal(false);
-                        router.push(loginRole === 'examiner' ? '/tests' : '/student-dashboard');
+                        // 🛑 YAHAN SE ROUTER.PUSH HATA DIYA HAI 🛑
+                        // Background system ab tumhe safely Onboarding par bhej dega.
                       }, 800);
                     }
                   } catch(err) {
