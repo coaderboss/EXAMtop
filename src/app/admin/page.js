@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
-import { database } from "../../lib/firebase";
+import { database, auth } from "../../lib/firebase";
 import { ref, get, update, set, remove } from "firebase/database";
 import { motion, AnimatePresence } from "framer-motion";
+import { getApps, initializeApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
 //  UTILITY: Safe Array Converter
 const safeArray = (data) => {
@@ -36,8 +38,11 @@ export default function GodMode() {
   const [broadcastMsg, setBroadcastMsg] = useState("");
   const [currentBroadcast, setCurrentBroadcast] = useState("");
 
-  const [isLoadingData, setIsLoadingData] = useState(true);
+ // Modular Loading States
+  const [isLoadingTests, setIsLoadingTests] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [isLoadingMisc, setIsLoadingMisc] = useState(false);
 
   // System Modals & Views
   const [sysAlert, setSysAlert] = useState(null);
@@ -59,6 +64,13 @@ export default function GodMode() {
 
   // NAYA STATE: Error Logs ke liye
   const [systemErrors, setSystemErrors] = useState([]);
+
+  // CUSTOM BULK ADD STATES & FUNCTIONS
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkData, setBulkData] = useState([{ id: Date.now(), name: "", email: "", password: "", rollNo: "", role: "student" }]);
+  const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [bulkResult, setBulkResult] = useState(null);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -82,9 +94,10 @@ export default function GodMode() {
     }
   }, [activeTab, allTests]);
 
-  //  CORE DATA FETCH
-  const fetchGodData = async () => {
-    setIsLoadingData(true);
+  // 🟢 1. MODULAR FETCH: TESTS
+  const fetchTestsData = async () => {
+    if (allTests.length > 0 || isLoadingTests) return; // Pehle se hai toh dobara mat lao
+    setIsLoadingTests(true);
     try {
       const testsSnap = await get(ref(database, "tests"));
       let tData = [];
@@ -95,80 +108,97 @@ export default function GodMode() {
         });
       }
       setAllTests(tData.reverse());
-
-      try {
-        const statsSnap = await get(
-          ref(database, "platform_stats/total_downloads"),
-        );
-        setPlatformInstalls(statsSnap.exists() ? statsSnap.val() : 42);
-      } catch (err) {
-        setPlatformInstalls(42);
-      }
-
-      // FETCH SYSTEM ERRORS
-      try {
-        const errorsSnap = await get(ref(database, "system_errors"));
-        let eData = [];
-        if (errorsSnap.exists()) {
-          const rawErrors = errorsSnap.val();
-          Object.keys(rawErrors).forEach((key) => {
-            eData.push({ ...rawErrors[key], id: key });
-          });
-        }
-        // Sabse nayi error sabse upar
-        eData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        setSystemErrors(eData);
-      } catch (err) {
-        console.error("Failed to fetch errors", err);
-      }
-
-      try {
-        const broadSnap = await get(
-          ref(database, "platform_settings/announcement"),
-        );
-        if (broadSnap.exists()) setCurrentBroadcast(broadSnap.val());
-      } catch (err) {}
     } catch (e) {
-      setSysAlert({
-        title: "CRITICAL FAILURE",
-        msg: "Database Rules blocked core access or connection failed.",
-        type: "error",
-      });
+      console.error("Tests Data Error:", e);
+    } finally {
+      setIsLoadingTests(false);
     }
-
-    //   FIX: Background me users ko chupchaap load kar lo, taaki Radar Search hamesha kaam kare!
-    fetchUsersOnDemand();
-
-    setIsLoadingData(false);
   };
 
-  //  ON-DEMAND USER FETCHING
-  const fetchUsersOnDemand = async () => {
+  // 🟢 2. MODULAR FETCH: USERS
+  const fetchUsersData = async () => {
+    if (allUsers.length > 0 || isLoadingUsers) return;
     setIsLoadingUsers(true);
     try {
       const usersSnap = await get(ref(database, "users"));
       if (usersSnap.exists()) {
         const rawUsers = usersSnap.val();
         const uData = Object.keys(rawUsers).map((key) => ({
-          uid: key,
-          ...rawUsers[key],
+          uid: key, ...rawUsers[key],
         }));
         setAllUsers(uData);
       }
     } catch (e) {
-      setSysAlert({
-        title: "Error",
-        msg: "Failed to fetch users matrix.",
-        type: "error",
-      });
+      console.error("Users Data Error:", e);
     } finally {
       setIsLoadingUsers(false);
     }
   };
 
+  // 🟢 3. MODULAR FETCH: LOGS (On-Demand only)
+  const fetchLogsData = async () => {
+    if (systemErrors.length > 0 || isLoadingLogs) return;
+    setIsLoadingLogs(true);
+    try {
+      const errorsSnap = await get(ref(database, "system_errors"));
+      let eData = [];
+      if (errorsSnap.exists()) {
+        const rawErrors = errorsSnap.val();
+        Object.keys(rawErrors).forEach((key) => {
+          eData.push({ ...rawErrors[key], id: key });
+        });
+      }
+      eData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      setSystemErrors(eData);
+    } catch (e) {
+      console.error("Logs Data Error:", e);
+      // 🔥 NAYA: Graceful Degradation (App crash nahi hogi)
+      setSystemErrors([]); 
+      setSysAlert({
+        title: "Access Denied",
+        msg: "Firebase Rules blocked access to 'system_errors'.",
+        type: "error"
+      });
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
+  // 🟢 4. MODULAR FETCH: MISC (Stats & Broadcast)
+  const fetchMiscData = async () => {
+    if (platformInstalls > 0 || isLoadingMisc) return;
+    setIsLoadingMisc(true);
+    try {
+      const statsSnap = await get(ref(database, "platform_stats/total_downloads"));
+      setPlatformInstalls(statsSnap.exists() ? statsSnap.val() : 42);
+    } catch (err) { }
+    try {
+      const broadSnap = await get(ref(database, "platform_settings/announcement"));
+      if (broadSnap.exists()) setCurrentBroadcast(broadSnap.val());
+    } catch (err) { }
+    setIsLoadingMisc(false);
+  };
+
+  // 🛡️ SMART ON-DEMAND FETCHING ROUTER
   useEffect(() => {
-    if (userRole === "admin") fetchGodData();
-  }, [userRole]);
+    if (userRole !== "admin") return;
+
+    // Har tab ke hisaab se sirf zaroori data hi fetch hoga!
+    if (activeTab === "pulse") {
+      fetchMiscData();
+      fetchTestsData();
+      fetchUsersData();
+    } else if (activeTab === "analytics" || activeTab === "examiners" || activeTab === "radar") {
+      fetchTestsData();
+      fetchUsersData();
+    } else if (activeTab === "tests") {
+      fetchTestsData();
+    } else if (activeTab === "users") {
+      fetchUsersData();
+    } else if (activeTab === "logs") {
+      fetchLogsData();
+    }
+  }, [activeTab, userRole]);
 
   //  AUTO-KICK BOUNCER
   useEffect(() => {
@@ -381,7 +411,108 @@ export default function GodMode() {
     }, 100);
   };
 
-  if (authLoading || (isLoadingData && userRole === "admin")) {
+  const handleAddBulkRow = () => {
+    setBulkData([...bulkData, { id: Date.now(), name: "", email: "", password: "", rollNo: "", role: "student" }]);
+  };
+
+  const handleRemoveBulkRow = (id) => {
+    setBulkData(bulkData.filter(row => row.id !== id));
+  };
+
+  const handleBulkChange = (id, field, value) => {
+    setBulkData(bulkData.map(row => row.id === id ? { ...row, [field]: value } : row));
+  };
+
+  // 📝 CSV PARSER FUNCTION
+  const handleCSVUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const rows = text.split('\n').filter(row => row.trim() !== '');
+      
+      // Assumes CSV format: Name, Email, Password, RollNo, Role
+      const parsedData = rows.slice(1).map((row, index) => {
+        const cols = row.split(',').map(c => c.trim());
+        return {
+          id: Date.now() + index,
+          name: cols[0] || '',
+          email: cols[1] || '',
+          password: cols[2] || '',
+          rollNo: cols[3] || '',
+          role: (cols[4] || 'student').toLowerCase()
+        };
+      });
+      setBulkData(parsedData);
+      setSysAlert({ title: "CSV Loaded", msg: `${parsedData.length} rows imported successfully.`, type: "success" });
+    };
+    reader.readAsText(file);
+    e.target.value = null; // Reset input
+  };
+
+  // 🚀 THE MAGIC: BACKGROUND BULK CREATOR (No Logout Hack)
+  const executeBulkAdd = async () => {
+    // Basic validation
+    const validData = bulkData.filter(row => row.email && row.password && row.name);
+    if (validData.length === 0) {
+      setSysAlert({ title: "Validation Error", msg: "Please fill at least Name, Email, and Password.", type: "error" });
+      return;
+    }
+
+    setIsSubmittingBulk(true);
+    setBulkResult(null);
+
+    // Get or Create Secondary Auth Instance
+    const secondaryAppName = "ExamiTopBulkLoader";
+    let secondaryApp;
+    const apps = getApps();
+    const existingApp = apps.find(a => a.name === secondaryAppName);
+    if (existingApp) secondaryApp = existingApp;
+    else secondaryApp = initializeApp(auth.app.options, secondaryAppName);
+    
+    const secondaryAuth = getAuth(secondaryApp);
+    let successCount = 0;
+    let failedList = [];
+
+    // Loop through each user and create them securely
+    for (let i = 0; i < validData.length; i++) {
+      const item = validData[i];
+      setBulkProgress({ current: i + 1, total: validData.length });
+      
+      try {
+        // 1. Create Auth Account in Background
+        const userCred = await createUserWithEmailAndPassword(secondaryAuth, item.email, item.password);
+        const uid = userCred.user.uid;
+
+        // 2. Save full profile to Realtime Database
+        await set(ref(database, `users/${uid}`), {
+          name: item.name,
+          legalName: item.name,
+          email: item.email,
+          uid: uid,
+          role: item.role,
+          rollNo: item.rollNo || "N/A",
+          profileLocked: true, // Auto lock for admin-created accounts
+          available_quota: item.role === 'examiner' ? 10 : 3,
+          is_unlimited: false,
+          createdAt: new Date().toISOString()
+        });
+
+        // 3. Clear session so it's ready for the next one
+        await signOut(secondaryAuth);
+        successCount++;
+      } catch (err) {
+        failedList.push({ email: item.email, error: err.message });
+      }
+    }
+
+    setIsSubmittingBulk(false);
+    setBulkResult({ success: successCount, failed: failedList });
+    fetchUsersData(); // Refresh table automatically
+  };
+
+  if (authLoading) {
     return (
       <div className="fixed inset-0 z-[99999] bg-[#0B0F19] flex flex-col items-center justify-center">
         <div className="w-16 h-16 border-4 border-[#D4AF37] border-t-transparent rounded-full animate-spin"></div>
@@ -1085,7 +1216,7 @@ export default function GodMode() {
           { id: "pulse", icon: "ti-activity-heartbeat", label: "System Pulse" },
           { id: "analytics", icon: "ti-chart-pie", label: "Analytics" },
           { id: "users", icon: "ti-users-group", label: "Citizen Matrix" },
-          { id: "examiners", icon: "ti-briefcase", label: "Examiners Ops" }, //   NAYA TAB
+          { id: "examiners", icon: "ti-briefcase", label: "Examiners Ops" }, 
           { id: "tests", icon: "ti-database", label: "Global Vault" },
           { id: "radar", icon: "ti-radar", label: "Radar Ops" },
           { id: "logs", icon: "ti-bug", label: "System Logs" },
@@ -1358,9 +1489,17 @@ export default function GodMode() {
                 <h2 className="text-lg m-0 font-bold text-slate-900">
                   Citizen Registry
                 </h2>
+
+                {/* NAYA BUTTON ADD KIYA */}
+                <button
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-[#8B0000] text-white font-medium rounded-md hover:bg-red-900 transition-colors text-sm w-full sm:w-auto shadow-md"
+                  onClick={() => { setShowBulkModal(true); setBulkResult(null); }}
+                >
+                  <i className="ti ti-users-plus"></i> Custom Add+
+                </button>
                 <button
                   className="flex items-center justify-center gap-2 px-4 py-2 bg-[#185FA5] text-white font-medium rounded-md hover:bg-[#0C447C] transition-colors text-sm w-full sm:w-auto disabled:opacity-50"
-                  onClick={fetchUsersOnDemand}
+                  onClick={fetchUsersData}
                   disabled={isLoadingUsers}
                 >
                   {isLoadingUsers ? (
@@ -2515,6 +2654,133 @@ export default function GodMode() {
                   EXECUTE
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* =============================================== */}
+      {/* 🚀 CUSTOM BULK ADD MODAL (THE MATRIX UPLOADER)  */}
+      {/* =============================================== */}
+      <AnimatePresence>
+        {showBulkModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] bg-[#0B0F19]/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-8"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-3xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200"
+            >
+              {/* HEADER */}
+              <div className="bg-[#0B0F19] p-5 md:p-6 flex justify-between items-center shrink-0 border-b-4 border-[#D4AF37]">
+                <div>
+                  <h2 className="text-xl font-black text-white m-0 flex items-center gap-2">
+                    <i className="ti ti-users-plus text-[#D4AF37]"></i> Bulk Citizen Provisioning
+                  </h2>
+                  <div className="text-slate-400 text-xs font-semibold mt-1">
+                    Upload a CSV or manually enter details. Format: Name, Email, Password, RollNo, Role
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <label className="cursor-pointer px-4 py-2 bg-slate-800 border border-slate-700 text-[#D4AF37] font-bold rounded-lg hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm">
+                    <i className="ti ti-upload"></i> Upload CSV
+                    <input type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+                  </label>
+                  <button onClick={() => setShowBulkModal(false)} className="w-9 h-9 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors">
+                    <i className="ti ti-x text-lg"></i>
+                  </button>
+                </div>
+              </div>
+
+              {/* TABLE BODY */}
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar">
+                {bulkResult ? (
+                  // RESULT SCREEN
+                  <div className="max-w-2xl mx-auto text-center py-10">
+                    <i className={`ti ${bulkResult.failed.length === 0 ? 'ti-circle-check text-emerald-500' : 'ti-alert-triangle text-[#8B0000]'} text-6xl block mb-4`}></i>
+                    <h3 className="text-2xl font-black text-slate-900 mb-2">Provisioning Complete</h3>
+                    <div className="text-lg font-bold text-slate-600 mb-8">
+                      <span className="text-emerald-600">{bulkResult.success} Created Successfully</span> • <span className="text-red-500">{bulkResult.failed.length} Failed</span>
+                    </div>
+                    {bulkResult.failed.length > 0 && (
+                      <div className="bg-red-50 text-left p-4 rounded-xl border border-red-200 max-h-[300px] overflow-y-auto">
+                        <div className="font-black text-red-800 mb-3 text-sm">Error Logs:</div>
+                        {bulkResult.failed.map((f, i) => (
+                          <div key={i} className="text-xs text-red-600 mb-1 font-mono break-words border-b border-red-100 pb-1">
+                            <strong>{f.email}:</strong> {f.error}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button onClick={() => { setShowBulkModal(false); setBulkData([{ id: Date.now(), name: "", email: "", password: "", rollNo: "", role: "student" }]); }} className="mt-8 px-8 py-3 bg-[#0B0F19] text-[#D4AF37] font-black rounded-xl hover:bg-slate-900">
+                      Close Matrix
+                    </button>
+                  </div>
+                ) : isSubmittingBulk ? (
+                  // LOADING SCREEN
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <div className="w-16 h-16 border-4 border-[#185FA5] border-t-transparent rounded-full animate-spin mb-6"></div>
+                    <h3 className="text-xl font-black text-slate-900 mb-2">Forging Identities...</h3>
+                    <div className="text-sm font-bold text-slate-500 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
+                      Processing {bulkProgress.current} of {bulkProgress.total} records
+                    </div>
+                  </div>
+                ) : (
+                  // EDITABLE TABLE
+                  <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                    <table className="w-full text-left border-collapse min-w-[900px]">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-600 text-[11px] uppercase tracking-widest">
+                          <th className="p-4 font-black">Full Name *</th>
+                          <th className="p-4 font-black">Email ID *</th>
+                          <th className="p-4 font-black">Password *</th>
+                          <th className="p-4 font-black">Roll No / ID</th>
+                          <th className="p-4 font-black">Role</th>
+                          <th className="p-4 font-black text-center"><i className="ti ti-settings"></i></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {bulkData.map((row, index) => (
+                          <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-3"><input type="text" value={row.name} onChange={(e) => handleBulkChange(row.id, 'name', e.target.value)} placeholder="Name" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all" /></td>
+                            <td className="p-3"><input type="email" value={row.email} onChange={(e) => handleBulkChange(row.id, 'email', e.target.value)} placeholder="email@domain.com" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all" /></td>
+                            <td className="p-3"><input type="text" value={row.password} onChange={(e) => handleBulkChange(row.id, 'password', e.target.value)} placeholder="Min 6 chars" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all font-mono" /></td>
+                            <td className="p-3"><input type="text" value={row.rollNo} onChange={(e) => handleBulkChange(row.id, 'rollNo', e.target.value)} placeholder="Optional" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all" /></td>
+                            <td className="p-3">
+                              <select value={row.role} onChange={(e) => handleBulkChange(row.id, 'role', e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] cursor-pointer">
+                                <option value="student">Student</option>
+                                <option value="examiner">Examiner</option>
+                              </select>
+                            </td>
+                            <td className="p-3 text-center">
+                              <button onClick={() => handleBulkChange(row.id, 'password', Math.random().toString(36).slice(-8))} className="p-2 text-slate-400 hover:text-[#185FA5] transition-colors" title="Generate Password"><i className="ti ti-key"></i></button>
+                              <button onClick={() => handleRemoveBulkRow(row.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Delete Row"><i className="ti ti-trash"></i></button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-center">
+                      <button onClick={handleAddBulkRow} className="px-5 py-2.5 border-2 border-dashed border-slate-300 text-slate-500 font-bold rounded-xl hover:border-[#185FA5] hover:text-[#185FA5] hover:bg-blue-50 transition-all flex items-center gap-2 text-sm">
+                        <i className="ti ti-plus"></i> Add Empty Row
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* FOOTER */}
+              {!bulkResult && !isSubmittingBulk && (
+                <div className="bg-white p-5 border-t border-slate-200 flex justify-between items-center shrink-0">
+                  <div className="text-sm font-bold text-slate-500">
+                    Valid Records to Process: <span className="text-[#185FA5] font-black">{bulkData.filter(r => r.email && r.name && r.password).length}</span>
+                  </div>
+                  <button onClick={executeBulkAdd} className="px-8 py-3.5 bg-[#10B981] text-white font-black rounded-xl hover:bg-[#059669] transition-colors flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95">
+                    Execute Bulk Import <i className="ti ti-bolt text-lg"></i>
+                  </button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

@@ -24,6 +24,7 @@ export default function CreateTest() {
   const [access, setAccess] = useState("code");
   const [resultVis, setResultVis] = useState("instant");
   const [scoreVis, setScoreVis] = useState("show");
+  const [resultPublishTime, setResultPublishTime] = useState("");
   const [allowChange, setAllowChange] = useState(true);
   const [showPalette, setShowPalette] = useState(true);
   const [allowNav, setAllowNav] = useState(true);
@@ -125,6 +126,7 @@ export default function CreateTest() {
         access,
         resultVis,
         scoreVis,
+        resultPublishTime,
         toggles: {
           change: allowChange,
           palette: showPalette,
@@ -154,6 +156,7 @@ export default function CreateTest() {
     access,
     resultVis,
     scoreVis,
+    resultPublishTime,
     allowChange,
     showPalette,
     allowNav,
@@ -208,6 +211,7 @@ export default function CreateTest() {
     setAccess(draft.access || "code");
     setResultVis(draft.resultVis || "instant");
     setScoreVis(draft.scoreVis || "show");
+    setResultPublishTime(draft.resultPublishTime || "");
 
     if (draft.toggles) {
       setAllowChange(
@@ -577,6 +581,16 @@ export default function CreateTest() {
       return;
     }
 
+    //VALIDATION LOGIC
+    if (resultVis === "scheduled" && !resultPublishTime) {
+      setSysAlert({
+        title: "Action Required",
+        msg: "Please set a valid Date & Time for the scheduled result.",
+        type: "warning",
+      });
+      return;
+    }
+
     //  Strict Evaluation Key Validation (Isko bhi SysAlert kar diya)
     for (let i = 0; i < qList.length; i++) {
       const q = qList[i];
@@ -676,6 +690,7 @@ export default function CreateTest() {
       access,
       resultVis,
       scoreVis,
+      resultPublishTime: resultVis === "scheduled" ? resultPublishTime : null,
       allowChange,
       showPalette,
       allowNav,
@@ -1018,16 +1033,56 @@ export default function CreateTest() {
               <div className="relative">
                 <select
                   value={resultVis}
-                  onChange={(e) => setResultVis(e.target.value)}
+                  onChange={(e) => {
+                    setResultVis(e.target.value);
+                    if (e.target.value !== "scheduled") setResultPublishTime("");
+                  }}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 outline-none focus:border-blue-400 transition-all appearance-none cursor-pointer"
                 >
                   <option value="instant">Instant Auto-grade</option>
                   <option value="manual">Manual Release</option>
+                  <option value="scheduled">Scheduled (Auto-Publish)</option>
                 </select>
                 <i className="ti ti-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
               </div>
             </div>
-            <div>
+            
+            {/* 🔥 SCHEDULED TIME INPUT (Sirf tab dikhega jab Scheduled select hoga) */}
+            {resultVis === "scheduled" ? (
+              <div className="animate-[fadeIn_0.3s_ease]">
+                <label className="text-[12px] font-bold text-slate-600 mb-1.5 flex items-center gap-1">
+                  <i className="ti ti-clock-play text-blue-500"></i> Publish Date & Time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={resultPublishTime}
+                  onChange={(e) => setResultPublishTime(e.target.value)}
+                  className="w-full px-4 py-2 bg-blue-50/50 border border-blue-200 rounded-xl text-[13px] font-semibold text-blue-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
+                  Score Breakdown
+                </label>
+                <div className="relative">
+                  <select
+                    value={scoreVis}
+                    onChange={(e) => setScoreVis(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 outline-none focus:border-blue-400 transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="show">Detailed Analytics</option>
+                    <option value="hide">Basic Score Only</option>
+                  </select>
+                  <i className="ti ti-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Agar Scheduled select kiya hai toh Score Breakdown neeche dikhao taaki layout kharab na ho */}
+          {resultVis === "scheduled" && (
+            <div className="mb-5 animate-[fadeIn_0.3s_ease]">
               <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
                 Score Breakdown
               </label>
@@ -1043,8 +1098,8 @@ export default function CreateTest() {
                 <i className="ti ti-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
               </div>
             </div>
-          </div>
-
+          )}
+          
           <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar flex flex-col gap-2 max-h-[300px]">
             {/* Toggles */}
             {[

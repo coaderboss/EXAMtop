@@ -832,6 +832,7 @@ export default function ManageTests() {
       duration: selectedTest.duration || 60,
       negMarking: selectedTest.negMarking || 0,
       resultVis: selectedTest.resultVis || "manual",
+      resultPublishTime: selectedTest.resultPublishTime || "",
       radarVisible: selectedTest.radarVisible || false,
       radarNote: selectedTest.radarNote || "",
       openDate: selectedTest.openDate || "",
@@ -843,17 +844,22 @@ export default function ManageTests() {
   };
 
   const saveTestSettings = async () => {
+    if (editSettingsData.resultVis === "scheduled" && !editSettingsData.resultPublishTime) {
+      setSysAlert({ title: "Action Required", msg: "Please set a valid Date & Time for the scheduled result.", type: "warning" });
+      return;
+    }
+
     try {
       let updatedTest = {
         ...selectedTest,
         duration: Number(editSettingsData.duration),
         negMarking: Number(editSettingsData.negMarking),
         resultVis: editSettingsData.resultVis,
+        resultPublishTime: editSettingsData.resultVis === "scheduled" ? editSettingsData.resultPublishTime : null, 
         radarVisible: editSettingsData.radarVisible,
         radarNote: editSettingsData.radarNote,
         openDate: editSettingsData.openDate,
         closeDate: editSettingsData.closeDate,
-        //   NAYA: Save Direct Entry setting
         directEntry: editSettingsData.directEntry,
       };
 
@@ -2630,14 +2636,18 @@ export default function ManageTests() {
                       <i className="ti ti-file-certificate text-indigo-500 text-lg"></i>{" "}
                       Assessment Results
                     </h3>
-                    {!selectedTest.released &&
-                    selectedTest.resultVis === "manual" ? (
+                    {!selectedTest.released && selectedTest.resultVis === "manual" ? (
                       <button
                         className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-600 text-white shadow-md shadow-blue-600/30 hover:bg-blue-700 transition-all active:scale-95 text-sm"
                         onClick={() => publishResults(selectedTest)}
                       >
                         <i className="ti ti-send text-xl"></i> Publish Now
                       </button>
+                    ) : selectedTest.resultVis === "scheduled" && !selectedTest.released ? (
+                      <div className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 text-[13px] sm:text-sm text-center">
+                        <i className="ti ti-clock-play text-xl"></i>
+                        Scheduled: {selectedTest.resultPublishTime ? new Date(selectedTest.resultPublishTime).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) : "Pending"}
+                      </div>
                     ) : (
                       <div className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-slate-50 text-slate-500 border border-slate-200 text-sm">
                         <i
@@ -2867,33 +2877,54 @@ export default function ManageTests() {
                         <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto mt-1 sm:mt-0 pt-3 sm:pt-0 border-t border-slate-100 sm:border-0">
                           {/* Status / Score display */}
                           <div className="text-left sm:text-right shrink-0">
-                            {/* Added 'selectedTest.released' condition */}
-                            {s.evaluated ||
-                            selectedTest.resultVis === "instant" ||
-                            selectedTest.released ? (
-                              <div className="flex flex-col items-start sm:items-end">
-                                <div className="text-[16px] sm:text-[18px] font-black text-blue-700 leading-none mb-1.5">
-                                  {s.score}{" "}
-                                  <span className="text-[11px] sm:text-[12px] font-bold text-slate-400">
-                                    / {selectedTest.totalMarks}
-                                  </span>
-                                </div>
-                                <div className="text-[9px] font-extrabold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1">
-                                  <i className="ti ti-check"></i>{" "}
-                                  {s.evaluated ? "Evaluated" : "Published"}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-start sm:items-end">
-                                <div className="text-[13px] sm:text-[14px] font-bold text-amber-600 leading-none mb-1.5 flex items-center gap-1">
-                                  <i className="ti ti-clock text-lg"></i>{" "}
-                                  Pending
-                                </div>
-                                <div className="text-[9px] font-extrabold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest">
-                                  Needs Check
-                                </div>
-                              </div>
-                            )}
+                            {(() => {
+                              // 🔥 NAYA: Smart Time Check for Examiner
+                              const isAutoPublished = selectedTest.resultVis === "scheduled" && selectedTest.resultPublishTime && Date.now() >= new Date(selectedTest.resultPublishTime).getTime();
+                              const isScheduledPending = selectedTest.resultVis === "scheduled" && selectedTest.resultPublishTime && Date.now() < new Date(selectedTest.resultPublishTime).getTime();
+                              
+                              const showScore = s.evaluated || selectedTest.resultVis === "instant" || selectedTest.released || isAutoPublished;
+
+                              if (showScore) {
+                                return (
+                                  <div className="flex flex-col items-start sm:items-end">
+                                    <div className="text-[16px] sm:text-[18px] font-black text-blue-700 leading-none mb-1.5">
+                                      {s.score}{" "}
+                                      <span className="text-[11px] sm:text-[12px] font-bold text-slate-400">
+                                        / {selectedTest.totalMarks}
+                                      </span>
+                                    </div>
+                                    <div className="text-[9px] font-extrabold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1">
+                                      <i className="ti ti-check"></i>{" "}
+                                      {s.evaluated ? "Evaluated" : isAutoPublished ? "Auto-Published" : "Published"}
+                                    </div>
+                                  </div>
+                                );
+                              } else if (isScheduledPending) {
+                                return (
+                                  <div className="flex flex-col items-start sm:items-end">
+                                    <div className="text-[13px] sm:text-[14px] font-bold text-blue-600 leading-none mb-1.5 flex items-center gap-1">
+                                      <i className="ti ti-clock-play text-lg"></i>{" "}
+                                      Scheduled
+                                    </div>
+                                    <div className="text-[9px] font-extrabold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 uppercase tracking-widest">
+                                      Waiting for Time
+                                    </div>
+                                  </div>
+                                );
+                              } else {
+                                return (
+                                  <div className="flex flex-col items-start sm:items-end">
+                                    <div className="text-[13px] sm:text-[14px] font-bold text-amber-600 leading-none mb-1.5 flex items-center gap-1">
+                                      <i className="ti ti-clock text-lg"></i>{" "}
+                                      Pending
+                                    </div>
+                                    <div className="text-[9px] font-extrabold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest">
+                                      Needs Check
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            })()}
                           </div>
 
                           {/* Action Buttons */}
@@ -3315,30 +3346,50 @@ export default function ManageTests() {
                       <i className="ti ti-shield-lock"></i> Access & Security
                     </h4>
 
-                    <div className="mb-5">
-                      <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
-                        Results Visibility
-                      </label>
-                      <div className="relative">
-                        <select
-                          value={editSettingsData.resultVis}
-                          onChange={(e) =>
-                            setEditSettingsData({
-                              ...editSettingsData,
-                              resultVis: e.target.value,
-                            })
-                          }
-                          className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all appearance-none cursor-pointer"
-                        >
-                          <option value="manual">
-                            Manual Verification (Publish Later)
-                          </option>
-                          <option value="instant">
-                            Instant Access (Show after submit)
-                          </option>
-                        </select>
-                        <i className="ti ti-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                    <div className="mb-5 flex flex-col gap-4">
+                      <div>
+                        <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
+                          Results Visibility
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={editSettingsData.resultVis}
+                            onChange={(e) =>
+                              setEditSettingsData({
+                                ...editSettingsData,
+                                resultVis: e.target.value,
+                                resultPublishTime: e.target.value !== "scheduled" ? "" : editSettingsData.resultPublishTime
+                              })
+                            }
+                            className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all appearance-none cursor-pointer"
+                          >
+                            <option value="manual">Manual Verification (Publish Later)</option>
+                            <option value="instant">Instant Access (Show after submit)</option>
+                            <option value="scheduled">Scheduled (Auto-Publish)</option>
+                          </select>
+                          <i className="ti ti-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
                       </div>
+
+                      {/* 🔥 SCHEDULED TIME INPUT (Sirf tab dikhega jab Scheduled select hoga) */}
+                      {editSettingsData.resultVis === "scheduled" && (
+                        <div className="animate-[fadeIn_0.3s_ease]">
+                          <label className="text-[12px] font-bold text-slate-600 mb-1.5 flex items-center gap-1">
+                            <i className="ti ti-clock-play text-blue-500"></i> Publish Date & Time
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={editSettingsData.resultPublishTime || ""}
+                            onChange={(e) =>
+                              setEditSettingsData({
+                                ...editSettingsData,
+                                resultPublishTime: e.target.value,
+                              })
+                            }
+                            className="w-full px-4 py-2.5 bg-blue-50/50 border-2 border-blue-200 rounded-xl text-[13px] font-semibold text-blue-800 outline-none focus:border-blue-400 focus:bg-white transition-all"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
