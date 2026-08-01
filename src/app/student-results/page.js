@@ -42,6 +42,25 @@ export default function StudentResults() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [isMathReady, setIsMathReady] = useState(true);
 
+  const [openCardId, setOpenCardId] = useState(null); 
+
+  // 🔥 MISSING FUNCTION JO ADD KARNA HAI
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(Date.now()), 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isResultVisible = (t) => {
+    if (!t) return false;
+    if (t.resultVis === "instant" || t.released === true) return true;
+    if (t.resultVis === "scheduled" && t.resultPublishTime) {
+      return nowTick >= new Date(t.resultPublishTime).getTime();
+    }
+    return false;
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleScroll = () => {
@@ -428,13 +447,9 @@ export default function StudentResults() {
   // ==========================================
   if (!selectedResult) {
     return (
-      <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
+      <div className="w-full max-w-[1600px] 2xl:max-w-screen-2xl mx-auto px-4 sm:px-6 md:px-10 py-6 sm:py-10 animate-[fadeIn_0.3s_ease]">
         
-        {/* CSS for Premium Animations */}
         <style>{`
-            @keyframes shimmer {
-                100% { transform: translateX(100%); }
-            }
             @keyframes recentPulseBorder {
                 0% { border-color: #60a5fa; box-shadow: 0 0 0 0 rgba(37,99,235,0.2); }
                 50% { border-color: #3b82f6; box-shadow: 0 0 0 10px rgba(37,99,235,0); }
@@ -442,56 +457,43 @@ export default function StudentResults() {
             }
         `}</style>
 
-        {/* 🌟 OUT-OF-THE-BOX PREMIUM HERO BANNER */}
-        <div className="relative rounded-[32px] p-8 sm:p-12 mb-8 sm:mb-12 overflow-hidden bg-white border border-slate-100 shadow-[0_20px_80px_rgba(24,95,165,0.08)] group">
-          
-          {/* Animated Mesh Gradients (Aurora Effect) */}
+        {/* 🌟 PREMIUM LIGHT HERO BANNER (Catchy, Soft & Professional) */}
+        <div className="relative rounded-[32px] p-8 sm:p-10 lg:p-14 mb-8 sm:mb-10 overflow-hidden bg-white/70 border border-white shadow-[0_20px_80px_rgba(24,95,165,0.06)] group backdrop-blur-3xl">
+          {/* Soft Pastel Aura Background (Apple Style) */}
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-             <div className="absolute -top-[40%] -left-[10%] w-[60%] h-[150%] bg-gradient-to-br from-blue-400/20 to-indigo-500/20 blur-[100px] rounded-full animate-[spin_15s_linear_infinite]"></div>
-             <div className="absolute -bottom-[40%] -right-[10%] w-[60%] h-[150%] bg-gradient-to-tl from-emerald-400/20 to-teal-500/20 blur-[100px] rounded-full animate-[spin_20s_linear_infinite_reverse]"></div>
-             <div className="absolute top-[20%] left-[20%] w-[40%] h-[60%] bg-gradient-to-r from-purple-400/10 to-pink-500/10 blur-[80px] rounded-full animate-[pulse_6s_ease-in-out_infinite]"></div>
-             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+             <div className="absolute -top-[60%] -left-[10%] w-[60%] h-[150%] bg-blue-400/10 blur-[100px] rounded-full animate-[spin_40s_linear_infinite]"></div>
+             <div className="absolute top-[10%] right-[5%] w-[40%] h-[120%] bg-indigo-400/10 blur-[120px] rounded-full animate-[pulse_10s_ease-in-out_infinite]"></div>
+             <div className="absolute -bottom-[30%] left-[20%] w-[50%] h-[80%] bg-emerald-400/5 blur-[100px] rounded-full"></div>
+             <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent"></div>
           </div>
 
-          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-10">
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8 lg:gap-12">
             
             {/* Text Content */}
             <div className="flex-1 text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 border border-white/80 text-[#185FA5] text-[11px] font-black uppercase tracking-widest mb-6 shadow-sm backdrop-blur-md hover:scale-105 transition-transform">
-                 <i className="ti ti-flame text-orange-500 text-base animate-pulse"></i>
-                 Your Analytics
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50/80 border border-blue-100/80 text-blue-600 text-[10px] font-black uppercase tracking-widest mb-5 shadow-sm backdrop-blur-md">
+                 <i className="ti ti-chart-arcs text-blue-500 text-sm"></i>
+                 Performance Analytics
               </div>
-              <h2 className="text-4xl sm:text-5xl lg:text-[54px] font-black text-slate-800 mb-5 tracking-tight leading-[1.1]">
-                 Your Academic <br className="hidden lg:block" />
-                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#185FA5] via-indigo-500 to-[#0C447C]">Trajectory.</span>
+              <h2 className="text-3xl sm:text-4xl lg:text-[48px] font-black text-slate-800 mb-4 tracking-tight leading-[1.1]">
+                 Your Academic <br className="hidden lg:block"/>
+                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Trajectory.</span>
               </h2>
-              <p className="text-slate-500 text-[15px] sm:text-[17px] font-semibold max-w-xl mx-auto lg:mx-0 leading-relaxed">
+              <p className="text-slate-500 text-[15px] sm:text-[16px] font-semibold max-w-xl mx-auto lg:mx-0 leading-relaxed">
                  Dive into your performance metrics. Review evaluated assessments, uncover your strengths, and track your growth over time.
               </p>
             </div>
             
-            {/* Floating Glass Stats Module */}
-            <div className="flex items-center justify-center gap-3 sm:gap-6 bg-white/40 p-5 sm:p-6 rounded-[32px] border border-white/60 backdrop-blur-2xl shrink-0 shadow-[0_20px_50px_rgba(0,0,0,0.05)] relative overflow-hidden group-hover:shadow-[0_20px_50px_rgba(24,95,165,0.1)] transition-all duration-500">
-               
-               {/* Shimmer Effect */}
-               <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_1.5s_infinite]"></div>
-
-               {/* Stat 1 */}
-               <div className="text-center px-4 sm:px-8 border-r border-slate-200/50 relative z-10">
-                  <div className="w-12 h-12 mx-auto bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-xl mb-3 shadow-sm border border-blue-100">
-                     <i className="ti ti-folders"></i>
-                  </div>
-                  <div className="text-4xl sm:text-[42px] font-black text-slate-800 leading-none mb-1">{myHistory.length}</div>
-                  <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest mt-2">Exams Taken</div>
+            {/* Soft Glass Stats Module */}
+            <div className="flex items-center gap-6 sm:gap-12 bg-white/60 p-6 sm:p-8 lg:px-10 rounded-[28px] border border-white/80 backdrop-blur-2xl shrink-0 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+               <div className="text-center px-2">
+                  <div className="text-3xl sm:text-[42px] font-black text-slate-800 leading-none mb-2">{myHistory.length}</div>
+                  <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest">Exams Taken</div>
                </div>
-               
-               {/* Stat 2 */}
-               <div className="text-center px-4 sm:px-8 relative z-10">
-                  <div className="w-12 h-12 mx-auto bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center text-xl mb-3 shadow-sm border border-emerald-100">
-                     <i className="ti ti-rosette-discount-check-filled"></i>
-                  </div>
-                  <div className="text-4xl sm:text-[42px] font-black text-emerald-600 leading-none mb-1">{myHistory.filter(h => h.canView).length}</div>
-                  <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest mt-2">Evaluated</div>
+               <div className="w-px h-16 bg-slate-200"></div>
+               <div className="text-center px-2">
+                  <div className="text-3xl sm:text-[42px] font-black text-emerald-500 leading-none mb-2">{myHistory.filter(h => isResultVisible(h.test)).length}</div>
+                  <div className="text-[10px] sm:text-[11px] font-black text-emerald-600/60 uppercase tracking-widest">Evaluated</div>
                </div>
             </div>
 
@@ -499,42 +501,46 @@ export default function StudentResults() {
         </div>
 
         {myHistory.length === 0 ? (
-          /* 🔥 PREMIUM EMPTY STATE */
-          <div className="bg-white rounded-[32px] p-12 sm:p-16 text-center border-2 border-dashed border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[350px]">
-            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100 shadow-inner">
-              <i className="ti ti-ghost text-5xl text-slate-300"></i>
+          /* EMPTY STATE */
+          <div className="bg-white rounded-3xl p-10 sm:p-16 text-center border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[300px]">
+            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100">
+              <i className="ti ti-ghost text-4xl text-slate-300"></i>
             </div>
-            <h3 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">
-              Vault is Empty
-            </h3>
-            <p className="text-slate-500 max-w-md mx-auto mb-8 text-[14px] sm:text-[15px] font-medium leading-relaxed">
-              You haven't completed any assessments yet, or your results are still being processed. Check the Active Exams section.
+            <h3 className="text-xl font-black text-slate-800 mb-2 tracking-tight">Vault is Empty</h3>
+            <p className="text-slate-500 max-w-sm mx-auto mb-6 text-[13px] sm:text-[14px] font-medium leading-relaxed">
+              You haven't completed any assessments yet, or your results are still processing.
             </p>
             <button
-              className="px-8 py-3.5 bg-[#185FA5] hover:bg-[#0C447C] text-white font-black rounded-xl shadow-lg shadow-[#185FA5]/20 transition-all active:scale-95 flex items-center gap-2 text-[15px]"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center gap-2 text-sm"
               onClick={() => router.push("/student")}
             >
-              <i className="ti ti-rocket text-xl"></i> Go to Active Exams
+              <i className="ti ti-rocket text-lg"></i> Go to Active Exams
             </button>
           </div>
         ) : (
           <div>
-            {/* 🔥 PREMIUM GRID LAYOUT FOR CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 items-start">
               {myHistory.map((h, idx) => {
                 const subTimeMs = h.sub.timestamp || Date.parse(h.sub.time) || 0;
                 const timeDiff = Date.now() - subTimeMs;
                 const isRecent = timeDiff >= 0 && timeDiff < 120000;
                 
                 const pct = h.test.totalMarks > 0 ? Math.round((h.sub.score / h.test.totalMarks) * 100) : 0;
+                const canViewNow = isResultVisible(h.test);
+                
+                // Track if this specific card is open
+                const isOpen = openCardId === idx;
 
                 return (
                   <div
                     key={idx}
-                    className={`group relative bg-white rounded-3xl p-5 sm:p-6 border flex flex-col transition-all duration-300 hover:-translate-y-1.5 ${
-                        isRecent
-                           ? "bg-blue-50/30"
-                           : "hover:shadow-[0_15px_40px_rgba(0,0,0,0.06)] hover:border-blue-200"
+                    /* 🔥 PREMIUM CARD HOVER EFFECT */
+                    className={`group relative bg-white rounded-[24px] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden border ${
+                        isRecent 
+                           ? "border-blue-400 shadow-[0_8px_20px_rgba(37,99,235,0.15)]" 
+                           : isOpen 
+                              ? "border-blue-300 shadow-[0_20px_40px_-15px_rgba(37,99,235,0.15)] ring-1 ring-blue-300" 
+                              : "border-slate-200/80 shadow-sm hover:shadow-[0_15px_35px_-10px_rgba(0,0,0,0.08)] hover:border-blue-200 hover:-translate-y-1.5"
                     }`}
                     style={{
                       opacity: 0,
@@ -544,102 +550,118 @@ export default function StudentResults() {
                       animationFillMode: "forwards, none",
                       animationIterationCount: isRecent ? "1, infinite" : "1",
                       animationDelay: `${idx * 0.05}s, 0s`,
-                      borderColor: isRecent ? "#60a5fa" : "#e2e8f0"
                     }}
                   >
-                    {/* Top Accent Gradient Line */}
-                    <div className={`absolute top-0 left-0 right-0 h-1.5 rounded-t-3xl bg-gradient-to-r ${
-                       h.canView ? "from-emerald-400 to-teal-500" : "from-amber-400 to-orange-500"
+                    {/* Top Accent Line */}
+                    <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r transition-colors ${
+                       canViewNow ? "from-emerald-400 to-teal-500" : "from-amber-400 to-orange-500"
                     }`}></div>
 
-                    {/* Card Header: Subject & Tags */}
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="flex-1 min-w-0 pr-3">
+                    {/* 🔥 VISIBLE HEADER (Always visible, clean and click-to-expand) */}
+                    <div 
+                        className="px-5 py-6 cursor-pointer flex items-center justify-between gap-4 select-none bg-white relative z-10"
+                        onClick={() => setOpenCardId(isOpen ? null : idx)}
+                    >
+                        <div className="flex-1 min-w-0 pr-2">
                             <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md border border-slate-200">
+                                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-slate-50 text-slate-500 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm">
                                     {h.test.subject || "General"}
                                 </span>
                                 {isRecent && (
-                                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200 animate-pulse flex items-center gap-1.5 shadow-sm">
+                                    <span className="text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-200 animate-pulse flex items-center gap-1 shadow-sm">
                                        <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span> JUST NOW
                                     </span>
                                 )}
                             </div>
-                            <h3 className="text-[17px] sm:text-[19px] font-black text-slate-800 leading-tight truncate group-hover:text-blue-700 transition-colors" title={h.test.title}>
+                            {/* 🔥 TEXT SQUISH FIX: line-clamp-2 instead of truncate */}
+                            <h3 className="text-[17px] sm:text-[18px] font-black text-slate-800 leading-snug line-clamp-2 transition-colors group-hover:text-blue-600">
                                 {h.test.title}
                             </h3>
                         </div>
-                    </div>
-
-                    {/* Meta Information */}
-                    <div className="flex flex-col gap-2.5 mb-6">
-                        <div className="flex items-center gap-2 text-[12px] font-bold text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                            <i className="ti ti-calendar-time text-slate-400 text-base"></i> {h.sub.time}
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                           <div className="bg-indigo-50/50 text-indigo-600 border border-indigo-100/80 text-[11px] px-2.5 py-1 rounded-lg font-mono font-bold flex items-center gap-1.5 w-fit shadow-sm">
-                               <i className="ti ti-hash opacity-60 text-sm"></i> {h.test.code}
-                           </div>
-                           
-                           {/* Small Score Pill Preview */}
-                           {h.canView && (
-                               <div className={`text-[11px] font-black px-2.5 py-1 rounded-lg border shadow-sm ${
-                                   pct >= 75 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                   pct >= 40 ? "bg-amber-50 text-amber-700 border-amber-200" :
-                                   "bg-rose-50 text-rose-700 border-rose-200"
-                               }`}>
-                                   {pct}% SCORE
-                               </div>
-                           )}
+                        
+                        {/* Soft Interactive Chevron */}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isOpen ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-50 text-slate-400 border border-slate-200 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200 group-hover:scale-105'}`}>
+                            <i className={`ti ti-chevron-down text-[20px] transform transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${isOpen ? 'rotate-180' : ''}`}></i>
                         </div>
                     </div>
 
-                    {/* Bottom Action Area */}
-                    <div className="mt-auto pt-5 border-t border-slate-100">
-                        {h.canView ? (
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">Total Score</span>
-                                    <span className="text-[20px] font-black text-slate-800 leading-none">
-                                        {h.sub.score} <span className="text-[13px] text-slate-400 font-bold">/ {h.test.totalMarks}</span>
-                                    </span>
+                    {/* 🔥 HIDDEN DROPDOWN CONTENT (Makkhan Animation - Super Soft) */}
+                    <div className={`grid transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] bg-slate-50/50 ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                       <div className="overflow-hidden">
+                           <div className="px-5 pb-6 pt-1 border-t border-slate-100/80">
+                                
+                                {/* Meta Information */}
+                                <div className="flex flex-col gap-3 mb-6 pt-4">
+                                    <div className="flex items-center gap-2 text-[12px] font-bold text-slate-500 bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm">
+                                        <i className="ti ti-calendar-time text-slate-400 text-[16px]"></i> {h.sub.time}
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                       <div className="bg-white text-slate-600 border border-slate-200/60 text-[11px] px-3 py-1.5 rounded-lg font-mono font-bold flex items-center gap-1.5 shadow-sm">
+                                           <i className="ti ti-hash opacity-60 text-sm"></i> {h.test.code}
+                                       </div>
+                                       
+                                       {/* Small Score Pill */}
+                                       {canViewNow && (
+                                           <div className={`text-[11px] font-black px-2.5 py-1.5 rounded-lg border shadow-sm tracking-wide ${
+                                               pct >= 75 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                                               pct >= 40 ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                               "bg-rose-50 text-rose-700 border-rose-200"
+                                           }`}>
+                                               {pct}% SCORE
+                                           </div>
+                                       )}
+                                    </div>
                                 </div>
-                                <button
-                                    className="px-5 py-3 bg-[#185FA5] hover:bg-[#0C447C] text-white font-black rounded-xl text-[13px] sm:text-sm shadow-md shadow-[#185FA5]/20 transition-all active:scale-95 flex items-center gap-2"
-                                    onClick={() => setSelectedResult(h)}
-                                >
-                                    Report <i className="ti ti-arrow-right"></i>
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center justify-between gap-3">
-                                {h.test.resultVis === "scheduled" && h.test.resultPublishTime ? (
-                                    <>
-                                        <div className="flex flex-col min-w-0">
-                                            <span className="text-[10px] font-extrabold text-blue-500 uppercase tracking-widest mb-0.5">Publishing At</span>
-                                            <span className="text-[12px] font-black text-slate-700 leading-none truncate">
-                                                {new Date(h.test.resultPublishTime).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
-                                            </span>
+
+                                {/* Bottom Action Area */}
+                                <div>
+                                    {canViewNow ? (
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Total Score</span>
+                                                <span className="text-[22px] font-black text-slate-800 leading-none">
+                                                    {h.sub.score} <span className="text-[14px] text-slate-400 font-bold">/ {h.test.totalMarks}</span>
+                                                </span>
+                                            </div>
+                                            <button
+                                                className="px-6 py-2.5 bg-[#185FA5] hover:bg-[#0C447C] text-white font-bold rounded-xl text-[13px] shadow-md shadow-[#185FA5]/20 transition-all duration-300 active:scale-95 flex items-center gap-1.5 hover:shadow-lg hover:-translate-y-0.5"
+                                                onClick={(e) => { e.stopPropagation(); setSelectedResult(h); }}
+                                            >
+                                                Report <i className="ti ti-arrow-right"></i>
+                                            </button>
                                         </div>
-                                        <button disabled className="px-4 py-3 bg-blue-50 text-blue-600 font-bold rounded-xl text-[12px] sm:text-[13px] border border-blue-200 flex items-center gap-2 cursor-wait opacity-80 shrink-0">
-                                            <i className="ti ti-clock-play text-lg"></i> Waiting
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-extrabold text-amber-500 uppercase tracking-widest mb-0.5">Status</span>
-                                            <span className="text-[13px] font-black text-slate-700 leading-none">
-                                                In Review
-                                            </span>
+                                    ) : (
+                                        <div className="flex items-center justify-between gap-3">
+                                            {h.test.resultVis === "scheduled" && h.test.resultPublishTime ? (
+                                                <>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-1">Publishing At</span>
+                                                        <span className="text-[13px] font-black text-slate-700 leading-none truncate">
+                                                            {new Date(h.test.resultPublishTime).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
+                                                        </span>
+                                                    </div>
+                                                    <button disabled className="px-5 py-2.5 bg-blue-50 text-blue-600 font-bold rounded-xl text-[12px] border border-blue-200 flex items-center gap-1.5 cursor-wait opacity-80 shrink-0">
+                                                        <i className="ti ti-clock-play text-lg"></i> Waiting
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">Status</span>
+                                                        <span className="text-[13px] font-black text-slate-700 leading-none">
+                                                            In Review
+                                                        </span>
+                                                    </div>
+                                                    <button disabled className="px-5 py-2.5 bg-amber-50 text-amber-600 font-bold rounded-xl text-[12px] border border-amber-200 flex items-center gap-1.5 cursor-not-allowed opacity-80 shrink-0">
+                                                        <i className="ti ti-lock text-lg"></i> Locked
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
-                                        <button disabled className="px-4 py-3 bg-amber-50 text-amber-600 font-bold rounded-xl text-[12px] sm:text-[13px] border border-amber-200 flex items-center gap-2 cursor-not-allowed opacity-80 shrink-0">
-                                            <i className="ti ti-lock text-lg"></i> Locked
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        )}
+                                    )}
+                                </div>
+                           </div>
+                       </div>
                     </div>
                   </div>
                 );
@@ -747,7 +769,7 @@ export default function StudentResults() {
             {test.title}
           </div>
 
-          <h2 className="hero-title">{sub.name}</h2>
+          <h2 className="hero-title drop-shadow-sm" style={{ color: "#FFD54F" }}>{sub.name}</h2>
 
           <div className="hero-meta">
             {sub.roll && (

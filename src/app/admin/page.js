@@ -64,6 +64,8 @@ export default function GodMode() {
 
   // NAYA STATE: Error Logs ke liye
   const [systemErrors, setSystemErrors] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [nukeConfirm, setNukeConfirm] = useState(null);
 
   // CUSTOM BULK ADD STATES & FUNCTIONS
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -857,29 +859,37 @@ export default function GodMode() {
     });
   };
 
+  //Smart Nuke & Archive Engine
   const deleteGlobalTest = (t) => {
-    setSysConfirm({
-      title: "ERADICATE TEST?",
-      msg: `WARNING: Permanently wipe "${t.title}" and ALL its student submissions?`,
-      action: async () => {
-        try {
-          await remove(ref(database, `tests/${t.dbKey}`));
-          setAllTests((prev) => prev.filter((test) => test.dbKey !== t.dbKey));
-          setSysAlert({
-            title: "Eradicated",
-            msg: "Test wiped from existence.",
-            type: "success",
-          });
-          setViewingSubsFor(null);
-        } catch (e) {
-          setSysAlert({
-            title: "Error",
-            msg: "Failed deletion.",
-            type: "error",
-          });
-        }
-      },
-    });
+    setNukeConfirm(t); // Modal open karega
+  };
+
+  const executeTotalWipe = async (t) => {
+    try {
+      await remove(ref(database, `tests/${t.dbKey}`));
+      setAllTests((prev) => prev.filter((test) => test.dbKey !== t.dbKey));
+      setSysAlert({ title: "Eradicated", msg: "Test wiped from existence permanently.", type: "success" });
+      setViewingSubsFor(null);
+      setNukeConfirm(null);
+    } catch (e) {
+      setSysAlert({ title: "Error", msg: "Failed deletion.", type: "error" });
+    }
+  };
+
+  const executeStudentArchive = async (t) => {
+    try {
+      // Test ko DB me zinda rakhega baccho ke liye, par admin/examiner se permanent hide kar dega
+      await update(ref(database, `tests/${t.dbKey}`), {
+        isDeletedByExaminer: true,
+        isArchivedForStudents: true // Ye lagte hi admin vault se bhi gayab ho jayega
+      });
+      setAllTests((prev) => prev.map((test) => test.dbKey === t.dbKey ? { ...test, isArchivedForStudents: true } : test));
+      setSysAlert({ title: "Archived", msg: "Student copy preserved. Test hidden from Admin Vault.", type: "success" });
+      setViewingSubsFor(null);
+      setNukeConfirm(null);
+    } catch (e) {
+      setSysAlert({ title: "Error", msg: "Failed to archive.", type: "error" });
+    }
   };
 
   const deleteIndividualSub = (t, idx, sName) => {
@@ -1180,55 +1190,115 @@ export default function GodMode() {
       initial="hidden"
       animate="visible"
       variants={fadeUp}
-      className="p-4 md:p-8 max-w-6xl mx-auto font-sans min-h-screen"
+      className="p-4 md:p-8 max-w-7xl mx-auto font-sans min-h-screen relative"
     >
-      {/* HEADER PANEL (Exact Original Design) */}
-      <div className="bg-gradient-to-br from-[#0B0F19] to-[#1a0b0b] rounded-2xl p-6 md:p-10 text-white mb-8 flex flex-col md:flex-row justify-between items-center gap-5 border border-[#3f1515] shadow-[0_15px_35px_rgba(139,0,0,0.2)]">
-        <div className="flex items-center gap-4 md:gap-5 w-full md:w-auto">
-          <div className="w-16 h-16 md:w-20 md:h-20 bg-[#D4AF37]/10 border-2 border-[#D4AF37] rounded-2xl flex items-center justify-center text-3xl md:text-[38px] text-[#D4AF37] font-black shadow-[inset_0_0_15px_rgba(212,175,55,0.2)] flex-shrink-0">
-            <i className="ti ti-crown"></i>
-          </div>
-          <div>
-            <h2 className="m-0 text-xl md:text-[26px] font-black tracking-wide text-white mb-1">
-              OMNI-CONTROL CENTER
-            </h2>
-            <div className="text-[11px] md:text-[13px] text-[#D4AF37] font-mono tracking-wider font-semibold">
-              <i className="ti ti-fingerprint mr-1"></i> UID:{" "}
-              {currentUser.uid.substring(0, 8)}... &bull; ROOT CLEARANCE ACTIVE
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-5 text-right bg-black/40 px-6 py-4 rounded-xl border border-[#333] w-full md:w-auto justify-center md:justify-end">
-          <div>
-            <div className="text-3xl md:text-[32px] font-black text-[#D4AF37] drop-shadow-[0_0_10px_rgba(212,175,55,0.3)] leading-none mb-1">
-              {platformInstalls}
-            </div>
-            <div className="text-[11px] font-black text-slate-400 uppercase tracking-[1.5px]">
-              Global Installs
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* 🔥 FLOATING SIDEBAR TOGGLE (SMART APP-STYLE MENU) */}
+      <button
+        onClick={() => setIsSidebarOpen(true)}
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:top-32 sm:bottom-auto sm:left-6 z-[90] h-12 sm:w-14 sm:h-14 bg-[#0B0F19] text-[#D4AF37] rounded-full shadow-[0_8px_30px_rgba(212,175,55,0.4)] flex items-center justify-center text-xl sm:text-2xl hover:bg-slate-900 transition-all duration-300 border border-[#D4AF37]/50 group cursor-pointer px-6 sm:px-0 gap-2 ${isSidebarOpen ? 'opacity-0 scale-50 pointer-events-none' : 'opacity-100 scale-100 hover:scale-105'}`}
+        title="Open Admin Tabs"
+      >
+        <i className="ti ti-menu-2"></i> 
+        {/* Sirf phone me dikhega 'MENU' text */}
+        <span className="font-black text-sm tracking-widest sm:hidden">MENU</span>
+      </button>
 
-      {/* TABS (Mobile Scrollable) */}
-      <div className="flex overflow-x-auto gap-2 md:gap-3 mb-8 pb-2 hide-scrollbar">
-        {[
-          { id: "pulse", icon: "ti-activity-heartbeat", label: "System Pulse" },
-          { id: "analytics", icon: "ti-chart-pie", label: "Analytics" },
-          { id: "users", icon: "ti-users-group", label: "Citizen Matrix" },
-          { id: "examiners", icon: "ti-briefcase", label: "Examiners Ops" }, 
-          { id: "tests", icon: "ti-database", label: "Global Vault" },
-          { id: "radar", icon: "ti-radar", label: "Radar Ops" },
-          { id: "logs", icon: "ti-bug", label: "System Logs" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-shrink-0 px-4 md:px-6 py-3 font-black rounded-lg transition-colors flex items-center gap-2 text-sm md:text-base ${activeTab === tab.id ? "bg-[#8B0000] text-white" : "bg-transparent text-slate-500 hover:bg-slate-200"}`}
-          >
-            <i className={`ti ${tab.icon}`}></i> {tab.label}
-          </button>
-        ))}
+      {/* 🔥 SLIDING SIDEBAR WINDOW */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsSidebarOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
+            ></motion.div>
+
+            <motion.div
+              initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed top-0 left-0 h-full w-[280px] bg-[#0B0F19] border-r border-[#D4AF37]/20 z-[80] shadow-[20px_0_50px_rgba(0,0,0,0.5)] flex flex-col px-6 pb-6 pt-16 sm:pt-36"
+            >
+              <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-800">
+                <div className="text-[#D4AF37] font-black text-xl tracking-widest flex items-center gap-2">
+                    <i className="ti ti-crown text-2xl"></i> GOD MODE
+                </div>
+                <button onClick={() => setIsSidebarOpen(false)} className="text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-full w-8 h-8 flex items-center justify-center">
+                  <i className="ti ti-x text-lg"></i>
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2 overflow-y-auto hide-scrollbar">
+                {[
+                  { id: "pulse", icon: "ti-activity-heartbeat", label: "System Pulse" },
+                  { id: "analytics", icon: "ti-chart-pie", label: "Analytics" },
+                  { id: "users", icon: "ti-users-group", label: "Citizen Matrix" },
+                  { id: "examiners", icon: "ti-briefcase", label: "Examiners Ops" },
+                  { id: "tests", icon: "ti-database", label: "Global Vault" },
+                  { id: "radar", icon: "ti-radar", label: "Radar Ops" },
+                  { id: "logs", icon: "ti-bug", label: "System Logs" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => { setActiveTab(tab.id); setIsSidebarOpen(false); }}
+                    className={`w-full text-left px-5 py-4 font-black rounded-2xl transition-all flex items-center gap-3 text-[15px] tracking-wide ${activeTab === tab.id ? "bg-gradient-to-r from-[#8B0000] to-red-900 text-white shadow-lg shadow-red-900/40 border border-red-500/30" : "bg-transparent text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
+                  >
+                    <i className={`ti ${tab.icon} text-[22px]`}></i> {tab.label}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* 🔥 PREMIUM HERO CARD (Perfectly Responsive) */}
+      <div className="bg-gradient-to-br from-[#0B0F19] to-[#121626] rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 md:p-10 text-white mb-8 sm:mb-10 flex flex-col lg:flex-row justify-between lg:items-center gap-5 sm:gap-8 relative overflow-hidden border border-slate-800 shadow-2xl sm:ml-24 pb-6 sm:pb-8">
+         {/* Background Glows */}
+         <div className="absolute -top-16 -right-16 sm:-top-24 sm:-right-24 w-48 h-48 sm:w-64 sm:h-64 bg-[#D4AF37]/10 blur-[60px] sm:blur-[80px] rounded-full pointer-events-none"></div>
+         <div className="absolute -bottom-16 -left-16 sm:-bottom-24 sm:-left-24 w-48 h-48 sm:w-64 sm:h-64 bg-blue-600/10 blur-[60px] sm:blur-[80px] rounded-full pointer-events-none"></div>
+         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+
+         {/* Left Content (Logo + Titles) */}
+         <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 w-full lg:w-auto z-10">
+           
+           {/* Mobile Side-by-Side Wrapper */}
+           <div className="flex items-center gap-4 w-full sm:w-auto">
+             <div className="w-14 h-14 sm:w-20 sm:h-20 bg-gradient-to-br from-[#1a1c29] to-[#0B0F19] border border-[#D4AF37]/30 rounded-[14px] sm:rounded-2xl flex items-center justify-center text-3xl sm:text-4xl text-[#D4AF37] shadow-[0_0_20px_rgba(212,175,55,0.15)] shrink-0">
+               <i className="ti ti-infinity"></i>
+             </div>
+             <div className="flex flex-col items-start min-w-0">
+               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span> <span className="truncate">ROOT CLEARANCE</span>
+               </div>
+               <h2 className="m-0 text-[24px] sm:text-[36px] md:text-[42px] font-black tracking-tight text-white leading-none truncate w-full">
+                 OMNI-CONTROL
+               </h2>
+             </div>
+           </div>
+           
+           {/* UID Badge */}
+           <div className="w-full sm:w-auto mt-1 sm:mt-12 sm:-ml-2">
+              <div className="text-[11px] sm:text-[12px] text-slate-400 font-mono font-bold tracking-wide bg-black/40 px-3 py-1.5 rounded-lg border border-slate-700/50 inline-flex items-center gap-2">
+                 <i className="ti ti-fingerprint text-[#D4AF37]"></i> UID: {currentUser.uid.substring(0, 10)}...
+              </div>
+           </div>
+         </div>
+
+         {/* Right Content (Stats Box) */}
+         <div className="w-full lg:w-auto z-10 mt-2 lg:mt-0">
+           <div className="bg-white/5 backdrop-blur-md px-5 py-4 sm:px-8 sm:py-5 rounded-xl sm:rounded-[20px] border border-white/10 flex items-center justify-between gap-6 shadow-xl relative overflow-hidden group hover:bg-white/10 transition-colors w-full lg:min-w-[250px]">
+             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+             <div>
+               <div className="text-3xl sm:text-[42px] font-black text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-amber-200 leading-none mb-1 filter drop-shadow-lg">
+                 {platformInstalls}
+               </div>
+               <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-[2px]">
+                 Global Installs
+               </div>
+             </div>
+             <i className="ti ti-world text-4xl sm:text-5xl text-white/10 group-hover:text-white/20 transition-colors"></i>
+           </div>
+         </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -1683,21 +1753,21 @@ export default function GodMode() {
 
                 {/* Quick Filters */}
                 <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full xl:w-auto overflow-x-auto hide-scrollbar shrink-0">
-                  {["all", "live", "closed"].map((f) => (
+                  {["all", "live", "closed", "deleted"].map((f) => ( //DELETED ADD KIYA
                     <button
                       key={f}
                       onClick={() => setVaultFilter(f)}
-                      className={`flex-1 xl:flex-none px-6 py-2.5 rounded-lg font-black text-[13px] uppercase tracking-wider transition-all ${vaultFilter === f ? "bg-white text-[#8B0000] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                      className={`flex-1 xl:flex-none px-5 py-2.5 rounded-lg font-black text-[12px] uppercase tracking-wider transition-all whitespace-nowrap ${vaultFilter === f ? "bg-white text-[#8B0000] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
                     >
                       {f === "all"
                         ? "All Exams"
                         : f === "live"
                           ? "Live Intakes"
-                          : "Closed"}
+                          : f === "closed" ? "Closed" : "🗑️ Deleted"}
                     </button>
                   ))}
                 </div>
-              </div>
+              </div> {/* 🔥 YE WALA DIV GAYAB HO GAYA THA! */}
 
               {/* 📊 Premium Vault Table */}
               <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden p-0 relative">
@@ -1734,10 +1804,19 @@ export default function GodMode() {
 
                           if (!matchesSearch) return false;
 
-                          if (vaultFilter === "live")
-                            return t.isActive !== false;
-                          if (vaultFilter === "closed")
-                            return t.isActive === false;
+                          // 🔥 NAYA: Agar Student ke liye archive ho gaya, to Admin Vault se gayab!
+                          if (t.isArchivedForStudents) return false;
+
+                          // 🔥 NAYA: Deleted tab ka logic
+                          if (vaultFilter === "deleted") {
+                            return t.isDeletedByExaminer === true;
+                          } else {
+                            // Baki normal tabs me deleted tests hide rahenge
+                            if (t.isDeletedByExaminer) return false; 
+                          }
+
+                          if (vaultFilter === "live") return t.isActive !== false;
+                          if (vaultFilter === "closed") return t.isActive === false;
 
                           return true;
                         });
@@ -2581,7 +2660,7 @@ export default function GodMode() {
                 </div>
               )}
             </div>
-          )}
+          )}          
         </motion.div>
       </AnimatePresence>
 
@@ -2770,7 +2849,7 @@ export default function GodMode() {
                 )}
               </div>
 
-              {/* FOOTER */}
+              {/* FOOTER (Bulk Modal ka) */}
               {!bulkResult && !isSubmittingBulk && (
                 <div className="bg-white p-5 border-t border-slate-200 flex justify-between items-center shrink-0">
                   <div className="text-sm font-bold text-slate-500">
@@ -2781,6 +2860,58 @@ export default function GodMode() {
                   </button>
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence> {/* 🔥 Bulk Modal yahan close hona chahiye */}
+
+      {/* 🔥 SMART NUKE CONFIRM MODAL */}
+      <AnimatePresence>
+        {nukeConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-[#0B0F19]/90 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white border border-slate-200 rounded-3xl p-8 max-w-lg w-full text-center shadow-2xl"
+            >
+              <div className="w-20 h-20 mx-auto bg-red-50 text-red-600 rounded-full flex items-center justify-center text-4xl mb-6 shadow-inner border border-red-100">
+                 <i className="ti ti-flame"></i>
+              </div>
+              <h3 className="text-2xl text-slate-900 font-black mb-3">
+                Nuke Protocol Initiated
+              </h3>
+              <p className="text-slate-500 mb-8 font-semibold leading-relaxed text-[15px]">
+                You are about to eradicate <strong>"{nukeConfirm.title}"</strong>. <br/> Do you want to wipe it completely, or retain a background copy so students can still view their reports?
+              </p>
+              
+              <div className="flex flex-col gap-3">
+                {/* SAFE OPTION */}
+                <button
+                  className="w-full py-4 bg-[#185FA5] text-white font-black rounded-xl hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 text-[15px]"
+                  onClick={() => executeStudentArchive(nukeConfirm)}
+                >
+                  <i className="ti ti-archive text-xl"></i> Create Student Copy & Delete
+                </button>
+                {/* DANGER OPTION */}
+                <button
+                  className="w-full py-4 bg-[#8B0000] text-white font-black rounded-xl hover:bg-red-900 tracking-widest uppercase shadow-md shadow-red-900/20 flex items-center justify-center gap-2 text-[13px]"
+                  onClick={() => executeTotalWipe(nukeConfirm)}
+                >
+                  <i className="ti ti-trash-x text-xl"></i> Total Nuke (Wipe Everything)
+                </button>
+                {/* CANCEL */}
+                <button
+                  className="w-full py-3 mt-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                  onClick={() => setNukeConfirm(null)}
+                >
+                  Cancel Protocol
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

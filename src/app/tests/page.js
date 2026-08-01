@@ -593,37 +593,42 @@ export default function ManageTests() {
     }
   };
 
-  //  THE FIX 4: SAFE DELETER (Cross-Check Delete)
+  // 🔥 THE FIX: ABSOLUTE SAFE DELETER (Only updates 1 field, touches nothing else)
   const triggerDelete = (t) => {
     setSysConfirm({
-      title: "Delete Test?",
-      msg: `Are you sure you want to delete "${t.title}"? You will have 5 seconds to undo this action.`,
+      title: "Move to Trash?",
+      msg: `Are you sure you want to remove "${t.title}"? This will hide it from your dashboard, but student results will remain safe.`,
       action: () => {
         setSelectedTest(null);
         const timeoutId = setTimeout(async () => {
           try {
             if (t.isLocal) {
-              let currentLocal = JSON.parse(
-                localStorage.getItem("examitop_offline_tests") || "[]",
-              );
+              let currentLocal = JSON.parse(localStorage.getItem("examitop_offline_tests") || "[]");
               let newLocal = currentLocal.filter((x) => x.id !== t.id);
-              localStorage.setItem(
-                "examitop_offline_tests",
-                JSON.stringify(newLocal),
-              );
+              localStorage.setItem("examitop_offline_tests", JSON.stringify(newLocal));
               setLocalTests(newLocal);
             } else {
-              // DB se safely wo element nikal kar array set karna
+              // 🛡️ BULLETPROOF LOGIC: Poora object update karne ki jagah, sirf ek property add karenge
               const snapshot = await get(ref(database, "tests"));
-              let allTests = snapshot.val() || [];
-              const newTests = allTests.filter((x) => x && x.id !== t.id);
-              await set(ref(database, "tests"), newTests);
-              if (setTests)
-                setTests((prev) => prev.filter((x) => x.id !== t.id));
+              const allTests = snapshot.val() || [];
+              const tIndex = allTests.findIndex((x) => x && x.id === t.id);
+              
+              if (tIndex > -1) {
+                await update(ref(database, `tests/${tIndex}`), {
+                  isDeletedByExaminer: true
+                });
+                
+                // Local state update taki examiner ka UI bina refresh kiye theek ho jaye
+                if (setTests) {
+                  setTests((prev) => prev.map((item) => item.id === t.id ? { ...item, isDeletedByExaminer: true } : item));
+                }
+              }
             }
             setUndoData(null);
+            setSysAlert({ title: "Moved to Trash", msg: "Exam hidden from your dashboard successfully.", type: "success" });
           } catch (e) {
             console.error("Deletion failed", e);
+            setSysAlert({ title: "Error", msg: "Failed to move test to trash.", type: "error" });
           }
         }, 5000);
         setUndoData({ test: t, timeoutId });
@@ -3865,6 +3870,8 @@ export default function ManageTests() {
                 {(() => {
                   // Filter Logic
                   let filtered = myTests.filter((t) => {
+                    if (t.isDeletedByExaminer) return false; // Deleted exams ko list me mat dikhao
+                    
                     const sq = vaultSearchQuery.toLowerCase();
                     const matchesSearch =
                       !vaultSearchQuery ||
