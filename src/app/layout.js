@@ -231,150 +231,6 @@ function Header() {
     }
   };
 
-  ///  ADVANCED INTERACTIVE PAGE INSTRUCTIONS
-  const getPageInstructions = () => {
-    switch (pathname) {
-      case "/student":
-        return {
-          title: "Live Exam Guidelines",
-          basic:
-            "Take a deep breath! This interface is designed to be completely failure-proof. Focus on your exam without worrying about internet drops or glitches.",
-          tabs: [
-            {
-              id: "anti-cheat",
-              icon: "ti-shield-lock",
-              title: "Sentinel Proctoring",
-              content:
-                "Our background daemon strictly monitors tab-switching and screen behavior. Stay in full-screen mode to avoid auto-submission warnings.",
-            },
-            {
-              id: "offline",
-              icon: "ti-wifi-off",
-              title: "Zero-Connectivity Vault",
-              content:
-                "Internet dropped? Keep solving! Your answers are securely locked in your device's local storage and will automatically sync the moment connection returns.",
-            },
-            {
-              id: "palette",
-              icon: "ti-layout-grid",
-              title: "Smart Palette",
-              content:
-                "Use the right-side grid to jump between questions. Blue means Answered, Yellow means Marked for Review, and Grey is Unvisited.",
-            },
-          ],
-        };
-      case "/create":
-        return {
-          title: "Test Creator Masterclass",
-          basic:
-            "Design professional-grade assessments using our advanced Hybrid formatting engine.",
-          tabs: [
-            {
-              id: "hybrid",
-              icon: "ti-vector",
-              title: "Hybrid Figures Engine",
-              content:
-                "Use the dropdown to attach Visuals! Select SMILES for auto-drawing Chemistry diagrams (e.g., c1ccccc1), or TikZ for Math geometry. Normal image upload is also fully supported offline.",
-            },
-            {
-              id: "math",
-              icon: "ti-math-symbols",
-              title: "MathJax Support",
-              content:
-                "Wrap your mathematical equations in $$ (e.g., $$x^2 + y^2$$) to instantly render crisp, vector-based math formulas in the question text.",
-            },
-            {
-              id: "settings",
-              icon: "ti-adjustments",
-              title: "Smart Configuration",
-              content:
-                "Set strict limits using Duration, Total Marks, and select Result Visibility (Instant vs Manual).",
-            },
-          ],
-        };
-      case "/tests":
-        return {
-          title: "Examiner Vault Operations",
-          basic:
-            "Welcome to your Command Center. Manage intakes, monitor live submissions, and evaluate papers seamlessly with these advanced tools.",
-          tabs: [
-            {
-              id: "bulk",
-              icon: "ti-file-upload",
-              title: "Bulk Import Template",
-              content:
-                'Download our universal JSON template. Define figureType as "image", "smiles", "tikz", or "none" to seamlessly build complex papers completely offline.',
-            },
-            {
-              id: "rekey",
-              icon: "ti-wand",
-              title: "Magic Re-keying",
-              content:
-                'Found a mistake in your question paper? Click "Edit Key", fix the correct option, and our engine will instantly auto-regrade hundreds of past student submissions in milliseconds.',
-            },
-            {
-              id: "evaluate",
-              icon: "ti-pencil-check",
-              title: "Manual Evaluation",
-              content:
-                'Click "Evaluate" on any submission to manually override marks or grade subjective questions. Every single mark change is securely recorded in an Immutable Audit Log.',
-            },
-            {
-              id: "sections",
-              icon: "ti-layout-distribute-vertical",
-              title: "Sectional Analytics",
-              content:
-                "Filter student performance by specific sections (e.g., Physics, Chemistry). Dive deep into class weaknesses, strengths, and question-level accuracy.",
-            },
-            {
-              id: "proctoring",
-              icon: "ti-shield-half-filled",
-              title: "Integrity Radar (Anti-Cheat)",
-              content:
-                "Every submission comes with a timestamped Proctoring Log. Instantly verify if a student switched tabs, minimized the window, or attempted to bypass the full-screen lockdown.",
-            },
-            {
-              id: "export",
-              icon: "ti-file-spreadsheet",
-              title: "CSV Ledger Export",
-              content:
-                "Generate a comprehensive Excel/CSV report of the entire batch in one click. Instantly download detailed metrics including Accuracy %, Total Score, Correct/Wrong counts, and Submission Timestamps.",
-            },
-            {
-              id: "publish",
-              icon: "ti-share",
-              title: "Smart Publishing & Share",
-              content:
-                'Control exactly when results go live using the "Publish Results Manually" toggle. Once ready, use the 1-Click WhatsApp/Telegram share buttons to broadcast the secure test link directly to your students.',
-            },
-          ],
-        };
-      case "/arena":
-        return {
-          title: "Practice Arena Guide",
-          basic:
-            "Sharpen your logical building and problem-solving skills in a pressure-free environment.",
-          tabs: [
-            {
-              id: "gemini",
-              icon: "ti-sparkles",
-              title: "AI Mock Tests",
-              content:
-                "Enter any specific engineering or academic topic, and our AI will dynamically generate a custom mock test tailored to your needs.",
-            },
-          ],
-        };
-      default:
-        return {
-          title: "ExamiTop Overview",
-          basic:
-            "Welcome to the most secure, offline-capable assessment platform built for modern academic needs.",
-          tabs: [],
-        };
-    }
-  };
-  const info = getPageInstructions();
-
   const renderNavTabs = () => {
     if (userRole === "student") {
       return (
@@ -605,7 +461,8 @@ function Header() {
                   </button>
                   <button
                     onClick={() => {
-                      setShowInfo(true);
+                      const currentTopic = pathname === '/' ? 'home' : pathname.replace('/', '');
+                      router.push(`/guide?topic=${currentTopic}`);
                       setIsSettingsOpen(false);
                     }}
                     style={{
@@ -809,126 +666,6 @@ function Header() {
           </div>
         )}
       </div>
-
-      {/* PREMIUM INTERACTIVE GUIDE MODAL */}
-      {showInfo && (
-        <div
-          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md"
-          style={{ animation: "fadeIn 0.3s ease-out forwards" }}
-          onClick={() => {
-            setShowInfo(false);
-            setActiveGuideTab(null);
-          }}
-        >
-          <div
-            className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]"
-            style={{
-              animation:
-                "slideUpScale 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                  <i className="ti ti-bulb text-2xl"></i>
-                </div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 m-0">
-                  {info.title}
-                </h3>
-              </div>
-              <button
-                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 flex items-center justify-center text-slate-500 transition-colors cursor-pointer"
-                onClick={() => {
-                  setShowInfo(false);
-                  setActiveGuideTab(null);
-                }}
-              >
-                <i className="ti ti-x text-xl"></i>
-              </button>
-            </div>
-
-            <div
-              className="p-6 overflow-y-auto"
-              style={{ scrollbarWidth: "thin" }}
-            >
-              <p className="text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed mb-6">
-                {info.basic}
-              </p>
-
-              {info.tabs && info.tabs.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 ml-1">
-                    Feature Breakdown
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {info.tabs.map((tab) => {
-                      const isActive = activeGuideTab === tab.id;
-                      return (
-                        <div
-                          key={tab.id}
-                          className={`rounded-xl border transition-all duration-300 overflow-hidden cursor-pointer ${
-                            isActive
-                              ? "bg-blue-50/50 dark:bg-slate-800 border-blue-300 dark:border-blue-500/50 shadow-lg shadow-blue-500/10 md:col-span-2 ring-1 ring-blue-500/20"
-                              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md"
-                          }`}
-                          onClick={() =>
-                            setActiveGuideTab(isActive ? null : tab.id)
-                          }
-                        >
-                          <div className="px-5 py-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-300 ${isActive ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}
-                              >
-                                <i className={`ti ${tab.icon} text-lg`}></i>
-                              </div>
-                              <span
-                                className={`font-bold transition-colors duration-300 ${isActive ? "text-blue-700 dark:text-blue-400 text-[15px]" : "text-slate-700 dark:text-slate-300 text-[14px]"}`}
-                              >
-                                {tab.title}
-                              </span>
-                            </div>
-                            <div
-                              className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isActive ? "bg-blue-200/50 dark:bg-blue-900/50" : "bg-slate-100 dark:bg-slate-800"}`}
-                            >
-                              <i
-                                className={`ti ti-chevron-down text-sm transition-transform duration-300 ${isActive ? "rotate-180 text-blue-600 dark:text-blue-400" : "text-slate-400"}`}
-                              ></i>
-                            </div>
-                          </div>
-
-                          <div
-                            className="grid transition-all duration-300 ease-in-out"
-                            style={{
-                              gridTemplateRows: isActive ? "1fr" : "0fr",
-                            }}
-                          >
-                            <div className="overflow-hidden">
-                              <div className="px-5 pb-5 text-slate-600 dark:text-slate-300 text-[14px] leading-relaxed border-t border-blue-100 dark:border-slate-700/50 mt-1 pt-4">
-                                {tab.content}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <style
-              dangerouslySetInnerHTML={{
-                __html: `
-                        @keyframes slideUpScale { 0% { opacity: 0; transform: translateY(20px) scale(0.95); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
-                    `,
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* ADVANCED PREMIUM PROFILE MODAL */}
       {showProfile && currentUser && (
@@ -1484,19 +1221,19 @@ export default function RootLayout({ children }) {
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#185FA5" />
         <link rel="apple-touch-icon" href="/logo.png" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] } };`,
-          }}
-        />
-        <script
-          src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
-          async
-        />
       </head>
 
       {/*   THE FIX: Wapas Native Light Theme pe set kiya! */}
       <body suppressHydrationWarning>
+        {/* 🔥 FIX 2: MathJax ko Next.js ke native <Script> tag se load kiya */}
+        <Script id="mathjax-config" strategy="beforeInteractive">
+          {`window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] } };`}
+        </Script>
+        <Script
+          src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+          strategy="beforeInteractive"
+        />
+
         <AuthProvider>
           <DataProvider>
             <Header />
