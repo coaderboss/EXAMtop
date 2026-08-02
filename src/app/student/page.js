@@ -518,25 +518,42 @@ function StudentPortalContent() {
           (s.roll || "").trim().toLowerCase() === safeRoll,
       );
 
-      //   MAGIC: Agar pehle test de chuka hai aur direct link se aaya hai!
-      if (existingSub) {
-        if (isAutoJoin) {
-          setStep("already_completed"); //   FIX: Ye line form ko background se uda degi
-          setSysModal({
-            type: "success",
-            msg: "You have already completed this assessment! Redirecting you to the Results Vault...",
-            action: () => {
-              router.push("/student-results");
-            },
-          });
-        } else {
-          setJoinError(
-            "Submission Received: You have already submitted this test.",
-          );
+     // 🔥 THE FREE TIER BOUNCER LOGIC (MAX 10 STUDENTS) 🔥
+      const creatorUid = t.creatorUid;
+      if (creatorUid) {
+        const creatorSnap = await get(ref(database, `users/${creatorUid}`));
+        if (creatorSnap.exists()) {
+          const creatorData = creatorSnap.val();
+          
+          const isUnlimited = creatorData.is_unlimited === true;
+          // NAYA FIX: Check if examiner ever purchased ANY plan (Starter/Growth/Admin Override)
+          const hasPurchasedPlan = !!creatorData.last_upgrade_date; 
+          
+          // Count current submissions safely
+          const currentSubsCount = t.submissions 
+            ? (Array.isArray(t.submissions) 
+                ? t.submissions.filter(Boolean).length 
+                : Object.keys(t.submissions).length) 
+            : 0;
+            
+          const FREE_TIER_LIMIT = 10; // Strict Limit set to 10
+
+          // Agar examiner unlimited plan pe nahi hai AUR usne kabhi koi plan bhi nahi liya (Pure Free User)
+          if (!isUnlimited && !hasPurchasedPlan && currentSubsCount >= FREE_TIER_LIMIT) {
+             const limitMsg = "This exam has reached its maximum free-tier limit of 10 students. Please ask your examiner to upgrade their plan.";
+             
+             if (isAutoJoin) {
+               setSysModal({ type: "error", msg: limitMsg });
+             } else {
+               setJoinError(limitMsg);
+             }
+             
+             setIsFetchingTest(false);
+             return; // ENTRY BLOCKED IMMEDIATELY
+          }
         }
-        setIsFetchingTest(false);
-        return;
       }
+      //  BOUNCER LOGIC ENDS HERE 
 
       const draftStr = localStorage.getItem(
         `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}`,

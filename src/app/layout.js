@@ -202,15 +202,22 @@ function Header() {
     }
   };
 
-  //  DELETE ACCOUNT FIX (Replaced alert with toast, kept confirm as it's a DANGER zone)
+  //  DELETE ACCOUNT FIX (With Zombie Email Blacklisting)
   const deleteAccount = async () => {
-    // Confirm browser wala hi theek hai yahan taaki galti se delete na ho
     if (
       window.confirm(
         "DANGER: Are you absolutely sure you want to permanently delete your account? All your data will be lost.",
       )
     ) {
       try {
+        // 🔥 NEW: Zombie Email Logic (Blacklisting the email to prevent free-tier abuse)
+        if (currentUser && currentUser.email) {
+          const safeEmail = currentUser.email.replace(/\./g, ',');
+          await update(ref(database), {
+            [`claimed_free_tokens/${safeEmail}`]: true
+          });
+        }
+
         await remove(ref(database, `users/${currentUser.uid}`));
         if (currentUser.delete) await currentUser.delete();
         else await logout();

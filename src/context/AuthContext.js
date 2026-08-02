@@ -107,13 +107,19 @@ export const AuthProvider = ({ children }) => {
       let legalName = null;
 
      if (!snapshot.exists()) {
+        // 🔥 NEW: Zombie Email Check for Google Sign-in
+        const safeEmail = user.email.replace(/\./g, ',');
+        const emailCheckSnap = await get(ref(database, `claimed_free_tokens/${safeEmail}`));
+        const hasClaimedBefore = emailCheckSnap.exists();
+        const initialQuota = hasClaimedBefore ? 0 : 3; // Blacklisted ko 0, fresh ko 3
+
         await set(userRef, {
           name: user.displayName,
           email: user.email,
           uid: user.uid,
           role: intendedRole,
           profileLocked: false,
-          available_quota: 3, 
+          available_quota: initialQuota, 
           is_unlimited: false 
         });
       } else {
@@ -193,7 +199,12 @@ export const AuthProvider = ({ children }) => {
       // 1. Sabse pehle Verification Email bhejo
       await sendEmailVerification(user);
 
-      // 2. Data save karo
+      // 2. Data save karo (With Zombie Email Check)
+      const safeEmail = user.email.replace(/\./g, ',');
+      const emailCheckSnap = await get(ref(database, `claimed_free_tokens/${safeEmail}`));
+      const hasClaimedBefore = emailCheckSnap.exists();
+      const initialQuota = hasClaimedBefore ? 0 : 3;
+
       const userRef = ref(database, `users/${user.uid}`);
       await set(userRef, {
         name: name,
@@ -204,7 +215,7 @@ export const AuthProvider = ({ children }) => {
         college: college || "",
         rollNo: rollNo || "",
         profileLocked: true, 
-        available_quota: 3,
+        available_quota: initialQuota,
         is_unlimited: false
       });
 

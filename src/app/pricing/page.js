@@ -438,7 +438,9 @@ export default function PricingPage() {
             </div>
             <div className="text-sm font-black text-[#D4AF37] uppercase tracking-widest mb-2 relative z-10 flex items-center justify-between">
               <span>Unlimited VIP</span>
-              <span className="bg-rose-500 text-white text-[9px] px-2 py-1 rounded-full animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.4)]">60% OFF - LAUNCH OFFER</span>
+              <span className="bg-rose-500 text-white text-[9px] px-2 py-1 rounded-full animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.4)]">
+                60% OFF - LAUNCH OFFER
+              </span>
             </div>
             <div className="flex flex-col mb-2 relative z-10">
               <div className="text-lg font-bold text-slate-500 line-through mb-0.5">
@@ -486,6 +488,149 @@ export default function PricingPage() {
             >
               Go Unlimited
             </button>
+          </div>
+        </div>
+
+        {/* PREMIUM COMPARISON TABLE */}
+        <div className="mt-16 bg-white border border-slate-200 rounded-[32px] p-6 md:p-10 shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#185FA5]/5 rounded-full blur-3xl pointer-events-none"></div>
+
+          <div className="text-center mb-10 relative z-10">
+            <h3 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight mb-3">
+              Compare Plans & Limits
+            </h3>
+            <p className="text-slate-500 font-medium max-w-xl mx-auto">
+              See exactly what you get with each tier. Upgrade to remove the
+              10-student limit and unlock unrestricted access.
+            </p>
+          </div>
+
+          <div className="overflow-x-auto custom-scrollbar pb-4 relative z-10">
+            <table className="w-full min-w-[800px] text-left border-collapse">
+              <thead>
+                <tr className="border-b-2 border-slate-100">
+                  <th className="p-5 font-extrabold text-slate-400 uppercase tracking-widest text-sm w-1/4">
+                    Features
+                  </th>
+                  <th className="p-5 font-black text-slate-600 text-base text-center bg-slate-50 rounded-t-2xl border-x border-t border-slate-100">
+                    Welcome (Free)
+                  </th>
+                  <th className="p-5 font-black text-blue-600 text-base text-center bg-blue-50/30 rounded-t-2xl border-x border-t border-blue-50">
+                    Starter
+                  </th>
+                  <th className="p-5 font-black text-[#185FA5] text-base text-center bg-blue-50/50 rounded-t-2xl border-x border-t border-blue-100">
+                    Growth
+                  </th>
+                  <th className="p-5 font-black text-[#D4AF37] text-base text-center bg-slate-900 rounded-t-2xl border-x border-t border-slate-800">
+                    Unlimited VIP
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-[15px] font-bold text-slate-700">
+                {/* Row 1: Tokens */}
+                <tr className="hover:bg-slate-50/50 transition-colors">
+                  <td className="p-5 flex items-center gap-2.5">
+                    <i className="ti ti-coins text-xl text-slate-400"></i> Test
+                    Tokens
+                  </td>
+                  <td className="p-5 text-center bg-slate-50 border-x border-slate-100">
+                    3 Tokens
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/30 text-blue-600 border-x border-blue-50">
+                    10 Tokens
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/50 text-[#185FA5] border-x border-blue-100">
+                    30 Tokens
+                  </td>
+                  <td className="p-5 text-center bg-slate-900 text-[#D4AF37] border-x border-slate-800">
+                    <i className="ti ti-infinity text-xl align-middle"></i>{" "}
+                    Infinite
+                  </td>
+                </tr>
+
+                {/* Row 2: Student Limit */}
+                <tr className="hover:bg-slate-50/50 transition-colors">
+                  <td className="p-5 flex items-center gap-2.5">
+                    <i className="ti ti-users text-xl text-slate-400"></i>{" "}
+                    Students per Exam
+                  </td>
+                  <td className="p-5 text-center bg-slate-50 border-x border-slate-100">
+                    <span className="bg-rose-100 text-rose-600 px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest border border-rose-200">
+                      Max 10
+                    </span>
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/30 text-emerald-600 border-x border-blue-50">
+                    Unlimited
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/50 text-emerald-600 border-x border-blue-100">
+                    Unlimited
+                  </td>
+                  <td className="p-5 text-center bg-slate-900 text-emerald-400 border-x border-slate-800">
+                    Unlimited
+                  </td>
+                </tr>
+
+                {/* Row 3: Proctoring */}
+                <tr className="hover:bg-slate-50/50 transition-colors">
+                  <td className="p-5 flex items-center gap-2.5">
+                    <i className="ti ti-shield-lock text-xl text-slate-400"></i>{" "}
+                    Anti-Cheat AI
+                  </td>
+                  <td className="p-5 text-center bg-slate-50 border-x border-slate-100">
+                    <i className="ti ti-check text-emerald-500 text-2xl align-middle"></i>
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/30 border-x border-blue-50">
+                    <i className="ti ti-check text-emerald-500 text-2xl align-middle"></i>
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/50 border-x border-blue-100">
+                    <i className="ti ti-check text-emerald-500 text-2xl align-middle"></i>
+                  </td>
+                  <td className="p-5 text-center bg-slate-900 border-x border-slate-800">
+                    <i className="ti ti-check text-emerald-400 text-2xl align-middle"></i>
+                  </td>
+                </tr>
+
+                {/* Row 4: Analytics */}
+                <tr className="hover:bg-slate-50/50 transition-colors">
+                  <td className="p-5 flex items-center gap-2.5">
+                    <i className="ti ti-chart-pie text-xl text-slate-400"></i>{" "}
+                    Advanced Analytics
+                  </td>
+                  <td className="p-5 text-center bg-slate-50 border-x border-slate-100">
+                    <i className="ti ti-check text-emerald-500 text-2xl align-middle"></i>
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/30 border-x border-blue-50">
+                    <i className="ti ti-check text-emerald-500 text-2xl align-middle"></i>
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/50 border-x border-blue-100">
+                    <i className="ti ti-check text-emerald-500 text-2xl align-middle"></i>
+                  </td>
+                  <td className="p-5 text-center bg-slate-900 border-x border-slate-800">
+                    <i className="ti ti-check text-emerald-400 text-2xl align-middle"></i>
+                  </td>
+                </tr>
+
+                {/* Row 5: Validity */}
+                <tr className="hover:bg-slate-50/50 transition-colors">
+                  <td className="p-5 flex items-center gap-2.5">
+                    <i className="ti ti-calendar-star text-xl text-slate-400"></i>{" "}
+                    Plan Validity
+                  </td>
+                  <td className="p-5 text-center bg-slate-50 rounded-b-2xl border-x border-b border-slate-100">
+                    Lifetime
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/30 rounded-b-2xl border-x border-b border-blue-50">
+                    Lifetime
+                  </td>
+                  <td className="p-5 text-center bg-blue-50/50 rounded-b-2xl border-x border-b border-blue-100">
+                    Lifetime
+                  </td>
+                  <td className="p-5 text-center bg-slate-900 text-white rounded-b-2xl border-x border-b border-slate-800">
+                    365 Days
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
