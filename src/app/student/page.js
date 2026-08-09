@@ -74,6 +74,8 @@ function StudentPortalContent() {
   const cheatLogsRef = useRef([]);
   const lastWarningTimeRef = useRef(0);
   const isActionLockedRef = useRef(false);
+  const sessionUidRef = useRef(null);
+  const presenceRefTarget = useRef(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -235,32 +237,42 @@ function StudentPortalContent() {
     }
   }, [answers, curQ, step, activeTest, name, roll]);
 
-  // NAYA: REAL-TIME LIVE PRESENCE ENGINE
+  // THE BULLETPROOF LIVE PRESENCE ENGINE
   useEffect(() => {
-    // Sirf tab active hoga jab student exam de raha ho
-    if (step !== "exam" || !activeTest || !navigator.onLine) return;
+    if (!sessionUidRef.current) {
+       sessionUidRef.current = currentUser?.uid || `guest_${Math.random().toString(36).substr(2, 9)}`;
+    }
 
-    // Unique ID: Agar user login hai toh UID, warna ek random ID
-    const sessionUid =
-      currentUser?.uid || `guest_${Math.random().toString(36).substr(2, 9)}`;
-    const presenceRef = ref(
-      database,
-      `live_sessions/${activeTest.id}/${sessionUid}`,
-    );
+    if (step !== "exam" || !activeTest) return;
 
-    // Student ko "LIVE" mark karo
-    set(presenceRef, {
-      name: name || "Student",
-      roll: roll || "N/A",
-      joinedAt: new Date().toLocaleTimeString("en-IN"),
-    });
-    //Agar tab close ho jaye ya net cut jaye, toh Firebase khud isko delete kar dega
-    onDisconnect(presenceRef).remove();
-    // CLEANUP: Jab exam submit ho jaye ya piche back kare
-    return () => {
-      remove(presenceRef);
+    const uid = sessionUidRef.current;
+    const pRef = ref(database, `live_sessions/${activeTest.id}/${uid}`);
+    presenceRefTarget.current = pRef; 
+
+    const establishPresence = () => {
+      if (!navigator.onLine) return;
+      
+      set(pRef, {
+        name: name || "Student",
+        roll: roll || "N/A",
+        joinedAt: new Date().toLocaleTimeString("en-IN"),
+      }).then(() => {
+        onDisconnect(pRef).remove();
+      }).catch(err => console.error("Presence Error", err));
     };
-  }, [step, activeTest, currentUser, name, roll]);
+
+    establishPresence();
+
+    window.addEventListener('online', establishPresence);
+
+    return () => {
+      window.removeEventListener('online', establishPresence);
+      if (presenceRefTarget.current && navigator.onLine) {
+        remove(presenceRefTarget.current).catch(()=>console.log("Cleanup silent fail"));
+        onDisconnect(presenceRefTarget.current).cancel().catch(()=>console.log("onDisconnect cancel silent fail"));
+      }
+    };
+  }, [step, activeTest, name, roll]); 
 
   // Silent Background Timer for Active Question
   useEffect(() => {
@@ -927,6 +939,16 @@ function StudentPortalContent() {
       timeTaken: timeTakenStr,
       timeSpentPerQuestion: qTime,
     };
+
+    // EXPLICITLY KILL LIVE COUNTER BEFORE REDIRECTING OR GOING OFFLINE
+    if (presenceRefTarget.current && navigator.onLine) {
+      try {
+        await remove(presenceRefTarget.current);
+        await onDisconnect(presenceRefTarget.current).cancel();
+      } catch (e) {
+        console.error("Failed to remove live presence:", e);
+      }
+    }
 
     localStorage.removeItem(
       `exam_draft_${activeTest.id}_${name.trim() || "guest"}_${roll.trim().toLowerCase() || "noroll"}`,
