@@ -5,7 +5,17 @@ import { useAuth } from "../../context/AuthContext";
 import { useData } from "../../context/DataContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { database } from "../../lib/firebase";
-import { ref, push, set, get, onDisconnect, remove } from "firebase/database";
+import {
+  ref,
+  push,
+  set,
+  get,
+  onDisconnect,
+  remove,
+  query,
+  orderByChild,
+  equalTo,
+} from "firebase/database";
 import SmilesViewer from "../../components/SmilesViewer";
 
 // THE MASTER FIX: MathJax React Re-render Protector
@@ -130,6 +140,36 @@ function StudentPortalContent() {
     setImgLoaded(false);
   }, [curQ]);
 
+  //EXAM AMNESIA CURE (Remember active exam on Ctrl+R Refresh)
+  useEffect(() => {
+    if (step === "exam" && activeTest && code) {
+      sessionStorage.setItem(
+        "examitop_active_exam",
+        JSON.stringify({
+          code: code,
+          name: name,
+          roll: roll,
+        }),
+      );
+    }
+  }, [step, activeTest, code, name, roll]);
+
+  useEffect(() => {
+    if (isMounted && !authLoading && step === "join") {
+      const savedSession = sessionStorage.getItem("examitop_active_exam");
+      if (savedSession && !autoJoinTriggered.current) {
+        try {
+          const parsed = JSON.parse(savedSession);
+          setCode(parsed.code);
+          setName(parsed.name);
+          setRoll(parsed.roll);
+          autoJoinTriggered.current = true;
+          handleJoinTest(parsed.code, parsed.name, parsed.roll, true); // true = silent/auto join
+        } catch (e) {}
+      }
+    }
+  }, [isMounted, authLoading, step]);
+
   // 1. MathJax Auto-Renderer
   useEffect(() => {
     let isCancelled = false;
@@ -224,6 +264,7 @@ function StudentPortalContent() {
         endTime: endTimeRef.current,
         warnings: warningsRef.current,
         cheatLogs: cheatLogsRef.current,
+        shuffledQuestions: activeTest.questions,
       };
 
       const jsonString = JSON.stringify(draftData);
@@ -240,39 +281,46 @@ function StudentPortalContent() {
   // THE BULLETPROOF LIVE PRESENCE ENGINE
   useEffect(() => {
     if (!sessionUidRef.current) {
-       sessionUidRef.current = currentUser?.uid || `guest_${Math.random().toString(36).substr(2, 9)}`;
+      sessionUidRef.current =
+        currentUser?.uid || `guest_${Math.random().toString(36).substr(2, 9)}`;
     }
 
     if (step !== "exam" || !activeTest) return;
 
     const uid = sessionUidRef.current;
     const pRef = ref(database, `live_sessions/${activeTest.id}/${uid}`);
-    presenceRefTarget.current = pRef; 
+    presenceRefTarget.current = pRef;
 
     const establishPresence = () => {
       if (!navigator.onLine) return;
-      
+
       set(pRef, {
         name: name || "Student",
         roll: roll || "N/A",
         joinedAt: new Date().toLocaleTimeString("en-IN"),
-      }).then(() => {
-        onDisconnect(pRef).remove();
-      }).catch(err => console.error("Presence Error", err));
+      })
+        .then(() => {
+          onDisconnect(pRef).remove();
+        })
+        .catch((err) => console.error("Presence Error", err));
     };
 
     establishPresence();
 
-    window.addEventListener('online', establishPresence);
+    window.addEventListener("online", establishPresence);
 
     return () => {
-      window.removeEventListener('online', establishPresence);
+      window.removeEventListener("online", establishPresence);
       if (presenceRefTarget.current && navigator.onLine) {
-        remove(presenceRefTarget.current).catch(()=>console.log("Cleanup silent fail"));
-        onDisconnect(presenceRefTarget.current).cancel().catch(()=>console.log("onDisconnect cancel silent fail"));
+        remove(presenceRefTarget.current).catch(() =>
+          console.log("Cleanup silent fail"),
+        );
+        onDisconnect(presenceRefTarget.current)
+          .cancel()
+          .catch(() => console.log("onDisconnect cancel silent fail"));
       }
     };
-  }, [step, activeTest, name, roll]); 
+  }, [step, activeTest, name, roll]);
 
   // Silent Background Timer for Active Question
   useEffect(() => {
@@ -530,42 +578,80 @@ function StudentPortalContent() {
           (s.roll || "").trim().toLowerCase() === safeRoll,
       );
 
-     // 🔥 THE FREE TIER BOUNCER LOGIC (MAX 10 STUDENTS) 🔥
+      if (existingSub) {
+        const msg = "You have already submitted this exam.";
+        if (isAutoJoin) setSysModal({ type: "error", msg });
+        else setJoinError(msg);
+        setIsFetchingTest(false);
+        return;
+      }
+
+      // 🔥 THE FIX 2: DOUBLE LOGIN / MULTI-DEVICE BLOCKER
+      const liveSnap = await get(ref(database, `live_sessions/${t.id}`));
+      if (liveSnap.exists()) {
+        const liveData = liveSnap.val();
+        const isAlreadyLive = Object.values(liveData).some(
+          (session) =>
+            session.name.toLowerCase() === safeName.toLowerCase() &&
+            session.roll.toLowerCase() === safeRoll,
+        );
+
+        const draftStr = localStorage.getItem(
+          `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}`,
+        );
+
+        // Agar student LIVE hai, aur uske paas local draft nahi hai (yani wo naye device ya incognito tab se aaya hai)
+        if (isAlreadyLive && !draftStr) {
+          const msg =
+            "Multiple Device Detected: You are already active in this exam on another device or tab.";
+          if (isAutoJoin) setSysModal({ type: "error", msg });
+          else setJoinError(msg);
+          setIsFetchingTest(false);
+          return;
+        }
+      }
+
+      // 🔥 THE FREE TIER BOUNCER LOGIC (MAX 10 STUDENTS) 🔥
       const creatorUid = t.creatorUid;
       if (creatorUid) {
         const creatorSnap = await get(ref(database, `users/${creatorUid}`));
         if (creatorSnap.exists()) {
           const creatorData = creatorSnap.val();
-          
+
           const isUnlimited = creatorData.is_unlimited === true;
           // NAYA FIX: Check if examiner ever purchased ANY plan (Starter/Growth/Admin Override)
-          const hasPurchasedPlan = !!creatorData.last_upgrade_date; 
-          
+          const hasPurchasedPlan = !!creatorData.last_upgrade_date;
+
           // Count current submissions safely
-          const currentSubsCount = t.submissions 
-            ? (Array.isArray(t.submissions) 
-                ? t.submissions.filter(Boolean).length 
-                : Object.keys(t.submissions).length) 
+          const currentSubsCount = t.submissions
+            ? Array.isArray(t.submissions)
+              ? t.submissions.filter(Boolean).length
+              : Object.keys(t.submissions).length
             : 0;
-            
+
           const FREE_TIER_LIMIT = 10; // Strict Limit set to 10
 
           // Agar examiner unlimited plan pe nahi hai AUR usne kabhi koi plan bhi nahi liya (Pure Free User)
-          if (!isUnlimited && !hasPurchasedPlan && currentSubsCount >= FREE_TIER_LIMIT) {
-             const limitMsg = "This exam has reached its maximum free-tier limit of 10 students. Please ask your examiner to upgrade their plan.";
-             
-             if (isAutoJoin) {
-               setSysModal({ type: "error", msg: limitMsg });
-             } else {
-               setJoinError(limitMsg);
-             }
-             
-             setIsFetchingTest(false);
-             return; // ENTRY BLOCKED IMMEDIATELY
+          if (
+            !isUnlimited &&
+            !hasPurchasedPlan &&
+            currentSubsCount >= FREE_TIER_LIMIT
+          ) {
+            const limitMsg =
+              "This exam has reached its maximum free-tier limit of 10 students. Please ask your examiner to upgrade their plan.";
+
+            if (isAutoJoin) {
+              setSysModal({ type: "error", msg: limitMsg });
+            } else {
+              setJoinError(limitMsg);
+            }
+
+            setIsFetchingTest(false);
+            return; // ENTRY BLOCKED IMMEDIATELY
           }
         }
       }
-      //  BOUNCER LOGIC ENDS HERE 
+      //  BOUNCER LOGIC ENDS HERE
 
       const draftStr = localStorage.getItem(
         `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}`,
@@ -609,55 +695,103 @@ function StudentPortalContent() {
   };
 
   const applySmartShuffle = (test) => {
-    if (!test.shuffleOpts) return test;
+    // Agar dono off hain, toh wahi test wapas bhej do
+    if (test.shuffleOpts === false && test.shuffleQs !== true) return test;
 
     let clonedTest = JSON.parse(JSON.stringify(test));
 
-    clonedTest.questions = clonedTest.questions.map((q) => {
-      if ((q.type === "mcq" || q.type === "msq") && q.options) {
-        const hasFixedOption = q.options.some((opt) => {
-          let lowerOpt = opt
-            .toLowerCase()
-            .replace(/<[^>]*>?/gm, "")
-            .trim();
-          return (
-            lowerOpt.includes("all of") ||
-            lowerOpt.includes("none of") ||
-            lowerOpt.includes("both ") ||
-            lowerOpt.includes("only ")
+    // 1. SHUFFLE OPTIONS (Intelligently) - Default true unless explicitly false
+    if (test.shuffleOpts !== false) {
+      clonedTest.questions = clonedTest.questions.map((q) => {
+        if ((q.type === "mcq" || q.type === "msq") && q.options) {
+          const hasFixedOption = q.options.some((opt) => {
+            let lowerOpt = opt
+              .toLowerCase()
+              .replace(/<[^>]*>?/gm, "")
+              .trim();
+            return (
+              lowerOpt.includes("all of") ||
+              lowerOpt.includes("none of") ||
+              lowerOpt.includes("both ") ||
+              lowerOpt.includes("only ")
+            );
+          });
+
+          if (hasFixedOption) return q;
+
+          let standardOpts = q.options.map((opt, idx) => ({
+            text: opt,
+            originalIdx: idx,
+          }));
+
+          for (let i = standardOpts.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [standardOpts[i], standardOpts[j]] = [
+              standardOpts[j],
+              standardOpts[i],
+            ];
+          }
+
+          q.options = standardOpts.map((o) => o.text);
+
+          let newCorrectArray = [];
+          if (q.correct) {
+            q.correct.forEach((cIdx) => {
+              let newIdx = standardOpts.findIndex(
+                (o) => o.originalIdx === cIdx,
+              );
+              if (newIdx !== -1) newCorrectArray.push(newIdx);
+            });
+          }
+          q.correct = newCorrectArray;
+        }
+        return q;
+      });
+    }
+
+    // 2. SHUFFLE QUESTIONS (Sirf tabhi jab button ON ho)
+    if (test.shuffleQs === true) {
+      if (clonedTest.sections && clonedTest.sections.length > 0) {
+        let finalShuffledQuestions = [];
+        // Section-wise shuffle
+        clonedTest.sections.forEach((sec) => {
+          let sectionQs = clonedTest.questions.filter(
+            (q) =>
+              q.section === sec ||
+              (!q.section && sec === clonedTest.sections[0]),
           );
+          for (let i = sectionQs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [sectionQs[i], sectionQs[j]] = [sectionQs[j], sectionQs[i]];
+          }
+          finalShuffledQuestions = [...finalShuffledQuestions, ...sectionQs];
         });
-
-        if (hasFixedOption) return q;
-
-        let standardOpts = q.options.map((opt, idx) => ({
-          text: opt,
-          originalIdx: idx,
-        }));
-
-        for (let i = standardOpts.length - 1; i > 0; i--) {
+        clonedTest.questions = finalShuffledQuestions;
+      } else {
+        // Bina section wale test ka normal shuffle
+        for (let i = clonedTest.questions.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
-          [standardOpts[i], standardOpts[j]] = [
-            standardOpts[j],
-            standardOpts[i],
+          [clonedTest.questions[i], clonedTest.questions[j]] = [
+            clonedTest.questions[j],
+            clonedTest.questions[i],
           ];
         }
-
-        q.options = standardOpts.map((o) => o.text);
-
-        let newCorrectArray = [];
-        if (q.correct) {
-          q.correct.forEach((cIdx) => {
-            let newIdx = standardOpts.findIndex((o) => o.originalIdx === cIdx);
-            if (newIdx !== -1) newCorrectArray.push(newIdx);
-          });
-        }
-        q.correct = newCorrectArray;
       }
-      return q;
-    });
+    }
+
     return clonedTest;
   };
+
+  // AUTO-SUBMIT STALE CLOSURE RESOLVER
+  useEffect(() => {
+    if (step === "exam" && endTimeRef.current) {
+      const remaining = Math.floor((endTimeRef.current - Date.now()) / 1000);
+      // Agar time up ho gaya, aur submit ki process chalu nahi hui hai
+      if (remaining <= 0 && !isActionLockedRef.current && !isSubmitting) {
+        handleFinalSubmit();
+      }
+    }
+  }, [timeLeft, step, isSubmitting]);
 
   // --- START EXAM LOGIC ---
   const startExam = () => {
@@ -677,6 +811,14 @@ function StudentPortalContent() {
       endTimeRef.current = draftToResume.endTime;
       warningsRef.current = draftToResume.warnings || 0;
       cheatLogsRef.current = draftToResume.cheatLogs || [];
+
+      //  YE BLOCK ADD KARNA HAI (Taki refresh hone par wahi shuffled paper khule)
+      if (draftToResume.shuffledQuestions) {
+        setActiveTest((prev) => ({
+          ...prev,
+          questions: draftToResume.shuffledQuestions,
+        }));
+      }
     } else {
       const shuffledTest = applySmartShuffle(activeTest);
       setActiveTest(shuffledTest);
@@ -702,7 +844,6 @@ function StudentPortalContent() {
       setTimeLeft(remaining);
       if (remaining <= 0) {
         clearInterval(timerRef.current);
-        handleFinalSubmit();
       }
     }, 1000);
 
@@ -953,6 +1094,8 @@ function StudentPortalContent() {
     localStorage.removeItem(
       `exam_draft_${activeTest.id}_${name.trim() || "guest"}_${roll.trim().toLowerCase() || "noroll"}`,
     );
+    //CLEAR REFRESH MEMORY
+    sessionStorage.removeItem("examitop_active_exam");
 
     // OFFLINE VAULT SYNC LOGIC
     if (!navigator.onLine && !activeTest.isLocal) {
@@ -985,20 +1128,56 @@ function StudentPortalContent() {
           );
         }
       } else {
-        const snapshot = await get(ref(database, "tests"));
-        const allTests = snapshot.val() || [];
-        const tIndex = allTests.findIndex((x) => x && x.id === activeTest.id);
+        //  O(1) SMART QUERY (Zero Data Waste)
+        const testQuery = query(
+          ref(database, "tests"),
+          orderByChild("id"),
+          equalTo(activeTest.id),
+        );
+        const snapshot = await get(testQuery);
 
-        if (tIndex > -1) {
+        if (snapshot.exists()) {
+          const testData = snapshot.val();
+
+          // Firebase filter lagane par object return karta hai (e.g., { "2": { test details... } })
+          const tIndex = Object.keys(testData)[0];
+          const currentTestDb = testData[tIndex];
+
+          //STRICT DUPLICATE SUBMISSION BLOCKER (Tumhara wala logic)
+          const existSubs = currentTestDb.submissions
+            ? Object.values(currentTestDb.submissions)
+            : [];
+          const alreadySubmitted = existSubs.some(
+            (s) =>
+              s &&
+              s.name.toLowerCase() === name.trim().toLowerCase() &&
+              (s.roll || "").toLowerCase() === roll.trim().toLowerCase(),
+          );
+
+          if (alreadySubmitted) {
+            setIsSubmitting(false); // Spinner band karo
+            setSysModal({
+              type: "error",
+              msg: "Duplicate Submission Blocked: You have already submitted this exam.",
+              action: () => router.replace("/student-results"),
+            });
+            return; // Firebase me push nahi hone dega
+          }
+
+          // Direct fast push
           const subsRef = ref(database, `tests/${tIndex}/submissions`);
           await set(push(subsRef), finalSub);
+        } else {
+          throw new Error(
+            "Critical: Active test not found in the database during submission.",
+          );
         }
       }
 
       if (document.fullscreenElement && document.exitFullscreen)
         document.exitFullscreen().catch((e) => {});
 
-      //   THE FIX: Solid Redirect Logic (No hanging UI)
+      // Solid Redirect Logic (No hanging UI)
       setIsSubmitting(false); // Spinner band karo
 
       if (activeTest.resultVis === "manual") {
@@ -1334,17 +1513,22 @@ function StudentPortalContent() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 mt-4">
+            {/*Agar draft/resume mode nahi hai, tabhi 'Go Back' dikhao */}
+            {!draftToResume && (
+              <button
+                className="w-full sm:w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[14px] rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 shrink-0"
+                onClick={() => {
+                  if (isDirectJoin) router.push("/student/radar");
+                  else setStep("join");
+                }}
+              >
+                <i className="ti ti-arrow-left"></i> Go Back
+              </button>
+            )}
+            
+            {/* Agar resume mode hai, toh is button ko full width kar do */}
             <button
-              className="w-full sm:w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[14px] rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
-              onClick={() => {
-                if (isDirectJoin) router.push("/student/radar");
-                else setStep("join");
-              }}
-            >
-              <i className="ti ti-arrow-left"></i> Go Back
-            </button>
-            <button
-              className="w-full sm:w-2/3 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+              className={`w-full ${draftToResume ? "" : "sm:w-2/3"} py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2`}
               onClick={startExam}
             >
               <i className="ti ti-player-play"></i>{" "}
@@ -1489,13 +1673,17 @@ function StudentPortalContent() {
                 }}
               >
                 {activeTest.sections.map((sec, idx) => {
+                  // FIX: Ensure strict string comparison to avoid 1 vs '1' issues
                   var firstQIdx = activeTest.questions.findIndex(
-                    (qq) => qq.section === sec,
+                    (qq) =>
+                      String(qq.section) === String(sec) ||
+                      (!qq.section && idx === 0),
                   );
+
                   var isCurrentSec =
-                    currentQuestion?.section === sec ||
-                    (!currentQuestion?.section &&
-                      sec === activeTest.sections[0]);
+                    String(currentQuestion?.section) === String(sec) ||
+                    (!currentQuestion?.section && idx === 0);
+
                   return (
                     <button
                       key={idx}
@@ -1518,7 +1706,10 @@ function StudentPortalContent() {
                             }
                       }
                       onClick={() => {
-                        if (firstQIdx > -1) changeQuestion(firstQIdx);
+                        // Agar section me questions hain, toh directly wahan jump karo
+                        if (firstQIdx > -1) {
+                          changeQuestion(firstQIdx);
+                        }
                       }}
                     >
                       {sec}
@@ -1534,9 +1725,7 @@ function StudentPortalContent() {
           `}</style>
 
             <div className="split-exam-layout">
-              {/* ======================================= */}
               {/* LEFT PANE: INDEPENDENT QUESTION SECTION */}
-              {/* ======================================= */}
               <div className="q-area-wrapper">
                 <div className="q-area-scroll custom-scrollbar">
                   {/* HEADER */}
@@ -1708,8 +1897,9 @@ function StudentPortalContent() {
                                 onError={(e) => {
                                   setImgLoaded(true);
                                   e.target.onerror = null;
+                                  // 100% Offline SVG code (No internet required)
                                   e.target.src =
-                                    "https://via.placeholder.com/400x150/f8fafc/ef4444?text=Image+Load+Failed";
+                                    "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='150'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ef4444' font-family='sans-serif' font-weight='bold'%3EImage Load Failed (Offline)%3C/text%3E%3C/svg%3E";
                                 }}
                               />
                             </div>
@@ -1784,8 +1974,9 @@ function StudentPortalContent() {
                                 }}
                                 onError={(e) => {
                                   e.target.onerror = null;
+                                  // 100% Offline SVG code (No internet required)
                                   e.target.src =
-                                    "https://via.placeholder.com/500x200/f8fafc/ef4444?text=TikZ+Compilation+Failed";
+                                    "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ef4444' font-family='sans-serif' font-weight='bold'%3ETikZ Compilation Failed (Offline)%3C/text%3E%3C/svg%3E";
                                 }}
                               />
                             </div>
