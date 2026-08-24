@@ -79,7 +79,7 @@ export default function HomePage() {
         router.push("/student-dashboard");
       } 
       else if (userRole === "examiner" || userRole === "admin") {
-        router.push("/tests");
+        router.push("/dashboard");
       }
     }
   }, [currentUser, userRole, router]);

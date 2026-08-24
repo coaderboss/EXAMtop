@@ -156,7 +156,7 @@ function Header() {
   const handleLogin = async (role) => {
     try {
       await loginWithGoogle(role);
-      if (role === "examiner" || role === "admin") router.push("/tests");
+      if (role === 'examiner' || role === 'admin') router.push('/dashboard');
       else router.push("/student-dashboard");
     } catch (error) {
       console.error("Login Failed", error);
@@ -270,6 +270,7 @@ function Header() {
     } else if (userRole === "examiner") {
       return (
         <>
+          <Link href="/dashboard" className={`nav-tab ${pathname === '/dashboard' ? 'active' : ''}`}><i className="ti ti-layout-dashboard"></i> Dashboard</Link>
           <Link
             href="/tests"
             className={`nav-tab ${pathname === "/tests" ? "active" : ""}`}

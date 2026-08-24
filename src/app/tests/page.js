@@ -47,6 +47,7 @@ export default function ManageTests() {
   const [undoData, setUndoData] = useState(null); // For Delete Undo timer
   const [vaultSearchQuery, setVaultSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+  const [visibleCount, setVisibleCount] = useState(5);
   const searchRef =
     typeof window !== "undefined" ? require("react").useRef(null) : null;
 
@@ -3839,7 +3840,10 @@ export default function ManageTests() {
                     type="text"
                     placeholder="Search tests..."
                     value={vaultSearchQuery}
-                    onChange={(e) => setVaultSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setVaultSearchQuery(e.target.value);
+                      setVisibleCount(5); 
+                    }}
                     className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-1 rounded">
@@ -3927,130 +3931,149 @@ export default function ManageTests() {
                     );
                   }
 
-                  // Render Premium Cards
-                  return filtered.map((t, i) => {
-                    const now = Date.now();
-                    const closeTime = t.closeDate
-                      ? new Date(t.closeDate).getTime()
-                      : null;
-                    const openTime = t.openDate
-                      ? new Date(t.openDate).getTime()
-                      : null;
+                  // Render Premium Cards (Sliced for Performance)
+                  return (
+                    <>
+                      {filtered.slice(0, visibleCount).map((t, i) => {
+                        const now = Date.now();
+                        const closeTime = t.closeDate
+                          ? new Date(t.closeDate).getTime()
+                          : null;
+                        const openTime = t.openDate
+                          ? new Date(t.openDate).getTime()
+                          : null;
 
-                    let status = "live";
-                    if (t.isActive === false || (closeTime && now > closeTime))
-                      status = "closed";
-                    else if (openTime && now < openTime) status = "upcoming";
+                        let status = "live";
+                        if (t.isActive === false || (closeTime && now > closeTime))
+                          status = "closed";
+                        else if (openTime && now < openTime) status = "upcoming";
 
-                    const subCount = t.submissions ? t.submissions.length : 0;
+                        const subCount = t.submissions ? t.submissions.length : 0;
 
-                    // Dynamic Accent Line Color
-                    let statusColorLine = "bg-slate-200";
-                    if (t.isLocal) statusColorLine = "bg-amber-400";
-                    else if (status === "live")
-                      statusColorLine = "bg-emerald-500";
-                    else if (status === "upcoming")
-                      statusColorLine = "bg-blue-400";
+                        // Dynamic Accent Line Color
+                        let statusColorLine = "bg-slate-200";
+                        if (t.isLocal) statusColorLine = "bg-amber-400";
+                        else if (status === "live")
+                          statusColorLine = "bg-emerald-500";
+                        else if (status === "upcoming")
+                          statusColorLine = "bg-blue-400";
 
-                    return (
-                      <div
-                        key={t.id || i}
-                        className="group bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:border-blue-300 transition-all duration-300 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer relative overflow-hidden animate-[slideUp_0.4s_ease_forwards] opacity-0"
-                        style={{
-                          animationDelay: `${(i > 10 ? 10 : i) * 0.05}s`,
-                        }}
-                        onClick={() => setSelectedTest(t)}
-                      >
-                        {/* Status Accent Line */}
-                        <div
-                          className={`absolute left-0 top-0 bottom-0 w-[5px] ${statusColorLine}`}
-                        ></div>
+                        return (
+                          <div
+                            key={t.id || i}
+                            className="group bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:border-blue-300 transition-all duration-300 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer relative overflow-hidden animate-[slideUp_0.4s_ease_forwards] opacity-0"
+                            style={{
+                              animationDelay: `${(i > 10 ? 10 : i) * 0.05}s`,
+                            }}
+                            onClick={() => setSelectedTest(t)}
+                          >
+                            {/* Status Accent Line */}
+                            <div
+                              className={`absolute left-0 top-0 bottom-0 w-[5px] ${statusColorLine}`}
+                            ></div>
 
-                        <div className="flex flex-col min-w-0 pl-1.5 sm:pl-2">
-                          {/* Title & Status Badge Row */}
-                          <div className="flex items-center gap-3 mb-2 flex-wrap">
-                            <h3 className="text-[16px] sm:text-[18px] font-black text-slate-800 truncate group-hover:text-blue-700 transition-colors leading-tight m-0">
-                              {t.title}
-                            </h3>
+                            <div className="flex flex-col min-w-0 pl-1.5 sm:pl-2">
+                              {/* Title & Status Badge Row */}
+                              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                <h3 className="text-[16px] sm:text-[18px] font-black text-slate-800 truncate group-hover:text-blue-700 transition-colors leading-tight m-0">
+                                  {t.title}
+                                </h3>
 
-                            <div className="flex items-center gap-2">
-                              {t.isLocal && (
-                                <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-amber-200">
-                                  <i className="ti ti-device-floppy"></i> Local
+                                <div className="flex items-center gap-2">
+                                  {t.isLocal && (
+                                    <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-amber-200">
+                                      <i className="ti ti-device-floppy"></i> Local
+                                    </span>
+                                  )}
+
+                                  {!t.isLocal && status === "live" && (
+                                    <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 border border-emerald-200">
+                                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>{" "}
+                                      Live
+                                    </span>
+                                  )}
+                                  {!t.isLocal && status === "upcoming" && (
+                                    <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-blue-200">
+                                      <i className="ti ti-clock"></i> Scheduled
+                                    </span>
+                                  )}
+                                  {!t.isLocal && status === "closed" && (
+                                    <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-slate-200">
+                                      <i className="ti ti-lock"></i> Closed
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Meta Info Row */}
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] sm:text-[13px] font-semibold text-slate-500 mb-3">
+                                <span className="flex items-center gap-1.5">
+                                  <i className="ti ti-book text-slate-400 text-base"></i>{" "}
+                                  {t.subject || "General"}
                                 </span>
-                              )}
+                                <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
+                                <span className="flex items-center gap-1.5">
+                                  <i className="ti ti-list-numbers text-slate-400 text-base"></i>{" "}
+                                  {t.questions?.length || 0} Qs
+                                </span>
+                                <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
+                                <span className="flex items-center gap-1.5">
+                                  <i className="ti ti-clock text-slate-400 text-base"></i>{" "}
+                                  {t.duration} Mins
+                                </span>
+                              </div>
 
-                              {!t.isLocal && status === "live" && (
-                                <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 border border-emerald-200">
-                                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>{" "}
-                                  Live
+                              {/* Data Tags & Radar Badge (Mobile-First Layout) */}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="bg-slate-50 text-slate-600 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold font-mono tracking-widest border border-slate-200 shadow-sm flex items-center gap-1">
+                                  <i className="ti ti-hash opacity-60"></i> {t.code}
                                 </span>
-                              )}
-                              {!t.isLocal && status === "upcoming" && (
-                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-blue-200">
-                                  <i className="ti ti-clock"></i> Scheduled
+
+                                <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold border border-indigo-200 shadow-sm flex items-center gap-1.5">
+                                  <i className="ti ti-users"></i> {subCount} Subs
                                 </span>
-                              )}
-                              {!t.isLocal && status === "closed" && (
-                                <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-slate-200">
-                                  <i className="ti ti-lock"></i> Closed
-                                </span>
-                              )}
+
+                                {/*   THUNDER ICON FIXED   */}
+                                {t.radarVisible && (
+                                  <span
+                                    className="bg-amber-50 text-amber-600 px-2.5 py-1.5 sm:py-1 rounded-lg border border-amber-200 shadow-sm flex items-center gap-1"
+                                    title="Visible on Student Radar"
+                                  >
+                                    <i className="ti ti-bolt text-[14px] animate-[pulse_2s_infinite]"></i>
+                                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">
+                                      On Radar
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Hover Arrow (Desktop only) */}
+                            <div className="hidden sm:flex shrink-0 ml-4">
+                              <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all shadow-sm">
+                                <i className="ti ti-chevron-right text-lg transform group-hover:translate-x-0.5 transition-transform"></i>
+                              </div>
                             </div>
                           </div>
+                        );
+                      })}
 
-                          {/* Meta Info Row */}
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] sm:text-[13px] font-semibold text-slate-500 mb-3">
-                            <span className="flex items-center gap-1.5">
-                              <i className="ti ti-book text-slate-400 text-base"></i>{" "}
-                              {t.subject || "General"}
-                            </span>
-                            <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
-                            <span className="flex items-center gap-1.5">
-                              <i className="ti ti-list-numbers text-slate-400 text-base"></i>{" "}
-                              {t.questions?.length || 0} Qs
-                            </span>
-                            <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
-                            <span className="flex items-center gap-1.5">
-                              <i className="ti ti-clock text-slate-400 text-base"></i>{" "}
-                              {t.duration} Mins
-                            </span>
-                          </div>
-
-                          {/* Data Tags & Radar Badge (Mobile-First Layout) */}
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="bg-slate-50 text-slate-600 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold font-mono tracking-widest border border-slate-200 shadow-sm flex items-center gap-1">
-                              <i className="ti ti-hash opacity-60"></i> {t.code}
-                            </span>
-
-                            <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold border border-indigo-200 shadow-sm flex items-center gap-1.5">
-                              <i className="ti ti-users"></i> {subCount} Subs
-                            </span>
-
-                            {/*   THUNDER ICON FIXED: Ab ye tags ke sath same line me perfectly fit hoga   */}
-                            {t.radarVisible && (
-                              <span
-                                className="bg-amber-50 text-amber-600 px-2.5 py-1.5 sm:py-1 rounded-lg border border-amber-200 shadow-sm flex items-center gap-1"
-                                title="Visible on Student Radar"
-                              >
-                                <i className="ti ti-bolt text-[14px] animate-[pulse_2s_infinite]"></i>
-                                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">
-                                  On Radar
-                                </span>
-                              </span>
-                            )}
-                          </div>
+                      {/* 🔥 THE LOAD MORE BUTTON 🔥 */}
+                      {filtered.length > visibleCount && (
+                        <div className="flex justify-center mt-4 mb-2">
+                          <button
+                            className="px-6 py-3 bg-white border border-slate-300 text-slate-700 font-bold text-[14px] rounded-xl shadow-sm hover:text-blue-600 hover:border-blue-400 hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2"
+                            onClick={(e) => {
+                                e.stopPropagation(); // Card click event ko roko
+                                setVisibleCount((prev) => prev + 5)
+                            }}
+                          >
+                            <i className="ti ti-reload"></i> Load 5 More Exams
+                          </button>
                         </div>
-
-                        {/* Hover Arrow (Desktop only - Mobile ka faltu border hata diya) */}
-                        <div className="hidden sm:flex shrink-0 ml-4">
-                          <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all shadow-sm">
-                            <i className="ti ti-chevron-right text-lg transform group-hover:translate-x-0.5 transition-transform"></i>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  });
+                      )}
+                    </>
+                  );
                 })()}
               </div>
             </>
