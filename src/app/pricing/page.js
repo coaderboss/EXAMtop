@@ -209,7 +209,15 @@ export default function PricingPage() {
               expiry.setFullYear(expiry.getFullYear() + 1);
               updates.unlimited_expiry_date = expiry.toISOString();
             } else {
-              updates.available_quota = currentQuota + tokensToAdd;
+              const currentLegacy = userData.available_quota || 0;
+              const hasNewBuckets = userData.free_tokens !== undefined;
+              
+              const currentPremium = hasNewBuckets ? (userData.premium_tokens || 0) : Math.max(0, currentLegacy - 3);
+              const currentFree = hasNewBuckets ? userData.free_tokens : Math.min(3, currentLegacy);
+              
+              updates.premium_tokens = currentPremium + tokensToAdd; 
+              updates.free_tokens = currentFree; // Purane 3 tokens ko naye bucket me fix kar do
+              updates.available_quota = currentLegacy + tokensToAdd; // Old modules ke liye sync
             }
 
             await update(userRef, updates);
@@ -305,29 +313,50 @@ export default function PricingPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 -mt-20 relative z-20">
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8 max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-8 max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
           <div>
-            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-1">
-              Current Balance
+            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2.5">
+              Your Current Balance
             </h3>
             {currentUser?.is_unlimited ? (
-              <div className="text-2xl font-black text-[#D4AF37] flex items-center gap-2 justify-center sm:justify-start">
-                <i className="ti ti-infinity"></i> PRO UNLIMITED ACTIVE
+              <div className="flex flex-col gap-1.5">
+                <div className="text-2xl font-black text-[#D4AF37] flex items-center gap-2 justify-center sm:justify-start filter drop-shadow-sm">
+                  <i className="ti ti-crown text-3xl"></i> PRO UNLIMITED ACTIVE
+                </div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                  Infinite Test Creation & Unlimited Intakes
+                </div>
               </div>
             ) : (
-              <div className="text-2xl font-black text-slate-800 flex items-center gap-2 justify-center sm:justify-start">
-                {currentUser?.available_quota || 0}{" "}
-                <span className="text-base text-slate-500 font-bold">
-                  Tokens Remaining
-                </span>
+              <div className="flex flex-col gap-2">
+                <div className="text-3xl font-black text-slate-800 flex items-center gap-2 justify-center sm:justify-start leading-none">
+                  {currentUser?.free_tokens !== undefined 
+                    ? (currentUser.free_tokens + (currentUser.premium_tokens || 0)) 
+                    : (currentUser?.available_quota || 0)}
+                  <span className="text-sm text-slate-500 font-bold mt-1.5">
+                    Total Tokens
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 justify-center sm:justify-start text-[11px] font-black uppercase tracking-widest mt-1">
+                  <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">
+                    Free: {currentUser?.free_tokens !== undefined 
+                      ? currentUser.free_tokens 
+                      : Math.min(3, currentUser?.available_quota || 0)}
+                  </span>
+                  <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-200 shadow-sm flex items-center gap-1">
+                    <i className="ti ti-diamond text-blue-500"></i> Premium: {currentUser?.premium_tokens !== undefined 
+                      ? currentUser.premium_tokens 
+                      : Math.max(0, (currentUser?.available_quota || 0) - 3)}
+                  </span>
+                </div>
               </div>
             )}
           </div>
           <button
-            className="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors flex items-center gap-2 w-full sm:w-auto justify-center"
+            className="px-6 py-3.5 bg-[#185FA5] text-white font-bold rounded-xl shadow-md shadow-blue-600/20 hover:bg-[#0A2E5C] transition-colors flex items-center gap-2 w-full sm:w-auto justify-center active:scale-95 shrink-0"
             onClick={() => router.push("/tests")}
           >
-            <i className="ti ti-arrow-left"></i> Go to Vault
+            <i className="ti ti-database text-lg"></i> Go to Vault
           </button>
         </div>
 

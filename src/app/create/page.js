@@ -646,10 +646,12 @@ export default function CreateTest() {
 
         const isUnlimited = userData.is_unlimited || userData.plan === "unlimited";
         
-        // Fetch buckets with legacy fallback
-        let premiumTokens = userData.premium_tokens || 0;
-        let freeTokens = userData.free_tokens !== undefined ? userData.free_tokens : (userData.available_quota !== undefined ? userData.available_quota : 3);
+        // SMART BUCKET ALLOCATION
+        const hasNewBuckets = userData.free_tokens !== undefined;
         let legacyQuota = userData.available_quota !== undefined ? userData.available_quota : 3;
+
+        let premiumTokens = hasNewBuckets ? (userData.premium_tokens || 0) : Math.max(0, legacyQuota - 3);
+        let freeTokens = hasNewBuckets ? userData.free_tokens : Math.min(3, legacyQuota);
 
         if (isUnlimited) {
           testTokenType = "unlimited";

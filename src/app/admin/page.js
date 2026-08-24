@@ -822,11 +822,15 @@ export default function GodMode() {
       };
       msg = `Revoked UNLIMITED PRO access from ${targetUser.name || targetUser.email}`;
     } else {
-      const currentPremium = targetUser.premium_tokens || 0;
       const currentLegacy = targetUser.available_quota || 0; 
+      const hasNewBuckets = targetUser.free_tokens !== undefined;
+      
+      const currentPremium = hasNewBuckets ? (targetUser.premium_tokens || 0) : Math.max(0, currentLegacy - 3);
+      const currentFree = hasNewBuckets ? targetUser.free_tokens : Math.min(3, currentLegacy);
       
       updates = {
-        premium_tokens: currentPremium + customTokens, // Added to Premium Bucket
+        premium_tokens: currentPremium + customTokens, // Gift hamesha Premium me jayega
+        free_tokens: currentFree, // Free tokens permanently fix ho jayenge
         available_quota: currentLegacy + customTokens, // Keep legacy in sync
         last_upgrade_date: now,
         last_upgrade_plan: planName,
@@ -2256,10 +2260,12 @@ export default function GodMode() {
                           <div className="text-2xl font-black text-slate-800">
                             {selectedExaminer.is_unlimited
                               ? "∞"
-                              : (selectedExaminer.free_tokens !== undefined ? selectedExaminer.free_tokens : (selectedExaminer.available_quota || 0)) + (selectedExaminer.premium_tokens || 0)}
+                              : (selectedExaminer.free_tokens !== undefined 
+                                  ? (selectedExaminer.free_tokens + (selectedExaminer.premium_tokens || 0)) 
+                                  : (selectedExaminer.available_quota || 0))}
                           </div>
                           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                             <span className="text-slate-500">Free: {selectedExaminer.free_tokens !== undefined ? selectedExaminer.free_tokens : (selectedExaminer.available_quota || 0)}</span> | <span className="text-emerald-600">Premium: {selectedExaminer.premium_tokens || 0}</span>
+                             <span className="text-slate-500">Free: {selectedExaminer.free_tokens !== undefined ? selectedExaminer.free_tokens : Math.min(3, selectedExaminer.available_quota || 0)}</span> | <span className="text-emerald-600">Premium: {selectedExaminer.premium_tokens !== undefined ? selectedExaminer.premium_tokens : Math.max(0, (selectedExaminer.available_quota || 0) - 3)}</span>
                           </div>
                         </div>
                       </div>
