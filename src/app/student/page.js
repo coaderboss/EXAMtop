@@ -86,6 +86,7 @@ function StudentPortalContent() {
   const isActionLockedRef = useRef(false);
   const sessionUidRef = useRef(null);
   const presenceRefTarget = useRef(null);
+  const handleFinalSubmitRef = useRef(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -586,24 +587,30 @@ function StudentPortalContent() {
         return;
       }
 
-      // 🔥 THE FIX 2: DOUBLE LOGIN / MULTI-DEVICE BLOCKER
-      const liveSnap = await get(ref(database, `live_sessions/${t.id}`));
+      // THE 10K SCALING FIX 2: O(1) Duplicate Checker (Rescues 10GB Bandwidth)
+      let isAlreadyLive = false;
+      const checkRoll = safeRoll || "N/A"; // Kyunki establishPresence me humne yahi set kiya tha
+      
+      // Poori list download karne ki jagah, sirf usi roll number ko query karo
+      const dupQuery = query(
+        ref(database, `live_sessions/${t.id}`),
+        orderByChild("roll"),
+        equalTo(checkRoll)
+      );
+      
+      const liveSnap = await get(dupQuery);
       if (liveSnap.exists()) {
         const liveData = liveSnap.val();
-        const isAlreadyLive = Object.values(liveData).some(
-          (session) =>
-            session.name.toLowerCase() === safeName.toLowerCase() &&
-            session.roll.toLowerCase() === safeRoll,
+        // Cross-verify the exact name as well
+        isAlreadyLive = Object.values(liveData).some(
+          (session) => session.name.toLowerCase() === safeName.toLowerCase()
         );
 
-        const draftStr = localStorage.getItem(
-          `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}`,
-        );
+        const draftStr = localStorage.getItem(`exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}`);
 
         // Agar student LIVE hai, aur uske paas local draft nahi hai (yani wo naye device ya incognito tab se aaya hai)
         if (isAlreadyLive && !draftStr) {
-          const msg =
-            "Multiple Device Detected: You are already active in this exam on another device or tab.";
+          const msg = "Multiple Device Detected: You are already active in this exam on another device or tab.";
           if (isAutoJoin) setSysModal({ type: "error", msg });
           else setJoinError(msg);
           setIsFetchingTest(false);
@@ -611,16 +618,15 @@ function StudentPortalContent() {
         }
       }
 
-      // 🔥 THE FREE TIER BOUNCER LOGIC (MAX 10 STUDENTS) 🔥
+     // 🛡️ THE BULLETPROOF TIER BOUNCER LOGIC
       const creatorUid = t.creatorUid;
       if (creatorUid) {
         const creatorSnap = await get(ref(database, `users/${creatorUid}`));
         if (creatorSnap.exists()) {
           const creatorData = creatorSnap.val();
 
-          const isUnlimited = creatorData.is_unlimited === true;
-          // NAYA FIX: Check if examiner ever purchased ANY plan (Starter/Growth/Admin Override)
-          const hasPurchasedPlan = !!creatorData.last_upgrade_date;
+          // 1. Unlimited Pack Overrides Everything
+          const isUnlimited = creatorData.is_unlimited === true || creatorData.plan === "unlimited";
 
           // Count current submissions safely
           const currentSubsCount = t.submissions
@@ -629,29 +635,29 @@ function StudentPortalContent() {
               : Object.keys(t.submissions).length
             : 0;
 
-          const FREE_TIER_LIMIT = 10; // Strict Limit set to 10
+          const FREE_TIER_LIMIT = 10;
 
-          // Agar examiner unlimited plan pe nahi hai AUR usne kabhi koi plan bhi nahi liya (Pure Free User)
-          if (
-            !isUnlimited &&
-            !hasPurchasedPlan &&
-            currentSubsCount >= FREE_TIER_LIMIT
-          ) {
-            const limitMsg =
-              "This exam has reached its maximum free-tier limit of 10 students. Please ask your examiner to upgrade their plan.";
+          // 🔥 THE MASTER CHECK:
+          // Agar Examiner Unlimited plan pe nahi hai, TOH test ka tag check karo
+          // Agar test "free" token se bana tha (ya old tests jinpe tag nahi hai), toh 10 ki limit lagegi
+          if (!isUnlimited) {
+            const isTestFree = t.tokenType === "free" || !t.tokenType; 
 
-            if (isAutoJoin) {
-              setSysModal({ type: "error", msg: limitMsg });
-            } else {
-              setJoinError(limitMsg);
+            if (isTestFree && currentSubsCount >= FREE_TIER_LIMIT) {
+              const limitMsg = "This exam has reached its maximum free-tier limit of 10 students. The Examiner needs a Premium Token or an Unlimited Plan for higher intakes.";
+
+              if (isAutoJoin) {
+                setSysModal({ type: "error", msg: limitMsg });
+              } else {
+                setJoinError(limitMsg);
+              }
+              setIsFetchingTest(false);
+              return; // ENTRY BLOCKED
             }
-
-            setIsFetchingTest(false);
-            return; // ENTRY BLOCKED IMMEDIATELY
           }
         }
       }
-      //  BOUNCER LOGIC ENDS HERE
+    
 
       const draftStr = localStorage.getItem(
         `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}`,
@@ -782,13 +788,29 @@ function StudentPortalContent() {
     return clonedTest;
   };
 
-  // AUTO-SUBMIT STALE CLOSURE RESOLVER
+ // STALE CLOSURE FIX: 
+  useEffect(() => {
+    handleFinalSubmitRef.current = handleFinalSubmit;
+  }); 
+
+  //Auto-Submit Jitter
   useEffect(() => {
     if (step === "exam" && endTimeRef.current) {
       const remaining = Math.floor((endTimeRef.current - Date.now()) / 1000);
-      // Agar time up ho gaya, aur submit ki process chalu nahi hui hai
+      
       if (remaining <= 0 && !isActionLockedRef.current && !isSubmitting) {
-        handleFinalSubmit();
+        isActionLockedRef.current = true; // Block double submissions
+        setIsSubmitting(true); // Spinner turant screen par aa jayega
+        
+        // 0 se 3000 milliseconds ka random delay (Firebase Write Load Balancer)
+        const randomDelay = Math.floor(Math.random() * 3000); 
+        
+        setTimeout(() => {
+          // Ref ke through call karne se GUARANTEE hai ki answers ekdum latest submit honge
+          if (handleFinalSubmitRef.current) {
+            handleFinalSubmitRef.current(); 
+          }
+        }, randomDelay);
       }
     }
   }, [timeLeft, step, isSubmitting]);

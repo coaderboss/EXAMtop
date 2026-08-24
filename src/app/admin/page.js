@@ -453,7 +453,7 @@ export default function GodMode() {
     e.target.value = null; // Reset input
   };
 
-  // 🚀 THE MAGIC: BACKGROUND BULK CREATOR (No Logout Hack)
+  // THE MAGIC: BACKGROUND BULK CREATOR (No Logout Hack)
   const executeBulkAdd = async () => {
     // Basic validation
     const validData = bulkData.filter(row => row.email && row.password && row.name);
@@ -495,8 +495,10 @@ export default function GodMode() {
           uid: uid,
           role: item.role,
           rollNo: item.rollNo || "N/A",
-          profileLocked: true, // Auto lock for admin-created accounts
-          available_quota: item.role === 'examiner' ? 10 : 3,
+          profileLocked: true, 
+          free_tokens: item.role === 'examiner' ? 3 : 0, // Initial 3 Free Tokens
+          premium_tokens: 0, // 0 Premium initially
+          available_quota: item.role === 'examiner' ? 3 : 0, // Legacy sync
           is_unlimited: false,
           createdAt: new Date().toISOString()
         });
@@ -820,14 +822,17 @@ export default function GodMode() {
       };
       msg = `Revoked UNLIMITED PRO access from ${targetUser.name || targetUser.email}`;
     } else {
-      const current = targetUser.available_quota || 0;
+      const currentPremium = targetUser.premium_tokens || 0;
+      const currentLegacy = targetUser.available_quota || 0; 
+      
       updates = {
-        available_quota: current + customTokens,
+        premium_tokens: currentPremium + customTokens, // Added to Premium Bucket
+        available_quota: currentLegacy + customTokens, // Keep legacy in sync
         last_upgrade_date: now,
         last_upgrade_plan: planName,
         billingHistory: [newRecord, ...history],
       };
-      msg = `Added ${customTokens} Tokens to ${targetUser.name || targetUser.email}`;
+      msg = `Added ${customTokens} Premium Tokens to ${targetUser.name || targetUser.email}`;
     }
 
     setSysConfirm({
@@ -2251,10 +2256,10 @@ export default function GodMode() {
                           <div className="text-2xl font-black text-slate-800">
                             {selectedExaminer.is_unlimited
                               ? "∞"
-                              : selectedExaminer.available_quota || 0}
+                              : (selectedExaminer.free_tokens !== undefined ? selectedExaminer.free_tokens : (selectedExaminer.available_quota || 0)) + (selectedExaminer.premium_tokens || 0)}
                           </div>
                           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                            Tokens Left
+                             <span className="text-slate-500">Free: {selectedExaminer.free_tokens !== undefined ? selectedExaminer.free_tokens : (selectedExaminer.available_quota || 0)}</span> | <span className="text-emerald-600">Premium: {selectedExaminer.premium_tokens || 0}</span>
                           </div>
                         </div>
                       </div>

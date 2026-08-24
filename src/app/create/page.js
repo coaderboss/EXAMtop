@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { database } from "../../lib/firebase";
-import { ref, set, get, runTransaction } from "firebase/database";
+import { ref, set, get, update, runTransaction } from "firebase/database";
 import SmilesViewer from "../../components/SmilesViewer";
 
 export default function CreateTest() {
@@ -170,7 +170,7 @@ export default function CreateTest() {
     isOffline,
   ]);
 
-  //   QUICK QUOTA CHECK ON MOUNT
+  // QUICK QUOTA CHECK ON MOUNT (UPGRADED FOR DUAL BUCKETS)
   useEffect(() => {
     if (currentUser && !isOffline) {
       const userRef = ref(database, `users/${currentUser.uid}`);
@@ -178,10 +178,12 @@ export default function CreateTest() {
         .then((snap) => {
           if (snap.exists()) {
             const data = snap.val();
-            setUserQuota(
-              data.available_quota !== undefined ? data.available_quota : 3,
-            );
-            setIsUnlimited(data.is_unlimited || false);
+            // Legacy data support rakha hai agar koi purana user ho
+            const free = data.free_tokens !== undefined ? data.free_tokens : (data.available_quota !== undefined ? data.available_quota : 3);
+            const premium = data.premium_tokens || 0;
+            
+            setUserQuota(free + premium); // Total quota
+            setIsUnlimited(data.is_unlimited || data.plan === "unlimited");
           }
           setIsFetchingQuota(false);
         })
@@ -633,31 +635,59 @@ export default function CreateTest() {
 
   const proceedWithSave = async (finalMarks) => {
     setIsProcessingSave(true);
+    let testTokenType = "free"; // Default fallback
 
-    //   FREEMIUM QUOTA CHECK LOGIC
+    // 🛡️ DUAL-BUCKET QUOTA CHECK & DEDUCTION LOGIC
     if (!isOffline && currentUser) {
       try {
         const userRef = ref(database, `users/${currentUser.uid}`);
         const snapshot = await get(userRef);
         const userData = snapshot.val() || {};
 
-        let currentQuota =
-          userData.available_quota !== undefined ? userData.available_quota : 3;
-        const isUnlimited = userData.is_unlimited || false;
+        const isUnlimited = userData.is_unlimited || userData.plan === "unlimited";
+        
+        // Fetch buckets with legacy fallback
+        let premiumTokens = userData.premium_tokens || 0;
+        let freeTokens = userData.free_tokens !== undefined ? userData.free_tokens : (userData.available_quota !== undefined ? userData.available_quota : 3);
+        let legacyQuota = userData.available_quota !== undefined ? userData.available_quota : 3;
 
-        if (!isUnlimited && currentQuota <= 0) {
-          setMismatchModal(null);
-          setLimitExceededModal(true); //   FIX: Trigger Naya Modal
-          setIsProcessingSave(false);
-          return; // Code yahi ruk jayega
-        }
-
-        // Agar unlimited nahi hai toh 1 Token minus karo
-        if (!isUnlimited) {
-          await set(userRef, {
-            ...userData,
-            available_quota: currentQuota - 1,
+        if (isUnlimited) {
+          testTokenType = "unlimited";
+          // Unlimited hai toh koi token deduct nahi hoga
+        } else if (premiumTokens > 0) {
+          testTokenType = "premium";
+          premiumTokens -= 1;
+          legacyQuota = Math.max(0, legacyQuota - 1); 
+          
+          // OPTIMIZATION 1: Safe 'update' (baki data ko touch nahi karega)
+          await update(userRef, {
+            premium_tokens: premiumTokens,
+            available_quota: legacyQuota
           });
+          
+          // OPTIMIZATION 2: Update local React state so UI disables the save button instantly
+          setUserQuota(prev => Math.max(0, prev - 1)); 
+
+        } else if (freeTokens > 0) {
+          testTokenType = "free";
+          freeTokens -= 1;
+          legacyQuota = Math.max(0, legacyQuota - 1); 
+          
+          // OPTIMIZATION 1: Safe 'update'
+          await update(userRef, {
+            free_tokens: freeTokens,
+            available_quota: legacyQuota
+          });
+
+          // OPTIMIZATION 2: Update local React state
+          setUserQuota(prev => Math.max(0, prev - 1)); 
+
+        } else {
+          // 🚨 ZERO TOKENS LEFT (Dono buckets khali hain)
+          setMismatchModal(null);
+          setLimitExceededModal(true); 
+          setIsProcessingSave(false);
+          return; // Code yahi ruk jayega, aage test save nahi hoga
         }
       } catch (err) {
         console.error("Quota check failed", err);
@@ -677,6 +707,7 @@ export default function CreateTest() {
       .map((s) => s.trim())
       .filter((s) => s);
 
+    // 🔥 THE NEW TEST OBJECT
     const newTest = {
       id: Date.now(),
       code: testCode,
@@ -699,6 +730,7 @@ export default function CreateTest() {
       antiCheat,
       fullScreenMode,
       creatorUid: isOffline ? "offline_creator" : currentUser.uid,
+      tokenType: testTokenType, // 🔥 SYSTEM TAG ASSIGNED SECURELY
       questions: qList,
       submissions: [],
       released: false,
