@@ -65,6 +65,7 @@ export default function ManageTests() {
   const [followerCount, setFollowerCount] = useState(0);
   const [isEvalMathReady, setIsEvalMathReady] = useState(true);
   const [liveCount, setLiveCount] = useState(0);
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
   // --- SYSTEM POPUP STATES ---
   const [sysAlert, setSysAlert] = useState(null); // { title, msg, type }
@@ -153,6 +154,8 @@ export default function ManageTests() {
   //  FIX: Press '/' to focus Search Bar automatically
   typeof require("react").useEffect(() => {
     const handleSlashKey = (e) => {
+      // FIX: Agar koi popup khula hai toh search bar focus mat karo
+      if (modalType || sysAlert || sysConfirm) return;
       if (
         e.key === "/" &&
         document.activeElement.tagName !== "INPUT" &&
@@ -164,29 +167,31 @@ export default function ManageTests() {
     };
     window.addEventListener("keydown", handleSlashKey);
     return () => window.removeEventListener("keydown", handleSlashKey);
-  }, [searchRef]);
+  }, [searchRef, modalType, sysAlert, sysConfirm]);
 
-  //  FIX 1: THE AMNESIA CURE (State Memory on Refresh)
+  //  FIX 1: THE AMNESIA CURE (Stop Infinite Dance)
   useEffect(() => {
-    const savedTestId = sessionStorage.getItem("examitop_activeTestId");
-    const savedTab = sessionStorage.getItem("examitop_activeTab");
-    const savedEvalIdx = sessionStorage.getItem("examitop_evalSubIdx");
+    if (!isMounted || baseTests.length === 0) return;
 
-    if (savedTestId && isMounted) {
-      const t = baseTests.find((x) => x.id === savedTestId);
-      if (t) {
-        setSelectedTest(t);
-        if (savedTab) setActiveTab(savedTab);
-        if (savedEvalIdx && savedEvalIdx !== "null" && t.submissions) {
-          setEvaluateSub({
-            sub: t.submissions[parseInt(savedEvalIdx)],
-            test: t,
-            sIdx: parseInt(savedEvalIdx),
-          });
-        }
+    const savedTestId = sessionStorage.getItem("examitop_activeTestId");
+    if (!savedTestId || selectedTest?.id === savedTestId) return; // 🔥 PREVENTS LOOP
+
+    const t = baseTests.find((x) => x.id === savedTestId);
+    if (t) {
+      setSelectedTest(t);
+      const savedTab = sessionStorage.getItem("examitop_activeTab");
+      if (savedTab) setActiveTab(savedTab);
+
+      const savedEvalIdx = sessionStorage.getItem("examitop_evalSubIdx");
+      if (savedEvalIdx && savedEvalIdx !== "null" && t.submissions) {
+        setEvaluateSub({
+          sub: t.submissions[parseInt(savedEvalIdx)],
+          test: t,
+          sIdx: parseInt(savedEvalIdx),
+        });
       }
     }
-  }, [isMounted, baseTests]); // BaseTests load hone par trigger hoga
+  }, [isMounted, localTests]);
 
   useEffect(() => {
     // 2. Jaise hi kuch change ho, memory me save kar do
@@ -248,6 +253,45 @@ export default function ManageTests() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [selectedTest]);
+
+  //ON-DEMAND HEAVY DATA FETCHER (Phase 3)
+  useEffect(() => {
+    if (selectedTest && !selectedTest.isLocal && !selectedTest.isHeavyLoaded) {
+      // 🔥 GUARD: Agar test already heavy hai (purana test), toh dobara khali data mat fetch karo
+      if (selectedTest.questions && selectedTest.questions.length > 0) {
+        setSelectedTest((prev) => ({ ...prev, isHeavyLoaded: true }));
+        return;
+      }
+
+      const fetchHeavyData = async () => {
+        try {
+          const qSnap = await get(
+            ref(database, `test_questions/${selectedTest.id}`),
+          );
+          const sSnap = await get(
+            ref(database, `test_submissions/${selectedTest.id}`),
+          );
+
+          let fetchedSubs = [];
+          if (sSnap.exists() && sSnap.val().submissions) {
+            fetchedSubs = Object.values(sSnap.val().submissions).filter(
+              Boolean,
+            );
+          }
+
+          setSelectedTest((prev) => ({
+            ...prev,
+            questions: qSnap.exists() ? qSnap.val().questions || [] : [],
+            submissions: fetchedSubs,
+            isHeavyLoaded: true,
+          }));
+        } catch (e) {
+          console.error("Heavy data fetch error:", e);
+        }
+      };
+      fetchHeavyData();
+    }
+  }, [selectedTest?.id]);
 
   // 2. MathJax Auto-Renderer (ULTIMATE BULLETPROOF FIX WITH FADE-IN)
   useEffect(() => {
@@ -525,10 +569,10 @@ export default function ManageTests() {
     );
   }
 
-  //  THE FIX 2: Kyunki ab 'tests' me pehle se hi sirf is examiner ke tests hain, humein filter lagane ki zaroorat nahi
+  // Kyunki ab 'tests' me pehle se hi sirf is examiner ke tests hain, humein filter lagane ki zaroorat nahi
   const myTests = baseTests.filter((t) => t.id !== undoData?.test?.id);
 
-  //  THE FIX 3: SAFE UPDATER (Firebase Index Matcher)
+  // SAFE UPDATER
   const updateTestGlobal = async (updatedTest) => {
     if (updatedTest.isLocal) {
       let currentLocal = JSON.parse(
@@ -541,19 +585,68 @@ export default function ManageTests() {
       setLocalTests(newLocal);
       setSelectedTest(updatedTest);
     } else {
-      // Ek mini-fetch karke exact real index nikalna (Data Leak Proof)
-      const snapshot = await get(ref(database, "tests"));
-      const allTests = snapshot.val() || [];
-      const tIndex = allTests.findIndex((x) => x && x.id === updatedTest.id);
+      try {
+        const metaPayload = { ...updatedTest };
+        delete metaPayload.questions;
+        delete metaPayload.submissions;
+        delete metaPayload.isHeavyLoaded;
 
-      if (tIndex > -1) {
-        await update(ref(database, `tests/${tIndex}`), updatedTest);
-        // Local state turant update karna bina page reload kiye
+        // 🔥 FIX 1: Inject questionCount directly into the main object to avoid Firebase ancestor clash
+        if (updatedTest.questions) {
+          metaPayload.questionCount = updatedTest.questions.length;
+        }
+
+        const metaCheckSnap = await get(
+          ref(database, `tests_metadata/${updatedTest.id}`),
+        );
+        const isSplitArchitecture = metaCheckSnap.exists();
+
+        if (!isSplitArchitecture) {
+          const legacyQ = query(
+            ref(database, "tests"),
+            orderByChild("code"),
+            equalTo(updatedTest.code),
+          );
+          const snapOld = await get(legacyQ);
+          let legacyKey = null;
+
+          if (snapOld.exists()) {
+            legacyKey = Object.keys(snapOld.val())[0];
+          } else {
+            const snapshot = await get(ref(database, "tests"));
+            const allTests = snapshot.val() || {};
+            legacyKey = Object.keys(allTests).find(
+              (k) =>
+                allTests[k] &&
+                String(allTests[k].id) === String(updatedTest.id),
+            );
+          }
+
+          if (legacyKey !== null)
+            await update(ref(database, `tests/${legacyKey}`), updatedTest);
+        } else {
+          const updates = {};
+          updates[`tests_metadata/${updatedTest.id}`] = metaPayload;
+
+          if (updatedTest.questions) {
+            updates[`test_questions/${updatedTest.id}/questions`] =
+              updatedTest.questions;
+          }
+          if (updatedTest.submissions) {
+            updates[`test_submissions/${updatedTest.id}/submissions`] =
+              updatedTest.submissions;
+          }
+          await update(ref(database), updates);
+        }
+
         if (setTests)
           setTests((prev) =>
-            prev.map((t) => (t.id === updatedTest.id ? updatedTest : t)),
+            prev.map((t) => (t.id === updatedTest.id ? metaPayload : t)),
           );
         setSelectedTest(updatedTest);
+      } catch (err) {
+        console.error("Global Update Error:", err);
+        throw err;
       }
     }
   };
@@ -594,7 +687,7 @@ export default function ManageTests() {
     }
   };
 
-  // 🔥 THE FIX: ABSOLUTE SAFE DELETER (Only updates 1 field, touches nothing else)
+  // ABSOLUTE SAFE DELETER (Only updates 1 field, touches nothing else)
   const triggerDelete = (t) => {
     setSysConfirm({
       title: "Move to Trash?",
@@ -604,32 +697,44 @@ export default function ManageTests() {
         const timeoutId = setTimeout(async () => {
           try {
             if (t.isLocal) {
-              let currentLocal = JSON.parse(localStorage.getItem("examitop_offline_tests") || "[]");
+              let currentLocal = JSON.parse(
+                localStorage.getItem("examitop_offline_tests") || "[]",
+              );
               let newLocal = currentLocal.filter((x) => x.id !== t.id);
-              localStorage.setItem("examitop_offline_tests", JSON.stringify(newLocal));
+              localStorage.setItem(
+                "examitop_offline_tests",
+                JSON.stringify(newLocal),
+              );
               setLocalTests(newLocal);
             } else {
-              // 🛡️ BULLETPROOF LOGIC: Poora object update karne ki jagah, sirf ek property add karenge
-              const snapshot = await get(ref(database, "tests"));
-              const allTests = snapshot.val() || [];
-              const tIndex = allTests.findIndex((x) => x && x.id === t.id);
-              
-              if (tIndex > -1) {
-                await update(ref(database, `tests/${tIndex}`), {
-                  isDeletedByExaminer: true
-                });
-                
-                // Local state update taki examiner ka UI bina refresh kiye theek ho jaye
-                if (setTests) {
-                  setTests((prev) => prev.map((item) => item.id === t.id ? { ...item, isDeletedByExaminer: true } : item));
-                }
+              // Direct ID based update
+              await update(ref(database, `tests_metadata/${t.id}`), {
+                isDeletedByExaminer: true,
+              });
+
+              if (setTests) {
+                setTests((prev) =>
+                  prev.map((item) =>
+                    item.id === t.id
+                      ? { ...item, isDeletedByExaminer: true }
+                      : item,
+                  ),
+                );
               }
             }
             setUndoData(null);
-            setSysAlert({ title: "Moved to Trash", msg: "Exam hidden from your dashboard successfully.", type: "success" });
+            setSysAlert({
+              title: "Moved to Trash",
+              msg: "Exam hidden from your dashboard successfully.",
+              type: "success",
+            });
           } catch (e) {
             console.error("Deletion failed", e);
-            setSysAlert({ title: "Error", msg: "Failed to move test to trash.", type: "error" });
+            setSysAlert({
+              title: "Error",
+              msg: "Failed to move test to trash.",
+              type: "error",
+            });
           }
         }, 5000);
         setUndoData({ test: t, timeoutId });
@@ -850,18 +955,29 @@ export default function ManageTests() {
   };
 
   const saveTestSettings = async () => {
-    if (editSettingsData.resultVis === "scheduled" && !editSettingsData.resultPublishTime) {
-      setSysAlert({ title: "Action Required", msg: "Please set a valid Date & Time for the scheduled result.", type: "warning" });
+    if (
+      editSettingsData.resultVis === "scheduled" &&
+      !editSettingsData.resultPublishTime
+    ) {
+      setSysAlert({
+        title: "Action Required",
+        msg: "Please set a valid Date & Time for the scheduled result.",
+        type: "warning",
+      });
       return;
     }
 
+    setIsActionLoading(true); //Loader chalu
     try {
       let updatedTest = {
         ...selectedTest,
         duration: Number(editSettingsData.duration),
         negMarking: Number(editSettingsData.negMarking),
         resultVis: editSettingsData.resultVis,
-        resultPublishTime: editSettingsData.resultVis === "scheduled" ? editSettingsData.resultPublishTime : null, 
+        resultPublishTime:
+          editSettingsData.resultVis === "scheduled"
+            ? editSettingsData.resultPublishTime
+            : null,
         radarVisible: editSettingsData.radarVisible,
         radarNote: editSettingsData.radarNote,
         openDate: editSettingsData.openDate,
@@ -885,21 +1001,38 @@ export default function ManageTests() {
         msg: "Failed to update settings.",
         type: "error",
       });
+    } finally {
+      setIsActionLoading(false); // 🔥 Loader band
     }
   };
 
   const saveNewKeyAndReevaluate = async () => {
+    setIsActionLoading(true); // 🔥 Loader chalu
     let updatedTest = { ...selectedTest, questions: tempQuestions };
+
     if (updatedTest.submissions && updatedTest.submissions.length > 0) {
       const neg = Math.abs(Number(updatedTest.negMarking || 0));
-      updatedTest.submissions.forEach((sub) => {
+
+      // 🔥 FIX: Deep Copy to prevent Phantom UI Bug
+      let safeSubmissions = Array.isArray(updatedTest.submissions)
+        ? [...updatedTest.submissions]
+        : Object.values(updatedTest.submissions);
+
+      safeSubmissions = safeSubmissions.map((originalSub) => {
+        let sub = {
+          ...originalSub,
+          details: originalSub.details.map((d) => ({
+            ...d,
+            q: tempQuestions[originalSub.details.indexOf(d)],
+          })),
+        };
         let newScore = 0,
           newCorrect = 0,
           newWrong = 0,
           newSkipped = 0;
+
         sub.details.forEach((d, i) => {
           let q = tempQuestions[i];
-          d.q = q;
           let ans = d.ans;
           let hasVal =
             ans.val !== null && (!Array.isArray(ans.val) || ans.val.length > 0);
@@ -914,7 +1047,8 @@ export default function ManageTests() {
               newSkipped++;
             }
           } else if (q.type === "mcq") {
-            if (ans.val === q.correct[0]) {
+            // 🔥 STRICT STRING COMPARISON FIX
+            if (String(ans.val) === String(q.correct[0])) {
               newCorrect++;
               d.earned = q.marks;
               newScore += q.marks;
@@ -955,7 +1089,7 @@ export default function ManageTests() {
               d.status = "wrong";
             }
           } else if (q.type === "integer") {
-            if (ans.val === q.correctInt) {
+            if (String(ans.val) === String(q.correctInt)) {
               newCorrect++;
               d.earned = q.marks;
               newScore += q.marks;
@@ -982,7 +1116,9 @@ export default function ManageTests() {
         sub.correct = newCorrect;
         sub.wrong = newWrong;
         sub.skipped = newSkipped;
+        return sub;
       });
+      updatedTest.submissions = safeSubmissions;
     }
 
     try {
@@ -999,52 +1135,45 @@ export default function ManageTests() {
         msg: "Error saving new key.",
         type: "error",
       });
+    } finally {
+      setIsActionLoading(false); // Loader band
     }
   };
 
   const saveEvaluation = async () => {
     if (!auditReason.trim()) {
-      setSysAlert({
-        title: "Required",
-        msg: "Audit reason is mandatory for manual grading.",
-        type: "warning",
-      });
+      setSysAlert({ title: "Required", msg: "Audit reason is mandatory for manual grading.", type: "warning" });
       return;
     }
 
     let hasError = false;
     Object.keys(evalOverrides).forEach((qIdx) => {
-      if (evalOverrides[qIdx] > evaluateSub.sub.details[qIdx].q.marks) {
-        setSysAlert({
-          title: "Invalid Marks",
-          msg: `Marks for Q${Number(qIdx) + 1} cannot exceed ${evaluateSub.sub.details[qIdx].q.marks}!`,
-          type: "error",
-        });
+      if (Number(evalOverrides[qIdx]) > evaluateSub.sub.details[qIdx].q.marks) {
+        setSysAlert({ title: "Invalid Marks", msg: `Marks for Q${Number(qIdx) + 1} cannot exceed ${evaluateSub.sub.details[qIdx].q.marks}!`, type: "error" });
         hasError = true;
       }
     });
     if (hasError) return;
 
-    let newSub = { ...evaluateSub.sub };
+    setIsActionLoading(true); // 🔥 Loader chalu
+    let newSub = { ...evaluateSub.sub, details: evaluateSub.sub.details.map(d => ({...d})) };
+    
     Object.keys(evalOverrides).forEach((qIdx) => {
-      let awarded = Number(evalOverrides[qIdx]);
+      let awarded = Number(evalOverrides[qIdx]) || 0; 
       newSub.details[qIdx].earned = awarded;
       newSub.details[qIdx].status = "evaluated";
       if (!newSub.details[qIdx].auditLogs) newSub.details[qIdx].auditLogs = [];
       newSub.details[qIdx].auditLogs.push({
         date: new Date().toLocaleString("en-IN"),
-        examiner: currentUser?.displayName || "Offline Examiner",
-        reason: auditReason,
-        awarded,
+        examiner: currentUser?.displayName ? currentUser.displayName : "Examiner", 
+        reason: auditReason.trim(),
+        awarded: awarded,
       });
     });
 
-    let newTotal = 0,
-      newCorrect = 0,
-      newWrong = 0,
-      newSkipped = 0;
+    let newTotal = 0, newCorrect = 0, newWrong = 0, newSkipped = 0;
     newSub.details.forEach((d) => {
-      newTotal += d.earned || 0;
+      newTotal += (Number(d.earned) || 0);
       if (d.status === "skipped") newSkipped++;
       else if (d.earned > 0) newCorrect++;
       else if (d.earned < 0) newWrong++;
@@ -1060,25 +1189,20 @@ export default function ManageTests() {
 
     try {
       let updatedTest = { ...selectedTest };
-      updatedTest.submissions[evaluateSub.sIdx] = newSub;
+      let safeSubmissions = Array.isArray(updatedTest.submissions) ? [...updatedTest.submissions] : Object.values(updatedTest.submissions || {});
+      safeSubmissions[evaluateSub.sIdx] = newSub;
+      updatedTest.submissions = safeSubmissions;
 
       await updateTestGlobal(updatedTest);
       setEvaluateSub({ ...evaluateSub, sub: newSub });
-
       setModalType(null);
       setEvalOverrides({});
       setAuditReason("");
-      setSysAlert({
-        title: "Saved",
-        msg: "Marks & Audit Log securely recorded.",
-        type: "success",
-      });
+      setSysAlert({ title: "Saved", msg: "Marks & Audit Log securely recorded.", type: "success" });
     } catch (e) {
-      setSysAlert({
-        title: "Error",
-        msg: "Failed to save evaluation.",
-        type: "error",
-      });
+      setSysAlert({ title: "Error", msg: "Failed to save evaluation.", type: "error" });
+    } finally {
+      setIsActionLoading(false); // Loader band
     }
   };
 
@@ -1209,32 +1333,50 @@ export default function ManageTests() {
       subjective: "Subjective",
     })[type] || type;
 
-  const deleteSubmission = async (sIdx, subName) => {
-    if (
-      window.confirm(
-        `Are you sure you want to permanently delete the submission for "${subName}"? (Use this to remove Demo/Dummy tests)`,
-      )
-    ) {
-      try {
-        let updatedTest = { ...selectedTest };
-        updatedTest.submissions = updatedTest.submissions.filter(
-          (_, idx) => idx !== sIdx,
-        );
+  const toggleIndividualPublish = async (sIdx, currentStatus) => {
+    setIsActionLoading(true);
+    try {
+      let updatedTest = { ...selectedTest };
+      let safeSubs = Array.isArray(updatedTest.submissions) ? [...updatedTest.submissions] : Object.values(updatedTest.submissions || {});
+      
+      safeSubs[sIdx] = { ...safeSubs[sIdx], isPublished: !currentStatus };
+      updatedTest.submissions = safeSubs;
 
-        await updateTestGlobal(updatedTest);
-        setSysAlert({
-          title: "Deleted",
-          msg: "Demo submission removed successfully.",
-          type: "success",
-        });
-      } catch (e) {
-        setSysAlert({
-          title: "Error",
-          msg: "Failed to delete submission.",
-          type: "error",
-        });
-      }
+      await updateTestGlobal(updatedTest);
+      setSysAlert({ 
+        title: !currentStatus ? "Published" : "Hidden", 
+        msg: `Result has been ${!currentStatus ? "published" : "hidden"} for this student.`, 
+        type: "success" 
+      });
+    } catch (e) {
+      setSysAlert({ title: "Error", msg: "Failed to update individual publish status.", type: "error" });
+    } finally {
+      setIsActionLoading(false);
     }
+  };  
+
+  const deleteSubmission = (sIdx, subName) => {
+    // 🔥 FIX: Removed native window.confirm, implemented custom sysConfirm
+    setSysConfirm({
+      title: "Delete Submission?",
+      msg: `Are you sure you want to permanently delete the submission for "${subName}"? (Use this to remove Demo/Dummy tests)`,
+      action: async () => {
+        setIsActionLoading(true);
+        try {
+          let updatedTest = { ...selectedTest };
+          let safeSubs = Array.isArray(updatedTest.submissions) ? [...updatedTest.submissions] : Object.values(updatedTest.submissions || {});
+          safeSubs = safeSubs.filter((_, idx) => idx !== sIdx);
+          updatedTest.submissions = safeSubs;
+
+          await updateTestGlobal(updatedTest);
+          setSysAlert({ title: "Deleted", msg: "Demo submission removed successfully.", type: "success" });
+        } catch (e) {
+          setSysAlert({ title: "Error", msg: "Failed to delete submission.", type: "error" });
+        } finally {
+          setIsActionLoading(false);
+        }
+      }
+    });
   };
 
   // Helper for Time Formatting
@@ -2271,17 +2413,15 @@ export default function ManageTests() {
                   </div>
 
                   <div className="flex gap-3">
-                    <button
-                      className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors active:scale-95"
-                      onClick={() => setModalType(null)}
-                    >
+                    <button className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors active:scale-95" onClick={() => setModalType(null)} disabled={isActionLoading}>
                       Cancel
                     </button>
                     <button
-                      className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-500/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                      className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                       onClick={saveEvaluation}
+                      disabled={isActionLoading}
                     >
-                      <i className="ti ti-lock"></i> Confirm & Save
+                      {isActionLoading ? <><i className="ti ti-loader animate-spin text-lg"></i> Processing...</> : <><i className="ti ti-lock"></i> Confirm & Save</>}
                     </button>
                   </div>
                 </div>
@@ -2642,17 +2782,27 @@ export default function ManageTests() {
                       <i className="ti ti-file-certificate text-indigo-500 text-lg"></i>{" "}
                       Assessment Results
                     </h3>
-                    {!selectedTest.released && selectedTest.resultVis === "manual" ? (
+                    {!selectedTest.released &&
+                    selectedTest.resultVis === "manual" ? (
                       <button
                         className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-600 text-white shadow-md shadow-blue-600/30 hover:bg-blue-700 transition-all active:scale-95 text-sm"
                         onClick={() => publishResults(selectedTest)}
                       >
                         <i className="ti ti-send text-xl"></i> Publish Now
                       </button>
-                    ) : selectedTest.resultVis === "scheduled" && !selectedTest.released ? (
+                    ) : selectedTest.resultVis === "scheduled" &&
+                      !selectedTest.released ? (
                       <div className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 text-[13px] sm:text-sm text-center">
                         <i className="ti ti-clock-play text-xl"></i>
-                        Scheduled: {selectedTest.resultPublishTime ? new Date(selectedTest.resultPublishTime).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) : "Pending"}
+                        Scheduled:{" "}
+                        {selectedTest.resultPublishTime
+                          ? new Date(
+                              selectedTest.resultPublishTime,
+                            ).toLocaleString("en-IN", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })
+                          : "Pending"}
                       </div>
                     ) : (
                       <div className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-slate-50 text-slate-500 border border-slate-200 text-sm">
@@ -2885,10 +3035,26 @@ export default function ManageTests() {
                           <div className="text-left sm:text-right shrink-0">
                             {(() => {
                               // 🔥 NAYA: Smart Time Check for Examiner
-                              const isAutoPublished = selectedTest.resultVis === "scheduled" && selectedTest.resultPublishTime && Date.now() >= new Date(selectedTest.resultPublishTime).getTime();
-                              const isScheduledPending = selectedTest.resultVis === "scheduled" && selectedTest.resultPublishTime && Date.now() < new Date(selectedTest.resultPublishTime).getTime();
-                              
-                              const showScore = s.evaluated || selectedTest.resultVis === "instant" || selectedTest.released || isAutoPublished;
+                              const isAutoPublished =
+                                selectedTest.resultVis === "scheduled" &&
+                                selectedTest.resultPublishTime &&
+                                Date.now() >=
+                                  new Date(
+                                    selectedTest.resultPublishTime,
+                                  ).getTime();
+                              const isScheduledPending =
+                                selectedTest.resultVis === "scheduled" &&
+                                selectedTest.resultPublishTime &&
+                                Date.now() <
+                                  new Date(
+                                    selectedTest.resultPublishTime,
+                                  ).getTime();
+
+                              const showScore =
+                                s.evaluated ||
+                                selectedTest.resultVis === "instant" ||
+                                selectedTest.released ||
+                                isAutoPublished;
 
                               if (showScore) {
                                 return (
@@ -2901,7 +3067,11 @@ export default function ManageTests() {
                                     </div>
                                     <div className="text-[9px] font-extrabold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1">
                                       <i className="ti ti-check"></i>{" "}
-                                      {s.evaluated ? "Evaluated" : isAutoPublished ? "Auto-Published" : "Published"}
+                                      {s.evaluated
+                                        ? "Evaluated"
+                                        : isAutoPublished
+                                          ? "Auto-Published"
+                                          : "Published"}
                                     </div>
                                   </div>
                                 );
@@ -2950,6 +3120,18 @@ export default function ManageTests() {
                               <span className="hidden sm:inline">Evaluate</span>
                             </button>
 
+                            {/* 🔥 NAYA FIX: Individual Publish Toggle */}
+                            {selectedTest.resultVis === "manual" && !selectedTest.released && (
+                              <button
+                                className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border transition-colors active:scale-95 shrink-0 shadow-sm ${s.isPublished ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600'}`}
+                                title={s.isPublished ? "Hide Result" : "Publish Result Individually"}
+                                onClick={() => toggleIndividualPublish(sIdx, s.isPublished)}
+                                disabled={isActionLoading}
+                              >
+                                <i className={`ti ${s.isPublished ? 'ti-eye' : 'ti-eye-off'} text-lg`}></i>
+                              </button>
+                            )}
+
                             {/* Demo Test Delete Button (Only for Admin/Owner) */}
                             {(userRole === "admin" ||
                               s.uid === currentUser?.uid ||
@@ -2972,13 +3154,12 @@ export default function ManageTests() {
             </div>
           )}
 
-          {/* MODALS INLINE */}
           {modalType === "editKey" && (
             <div
               className="fixed inset-0 flex items-center justify-center p-4"
               style={{
                 zIndex: 100000,
-                background: "rgba(15, 23, 42, 0.3)",
+                background: "rgba(255, 255, 255, 0.2)", // LIGHT BLUR FIX
                 backdropFilter: "blur(8px)",
               }}
             >
@@ -3149,38 +3330,28 @@ export default function ManageTests() {
                 </div>
 
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <button
-                    className="btn"
-                    style={{ flex: 1, padding: "12px", fontWeight: 600 }}
-                    onClick={() => setModalType(null)}
-                  >
+                  <button className="btn" style={{ flex: 1, padding: "12px", fontWeight: 600 }} onClick={() => setModalType(null)} disabled={isActionLoading}>
                     Cancel
                   </button>
                   <button
                     className="btn btn-primary"
-                    style={{
-                      flex: 2,
-                      background: "#854F0B",
-                      borderColor: "#854F0B",
-                      padding: "12px",
-                      fontWeight: 600,
-                    }}
+                    style={{ flex: 2, background: isActionLoading ? "#94a3b8" : "#854F0B", borderColor: isActionLoading ? "#94a3b8" : "#854F0B", padding: "12px", fontWeight: 600, cursor: isActionLoading ? "not-allowed" : "pointer" }}
                     onClick={saveNewKeyAndReevaluate}
+                    disabled={isActionLoading}
                   >
-                    <i className="ti ti-refresh"></i> Update & Auto-Grade All
+                    {isActionLoading ? <><i className="ti ti-loader animate-spin mr-1"></i> Processing...</> : <><i className="ti ti-refresh"></i> Update & Auto-Grade All</>}
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* UPGRADED EDIT SETTINGS MODAL (Ultra Premium SaaS Style)  */}
           {modalType === "editSettings" && (
             <div
               className="fixed inset-0 flex items-center justify-center p-4"
               style={{
                 zIndex: 100000,
-                background: "rgba(15, 23, 42, 0.3)",
+                background: "rgba(255, 255, 255, 0.2)", // LIGHT BLUR FIX
                 backdropFilter: "blur(8px)",
               }}
             >
@@ -3364,14 +3535,23 @@ export default function ManageTests() {
                               setEditSettingsData({
                                 ...editSettingsData,
                                 resultVis: e.target.value,
-                                resultPublishTime: e.target.value !== "scheduled" ? "" : editSettingsData.resultPublishTime
+                                resultPublishTime:
+                                  e.target.value !== "scheduled"
+                                    ? ""
+                                    : editSettingsData.resultPublishTime,
                               })
                             }
                             className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all appearance-none cursor-pointer"
                           >
-                            <option value="manual">Manual Verification (Publish Later)</option>
-                            <option value="instant">Instant Access (Show after submit)</option>
-                            <option value="scheduled">Scheduled (Auto-Publish)</option>
+                            <option value="manual">
+                              Manual Verification (Publish Later)
+                            </option>
+                            <option value="instant">
+                              Instant Access (Show after submit)
+                            </option>
+                            <option value="scheduled">
+                              Scheduled (Auto-Publish)
+                            </option>
                           </select>
                           <i className="ti ti-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
                         </div>
@@ -3381,7 +3561,8 @@ export default function ManageTests() {
                       {editSettingsData.resultVis === "scheduled" && (
                         <div className="animate-[fadeIn_0.3s_ease]">
                           <label className="text-[12px] font-bold text-slate-600 mb-1.5 flex items-center gap-1">
-                            <i className="ti ti-clock-play text-blue-500"></i> Publish Date & Time
+                            <i className="ti ti-clock-play text-blue-500"></i>{" "}
+                            Publish Date & Time
                           </label>
                           <input
                             type="datetime-local"
@@ -3428,18 +3609,15 @@ export default function ManageTests() {
 
                 {/* Modal Footer */}
                 <div className="bg-white p-5 sm:p-6 border-t border-slate-100 flex gap-3 shrink-0">
-                  <button
-                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors active:scale-95"
-                    onClick={() => setModalType(null)}
-                  >
+                  <button className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors active:scale-95" onClick={() => setModalType(null)} disabled={isActionLoading}>
                     Cancel
                   </button>
                   <button
-                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                     onClick={saveTestSettings}
+                    disabled={isActionLoading}
                   >
-                    <i className="ti ti-device-floppy text-lg"></i> Save
-                    Configuration
+                    {isActionLoading ? <><i className="ti ti-loader animate-spin text-lg"></i> Saving...</> : <><i className="ti ti-device-floppy text-lg"></i> Save Configuration</>}
                   </button>
                 </div>
               </div>
@@ -3452,7 +3630,7 @@ export default function ManageTests() {
               className="fixed inset-0 flex items-center justify-center p-4"
               style={{
                 zIndex: 100000,
-                background: "rgba(15, 23, 42, 0.3)",
+                background: "rgba(255, 255, 255, 0.2)",
                 backdropFilter: "blur(8px)",
               }}
             >
@@ -3842,7 +4020,7 @@ export default function ManageTests() {
                     value={vaultSearchQuery}
                     onChange={(e) => {
                       setVaultSearchQuery(e.target.value);
-                      setVisibleCount(5); 
+                      setVisibleCount(5);
                     }}
                     className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm"
                   />
@@ -3875,7 +4053,7 @@ export default function ManageTests() {
                   // Filter Logic
                   let filtered = myTests.filter((t) => {
                     if (t.isDeletedByExaminer) return false; // Deleted exams ko list me mat dikhao
-                    
+
                     const sq = vaultSearchQuery.toLowerCase();
                     const matchesSearch =
                       !vaultSearchQuery ||
@@ -3944,11 +4122,17 @@ export default function ManageTests() {
                           : null;
 
                         let status = "live";
-                        if (t.isActive === false || (closeTime && now > closeTime))
+                        if (
+                          t.isActive === false ||
+                          (closeTime && now > closeTime)
+                        )
                           status = "closed";
-                        else if (openTime && now < openTime) status = "upcoming";
+                        else if (openTime && now < openTime)
+                          status = "upcoming";
 
-                        const subCount = t.submissions ? t.submissions.length : 0;
+                        const subCount =
+                          t.submissionCount ||
+                          (t.submissions ? t.submissions.length : 0);
 
                         // Dynamic Accent Line Color
                         let statusColorLine = "bg-slate-200";
@@ -3982,7 +4166,8 @@ export default function ManageTests() {
                                 <div className="flex items-center gap-2">
                                   {t.isLocal && (
                                     <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-amber-200">
-                                      <i className="ti ti-device-floppy"></i> Local
+                                      <i className="ti ti-device-floppy"></i>{" "}
+                                      Local
                                     </span>
                                   )}
 
@@ -4014,7 +4199,7 @@ export default function ManageTests() {
                                 <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
                                 <span className="flex items-center gap-1.5">
                                   <i className="ti ti-list-numbers text-slate-400 text-base"></i>{" "}
-                                  {t.questions?.length || 0} Qs
+                                  {t.questionCount || 0} Qs
                                 </span>
                                 <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
                                 <span className="flex items-center gap-1.5">
@@ -4026,11 +4211,13 @@ export default function ManageTests() {
                               {/* Data Tags & Radar Badge (Mobile-First Layout) */}
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="bg-slate-50 text-slate-600 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold font-mono tracking-widest border border-slate-200 shadow-sm flex items-center gap-1">
-                                  <i className="ti ti-hash opacity-60"></i> {t.code}
+                                  <i className="ti ti-hash opacity-60"></i>{" "}
+                                  {t.code}
                                 </span>
 
                                 <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold border border-indigo-200 shadow-sm flex items-center gap-1.5">
-                                  <i className="ti ti-users"></i> {subCount} Subs
+                                  <i className="ti ti-users"></i> {subCount}{" "}
+                                  Subs
                                 </span>
 
                                 {/*   THUNDER ICON FIXED   */}
@@ -4064,8 +4251,8 @@ export default function ManageTests() {
                           <button
                             className="px-6 py-3 bg-white border border-slate-300 text-slate-700 font-bold text-[14px] rounded-xl shadow-sm hover:text-blue-600 hover:border-blue-400 hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2"
                             onClick={(e) => {
-                                e.stopPropagation(); // Card click event ko roko
-                                setVisibleCount((prev) => prev + 5)
+                              e.stopPropagation(); // Card click event ko roko
+                              setVisibleCount((prev) => prev + 5);
                             }}
                           >
                             <i className="ti ti-reload"></i> Load 5 More Exams
@@ -4125,7 +4312,7 @@ export default function ManageTests() {
           className="fixed inset-0 flex items-center justify-center p-4"
           style={{
             zIndex: 99999,
-            background: "rgba(15, 23, 42, 0.3)",
+            background: "rgba(255, 255, 255, 0.2)", // LIGHT BLUR FIX
             backdropFilter: "blur(8px)",
           }}
         >
@@ -4159,7 +4346,7 @@ export default function ManageTests() {
           className="fixed inset-0 flex items-center justify-center p-4"
           style={{
             zIndex: 99999,
-            background: "rgba(15, 23, 42, 0.3)",
+            background: "rgba(255, 255, 255, 0.2)", // LIGHT BLUR FIX
             backdropFilter: "blur(8px)",
           }}
         >
@@ -4174,20 +4361,15 @@ export default function ManageTests() {
               {sysConfirm.msg}
             </p>
             <div className="flex gap-3">
-              <button
-                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[15px] rounded-xl transition-all active:scale-95"
-                onClick={() => setSysConfirm(null)}
-              >
+              <button className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[15px] rounded-xl transition-all active:scale-95" onClick={() => setSysConfirm(null)} disabled={isActionLoading}>
                 Cancel
               </button>
               <button
-                className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-rose-600/20 transition-all active:scale-95"
-                onClick={() => {
-                  sysConfirm.action();
-                  setSysConfirm(null);
-                }}
+                className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-rose-600/20 transition-all active:scale-95 flex justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                onClick={() => { sysConfirm.action(); setSysConfirm(null); }}
+                disabled={isActionLoading}
               >
-                Yes, Proceed
+                {isActionLoading ? <><i className="ti ti-loader animate-spin text-lg"></i> Processing...</> : "Yes, Proceed"}
               </button>
             </div>
           </div>

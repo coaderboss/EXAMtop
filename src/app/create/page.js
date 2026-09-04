@@ -655,126 +655,73 @@ export default function CreateTest() {
 
         if (isUnlimited) {
           testTokenType = "unlimited";
-          // Unlimited hai toh koi token deduct nahi hoga
         } else if (premiumTokens > 0) {
           testTokenType = "premium";
           premiumTokens -= 1;
           legacyQuota = Math.max(0, legacyQuota - 1); 
-          
-          // OPTIMIZATION 1: Safe 'update' (baki data ko touch nahi karega)
-          await update(userRef, {
-            premium_tokens: premiumTokens,
-            available_quota: legacyQuota
-          });
-          
-          // OPTIMIZATION 2: Update local React state so UI disables the save button instantly
+          await update(userRef, { premium_tokens: premiumTokens, available_quota: legacyQuota });
           setUserQuota(prev => Math.max(0, prev - 1)); 
-
         } else if (freeTokens > 0) {
           testTokenType = "free";
           freeTokens -= 1;
           legacyQuota = Math.max(0, legacyQuota - 1); 
-          
-          // OPTIMIZATION 1: Safe 'update'
-          await update(userRef, {
-            free_tokens: freeTokens,
-            available_quota: legacyQuota
-          });
-
-          // OPTIMIZATION 2: Update local React state
+          await update(userRef, { free_tokens: freeTokens, available_quota: legacyQuota });
           setUserQuota(prev => Math.max(0, prev - 1)); 
-
         } else {
-          // 🚨 ZERO TOKENS LEFT (Dono buckets khali hain)
           setMismatchModal(null);
           setLimitExceededModal(true); 
           setIsProcessingSave(false);
-          return; // Code yahi ruk jayega, aage test save nahi hoga
+          return; 
         }
       } catch (err) {
         console.error("Quota check failed", err);
-        setSysAlert({
-          title: "Network Error",
-          msg: "Failed to verify account limits. Try again.",
-          type: "error",
-        });
+        setSysAlert({ title: "Network Error", msg: "Failed to verify account limits.", type: "error" });
         setIsProcessingSave(false);
         return;
       }
     }
 
+    const testId = Date.now().toString(); // 🔥 ID MUST BE STRING FOR FIREBASE KEYS
     const testCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const parsedSections = sections
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s);
+    const parsedSections = sections.split(",").map((s) => s.trim()).filter((s) => s);
 
-    // 🔥 THE NEW TEST OBJECT
-    const newTest = {
-      id: Date.now(),
+    // 🔥 NODE 1: LIGHTWEIGHT METADATA (Dashboard)
+    const testMetadata = {
+      id: testId,
       code: testCode,
-      title,
-      subject,
-      duration,
-      sections: parsedSections,
-      totalMarks: finalMarks,
-      negMarking,
-      expiryDate,
-      access,
-      resultVis,
-      scoreVis,
+      title, subject, duration, sections: parsedSections,
+      totalMarks: finalMarks, negMarking, expiryDate, access, resultVis, scoreVis,
       resultPublishTime: resultVis === "scheduled" ? resultPublishTime : null,
-      allowChange,
-      showPalette,
-      allowNav,
-      randomOrder,
-      shuffleOpts,
-      antiCheat,
-      fullScreenMode,
+      allowChange, showPalette, allowNav, randomOrder, shuffleOpts, antiCheat, fullScreenMode,
       creatorUid: isOffline ? "offline_creator" : currentUser.uid,
-      tokenType: testTokenType, // 🔥 SYSTEM TAG ASSIGNED SECURELY
-      questions: qList,
-      submissions: [],
-      released: false,
-      isActive: true,
-      sectionRules,
+      tokenType: testTokenType, 
+      released: false, isActive: true, sectionRules,
       createdAt: new Date().toLocaleDateString("en-IN"),
       isLocal: isOffline,
+      questionCount: qList.length, 
+      submissionCount: 0 
     };
 
     try {
       if (isOffline) {
-        let localTests = JSON.parse(
-          localStorage.getItem("examitop_offline_tests") || "[]",
-        );
-        localTests.push(newTest);
-        localStorage.setItem(
-          "examitop_offline_tests",
-          JSON.stringify(localTests),
-        );
+        let localTests = JSON.parse(localStorage.getItem("examitop_offline_tests") || "[]");
+        localTests.push({ ...testMetadata, questions: qList, submissions: [] }); 
+        localStorage.setItem("examitop_offline_tests", JSON.stringify(localTests));
       } else {
-        await runTransaction(ref(database, "tests"), (currentTests) => {
-          let testsArr = currentTests || [];
-          if (!Array.isArray(testsArr))
-            testsArr = Object.values(testsArr).filter((item) => item !== null);
-          testsArr.push(newTest);
-          return testsArr;
-        });
+        //PHASE 3: THE DATABASE SPLIT (Multi-path update)
+        const updates = {};
+        updates[`tests_metadata/${testId}`] = testMetadata;
+        updates[`test_questions/${testId}`] = { questions: qList };
+        
+        await update(ref(database), updates);
       }
 
-      const userIdent = currentUser
-        ? currentUser.uid
-        : isOffline
-          ? "offline_user"
-          : "guest";
+      const userIdent = currentUser ? currentUser.uid : isOffline ? "offline_user" : "guest";
       localStorage.removeItem("exam_draft_creator_" + userIdent);
 
       setMismatchModal(null);
       setIsProcessingSave(false);
-      setSuccessModal({
-        code: testCode,
-        mode: isOffline ? "Local Device" : "Cloud",
-      });
+      setSuccessModal({ code: testCode, mode: isOffline ? "Local Device" : "Cloud" });
     } catch (error) {
       console.error(error);
       setIsProcessingSave(false);
@@ -862,13 +809,14 @@ export default function CreateTest() {
             const isRed = !isOffline && !isFetchingQuota && !hasTokens;
             return (
               <button
-                className={`w-full sm:w-auto px-6 py-2.5 text-white font-bold text-[13px] rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait ${isRed ? "bg-rose-600 shadow-rose-600/20 hover:bg-rose-700" : "bg-blue-600 shadow-blue-600/20 hover:bg-blue-700"}`}
+                className={`w-full sm:w-auto px-6 py-2.5 text-white font-bold text-[13px] rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${isRed ? "bg-rose-600 shadow-rose-600/20 hover:bg-rose-700" : "bg-blue-600 shadow-blue-600/20 hover:bg-blue-700"}`}
                 onClick={saveTest}
                 disabled={isProcessingSave}
               >
+                {/*THE SPINNER FIX */}
                 {isProcessingSave ? (
                   <>
-                    <i className="ti ti-loader animate-spin text-lg"></i>{" "}
+                    <i className="ti ti-loader animate-spin text-lg"></i>
                     Processing...
                   </>
                 ) : isRed ? (
@@ -1649,14 +1597,14 @@ export default function CreateTest() {
       {/* Mismatch Modal */}
       {mismatchModal && (
         <div
-          className="modal-bg flex items-center justify-center p-4"
+          className="fixed inset-0 flex items-center justify-center p-4"
           style={{
-            zIndex: 10000,
-            backdropFilter: "blur(5px)",
-            background: "rgba(15, 23, 42, 0.6)",
+            zIndex: 100000,
+            backdropFilter: "blur(8px)", // PERFECT BLUR
+            background: "rgba(255, 255, 255, 0.2)", //LIGHT TRANSPARENT BACKGROUND (No Black)
           }}
         >
-          <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl p-6 sm:p-8 text-center animate-[popIn_0.3s_ease]">
+          <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl p-6 sm:p-8 text-center animate-[popIn_0.3s_ease] border border-slate-100">
             <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 border border-amber-100 shadow-sm">
               <i className="ti ti-alert-triangle"></i>
             </div>
@@ -1677,30 +1625,41 @@ export default function CreateTest() {
               <button
                 className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors active:scale-95"
                 onClick={() => setMismatchModal(null)}
+                disabled={isProcessingSave}
               >
                 Cancel & Edit
               </button>
               <button
-                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-amber-500/30 transition-all active:scale-95"
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-amber-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 onClick={() => proceedWithSave(mismatchModal.actual)}
+                disabled={isProcessingSave}
               >
-                Yes, Auto-Update
+                {/* 🔥 THE SPINNER FIX FOR MODAL */}
+                {isProcessingSave ? (
+                  <>
+                    <i className="ti ti-loader animate-spin text-lg"></i>
+                    Updating...
+                  </>
+                ) : (
+                  <>Yes, Auto-Update</>
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Sys Alert Modal */}
+      {/* Sys Alert Modal Example */}
       {sysAlert && (
         <div
-          className="modal-bg flex items-center justify-center p-4"
+          className="fixed inset-0 flex items-center justify-center p-4"
           style={{
-            zIndex: 10000,
-            backdropFilter: "blur(5px)",
-            background: "rgba(15, 23, 42, 0.6)",
+            zIndex: 100000,
+            backdropFilter: "blur(8px)", //PERFECT BLUR
+            background: "rgba(255, 255, 255, 0.2)", //LIGHT TRANSPARENT BACKGROUND (No Black)
           }}
         >
+          {/* Modal Content inside ... */}
           <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl p-6 sm:p-8 text-center animate-[popIn_0.3s_ease]">
             <div
               className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm ${sysAlert.type === "success" ? "bg-emerald-50 text-emerald-500 border border-emerald-100" : sysAlert.type === "error" ? "bg-rose-50 text-rose-500 border border-rose-100" : "bg-amber-50 text-amber-500 border border-amber-100"}`}
@@ -1730,9 +1689,9 @@ export default function CreateTest() {
         <div
           className="fixed inset-0 flex items-center justify-center p-4"
           style={{
-            zIndex: 999999,
-            background: "rgba(15, 23, 42, 0.4)",
-            backdropFilter: "blur(8px)",
+            zIndex: 100000,
+            backdropFilter: "blur(8px)", // PERFECT BLUR
+            background: "rgba(255, 255, 255, 0.2)", // LIGHT TRANSPARENT BACKGROUND (No Black)
           }}
           onClick={() => setLimitExceededModal(false)}
         >
@@ -1780,8 +1739,8 @@ export default function CreateTest() {
           className="modal-bg flex items-center justify-center p-4"
           style={{
             zIndex: 100000,
-            backdropFilter: "blur(5px)",
-            background: "rgba(15, 23, 42, 0.8)",
+            backdropFilter: "blur(8px)", // PERFECT BLUR
+            background: "rgba(255, 255, 255, 0.2)", // LIGHT TRANSPARENT BACKGROUND (No Black)
           }}
         >
           <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl p-8 text-center animate-[popIn_0.3s_ease]">
@@ -1844,8 +1803,8 @@ export default function CreateTest() {
           className="modal-bg flex items-center justify-center p-4 sm:p-6"
           style={{
             zIndex: 100000,
-            backdropFilter: "blur(8px)",
-            background: "rgba(15, 23, 42, 0.7)",
+            backdropFilter: "blur(8px)", //PERFECT BLUR
+            background: "rgba(255, 255, 255, 0.2)", //LIGHT TRANSPARENT BACKGROUND (No Black)
           }}
         >
           <div className="bg-white w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl flex flex-col animate-[popIn_0.3s_ease]">
@@ -1936,8 +1895,8 @@ export default function CreateTest() {
           className="modal-bg flex items-center justify-center p-4 sm:p-6"
           style={{
             zIndex: 100000,
-            backdropFilter: "blur(8px)",
-            background: "rgba(15, 23, 42, 0.7)",
+            backdropFilter: "blur(8px)", //PERFECT BLUR
+            background: "rgba(255, 255, 255, 0.2)", //LIGHT TRANSPARENT BACKGROUND (No Black)
           }}
         >
           <div className="bg-white w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[85vh] animate-[popIn_0.3s_ease]">

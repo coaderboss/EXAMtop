@@ -42,7 +42,7 @@ export default function StudentResults() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [isMathReady, setIsMathReady] = useState(true);
 
-  const [openCardId, setOpenCardId] = useState(null); 
+  const [openCardId, setOpenCardId] = useState(null);
 
   // 🔥 MISSING FUNCTION JO ADD KARNA HAI
   const [nowTick, setNowTick] = useState(Date.now());
@@ -52,9 +52,14 @@ export default function StudentResults() {
     return () => clearInterval(interval);
   }, []);
 
-  const isResultVisible = (t) => {
+  const isResultVisible = (t, s) => {
     if (!t) return false;
-    if (t.resultVis === "instant" || t.released === true) return true;
+    if (
+      t.resultVis === "instant" ||
+      t.released === true ||
+      (s && s.isPublished === true)
+    )
+      return true;
     if (t.resultVis === "scheduled" && t.resultPublishTime) {
       return nowTick >= new Date(t.resultPublishTime).getTime();
     }
@@ -75,7 +80,7 @@ export default function StudentResults() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  //  THE FIX: Fetch results ON-DEMAND only when this page is opened
+  //Fetch results ON-DEMAND only when this page is opened
   useEffect(() => {
     const fetchStudentHistory = async () => {
       if (!currentUser) {
@@ -85,76 +90,125 @@ export default function StudentResults() {
 
       try {
         setFetchingResults(true);
-        // Sirf ek baar get() request (Zero background data leak)
-        const snapshot = await get(ref(database, "tests"));
+        let historyTemp = [];
 
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const allTests = Array.isArray(data) ? data : Object.values(data);
-          let historyTemp = [];
+        // 1. NAYE ARCHITECTURE SE DATA LAO (Phase 3)
+        const metaSnap = await get(ref(database, "tests_metadata"));
+        const metaData = metaSnap.exists() ? Object.values(metaSnap.val()) : [];
+        const subsSnap = await get(ref(database, "test_submissions"));
+        const subsData = subsSnap.exists() ? subsSnap.val() : {};
 
-          allTests.filter(Boolean).forEach((t) => {
+        metaData.filter(Boolean).forEach((t) => {
+          const testSubs = subsData[t.id]?.submissions;
+          if (testSubs) {
+            const subsArray = Object.values(testSubs).filter(Boolean);
+            subsArray.forEach((s) => {
+              // MORE ACCURATE MATCHING: Ab Roll No. ko bhi properly match karega
+              let isExactMatch =
+                (s.uid && currentUser.uid && s.uid === currentUser.uid) ||
+                (s.email &&
+                  currentUser.email &&
+                  s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+                (s.roll &&
+                  currentUser.rollNo &&
+                  s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
+
+              if (isExactMatch) {
+                let canView = false;
+                if (
+                  t.resultVis === "instant" ||
+                  t.released === true ||
+                  s.isPublished === true
+                )
+                  canView = true;
+                else if (t.resultVis === "scheduled" && t.resultPublishTime) {
+                  if (Date.now() >= new Date(t.resultPublishTime).getTime())
+                    canView = true;
+                }
+                historyTemp.push({
+                  test: { ...t, _studentCanView: canView },
+                  sub: s,
+                  canView,
+                });
+              }
+            });
+          }
+        });
+
+        // 2. PURANE ARCHITECTURE SE DATA LAO (Legacy Data Support)
+        const oldSnap = await get(ref(database, "tests"));
+        if (oldSnap.exists()) {
+          const oldData = Array.isArray(oldSnap.val())
+            ? oldSnap.val()
+            : Object.values(oldSnap.val());
+          oldData.filter(Boolean).forEach((t) => {
             if (t.submissions) {
               const subsArray = Array.isArray(t.submissions)
                 ? t.submissions
                 : Object.values(t.submissions);
               subsArray.filter(Boolean).forEach((s) => {
-                //  STRICT MATCH LOGIC
                 let isExactMatch =
                   (s.uid && currentUser.uid && s.uid === currentUser.uid) ||
                   (s.email &&
                     currentUser.email &&
-                    s.email.toLowerCase() === currentUser.email.toLowerCase());
+                    s.email.toLowerCase() ===
+                      currentUser.email.toLowerCase()) ||
+                  (s.roll &&
+                    currentUser.rollNo &&
+                    s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
 
                 if (isExactMatch) {
-                  // 🔥 NAYA: Scheduled Result Time Check Logic
                   let canView = false;
-
-                  if (t.resultVis === "instant" || t.released === true) {
+                  if (t.resultVis === "instant" || t.released === true)
                     canView = true;
-                  } else if (
-                    t.resultVis === "scheduled" &&
-                    t.resultPublishTime
-                  ) {
-                    const publishTimeMs = new Date(
-                      t.resultPublishTime,
-                    ).getTime();
-                    if (Date.now() >= publishTimeMs) {
+                  else if (t.resultVis === "scheduled" && t.resultPublishTime) {
+                    if (Date.now() >= new Date(t.resultPublishTime).getTime())
                       canView = true;
-                    }
                   }
 
-                  // hum is 't' object me directly 'canView' attach kar denge taki baaki components bhi isko use kar saken.
-                  const modifiedTest = { ...t, _studentCanView: canView };
-
-                  historyTemp.push({ test: modifiedTest, sub: s, canView });
+                  // Puraana 'prevent duplicates' wala if block hata diya,
+                  // Taaki agar student ne test retake kiya hai toh naya result show ho!
+                  historyTemp.push({
+                    test: { ...t, _studentCanView: canView },
+                    sub: s,
+                    canView,
+                  });
                 }
               });
             }
           });
-
-          //   FIX: BULLETPROOF INDIAN DATE SORTING
-          historyTemp.sort((a, b) => {
-            const parseIndianDate = (dateStr) => {
-              if (!dateStr) return 0;
-              try {
-                const dmy = dateStr.split(",")[0].trim().split("/");
-                if (dmy.length === 3) {
-                  // YYYY, MM (0-indexed), DD
-                  return new Date(dmy[2], dmy[1] - 1, dmy[0]).getTime();
-                }
-                return Date.parse(dateStr) || 0;
-              } catch (e) {
-                return 0;
-              }
-            };
-
-            const timeA = a.sub.timestamp || parseIndianDate(a.sub.time);
-            const timeB = b.sub.timestamp || parseIndianDate(b.sub.time);
-            return timeB - timeA;
-          });
-          setMyHistory(historyTemp);
         }
+
+        // DEDUPLICATION: Agar same submission galti se naye aur purane dono jagah se fetch ho gayi, toh usko filter kar dega
+        const uniqueHistory = Array.from(
+          new Map(
+            historyTemp.map((item) => [
+              item.sub.timestamp || item.sub.time,
+              item,
+            ]),
+          ).values(),
+        );
+
+        // DATE SORTING (Latest First)
+        uniqueHistory.sort((a, b) => {
+          const parseIndianDate = (dateStr) => {
+            if (!dateStr) return 0;
+            try {
+              const dmy = dateStr.split(",")[0].trim().split("/");
+              if (dmy.length === 3)
+                return new Date(dmy[2], dmy[1] - 1, dmy[0]).getTime();
+              return Date.parse(dateStr) || 0;
+            } catch (e) {
+              return 0;
+            }
+          };
+
+          const timeA = a.sub.timestamp || parseIndianDate(a.sub.time);
+          const timeB = b.sub.timestamp || parseIndianDate(b.sub.time);
+          return timeB - timeA;
+        });
+
+        setMyHistory(uniqueHistory);
       } catch (error) {
         console.error("Error fetching history:", error);
       } finally {
@@ -164,7 +218,6 @@ export default function StudentResults() {
 
     fetchStudentHistory();
   }, [currentUser]);
-
   //  PREMIUM EXAMITOP CERTIFICATE GENERATOR (1-Page Fix)
   const generateCertificate = () => {
     const { test, sub } = selectedResult;
@@ -442,13 +495,12 @@ export default function StudentResults() {
       subjective: "Subjective",
     })[type] || type;
 
- // ==========================================
+  // ==========================================
   // VIEW 1: LIST OF PAST RESULTS (PREMIUM VAULT UI)
   // ==========================================
   if (!selectedResult) {
     return (
       <div className="w-full max-w-[1600px] 2xl:max-w-screen-2xl mx-auto px-4 sm:px-6 md:px-10 py-6 sm:py-10 animate-[fadeIn_0.3s_ease]">
-        
         <style>{`
             @keyframes recentPulseBorder {
                 0% { border-color: #60a5fa; box-shadow: 0 0 0 0 rgba(37,99,235,0.2); }
@@ -461,42 +513,52 @@ export default function StudentResults() {
         <div className="relative rounded-[32px] p-8 sm:p-10 lg:p-14 mb-8 sm:mb-10 overflow-hidden bg-white/70 border border-white shadow-[0_20px_80px_rgba(24,95,165,0.06)] group backdrop-blur-3xl">
           {/* Soft Pastel Aura Background (Apple Style) */}
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-             <div className="absolute -top-[60%] -left-[10%] w-[60%] h-[150%] bg-blue-400/10 blur-[100px] rounded-full animate-[spin_40s_linear_infinite]"></div>
-             <div className="absolute top-[10%] right-[5%] w-[40%] h-[120%] bg-indigo-400/10 blur-[120px] rounded-full animate-[pulse_10s_ease-in-out_infinite]"></div>
-             <div className="absolute -bottom-[30%] left-[20%] w-[50%] h-[80%] bg-emerald-400/5 blur-[100px] rounded-full"></div>
-             <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent"></div>
+            <div className="absolute -top-[60%] -left-[10%] w-[60%] h-[150%] bg-blue-400/10 blur-[100px] rounded-full animate-[spin_40s_linear_infinite]"></div>
+            <div className="absolute top-[10%] right-[5%] w-[40%] h-[120%] bg-indigo-400/10 blur-[120px] rounded-full animate-[pulse_10s_ease-in-out_infinite]"></div>
+            <div className="absolute -bottom-[30%] left-[20%] w-[50%] h-[80%] bg-emerald-400/5 blur-[100px] rounded-full"></div>
+            <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent"></div>
           </div>
 
           <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8 lg:gap-12">
-            
             {/* Text Content */}
             <div className="flex-1 text-center lg:text-left">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50/80 border border-blue-100/80 text-blue-600 text-[10px] font-black uppercase tracking-widest mb-5 shadow-sm backdrop-blur-md">
-                 <i className="ti ti-chart-arcs text-blue-500 text-sm"></i>
-                 Performance Analytics
+                <i className="ti ti-chart-arcs text-blue-500 text-sm"></i>
+                Performance Analytics
               </div>
               <h2 className="text-3xl sm:text-4xl lg:text-[48px] font-black text-slate-800 mb-4 tracking-tight leading-[1.1]">
-                 Your Academic <br className="hidden lg:block"/>
-                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Trajectory.</span>
+                Your Academic <br className="hidden lg:block" />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+                  Trajectory.
+                </span>
               </h2>
               <p className="text-slate-500 text-[15px] sm:text-[16px] font-semibold max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                 Dive into your performance metrics. Review evaluated assessments, uncover your strengths, and track your growth over time.
+                Dive into your performance metrics. Review evaluated
+                assessments, uncover your strengths, and track your growth over
+                time.
               </p>
             </div>
-            
+
             {/* Soft Glass Stats Module */}
             <div className="flex items-center gap-6 sm:gap-12 bg-white/60 p-6 sm:p-8 lg:px-10 rounded-[28px] border border-white/80 backdrop-blur-2xl shrink-0 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-               <div className="text-center px-2">
-                  <div className="text-3xl sm:text-[42px] font-black text-slate-800 leading-none mb-2">{myHistory.length}</div>
-                  <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest">Exams Taken</div>
-               </div>
-               <div className="w-px h-16 bg-slate-200"></div>
-               <div className="text-center px-2">
-                  <div className="text-3xl sm:text-[42px] font-black text-emerald-500 leading-none mb-2">{myHistory.filter(h => isResultVisible(h.test)).length}</div>
-                  <div className="text-[10px] sm:text-[11px] font-black text-emerald-600/60 uppercase tracking-widest">Evaluated</div>
-               </div>
+              <div className="text-center px-2">
+                <div className="text-3xl sm:text-[42px] font-black text-slate-800 leading-none mb-2">
+                  {myHistory.length}
+                </div>
+                <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                  Exams Taken
+                </div>
+              </div>
+              <div className="w-px h-16 bg-slate-200"></div>
+              <div className="text-center px-2">
+                <div className="text-3xl sm:text-[42px] font-black text-emerald-500 leading-none mb-2">
+                  {myHistory.filter((h) => isResultVisible(h.test)).length}
+                </div>
+                <div className="text-[10px] sm:text-[11px] font-black text-emerald-600/60 uppercase tracking-widest">
+                  Evaluated
+                </div>
+              </div>
             </div>
-
           </div>
         </div>
 
@@ -506,9 +568,12 @@ export default function StudentResults() {
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100">
               <i className="ti ti-ghost text-4xl text-slate-300"></i>
             </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2 tracking-tight">Vault is Empty</h3>
+            <h3 className="text-xl font-black text-slate-800 mb-2 tracking-tight">
+              Vault is Empty
+            </h3>
             <p className="text-slate-500 max-w-sm mx-auto mb-6 text-[13px] sm:text-[14px] font-medium leading-relaxed">
-              You haven't completed any assessments yet, or your results are still processing.
+              You haven't completed any assessments yet, or your results are
+              still processing.
             </p>
             <button
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center gap-2 text-sm"
@@ -521,13 +586,17 @@ export default function StudentResults() {
           <div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 items-start">
               {myHistory.map((h, idx) => {
-                const subTimeMs = h.sub.timestamp || Date.parse(h.sub.time) || 0;
+                const subTimeMs =
+                  h.sub.timestamp || Date.parse(h.sub.time) || 0;
                 const timeDiff = Date.now() - subTimeMs;
                 const isRecent = timeDiff >= 0 && timeDiff < 120000;
-                
-                const pct = h.test.totalMarks > 0 ? Math.round((h.sub.score / h.test.totalMarks) * 100) : 0;
+
+                const pct =
+                  h.test.totalMarks > 0
+                    ? Math.round((h.sub.score / h.test.totalMarks) * 100)
+                    : 0;
                 const canViewNow = isResultVisible(h.test);
-                
+
                 // Track if this specific card is open
                 const isOpen = openCardId === idx;
 
@@ -536,132 +605,178 @@ export default function StudentResults() {
                     key={idx}
                     /* 🔥 PREMIUM CARD HOVER EFFECT */
                     className={`group relative bg-white rounded-[24px] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden border ${
-                        isRecent 
-                           ? "border-blue-400 shadow-[0_8px_20px_rgba(37,99,235,0.15)]" 
-                           : isOpen 
-                              ? "border-blue-300 shadow-[0_20px_40px_-15px_rgba(37,99,235,0.15)] ring-1 ring-blue-300" 
-                              : "border-slate-200/80 shadow-sm hover:shadow-[0_15px_35px_-10px_rgba(0,0,0,0.08)] hover:border-blue-200 hover:-translate-y-1.5"
+                      isRecent
+                        ? "border-blue-400 shadow-[0_8px_20px_rgba(37,99,235,0.15)]"
+                        : isOpen
+                          ? "border-blue-300 shadow-[0_20px_40px_-15px_rgba(37,99,235,0.15)] ring-1 ring-blue-300"
+                          : "border-slate-200/80 shadow-sm hover:shadow-[0_15px_35px_-10px_rgba(0,0,0,0.08)] hover:border-blue-200 hover:-translate-y-1.5"
                     }`}
                     style={{
                       opacity: 0,
-                      animationName: isRecent ? "staggerSlide, recentPulseBorder" : "staggerSlide",
+                      animationName: isRecent
+                        ? "staggerSlide, recentPulseBorder"
+                        : "staggerSlide",
                       animationDuration: isRecent ? "0.4s, 2s" : "0.4s",
-                      animationTimingFunction: isRecent ? "cubic-bezier(0.16, 1, 0.3, 1), ease" : "cubic-bezier(0.16, 1, 0.3, 1)",
+                      animationTimingFunction: isRecent
+                        ? "cubic-bezier(0.16, 1, 0.3, 1), ease"
+                        : "cubic-bezier(0.16, 1, 0.3, 1)",
                       animationFillMode: "forwards, none",
                       animationIterationCount: isRecent ? "1, infinite" : "1",
                       animationDelay: `${idx * 0.05}s, 0s`,
                     }}
                   >
                     {/* Top Accent Line */}
-                    <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r transition-colors ${
-                       canViewNow ? "from-emerald-400 to-teal-500" : "from-amber-400 to-orange-500"
-                    }`}></div>
+                    <div
+                      className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r transition-colors ${
+                        canViewNow
+                          ? "from-emerald-400 to-teal-500"
+                          : "from-amber-400 to-orange-500"
+                      }`}
+                    ></div>
 
                     {/* 🔥 VISIBLE HEADER (Always visible, clean and click-to-expand) */}
-                    <div 
-                        className="px-5 py-6 cursor-pointer flex items-center justify-between gap-4 select-none bg-white relative z-10"
-                        onClick={() => setOpenCardId(isOpen ? null : idx)}
+                    <div
+                      className="px-5 py-6 cursor-pointer flex items-center justify-between gap-4 select-none bg-white relative z-10"
+                      onClick={() => setOpenCardId(isOpen ? null : idx)}
                     >
-                        <div className="flex-1 min-w-0 pr-2">
-                            <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-slate-50 text-slate-500 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm">
-                                    {h.test.subject || "General"}
-                                </span>
-                                {isRecent && (
-                                    <span className="text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-200 animate-pulse flex items-center gap-1 shadow-sm">
-                                       <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span> JUST NOW
-                                    </span>
-                                )}
-                            </div>
-                            {/* 🔥 TEXT SQUISH FIX: line-clamp-2 instead of truncate */}
-                            <h3 className="text-[17px] sm:text-[18px] font-black text-slate-800 leading-snug line-clamp-2 transition-colors group-hover:text-blue-600">
-                                {h.test.title}
-                            </h3>
+                      <div className="flex-1 min-w-0 pr-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest bg-slate-50 text-slate-500 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm">
+                            {h.test.subject || "General"}
+                          </span>
+                          {isRecent && (
+                            <span className="text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-200 animate-pulse flex items-center gap-1 shadow-sm">
+                              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>{" "}
+                              JUST NOW
+                            </span>
+                          )}
                         </div>
-                        
-                        {/* Soft Interactive Chevron */}
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isOpen ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-50 text-slate-400 border border-slate-200 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200 group-hover:scale-105'}`}>
-                            <i className={`ti ti-chevron-down text-[20px] transform transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${isOpen ? 'rotate-180' : ''}`}></i>
-                        </div>
+                        {/* 🔥 TEXT SQUISH FIX: line-clamp-2 instead of truncate */}
+                        <h3 className="text-[17px] sm:text-[18px] font-black text-slate-800 leading-snug line-clamp-2 transition-colors group-hover:text-blue-600">
+                          {h.test.title}
+                        </h3>
+                      </div>
+
+                      {/* Soft Interactive Chevron */}
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isOpen ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30" : "bg-slate-50 text-slate-400 border border-slate-200 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200 group-hover:scale-105"}`}
+                      >
+                        <i
+                          className={`ti ti-chevron-down text-[20px] transform transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${isOpen ? "rotate-180" : ""}`}
+                        ></i>
+                      </div>
                     </div>
 
                     {/* 🔥 HIDDEN DROPDOWN CONTENT (Makkhan Animation - Super Soft) */}
-                    <div className={`grid transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] bg-slate-50/50 ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-                       <div className="overflow-hidden">
-                           <div className="px-5 pb-6 pt-1 border-t border-slate-100/80">
-                                
-                                {/* Meta Information */}
-                                <div className="flex flex-col gap-3 mb-6 pt-4">
-                                    <div className="flex items-center gap-2 text-[12px] font-bold text-slate-500 bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm">
-                                        <i className="ti ti-calendar-time text-slate-400 text-[16px]"></i> {h.sub.time}
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2">
-                                       <div className="bg-white text-slate-600 border border-slate-200/60 text-[11px] px-3 py-1.5 rounded-lg font-mono font-bold flex items-center gap-1.5 shadow-sm">
-                                           <i className="ti ti-hash opacity-60 text-sm"></i> {h.test.code}
-                                       </div>
-                                       
-                                       {/* Small Score Pill */}
-                                       {canViewNow && (
-                                           <div className={`text-[11px] font-black px-2.5 py-1.5 rounded-lg border shadow-sm tracking-wide ${
-                                               pct >= 75 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                               pct >= 40 ? "bg-amber-50 text-amber-700 border-amber-200" :
-                                               "bg-rose-50 text-rose-700 border-rose-200"
-                                           }`}>
-                                               {pct}% SCORE
-                                           </div>
-                                       )}
-                                    </div>
-                                </div>
+                    <div
+                      className={`grid transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] bg-slate-50/50 ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="px-5 pb-6 pt-1 border-t border-slate-100/80">
+                          {/* Meta Information */}
+                          <div className="flex flex-col gap-3 mb-6 pt-4">
+                            <div className="flex items-center gap-2 text-[12px] font-bold text-slate-500 bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm">
+                              <i className="ti ti-calendar-time text-slate-400 text-[16px]"></i>{" "}
+                              {h.sub.time}
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="bg-white text-slate-600 border border-slate-200/60 text-[11px] px-3 py-1.5 rounded-lg font-mono font-bold flex items-center gap-1.5 shadow-sm">
+                                <i className="ti ti-hash opacity-60 text-sm"></i>{" "}
+                                {h.test.code}
+                              </div>
 
-                                {/* Bottom Action Area */}
-                                <div>
-                                    {canViewNow ? (
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Total Score</span>
-                                                <span className="text-[22px] font-black text-slate-800 leading-none">
-                                                    {h.sub.score} <span className="text-[14px] text-slate-400 font-bold">/ {h.test.totalMarks}</span>
-                                                </span>
-                                            </div>
-                                            <button
-                                                className="px-6 py-2.5 bg-[#185FA5] hover:bg-[#0C447C] text-white font-bold rounded-xl text-[13px] shadow-md shadow-[#185FA5]/20 transition-all duration-300 active:scale-95 flex items-center gap-1.5 hover:shadow-lg hover:-translate-y-0.5"
-                                                onClick={(e) => { e.stopPropagation(); setSelectedResult(h); }}
-                                            >
-                                                Report <i className="ti ti-arrow-right"></i>
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-between gap-3">
-                                            {h.test.resultVis === "scheduled" && h.test.resultPublishTime ? (
-                                                <>
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-1">Publishing At</span>
-                                                        <span className="text-[13px] font-black text-slate-700 leading-none truncate">
-                                                            {new Date(h.test.resultPublishTime).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })}
-                                                        </span>
-                                                    </div>
-                                                    <button disabled className="px-5 py-2.5 bg-blue-50 text-blue-600 font-bold rounded-xl text-[12px] border border-blue-200 flex items-center gap-1.5 cursor-wait opacity-80 shrink-0">
-                                                        <i className="ti ti-clock-play text-lg"></i> Waiting
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">Status</span>
-                                                        <span className="text-[13px] font-black text-slate-700 leading-none">
-                                                            In Review
-                                                        </span>
-                                                    </div>
-                                                    <button disabled className="px-5 py-2.5 bg-amber-50 text-amber-600 font-bold rounded-xl text-[12px] border border-amber-200 flex items-center gap-1.5 cursor-not-allowed opacity-80 shrink-0">
-                                                        <i className="ti ti-lock text-lg"></i> Locked
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
+                              {/* Small Score Pill */}
+                              {canViewNow && (
+                                <div
+                                  className={`text-[11px] font-black px-2.5 py-1.5 rounded-lg border shadow-sm tracking-wide ${
+                                    pct >= 75
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      : pct >= 40
+                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                        : "bg-rose-50 text-rose-700 border-rose-200"
+                                  }`}
+                                >
+                                  {pct}% SCORE
                                 </div>
-                           </div>
-                       </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Bottom Action Area */}
+                          <div>
+                            {canViewNow ? (
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">
+                                    Total Score
+                                  </span>
+                                  <span className="text-[22px] font-black text-slate-800 leading-none">
+                                    {h.sub.score}{" "}
+                                    <span className="text-[14px] text-slate-400 font-bold">
+                                      / {h.test.totalMarks}
+                                    </span>
+                                  </span>
+                                </div>
+                                <button
+                                  className="px-6 py-2.5 bg-[#185FA5] hover:bg-[#0C447C] text-white font-bold rounded-xl text-[13px] shadow-md shadow-[#185FA5]/20 transition-all duration-300 active:scale-95 flex items-center gap-1.5 hover:shadow-lg hover:-translate-y-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedResult(h);
+                                  }}
+                                >
+                                  Report <i className="ti ti-arrow-right"></i>
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between gap-3">
+                                {h.test.resultVis === "scheduled" &&
+                                h.test.resultPublishTime ? (
+                                  <>
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-1">
+                                        Publishing At
+                                      </span>
+                                      <span className="text-[13px] font-black text-slate-700 leading-none truncate">
+                                        {new Date(
+                                          h.test.resultPublishTime,
+                                        ).toLocaleString("en-IN", {
+                                          dateStyle: "short",
+                                          timeStyle: "short",
+                                        })}
+                                      </span>
+                                    </div>
+                                    <button
+                                      disabled
+                                      className="px-5 py-2.5 bg-blue-50 text-blue-600 font-bold rounded-xl text-[12px] border border-blue-200 flex items-center gap-1.5 cursor-wait opacity-80 shrink-0"
+                                    >
+                                      <i className="ti ti-clock-play text-lg"></i>{" "}
+                                      Waiting
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex flex-col">
+                                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">
+                                        Status
+                                      </span>
+                                      <span className="text-[13px] font-black text-slate-700 leading-none">
+                                        In Review
+                                      </span>
+                                    </div>
+                                    <button
+                                      disabled
+                                      className="px-5 py-2.5 bg-amber-50 text-amber-600 font-bold rounded-xl text-[12px] border border-amber-200 flex items-center gap-1.5 cursor-not-allowed opacity-80 shrink-0"
+                                    >
+                                      <i className="ti ti-lock text-lg"></i>{" "}
+                                      Locked
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -769,7 +884,12 @@ export default function StudentResults() {
             {test.title}
           </div>
 
-          <h2 className="hero-title drop-shadow-sm" style={{ color: "#FFD54F" }}>{sub.name}</h2>
+          <h2
+            className="hero-title drop-shadow-sm"
+            style={{ color: "#FFD54F" }}
+          >
+            {sub.name}
+          </h2>
 
           <div className="hero-meta">
             {sub.roll && (
@@ -2089,8 +2209,10 @@ export default function StudentResults() {
             .svg-eval-container svg { max-width: 100%; height: auto; max-height: 280px; min-height: 100px; }
         `}</style>
 
+        {/* 🔥 OPTIMIZATION: Map first to preserve original index (O(1) performance), then filter */}
         {sub.details
-          .filter((d) => {
+          .map((d, index) => ({ d, originalQIdx: index }))
+          .filter(({ d }) => {
             let sMatch =
               filter === "all" ||
               d.status === filter ||
@@ -2102,10 +2224,9 @@ export default function StudentResults() {
               (!d.q.section && sectionFilter === test.sections?.[0]);
             return sMatch && secMatch;
           })
-          .map((d, i) => {
+          .map(({ d, originalQIdx }, i) => {
             const q = d.q;
             const ans = d.ans;
-            const originalQIdx = sub.details.indexOf(d);
 
             // Super Vibrant Colors
             const sProps = {
@@ -2207,7 +2328,6 @@ export default function StudentResults() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-                    {/*   NAYA: INDIVIDUAL QUESTION TIME SPENT BADGE   */}
                     <span
                       className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-white border border-slate-200 text-slate-600 shadow-sm flex items-center gap-1.5"
                       title="Time taken on this question"
@@ -2251,8 +2371,9 @@ export default function StudentResults() {
                                 className="max-w-full max-h-[220px] object-contain"
                                 onError={(e) => {
                                   e.target.onerror = null;
+                                  // 🔥 OPTIMIZATION: 100% Offline SVG Fallback
                                   e.target.src =
-                                    "https://via.placeholder.com/400x150/f8fafc/ef4444?text=Image+Load+Failed";
+                                    "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='150'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ef4444' font-family='sans-serif' font-weight='bold'%3EImage Load Failed (Offline)%3C/text%3E%3C/svg%3E";
                                 }}
                               />
                             </div>
@@ -2272,7 +2393,6 @@ export default function StudentResults() {
                               />
                             </div>
                           )}
-                          {/*   SMART TIKZ FIX   */}
                           {q.figureType === "tikz" && (
                             <div className="hide-scroll max-w-full overflow-x-auto bg-white p-2 rounded-lg border border-slate-200 shadow-sm inline-block">
                               <img
@@ -2287,8 +2407,9 @@ export default function StudentResults() {
                                 className="max-w-full max-h-[200px] object-contain"
                                 onError={(e) => {
                                   e.target.onerror = null;
+                                  // 🔥 OPTIMIZATION: 100% Offline SVG Fallback for Tikz
                                   e.target.src =
-                                    "https://via.placeholder.com/400x150/f8fafc/ef4444?text=TikZ+Failed";
+                                    "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ef4444' font-family='sans-serif' font-weight='bold'%3ETikZ Compilation Failed (Offline)%3C/text%3E%3C/svg%3E";
                                 }}
                               />
                             </div>
@@ -2303,6 +2424,11 @@ export default function StudentResults() {
                           src={q.imgUrl}
                           className="max-w-full max-h-[220px] rounded-lg border border-slate-200 object-contain bg-white shadow-sm"
                           alt="Legacy Figure"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src =
+                              "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='150'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ef4444' font-family='sans-serif' font-weight='bold'%3EImage Load Failed (Offline)%3C/text%3E%3C/svg%3E";
+                          }}
                         />
                       </div>
                     )}

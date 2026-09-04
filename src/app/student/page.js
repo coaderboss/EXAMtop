@@ -338,7 +338,7 @@ function StudentPortalContent() {
     return () => clearInterval(qTimer);
   }, [step, curQ, activeTest]);
 
-  // 3. AUTO-SYNC OFFLINE SUBMISSIONS
+ // 3. AUTO-SYNC OFFLINE SUBMISSIONS (Now linked to Backend API)
   useEffect(() => {
     const handleOnline = async () => {
       let pending = JSON.parse(
@@ -347,21 +347,20 @@ function StudentPortalContent() {
       if (pending.length > 0) {
         for (let p of pending) {
           try {
-            const snapshot = await get(ref(database, "tests"));
-            const allTests = snapshot.val() || [];
-            const tIndex = allTests.findIndex((x) => x && x.id === p.testId);
-
-            if (tIndex > -1)
-              await set(
-                push(ref(database, `tests/${tIndex}/submissions`)),
-                p.sub,
-              );
-          } catch (e) {}
+            // Frontend se direct Firebase push ki jagah, API ko hit kiya
+            await fetch('/api/evaluate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(p.payload)
+            });
+          } catch (e) {
+            console.error("Offline Sync failed", e);
+          }
         }
         localStorage.removeItem("examitop_pending_subs");
         setSysModal({
           type: "success",
-          msg: "Internet restored! Pending offline submissions have been synced safely.",
+          msg: "Internet restored! Pending offline submissions have been securely synced to the server.",
         });
       }
     };
@@ -454,7 +453,7 @@ function StudentPortalContent() {
       document.removeEventListener("cut", blockCopyPaste);
       document.removeEventListener("paste", blockCopyPaste);
       document.removeEventListener("contextmenu", blockCopyPaste);
-      document.body.style.userSelect = "auto";
+      document.body.style.userSelect = "";
     };
   }, [step, activeTest]);
 
@@ -567,17 +566,26 @@ function StudentPortalContent() {
 
       const safeName = finalName.trim();
       const safeRoll = finalRoll.trim().toLowerCase();
-      const safeSubmissions = Array.isArray(t.submissions)
-        ? t.submissions
-        : Object.values(t.submissions || {});
-
-      let existingSub = safeSubmissions.find(
-        (s) =>
-          s &&
-          s.name &&
-          s.name.trim().toLowerCase() === safeName.toLowerCase() &&
-          (s.roll || "").trim().toLowerCase() === safeRoll,
-      );
+      // PHASE 3: Frontend Bouncer (Checks separate submissions node directly)
+      let existingSub = false;
+      const subsSnap = await get(ref(database, `test_submissions/${t.id}/submissions`));
+      
+      if (subsSnap.exists()) {
+         const subsArray = Object.values(subsSnap.val()).filter(Boolean);
+         existingSub = subsArray.find(
+           (s) =>
+             s.name?.trim().toLowerCase() === safeName.toLowerCase() &&
+             (s.roll || "").trim().toLowerCase() === safeRoll
+         );
+      } else if (t.submissions) {
+         // Fallback for very old legacy tests
+         const legacySubs = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions);
+         existingSub = legacySubs.find(
+           (s) =>
+             s?.name?.trim().toLowerCase() === safeName.toLowerCase() &&
+             (s?.roll || "").trim().toLowerCase() === safeRoll
+         );
+      }
 
       if (existingSub) {
         const msg = "You have already submitted this exam.";
@@ -628,12 +636,7 @@ function StudentPortalContent() {
           // 1. Unlimited Pack Overrides Everything
           const isUnlimited = creatorData.is_unlimited === true || creatorData.plan === "unlimited";
 
-          // Count current submissions safely
-          const currentSubsCount = t.submissions
-            ? Array.isArray(t.submissions)
-              ? t.submissions.filter(Boolean).length
-              : Object.keys(t.submissions).length
-            : 0;
+          const currentSubsCount = t.submissionCount || 0;
 
           const FREE_TIER_LIMIT = 10;
 
@@ -701,20 +704,22 @@ function StudentPortalContent() {
   };
 
   const applySmartShuffle = (test) => {
-    // Agar dono off hain, toh wahi test wapas bhej do
     if (test.shuffleOpts === false && test.shuffleQs !== true) return test;
 
     let clonedTest = JSON.parse(JSON.stringify(test));
 
-    // 1. SHUFFLE OPTIONS (Intelligently) - Default true unless explicitly false
+    // 0. 🔥 NAYA FIX: Store original Question Index before any shuffling
+    clonedTest.questions = clonedTest.questions.map((q, idx) => {
+      q.originalQIdx = idx;
+      return q;
+    });
+
+    // 1. SHUFFLE OPTIONS (Intelligently)
     if (test.shuffleOpts !== false) {
       clonedTest.questions = clonedTest.questions.map((q) => {
         if ((q.type === "mcq" || q.type === "msq") && q.options) {
           const hasFixedOption = q.options.some((opt) => {
-            let lowerOpt = opt
-              .toLowerCase()
-              .replace(/<[^>]*>?/gm, "")
-              .trim();
+            let lowerOpt = opt.toLowerCase().replace(/<[^>]*>?/gm, "").trim();
             return (
               lowerOpt.includes("all of") ||
               lowerOpt.includes("none of") ||
@@ -732,20 +737,16 @@ function StudentPortalContent() {
 
           for (let i = standardOpts.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [standardOpts[i], standardOpts[j]] = [
-              standardOpts[j],
-              standardOpts[i],
-            ];
+            [standardOpts[i], standardOpts[j]] = [standardOpts[j], standardOpts[i]];
           }
 
           q.options = standardOpts.map((o) => o.text);
+          q.optionMap = standardOpts.map((o) => o.originalIdx); // 🔥 NAYA FIX: MAPPING SAVED HERE
 
           let newCorrectArray = [];
           if (q.correct) {
             q.correct.forEach((cIdx) => {
-              let newIdx = standardOpts.findIndex(
-                (o) => o.originalIdx === cIdx,
-              );
+              let newIdx = standardOpts.findIndex((o) => o.originalIdx === cIdx);
               if (newIdx !== -1) newCorrectArray.push(newIdx);
             });
           }
@@ -755,16 +756,13 @@ function StudentPortalContent() {
       });
     }
 
-    // 2. SHUFFLE QUESTIONS (Sirf tabhi jab button ON ho)
+    // 2. SHUFFLE QUESTIONS
     if (test.shuffleQs === true) {
       if (clonedTest.sections && clonedTest.sections.length > 0) {
         let finalShuffledQuestions = [];
-        // Section-wise shuffle
         clonedTest.sections.forEach((sec) => {
           let sectionQs = clonedTest.questions.filter(
-            (q) =>
-              q.section === sec ||
-              (!q.section && sec === clonedTest.sections[0]),
+            (q) => q.section === sec || (!q.section && sec === clonedTest.sections[0])
           );
           for (let i = sectionQs.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -774,13 +772,9 @@ function StudentPortalContent() {
         });
         clonedTest.questions = finalShuffledQuestions;
       } else {
-        // Bina section wale test ka normal shuffle
         for (let i = clonedTest.questions.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
-          [clonedTest.questions[i], clonedTest.questions[j]] = [
-            clonedTest.questions[j],
-            clonedTest.questions[i],
-          ];
+          [clonedTest.questions[i], clonedTest.questions[j]] = [clonedTest.questions[j], clonedTest.questions[i]];
         }
       }
     }
@@ -963,272 +957,141 @@ function StudentPortalContent() {
     }, 500);
   };
 
-  // --- SECURE SUBMISSION LOGIC ---
+  // --- SECURE SUBMISSION LOGIC (Dumb Client Version) ---
   const handleFinalSubmit = async () => {
-    if (!activeTest || step !== "exam") return;
+    if (!activeTest || step !== "exam" || isSubmitting || isActionLockedRef.current) return;
 
     clearInterval(timerRef.current);
-    isActionLockedRef.current = true;
+    isActionLockedRef.current = true; // STRICT LOCK (Prevents double clicks)
     setShowConfirmModal(false);
-    setIsSubmitting(true);
+    setIsSubmitting(true); // SPINNER TRIGGER
 
-    let score = 0,
-      correct = 0,
-      wrong = 0,
-      skipped = 0;
-    const neg = Math.abs(Number(activeTest.negMarking || 0));
-
-    const details = activeTest.questions.map((q, i) => {
-      let ans = answers[i] || {};
-      let val = ans.val;
-      let status = "skipped";
-      let earned = 0;
-
-      let isSkipped =
-        val === null ||
-        val === undefined ||
-        val === "" ||
-        val === -1 ||
-        (Array.isArray(val) && val.length === 0);
-
-      if (isSkipped) {
-        skipped++;
-        status = "skipped";
-      } else if (q.type === "mcq") {
-        if (!q.correct || q.correct.length === 0) {
-          status = "submitted";
-          skipped++;
-        } else if (val === q.correct[0]) {
-          correct++;
-          earned = q.marks;
-          score += q.marks;
-          status = "correct";
-        } else {
-          wrong++;
-          earned = -neg;
-          score -= neg;
-          status = "wrong";
-        }
-      } else if (q.type === "msq") {
-        let userSel = Array.isArray(val) ? val : [];
-        let corrSel = q.correct || [];
-        if (corrSel.length === 0) {
-          status = "submitted";
-          skipped++;
-        } else {
-          let hasWrongOption = userSel.some((x) => !corrSel.includes(x));
-          let correctlySelected = userSel.filter((x) =>
-            corrSel.includes(x),
-          ).length;
-          if (hasWrongOption) {
-            wrong++;
-            earned = -neg;
-            score -= neg;
-            status = "wrong";
-          } else if (correctlySelected === corrSel.length) {
-            correct++;
-            earned = q.marks;
-            score += q.marks;
-            status = "correct";
-          } else if (correctlySelected > 0) {
-            let partialMarks = (q.marks / corrSel.length) * correctlySelected;
-            earned = Math.round(partialMarks * 100) / 100;
-            score += earned;
-            correct++;
-            status = "partial";
-          } else {
-            wrong++;
-            earned = -neg;
-            score -= neg;
-            status = "wrong";
-          }
-        }
-      } else if (q.type === "integer") {
-        if (
-          q.correctInt === null ||
-          q.correctInt === undefined ||
-          q.correctInt === ""
-        ) {
-          status = "submitted";
-          skipped++;
-        } else if (
-          val === q.correctInt ||
-          String(val) === String(q.correctInt)
-        ) {
-          correct++;
-          earned = q.marks;
-          score += q.marks;
-          status = "correct";
-        } else {
-          wrong++;
-          earned = -neg;
-          score -= neg;
-          status = "wrong";
-        }
-      } else {
-        skipped++;
-        status = "submitted";
+    // 1. CREATE LIGHTWEIGHT PAYLOAD (Mapping shuffled back to Master Paper)
+    const rawAnswers = answers.map((ans, i) => {
+      let actualQ = activeTest.questions[i];
+      let origQIdx = actualQ.originalQIdx !== undefined ? actualQ.originalQIdx : i;
+      
+      let origVal = ans.val;
+      //Reverse map the selected option to its original backend index
+      if (origVal !== null && (actualQ.type === "mcq" || actualQ.type === "msq") && actualQ.optionMap) {
+         if (Array.isArray(origVal)) {
+             origVal = origVal.map(v => actualQ.optionMap[v]);
+         } else {
+             origVal = actualQ.optionMap[origVal];
+         }
       }
 
-      return { q, ans, status, earned };
+      return {
+        qIndex: origQIdx, // 🔥 CRITICAL FIX: Ensure qIndex is mapped properly
+        val: origVal
+      };
     });
 
-    const totalSecondsGiven = activeTest.duration
-      ? activeTest.duration * 60
-      : 0;
-    const exactRemaining = Math.max(
-      0,
-      Math.floor((endTimeRef.current - Date.now()) / 1000),
-    );
-    const secondsSpent =
-      totalSecondsGiven > 0 ? totalSecondsGiven - exactRemaining : 0;
+    // Ensure time spent is also mapped to original backend question indices
+    let mappedQTime = {};
+    Object.keys(qTime).forEach(shuffledIdx => {
+       let origQIdx = activeTest.questions[shuffledIdx]?.originalQIdx !== undefined ? activeTest.questions[shuffledIdx].originalQIdx : shuffledIdx;
+       mappedQTime[origQIdx] = qTime[shuffledIdx];
+    });
 
+    const totalSecondsGiven = activeTest.duration ? activeTest.duration * 60 : 0;
+    const exactRemaining = Math.max(0, Math.floor((endTimeRef.current - Date.now()) / 1000));
+    const secondsSpent = totalSecondsGiven > 0 ? totalSecondsGiven - exactRemaining : 0;
     const timeTakenStr = formatTime(secondsSpent);
 
-    const finalSub = {
-      uid: currentUser ? currentUser.uid : "anonymous",
-      email: currentUser ? currentUser.email : "",
-      name: name,
-      roll: roll,
-      score: Number(score.toFixed(2)),
-      correct,
-      wrong,
-      skipped,
-      details,
-      time: new Date().toLocaleString("en-IN"),
-      timestamp: Date.now(),
-      totalMarks: activeTest.totalMarks,
-      cheatLogs: cheatLogsRef.current,
+    const apiPayload = {
+      testId: activeTest.id,
+      student: {
+        uid: currentUser ? currentUser.uid : "anonymous",
+        name: name,
+        roll: roll,
+      },
+      answers: rawAnswers,
       timeTaken: timeTakenStr,
-      timeSpentPerQuestion: qTime,
+      timeSpentPerQuestion: mappedQTime, // Sent mapped time
+      cheatLogs: cheatLogsRef.current
     };
 
-    // EXPLICITLY KILL LIVE COUNTER BEFORE REDIRECTING OR GOING OFFLINE
+    // EXPLICITLY KILL LIVE COUNTER
     if (presenceRefTarget.current && navigator.onLine) {
       try {
         await remove(presenceRefTarget.current);
         await onDisconnect(presenceRefTarget.current).cancel();
-      } catch (e) {
-        console.error("Failed to remove live presence:", e);
-      }
+      } catch (e) { console.error(e); }
     }
 
-    localStorage.removeItem(
-      `exam_draft_${activeTest.id}_${name.trim() || "guest"}_${roll.trim().toLowerCase() || "noroll"}`,
-    );
-    //CLEAR REFRESH MEMORY
+    localStorage.removeItem(`exam_draft_${activeTest.id}_${name.trim() || "guest"}_${roll.trim().toLowerCase() || "noroll"}`);
     sessionStorage.removeItem("examitop_active_exam");
 
     // OFFLINE VAULT SYNC LOGIC
     if (!navigator.onLine && !activeTest.isLocal) {
-      let pending = JSON.parse(
-        localStorage.getItem("examitop_pending_subs") || "[]",
-      );
-      pending.push({ testId: activeTest.id, sub: finalSub });
+      let pending = JSON.parse(localStorage.getItem("examitop_pending_subs") || "[]");
+      pending.push({ testId: activeTest.id, payload: apiPayload });
       localStorage.setItem("examitop_pending_subs", JSON.stringify(pending));
 
-      if (document.fullscreenElement && document.exitFullscreen)
-        document.exitFullscreen().catch((e) => {});
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch((e) => {});
       setStep("offline_saved");
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Remove spinner
       return;
     }
 
     try {
-      if (activeTest.isLocal) {
-        let localTests = JSON.parse(
-          localStorage.getItem("examitop_offline_tests") || "[]",
-        );
-        const tIndex = localTests.findIndex((x) => x.id === activeTest.id);
-        if (tIndex > -1) {
-          if (!localTests[tIndex].submissions)
-            localTests[tIndex].submissions = [];
-          localTests[tIndex].submissions.push(finalSub);
-          localStorage.setItem(
-            "examitop_offline_tests",
-            JSON.stringify(localTests),
-          );
-        }
-      } else {
-        //  O(1) SMART QUERY (Zero Data Waste)
-        const testQuery = query(
-          ref(database, "tests"),
-          orderByChild("id"),
-          equalTo(activeTest.id),
-        );
-        const snapshot = await get(testQuery);
-
-        if (snapshot.exists()) {
-          const testData = snapshot.val();
-
-          // Firebase filter lagane par object return karta hai (e.g., { "2": { test details... } })
-          const tIndex = Object.keys(testData)[0];
-          const currentTestDb = testData[tIndex];
-
-          //STRICT DUPLICATE SUBMISSION BLOCKER (Tumhara wala logic)
-          const existSubs = currentTestDb.submissions
-            ? Object.values(currentTestDb.submissions)
-            : [];
-          const alreadySubmitted = existSubs.some(
-            (s) =>
-              s &&
-              s.name.toLowerCase() === name.trim().toLowerCase() &&
-              (s.roll || "").toLowerCase() === roll.trim().toLowerCase(),
-          );
-
-          if (alreadySubmitted) {
-            setIsSubmitting(false); // Spinner band karo
-            setSysModal({
-              type: "error",
-              msg: "Duplicate Submission Blocked: You have already submitted this exam.",
-              action: () => router.replace("/student-results"),
-            });
-            return; // Firebase me push nahi hone dega
-          }
-
-          // Direct fast push
-          const subsRef = ref(database, `tests/${tIndex}/submissions`);
-          await set(push(subsRef), finalSub);
-        } else {
-          throw new Error(
-            "Critical: Active test not found in the database during submission.",
-          );
-        }
-      }
-
-      if (document.fullscreenElement && document.exitFullscreen)
-        document.exitFullscreen().catch((e) => {});
-
-      // Solid Redirect Logic (No hanging UI)
-      setIsSubmitting(false); // Spinner band karo
-
-      if (activeTest.resultVis === "manual") {
-        setSysModal({
-          type: "success",
-          msg: "Test Submitted Successfully! Your answers have been saved securely. Examiner will declare results later.",
-          action: () => {
-            router.replace("/student-results"); // Redirect smoothly
-          },
+      if (!activeTest.isLocal) {
+        // 2. SEND TO THE BRAIN (Backend API Call)
+        const response = await fetch('/api/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(apiPayload)
         });
-      } else {
-        // Instant result case
-        router.replace("/student-results");
+
+        //Pehle raw text lo, phir JSON me convert karo
+        const responseText = await response.text();
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (jsonError) {
+          console.error("Backend returned HTML instead of JSON. Server crashed!", responseText);
+          throw new Error("Backend API crashed."); 
+        }
+
+       if (!response.ok || !result.success) {
+          setIsSubmitting(false); // Error aaye toh hi spinner hatao
+          
+          isActionLockedRef.current = false; // Unlock exam state so anti-cheat resumes!
+          
+          setSysModal({
+            type: "error",
+            msg: result.message || "Failed to submit exam.",
+            action: () => {
+              if (result.message && result.message.includes("Duplicate")) {
+                router.replace("/student-results");
+              } else if (result.message && result.message.includes("Test not found")) {
+                router.replace("/student"); // Completely invalid test, force exit
+              }
+            }
+          });
+          return;
+        }
       }
+
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch((e) => {});
+      
+      // SUCCESS REDIRECT (No Popup, direct to results)
+      // Spinner screen chalti rahegi tab tak jab tak route push na ho jaye
+      router.replace("/student-results");
+      return;
+
     } catch (error) {
       console.error("Transmission Error:", error);
       setIsSubmitting(false);
+      isActionLockedRef.current = false; //Unlock here as well
       setSysModal({
         type: "error",
-        msg: "Failed to securely submit the exam over internet. Activating Offline Vault...",
+        msg: "Failed to securely submit over internet. Activating Offline Vault...",
         action: () => {
-          let pending = JSON.parse(
-            localStorage.getItem("examitop_pending_subs") || "[]",
-          );
-          pending.push({ testId: activeTest.id, sub: finalSub });
-          localStorage.setItem(
-            "examitop_pending_subs",
-            JSON.stringify(pending),
-          );
+          let pending = JSON.parse(localStorage.getItem("examitop_pending_subs") || "[]");
+          pending.push({ testId: activeTest.id, payload: apiPayload });
+          localStorage.setItem("examitop_pending_subs", JSON.stringify(pending));
           setStep("offline_saved");
         },
       });
@@ -2713,14 +2576,17 @@ function StudentPortalContent() {
 
             {/* CONFIRMATION MODAL */}
             {showConfirmModal && (
-              <div className="modal-bg" style={{ zIndex: 9999 }}>
+              <div 
+                className="fixed inset-0 flex items-center justify-center p-4" 
+                style={{ 
+                    zIndex: 9999,
+                    backdropFilter: "blur(8px)", 
+                    background: "rgba(255, 255, 255, 0.2)" 
+                }}
+              >
                 <div
-                  className="modal-box"
-                  style={{
-                    maxWidth: "420px",
-                    textAlign: "center",
-                    padding: "2rem",
-                  }}
+                  className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-8 animate-[popIn_0.3s_ease]"
+                  style={{ maxWidth: "420px", textAlign: "center" }}
                 >
                   <div
                     style={{
@@ -2743,6 +2609,7 @@ function StudentPortalContent() {
                       fontSize: "22px",
                       marginBottom: "10px",
                       color: "#1e293b",
+                      fontWeight: 900
                     }}
                   >
                     Submit Exam?
@@ -2753,6 +2620,7 @@ function StudentPortalContent() {
                       color: "var(--color-text-secondary)",
                       marginBottom: "2rem",
                       lineHeight: 1.6,
+                      fontWeight: 500
                     }}
                   >
                     You have attempted{" "}
@@ -2768,8 +2636,12 @@ function StudentPortalContent() {
                         padding: "12px",
                         justifyContent: "center",
                         fontWeight: 600,
+                        backgroundColor: "#f1f5f9",
+                        color: "#475569",
+                        border: "1px solid #e2e8f0"
                       }}
                       onClick={cancelSubmit}
+                      disabled={isSubmitting} // Disable cancel while processing
                     >
                       Review Again
                     </button>
@@ -2780,10 +2652,22 @@ function StudentPortalContent() {
                         padding: "12px",
                         justifyContent: "center",
                         fontWeight: 600,
+                        backgroundColor: isSubmitting ? "#94a3b8" : "#10b981", // Gray out if processing
+                        borderColor: isSubmitting ? "#94a3b8" : "#10b981",
+                        cursor: isSubmitting ? "not-allowed" : "pointer"
                       }}
                       onClick={handleFinalSubmit}
+                      disabled={isSubmitting} // Protect double click
                     >
-                      Yes, Submit
+                      {/*SPINNER ADDED TO CONFIRM MODAL */}
+                      {isSubmitting ? (
+                         <>
+                           <i className="ti ti-loader animate-spin text-lg mr-2"></i>
+                           Submitting...
+                         </>
+                      ) : (
+                         "Yes, Submit"
+                      )}
                     </button>
                   </div>
                 </div>
@@ -2795,17 +2679,16 @@ function StudentPortalContent() {
       {/* PREMIUM ANTI-CHEAT OVERLAY */}
       {cheatWarning && (
         <div
-          className="modal-bg"
-          style={{ zIndex: 99999, background: "rgba(0,0,0,0.9)" }}
+          className="fixed inset-0 flex items-center justify-center p-4"
+          style={{ 
+              zIndex: 99999, 
+              backdropFilter: "blur(12px)", 
+              background: "rgba(255, 255, 255, 0.4)" 
+          }}
         >
           <div
-            className="modal-box"
-            style={{
-              maxWidth: "450px",
-              textAlign: "center",
-              padding: "3rem 2rem",
-              border: "2px solid #A32D2D",
-            }}
+            className="bg-white rounded-3xl shadow-2xl p-8 sm:p-10 text-center animate-[popIn_0.3s_ease] border-2 border-rose-500"
+            style={{ maxWidth: "450px" }}
           >
             <i
               className="ti ti-shield-x"
@@ -2883,11 +2766,11 @@ function StudentPortalContent() {
       {/*   PREMIUM SYSTEM MODALS */}
       {sysModal && (
         <div
-          className="modal-bg"
+          className="fixed inset-0 flex items-center justify-center p-4"
           style={{
             zIndex: 999999,
             backdropFilter: "blur(8px)",
-            background: "rgba(15, 23, 42, 0.6)",
+            background: "rgba(255, 255, 255, 0.2)",
           }}
         >
           <style>{`

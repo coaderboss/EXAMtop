@@ -7,55 +7,72 @@ import { ref, get, query, orderByChild, equalTo } from 'firebase/database';
 const DataContext = createContext();
 
 export const DataProvider = ({ children }) => {
-    // Ab ye by default empty rahega, faltu me data load nahi karega
-    const [tests, setTests] = useState([]); 
+    const [tests, setTests] = useState([]);
     const [loadingData, setLoadingData] = useState(false);
 
-    //  1. EXAMINER VAULT FETCH (Sirf logged-in examiner ke tests laayega)
+    // 1. EXAMINER VAULT FETCH (Using Firebase Indexes for High Speed)
     const fetchMyTests = async (uid) => {
         if (!uid) return;
         setLoadingData(true);
         try {
-            // QUERY: Poore database ki jagah sirf wahi tests jiska creatorUid match kare
-            const q = query(ref(database, 'tests'), orderByChild('creatorUid'), equalTo(uid));
-            const snapshot = await get(q); // 'get' use kiya hai (1-time fetch) instead of 'onValue'
+            // Naye Architecture se data (Fast Indexed Query)
+            const qMeta = query(ref(database, 'tests_metadata'), orderByChild('creatorUid'), equalTo(uid));
+            const snapMeta = await get(qMeta);
+            let newTests = snapMeta.exists() ? Object.values(snapMeta.val()).filter(Boolean) : [];
+
+            // Purane Architecture se data (Legacy Support)
+            const qOld = query(ref(database, 'tests'), orderByChild('creatorUid'), equalTo(uid));
+            const snapOld = await get(qOld);
+            let oldTests = snapOld.exists() ? Object.values(snapOld.val()).filter(Boolean) : [];
+
+            // Purane data ke arrays fix karo
+            oldTests.forEach(t => {
+                if (t.submissions && !Array.isArray(t.submissions)) {
+                    t.submissions = Object.values(t.submissions).filter(Boolean);
+                } else if (!t.submissions) {
+                    t.submissions = [];
+                }
+            });
+
+            // Merge and Remove Duplicates (Naye database ko priority)
+            const combined = [...newTests, ...oldTests];
+            const uniqueTests = Array.from(new Map(combined.map(t => [t.id, t])).values());
             
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                let parsedTests = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
-                
-                // Old formatting bugs ko clean karna
-                parsedTests.forEach(t => {
-                    if (t.submissions && !Array.isArray(t.submissions)) {
-                        t.submissions = Object.values(t.submissions).filter(Boolean);
-                    } else if (!t.submissions) {
-                        t.submissions = [];
-                    }
-                });
-                setTests(parsedTests);
-            } else {
-                setTests([]);
-            }
+            setTests(uniqueTests);
         } catch (error) {
-            console.error("Error fetching tests:", error);
+            console.error("Error fetching metadata:", error);
         } finally {
             setLoadingData(false);
         }
     };
 
-    //  2. STUDENT JOIN FETCH (Sirf join code wale test ka 1 page data laayega)
+    // STUDENT JOIN FETCH (Stitches Metadata + Questions for the Exam Engine)
     const fetchSingleTest = async (code) => {
         try {
-            // QUERY: Sirf specific Code match karo
-            const q = query(ref(database, 'tests'), orderByChild('code'), equalTo(code));
-            const snapshot = await get(q);
-            
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                // Find the exact object
-                const testObj = Array.isArray(data) ? data.find(t => t?.code === code) : Object.values(data).find(t => t?.code === code);
+            // Pehle naye structure me dhundho
+            const metaQuery = query(ref(database, 'tests_metadata'), orderByChild('code'), equalTo(code));
+            const metaSnap = await get(metaQuery);
+
+            if (metaSnap.exists()) {
+                const metaData = metaSnap.val();
+                const testMeta = Object.values(metaData).find(t => t?.code === code);
+                if (testMeta) {
+                    const qSnap = await get(ref(database, `test_questions/${testMeta.id}`));
+                    const qData = qSnap.exists() ? qSnap.val() : { questions: [] };
+                    return { ...testMeta, questions: qData.questions || [] };
+                }
+            }
+
+            // Agar naye me nahi mila, purane structure me dhundho
+            const oldQuery = query(ref(database, 'tests'), orderByChild('code'), equalTo(code));
+            const oldSnap = await get(oldQuery);
+
+            if (oldSnap.exists()) {
+                const oldData = oldSnap.val();
+                const testObj = Array.isArray(oldData) ? oldData.find(t => t?.code === code) : Object.values(oldData).find(t => t?.code === code);
                 return testObj || null;
             }
+
             return null;
         } catch (error) {
             console.error("Error finding test:", error);
@@ -64,9 +81,7 @@ export const DataProvider = ({ children }) => {
     };
 
     return (
-        <DataContext.Provider value={{ 
-            tests, setTests, loadingData, fetchMyTests, fetchSingleTest 
-        }}>
+        <DataContext.Provider value={{ tests, setTests, loadingData, fetchMyTests, fetchSingleTest }}>
             {children}
         </DataContext.Provider>
     );
