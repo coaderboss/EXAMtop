@@ -96,17 +96,31 @@ export default function GodMode() {
     }
   }, [activeTab, allTests]);
 
-  // 🟢 1. MODULAR FETCH: TESTS
+  // 🟢 1. MODULAR FETCH: TESTS (Phase 3 Split DB Support)
   const fetchTestsData = async () => {
-    if (allTests.length > 0 || isLoadingTests) return; // Pehle se hai toh dobara mat lao
+    if (allTests.length > 0 || isLoadingTests) return;
     setIsLoadingTests(true);
     try {
-      const testsSnap = await get(ref(database, "tests"));
       let tData = [];
+      
+      // A. Naye Architecture (Phase 3) ka lightweight Metadata
+      const metaSnap = await get(ref(database, "tests_metadata"));
+      if (metaSnap.exists()) {
+        const rawMeta = metaSnap.val();
+        Object.keys(rawMeta).forEach((key) => {
+          tData.push({ ...rawMeta[key], dbKey: key, isPhase3: true });
+        });
+      }
+
+      // B. Purane Legacy Tests
+      const testsSnap = await get(ref(database, "tests"));
       if (testsSnap.exists()) {
         const rawTests = testsSnap.val();
         Object.keys(rawTests).forEach((key) => {
-          if (rawTests[key]) tData.push({ ...rawTests[key], dbKey: key });
+          // Avoid duplicates if already migrated
+          if (!tData.find(t => t.id === rawTests[key].id)) {
+            tData.push({ ...rawTests[key], dbKey: key, isPhase3: false });
+          }
         });
       }
       setAllTests(tData.reverse());
@@ -573,35 +587,20 @@ export default function GodMode() {
     setRadarEducator(educator);
   };
 
-  // 3. TOGGLE RADAR VISIBILITY FUNCTION
+ // 3. TOGGLE RADAR VISIBILITY FUNCTION
   const toggleRadarVisibility = async (test) => {
     const currentVis = test.radarVisible === true;
-
     setSysConfirm({
       title: currentVis ? "HIDE FROM RADAR?" : "SHOW ON RADAR?",
       msg: `Are you sure you want to ${currentVis ? "remove" : "add"} "${test.title}" ${currentVis ? "from" : "to"} the public radar?`,
       action: async () => {
         try {
-          //   FIX: Update 'radarVisible' in database
-          await update(ref(database, `tests/${test.dbKey}`), {
-            radarVisible: !currentVis,
-          });
-          setAllTests((prev) =>
-            prev.map((t) =>
-              t.dbKey === test.dbKey ? { ...t, radarVisible: !currentVis } : t,
-            ),
-          );
-          setSysAlert({
-            title: "Success",
-            msg: `Radar visibility updated.`,
-            type: "success",
-          });
+          const targetPath = test.isPhase3 ? `tests_metadata/${test.id}` : `tests/${test.dbKey}`;
+          await update(ref(database, targetPath), { radarVisible: !currentVis });
+          setAllTests((prev) => prev.map((t) => t.id === test.id ? { ...t, radarVisible: !currentVis } : t));
+          setSysAlert({ title: "Success", msg: `Radar visibility updated.`, type: "success" });
         } catch (e) {
-          setSysAlert({
-            title: "Error",
-            msg: "Failed to update radar status.",
-            type: "error",
-          });
+          setSysAlert({ title: "Error", msg: "Failed to update radar status.", type: "error" });
         }
       },
     });
@@ -873,10 +872,16 @@ export default function GodMode() {
     setNukeConfirm(t); // Modal open karega
   };
 
-  const executeTotalWipe = async (t) => {
+ const executeTotalWipe = async (t) => {
     try {
-      await remove(ref(database, `tests/${t.dbKey}`));
-      setAllTests((prev) => prev.filter((test) => test.dbKey !== t.dbKey));
+      if (t.isPhase3) {
+         await remove(ref(database, `tests_metadata/${t.id}`));
+         await remove(ref(database, `test_questions/${t.id}`));
+         await remove(ref(database, `test_submissions/${t.id}`));
+      } else {
+         await remove(ref(database, `tests/${t.dbKey}`));
+      }
+      setAllTests((prev) => prev.filter((test) => test.id !== t.id));
       setSysAlert({ title: "Eradicated", msg: "Test wiped from existence permanently.", type: "success" });
       setViewingSubsFor(null);
       setNukeConfirm(null);
@@ -887,12 +892,13 @@ export default function GodMode() {
 
   const executeStudentArchive = async (t) => {
     try {
-      // Test ko DB me zinda rakhega baccho ke liye, par admin/examiner se permanent hide kar dega
-      await update(ref(database, `tests/${t.dbKey}`), {
-        isDeletedByExaminer: true,
-        isArchivedForStudents: true // Ye lagte hi admin vault se bhi gayab ho jayega
-      });
-      setAllTests((prev) => prev.map((test) => test.dbKey === t.dbKey ? { ...test, isArchivedForStudents: true } : test));
+      const updates = { isDeletedByExaminer: true, isArchivedForStudents: true };
+      if (t.isPhase3) {
+         await update(ref(database, `tests_metadata/${t.id}`), updates);
+      } else {
+         await update(ref(database, `tests/${t.dbKey}`), updates);
+      }
+      setAllTests((prev) => prev.map((test) => test.id === t.id ? { ...test, ...updates } : test));
       setSysAlert({ title: "Archived", msg: "Student copy preserved. Test hidden from Admin Vault.", type: "success" });
       setViewingSubsFor(null);
       setNukeConfirm(null);
@@ -909,23 +915,20 @@ export default function GodMode() {
         try {
           let newSubs = safeArray(t.submissions);
           newSubs.splice(idx, 1);
-          await set(ref(database, `tests/${t.dbKey}/submissions`), newSubs);
-          const updatedTest = { ...t, submissions: newSubs };
+          
+          if (t.isPhase3) {
+             await set(ref(database, `test_submissions/${t.id}/submissions`), newSubs);
+             await update(ref(database, `tests_metadata/${t.id}`), { submissionCount: newSubs.length });
+          } else {
+             await set(ref(database, `tests/${t.dbKey}/submissions`), newSubs);
+          }
+          
+          const updatedTest = { ...t, submissions: newSubs, submissionCount: newSubs.length };
           setViewingSubsFor(updatedTest);
-          setAllTests((prev) =>
-            prev.map((test) => (test.dbKey === t.dbKey ? updatedTest : test)),
-          );
-          setSysAlert({
-            title: "Deleted",
-            msg: `${sName}'s record removed.`,
-            type: "success",
-          });
+          setAllTests((prev) => prev.map((test) => (test.id === t.id ? updatedTest : test)));
+          setSysAlert({ title: "Deleted", msg: `${sName}'s record removed.`, type: "success" });
         } catch (e) {
-          setSysAlert({
-            title: "Error",
-            msg: "Failed to delete record.",
-            type: "error",
-          });
+          setSysAlert({ title: "Error", msg: "Failed to delete record.", type: "error" });
         }
       },
     });
@@ -1930,7 +1933,14 @@ export default function GodMode() {
                                 <div className="flex gap-2 justify-end flex-wrap">
                                   <button
                                     className="flex items-center gap-1.5 px-4 py-2 bg-white text-[#D4AF37] border-2 border-[#D4AF37] rounded-xl font-bold text-[13px] hover:bg-[#fff8e7] hover:shadow-md transition-all active:scale-95"
-                                    onClick={() => setViewingSubsFor(t)}
+                                    onClick={async () => {
+                                      // 🔥 On-Demand Fetch for Phase 3
+                                      if (t.isPhase3 && !t.submissions) {
+                                        const subSnap = await get(ref(database, `test_submissions/${t.id}/submissions`));
+                                        t.submissions = subSnap.exists() ? Object.values(subSnap.val()) : [];
+                                      }
+                                      setViewingSubsFor(t);
+                                    }}
                                   >
                                     <i className="ti ti-microscope text-base"></i>{" "}
                                     View Vault
@@ -2679,27 +2689,18 @@ export default function GodMode() {
       <AnimatePresence>
         {sysAlert && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-[#0B0F19]/80 backdrop-blur-sm flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-white/20 backdrop-blur-md flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              className={`bg-[#0B0F19] border-2 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl ${sysAlert.type === "error" ? "border-[#ff4444]" : "border-[#10B981]"}`}
+              initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+              className={`bg-white border-2 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl ${sysAlert.type === "error" ? "border-rose-400" : "border-emerald-400"}`}
             >
-              <i
-                className={`ti ${sysAlert.type === "error" ? "ti-alert-octagon text-[#ff4444]" : "ti-circle-check text-[#10B981]"} text-5xl mb-4 block`}
-              ></i>
-              <h3 className="text-[20px] text-white font-black mb-2">
-                {sysAlert.title}
-              </h3>
-              <p className="text-slate-300 mb-8 font-medium text-[15px]">
-                {sysAlert.msg}
-              </p>
+              <i className={`ti ${sysAlert.type === "error" ? "ti-alert-octagon text-rose-500" : "ti-circle-check text-emerald-500"} text-5xl mb-4 block`}></i>
+              <h3 className="text-[20px] text-slate-800 font-black mb-2">{sysAlert.title}</h3>
+              <p className="text-slate-500 mb-8 font-medium text-[15px]">{sysAlert.msg}</p>
               <button
-                className={`w-full py-3 font-black text-white rounded-lg tracking-wider transition-colors ${sysAlert.type === "error" ? "bg-[#8B0000] hover:bg-red-900" : "bg-[#10B981] hover:bg-emerald-600"}`}
+                className={`w-full py-3 font-black text-white rounded-xl shadow-md transition-all active:scale-95 ${sysAlert.type === "error" ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-500 hover:bg-emerald-600"}`}
                 onClick={() => setSysAlert(null)}
               >
                 ACKNOWLEDGE
@@ -2710,36 +2711,26 @@ export default function GodMode() {
 
         {sysConfirm && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-[#0B0F19]/80 backdrop-blur-sm flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-white/20 backdrop-blur-md flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              className="bg-[#0B0F19] border-2 border-[#ff4444] rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl"
+              initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+              className="bg-white border-2 border-amber-400 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl"
             >
-              <i className="ti ti-alert-triangle text-5xl text-[#ff4444] mb-4 block"></i>
-              <h3 className="text-[20px] text-white font-black mb-3">
-                {sysConfirm.title}
-              </h3>
-              <p className="text-slate-300 mb-8 font-medium leading-relaxed text-[15px]">
-                {sysConfirm.msg}
-              </p>
+              <i className="ti ti-alert-triangle text-5xl text-amber-500 mb-4 block"></i>
+              <h3 className="text-[20px] text-slate-800 font-black mb-3">{sysConfirm.title}</h3>
+              <p className="text-slate-500 mb-8 font-medium leading-relaxed text-[15px]">{sysConfirm.msg}</p>
               <div className="flex gap-3">
                 <button
-                  className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700"
+                  className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all active:scale-95"
                   onClick={() => setSysConfirm(null)}
                 >
                   ABORT
                 </button>
                 <button
-                  className="flex-1 py-3 bg-[#8B0000] text-white font-black rounded-lg hover:bg-red-900 tracking-wider"
-                  onClick={() => {
-                    sysConfirm.action();
-                    setSysConfirm(null);
-                  }}
+                  className="flex-1 py-3 bg-amber-500 text-white font-black rounded-xl hover:bg-amber-600 shadow-md shadow-amber-500/30 transition-all active:scale-95"
+                  onClick={() => { sysConfirm.action(); setSysConfirm(null); }}
                 >
                   EXECUTE
                 </button>
@@ -2880,42 +2871,34 @@ export default function GodMode() {
       <AnimatePresence>
         {nukeConfirm && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-[#0B0F19]/90 backdrop-blur-md flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-white/20 backdrop-blur-md flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="bg-white border border-slate-200 rounded-3xl p-8 max-w-lg w-full text-center shadow-2xl"
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
+              className="bg-white border border-rose-200 rounded-3xl p-8 max-w-lg w-full text-center shadow-2xl"
             >
-              <div className="w-20 h-20 mx-auto bg-red-50 text-red-600 rounded-full flex items-center justify-center text-4xl mb-6 shadow-inner border border-red-100">
+              <div className="w-20 h-20 mx-auto bg-rose-50 text-rose-600 rounded-full flex items-center justify-center text-4xl mb-6 shadow-inner border border-rose-100">
                  <i className="ti ti-flame"></i>
               </div>
-              <h3 className="text-2xl text-slate-900 font-black mb-3">
-                Nuke Protocol Initiated
-              </h3>
+              <h3 className="text-2xl text-slate-900 font-black mb-3">Nuke Protocol Initiated</h3>
               <p className="text-slate-500 mb-8 font-semibold leading-relaxed text-[15px]">
                 You are about to eradicate <strong>"{nukeConfirm.title}"</strong>. <br/> Do you want to wipe it completely, or retain a background copy so students can still view their reports?
               </p>
               
               <div className="flex flex-col gap-3">
-                {/* SAFE OPTION */}
                 <button
-                  className="w-full py-4 bg-[#185FA5] text-white font-black rounded-xl hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 text-[15px]"
+                  className="w-full py-4 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 text-[15px]"
                   onClick={() => executeStudentArchive(nukeConfirm)}
                 >
                   <i className="ti ti-archive text-xl"></i> Create Student Copy & Delete
                 </button>
-                {/* DANGER OPTION */}
                 <button
-                  className="w-full py-4 bg-[#8B0000] text-white font-black rounded-xl hover:bg-red-900 tracking-widest uppercase shadow-md shadow-red-900/20 flex items-center justify-center gap-2 text-[13px]"
+                  className="w-full py-4 bg-rose-600 text-white font-black rounded-xl hover:bg-rose-700 tracking-widest uppercase shadow-md shadow-rose-600/20 flex items-center justify-center gap-2 text-[13px]"
                   onClick={() => executeTotalWipe(nukeConfirm)}
                 >
                   <i className="ti ti-trash-x text-xl"></i> Total Nuke (Wipe Everything)
                 </button>
-                {/* CANCEL */}
                 <button
                   className="w-full py-3 mt-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
                   onClick={() => setNukeConfirm(null)}
