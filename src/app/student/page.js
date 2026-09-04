@@ -959,12 +959,13 @@ function StudentPortalContent() {
 
   // --- SECURE SUBMISSION LOGIC (Dumb Client Version) ---
   const handleFinalSubmit = async () => {
-    if (!activeTest || step !== "exam" || isSubmitting || isActionLockedRef.current) return;
+    if (!activeTest || step !== "exam") return;
+    if (isSubmitting) return;
 
     clearInterval(timerRef.current);
     isActionLockedRef.current = true; // STRICT LOCK (Prevents double clicks)
-    setShowConfirmModal(false);
     setIsSubmitting(true); // SPINNER TRIGGER
+    setShowConfirmModal(false);
 
     // 1. CREATE LIGHTWEIGHT PAYLOAD (Mapping shuffled back to Master Paper)
     const rawAnswers = answers.map((ans, i) => {
@@ -2645,6 +2646,8 @@ function StudentPortalContent() {
                     >
                       Review Again
                     </button>
+                    
+                    {/* THE BUTTON FIX: Removed isActionLockedRef to make it active again */}
                     <button
                       className="btn btn-success"
                       style={{
@@ -2652,14 +2655,14 @@ function StudentPortalContent() {
                         padding: "12px",
                         justifyContent: "center",
                         fontWeight: 600,
-                        backgroundColor: isSubmitting ? "#94a3b8" : "#10b981", // Gray out if processing
+                        backgroundColor: isSubmitting ? "#94a3b8" : "#10b981", 
                         borderColor: isSubmitting ? "#94a3b8" : "#10b981",
                         cursor: isSubmitting ? "not-allowed" : "pointer"
                       }}
-                      onClick={handleFinalSubmit}
-                      disabled={isSubmitting} // Protect double click
+                      onClick={() => handleFinalSubmit()} 
+                      disabled={isSubmitting} // 🔥 FIX: Removed isActionLockedRef.current from here!
                     >
-                      {/*SPINNER ADDED TO CONFIRM MODAL */}
+                      {/* SPINNER ADDED TO CONFIRM MODAL */}
                       {isSubmitting ? (
                          <>
                            <i className="ti ti-loader animate-spin text-lg mr-2"></i>
