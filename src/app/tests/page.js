@@ -274,9 +274,10 @@ export default function ManageTests() {
 
           let fetchedSubs = [];
           if (sSnap.exists() && sSnap.val().submissions) {
-            fetchedSubs = Object.values(sSnap.val().submissions).filter(
-              Boolean,
-            );
+            const subData = sSnap.val().submissions;
+            fetchedSubs = Object.keys(subData)
+              .map((k) => ({ ...subData[k], fbKey: k }))
+              .filter(Boolean);
           }
 
           setSelectedTest((prev) => ({
@@ -631,10 +632,6 @@ export default function ManageTests() {
           if (updatedTest.questions) {
             updates[`test_questions/${updatedTest.id}/questions`] =
               updatedTest.questions;
-          }
-          if (updatedTest.submissions) {
-            updates[`test_submissions/${updatedTest.id}/submissions`] =
-              updatedTest.submissions;
           }
           await update(ref(database), updates);
         }
@@ -1142,38 +1139,54 @@ export default function ManageTests() {
 
   const saveEvaluation = async () => {
     if (!auditReason.trim()) {
-      setSysAlert({ title: "Required", msg: "Audit reason is mandatory for manual grading.", type: "warning" });
+      setSysAlert({
+        title: "Required",
+        msg: "Audit reason is mandatory for manual grading.",
+        type: "warning",
+      });
       return;
     }
 
     let hasError = false;
     Object.keys(evalOverrides).forEach((qIdx) => {
       if (Number(evalOverrides[qIdx]) > evaluateSub.sub.details[qIdx].q.marks) {
-        setSysAlert({ title: "Invalid Marks", msg: `Marks for Q${Number(qIdx) + 1} cannot exceed ${evaluateSub.sub.details[qIdx].q.marks}!`, type: "error" });
+        setSysAlert({
+          title: "Invalid Marks",
+          msg: `Marks for Q${Number(qIdx) + 1} cannot exceed ${evaluateSub.sub.details[qIdx].q.marks}!`,
+          type: "error",
+        });
         hasError = true;
       }
     });
     if (hasError) return;
 
     setIsActionLoading(true); // 🔥 Loader chalu
-    let newSub = { ...evaluateSub.sub, details: evaluateSub.sub.details.map(d => ({...d})) };
-    
+    let newSub = {
+      ...evaluateSub.sub,
+      details: evaluateSub.sub.details.map((d) => ({ ...d })),
+    };
+
     Object.keys(evalOverrides).forEach((qIdx) => {
-      let awarded = Number(evalOverrides[qIdx]) || 0; 
+      let awarded = Number(evalOverrides[qIdx]) || 0;
       newSub.details[qIdx].earned = awarded;
       newSub.details[qIdx].status = "evaluated";
       if (!newSub.details[qIdx].auditLogs) newSub.details[qIdx].auditLogs = [];
       newSub.details[qIdx].auditLogs.push({
         date: new Date().toLocaleString("en-IN"),
-        examiner: currentUser?.displayName ? currentUser.displayName : "Examiner", 
+        examiner: currentUser?.displayName
+          ? currentUser.displayName
+          : "Examiner",
         reason: auditReason.trim(),
         awarded: awarded,
       });
     });
 
-    let newTotal = 0, newCorrect = 0, newWrong = 0, newSkipped = 0;
+    let newTotal = 0,
+      newCorrect = 0,
+      newWrong = 0,
+      newSkipped = 0;
     newSub.details.forEach((d) => {
-      newTotal += (Number(d.earned) || 0);
+      newTotal += Number(d.earned) || 0;
       if (d.status === "skipped") newSkipped++;
       else if (d.earned > 0) newCorrect++;
       else if (d.earned < 0) newWrong++;
@@ -1188,21 +1201,54 @@ export default function ManageTests() {
     newSub.skipped = newSkipped;
 
     try {
-      let updatedTest = { ...selectedTest };
-      let safeSubmissions = Array.isArray(updatedTest.submissions) ? [...updatedTest.submissions] : Object.values(updatedTest.submissions || {});
-      safeSubmissions[evaluateSub.sIdx] = newSub;
-      updatedTest.submissions = safeSubmissions;
+      // 1. Direct Targeted Firebase Update (No Full Array Overwrite)
+      if (!selectedTest.isLocal) {
+        const metaCheckSnap = await get(
+          ref(database, `tests_metadata/${selectedTest.id}`),
+        );
+        if (metaCheckSnap.exists() && evaluateSub.sub.fbKey) {
+          await update(
+            ref(
+              database,
+              `test_submissions/${selectedTest.id}/submissions/${evaluateSub.sub.fbKey}`,
+            ),
+            newSub,
+          );
+        } else {
+          await update(
+            ref(
+              database,
+              `tests/${selectedTest.id}/submissions/${evaluateSub.sIdx}`,
+            ),
+            newSub,
+          );
+        }
+      }
 
-      await updateTestGlobal(updatedTest);
+      // 2. Safe Local State Update
+      let updatedTest = { ...selectedTest };
+      let safeSubs = [...updatedTest.submissions];
+      safeSubs[evaluateSub.sIdx] = newSub;
+      updatedTest.submissions = safeSubs;
+      setSelectedTest(updatedTest);
       setEvaluateSub({ ...evaluateSub, sub: newSub });
+
       setModalType(null);
       setEvalOverrides({});
       setAuditReason("");
-      setSysAlert({ title: "Saved", msg: "Marks & Audit Log securely recorded.", type: "success" });
+      setSysAlert({
+        title: "Saved",
+        msg: "Marks & Audit Log securely recorded.",
+        type: "success",
+      });
     } catch (e) {
-      setSysAlert({ title: "Error", msg: "Failed to save evaluation.", type: "error" });
+      setSysAlert({
+        title: "Error",
+        msg: "Failed to save evaluation.",
+        type: "error",
+      });
     } finally {
-      setIsActionLoading(false); // Loader band
+      setIsActionLoading(false);
     }
   };
 
@@ -1336,46 +1382,118 @@ export default function ManageTests() {
   const toggleIndividualPublish = async (sIdx, currentStatus) => {
     setIsActionLoading(true);
     try {
-      let updatedTest = { ...selectedTest };
-      let safeSubs = Array.isArray(updatedTest.submissions) ? [...updatedTest.submissions] : Object.values(updatedTest.submissions || {});
-      
-      safeSubs[sIdx] = { ...safeSubs[sIdx], isPublished: !currentStatus };
-      updatedTest.submissions = safeSubs;
+      const targetSub = selectedTest.submissions[sIdx];
+      const newStatus = !currentStatus;
 
-      await updateTestGlobal(updatedTest);
-      setSysAlert({ 
-        title: !currentStatus ? "Published" : "Hidden", 
-        msg: `Result has been ${!currentStatus ? "published" : "hidden"} for this student.`, 
-        type: "success" 
+      // 1. Direct targeted Firebase update (Zero Array Overwrites!)
+      if (!selectedTest.isLocal) {
+        const metaCheckSnap = await get(
+          ref(database, `tests_metadata/${selectedTest.id}`),
+        );
+        if (metaCheckSnap.exists() && targetSub.fbKey) {
+          await update(
+            ref(
+              database,
+              `test_submissions/${selectedTest.id}/submissions/${targetSub.fbKey}`,
+            ),
+            { isPublished: newStatus },
+          );
+        } else {
+          await update(
+            ref(database, `tests/${selectedTest.id}/submissions/${sIdx}`),
+            { isPublished: newStatus },
+          );
+        }
+      }
+
+      // 2. Safe Local State Update
+      let updatedTest = { ...selectedTest };
+      let safeSubs = [...updatedTest.submissions];
+      safeSubs[sIdx] = { ...targetSub, isPublished: newStatus };
+      updatedTest.submissions = safeSubs;
+      setSelectedTest(updatedTest);
+
+      setSysAlert({
+        title: newStatus ? "Published" : "Hidden",
+        msg: `Result has been ${newStatus ? "published" : "hidden"} for this student.`,
+        type: "success",
       });
     } catch (e) {
-      setSysAlert({ title: "Error", msg: "Failed to update individual publish status.", type: "error" });
+      setSysAlert({
+        title: "Error",
+        msg: "Failed to update individual publish status.",
+        type: "error",
+      });
     } finally {
       setIsActionLoading(false);
     }
-  };  
+  };
 
   const deleteSubmission = (sIdx, subName) => {
-    // 🔥 FIX: Removed native window.confirm, implemented custom sysConfirm
     setSysConfirm({
       title: "Delete Submission?",
       msg: `Are you sure you want to permanently delete the submission for "${subName}"? (Use this to remove Demo/Dummy tests)`,
       action: async () => {
         setIsActionLoading(true);
         try {
-          let updatedTest = { ...selectedTest };
-          let safeSubs = Array.isArray(updatedTest.submissions) ? [...updatedTest.submissions] : Object.values(updatedTest.submissions || {});
-          safeSubs = safeSubs.filter((_, idx) => idx !== sIdx);
-          updatedTest.submissions = safeSubs;
+          const targetSub = selectedTest.submissions[sIdx];
 
-          await updateTestGlobal(updatedTest);
-          setSysAlert({ title: "Deleted", msg: "Demo submission removed successfully.", type: "success" });
+          // 1. Specific Node Deletion (Zero Array Overwrite)
+          if (!selectedTest.isLocal) {
+            const metaCheckSnap = await get(
+              ref(database, `tests_metadata/${selectedTest.id}`),
+            );
+            if (metaCheckSnap.exists() && targetSub.fbKey) {
+              await remove(
+                ref(
+                  database,
+                  `test_submissions/${selectedTest.id}/submissions/${targetSub.fbKey}`,
+                ),
+              );
+              // Safely reduce metadata count
+              await get(
+                ref(
+                  database,
+                  `tests_metadata/${selectedTest.id}/submissionCount`,
+                ),
+              ).then((snap) => {
+                const currentCount = snap.val() || 1;
+                update(ref(database, `tests_metadata/${selectedTest.id}`), {
+                  submissionCount: Math.max(0, currentCount - 1),
+                });
+              });
+            } else {
+              let safeSubs = [...selectedTest.submissions];
+              safeSubs.splice(sIdx, 1);
+              await set(
+                ref(database, `tests/${selectedTest.id}/submissions`),
+                safeSubs,
+              );
+            }
+          }
+
+          // 2. Local State Update
+          let updatedTest = { ...selectedTest };
+          let safeSubs = [...updatedTest.submissions];
+          safeSubs.splice(sIdx, 1);
+          updatedTest.submissions = safeSubs;
+          setSelectedTest(updatedTest);
+
+          setSysAlert({
+            title: "Deleted",
+            msg: "Demo submission removed successfully.",
+            type: "success",
+          });
         } catch (e) {
-          setSysAlert({ title: "Error", msg: "Failed to delete submission.", type: "error" });
+          setSysAlert({
+            title: "Error",
+            msg: "Failed to delete submission.",
+            type: "error",
+          });
         } finally {
           setIsActionLoading(false);
         }
-      }
+      },
     });
   };
 
@@ -2413,7 +2531,11 @@ export default function ManageTests() {
                   </div>
 
                   <div className="flex gap-3">
-                    <button className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors active:scale-95" onClick={() => setModalType(null)} disabled={isActionLoading}>
+                    <button
+                      className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors active:scale-95"
+                      onClick={() => setModalType(null)}
+                      disabled={isActionLoading}
+                    >
                       Cancel
                     </button>
                     <button
@@ -2421,7 +2543,16 @@ export default function ManageTests() {
                       onClick={saveEvaluation}
                       disabled={isActionLoading}
                     >
-                      {isActionLoading ? <><i className="ti ti-loader animate-spin text-lg"></i> Processing...</> : <><i className="ti ti-lock"></i> Confirm & Save</>}
+                      {isActionLoading ? (
+                        <>
+                          <i className="ti ti-loader animate-spin text-lg"></i>{" "}
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <i className="ti ti-lock"></i> Confirm & Save
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -3121,16 +3252,25 @@ export default function ManageTests() {
                             </button>
 
                             {/* 🔥 NAYA FIX: Individual Publish Toggle */}
-                            {selectedTest.resultVis === "manual" && !selectedTest.released && (
-                              <button
-                                className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border transition-colors active:scale-95 shrink-0 shadow-sm ${s.isPublished ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600'}`}
-                                title={s.isPublished ? "Hide Result" : "Publish Result Individually"}
-                                onClick={() => toggleIndividualPublish(sIdx, s.isPublished)}
-                                disabled={isActionLoading}
-                              >
-                                <i className={`ti ${s.isPublished ? 'ti-eye' : 'ti-eye-off'} text-lg`}></i>
-                              </button>
-                            )}
+                            {selectedTest.resultVis === "manual" &&
+                              !selectedTest.released && (
+                                <button
+                                  className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border transition-colors active:scale-95 shrink-0 shadow-sm ${s.isPublished ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100" : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600"}`}
+                                  title={
+                                    s.isPublished
+                                      ? "Hide Result"
+                                      : "Publish Result Individually"
+                                  }
+                                  onClick={() =>
+                                    toggleIndividualPublish(sIdx, s.isPublished)
+                                  }
+                                  disabled={isActionLoading}
+                                >
+                                  <i
+                                    className={`ti ${s.isPublished ? "ti-eye" : "ti-eye-off"} text-lg`}
+                                  ></i>
+                                </button>
+                              )}
 
                             {/* Demo Test Delete Button (Only for Admin/Owner) */}
                             {(userRole === "admin" ||
@@ -3330,16 +3470,38 @@ export default function ManageTests() {
                 </div>
 
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <button className="btn" style={{ flex: 1, padding: "12px", fontWeight: 600 }} onClick={() => setModalType(null)} disabled={isActionLoading}>
+                  <button
+                    className="btn"
+                    style={{ flex: 1, padding: "12px", fontWeight: 600 }}
+                    onClick={() => setModalType(null)}
+                    disabled={isActionLoading}
+                  >
                     Cancel
                   </button>
                   <button
                     className="btn btn-primary"
-                    style={{ flex: 2, background: isActionLoading ? "#94a3b8" : "#854F0B", borderColor: isActionLoading ? "#94a3b8" : "#854F0B", padding: "12px", fontWeight: 600, cursor: isActionLoading ? "not-allowed" : "pointer" }}
+                    style={{
+                      flex: 2,
+                      background: isActionLoading ? "#94a3b8" : "#854F0B",
+                      borderColor: isActionLoading ? "#94a3b8" : "#854F0B",
+                      padding: "12px",
+                      fontWeight: 600,
+                      cursor: isActionLoading ? "not-allowed" : "pointer",
+                    }}
                     onClick={saveNewKeyAndReevaluate}
                     disabled={isActionLoading}
                   >
-                    {isActionLoading ? <><i className="ti ti-loader animate-spin mr-1"></i> Processing...</> : <><i className="ti ti-refresh"></i> Update & Auto-Grade All</>}
+                    {isActionLoading ? (
+                      <>
+                        <i className="ti ti-loader animate-spin mr-1"></i>{" "}
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <i className="ti ti-refresh"></i> Update & Auto-Grade
+                        All
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -3609,7 +3771,11 @@ export default function ManageTests() {
 
                 {/* Modal Footer */}
                 <div className="bg-white p-5 sm:p-6 border-t border-slate-100 flex gap-3 shrink-0">
-                  <button className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors active:scale-95" onClick={() => setModalType(null)} disabled={isActionLoading}>
+                  <button
+                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors active:scale-95"
+                    onClick={() => setModalType(null)}
+                    disabled={isActionLoading}
+                  >
                     Cancel
                   </button>
                   <button
@@ -3617,7 +3783,17 @@ export default function ManageTests() {
                     onClick={saveTestSettings}
                     disabled={isActionLoading}
                   >
-                    {isActionLoading ? <><i className="ti ti-loader animate-spin text-lg"></i> Saving...</> : <><i className="ti ti-device-floppy text-lg"></i> Save Configuration</>}
+                    {isActionLoading ? (
+                      <>
+                        <i className="ti ti-loader animate-spin text-lg"></i>{" "}
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <i className="ti ti-device-floppy text-lg"></i> Save
+                        Configuration
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -4361,15 +4537,29 @@ export default function ManageTests() {
               {sysConfirm.msg}
             </p>
             <div className="flex gap-3">
-              <button className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[15px] rounded-xl transition-all active:scale-95" onClick={() => setSysConfirm(null)} disabled={isActionLoading}>
+              <button
+                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[15px] rounded-xl transition-all active:scale-95"
+                onClick={() => setSysConfirm(null)}
+                disabled={isActionLoading}
+              >
                 Cancel
               </button>
               <button
                 className="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-rose-600/20 transition-all active:scale-95 flex justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                onClick={() => { sysConfirm.action(); setSysConfirm(null); }}
+                onClick={() => {
+                  sysConfirm.action();
+                  setSysConfirm(null);
+                }}
                 disabled={isActionLoading}
               >
-                {isActionLoading ? <><i className="ti ti-loader animate-spin text-lg"></i> Processing...</> : "Yes, Proceed"}
+                {isActionLoading ? (
+                  <>
+                    <i className="ti ti-loader animate-spin text-lg"></i>{" "}
+                    Processing...
+                  </>
+                ) : (
+                  "Yes, Proceed"
+                )}
               </button>
             </div>
           </div>

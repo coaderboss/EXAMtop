@@ -34,52 +34,115 @@ export default function StudentDashboard() {
         setFetchingResults(true);
         let historyTemp = [];
 
-        // 1. NAYE ARCHITECTURE SE DATA LAO (Phase 3)
+        // 1. NAYE ARCHITECTURE SE DATA LAO (Phase 3 - O(1) Direct Lookup)
         const metaSnap = await get(ref(database, "tests_metadata"));
         const metaData = metaSnap.exists() ? Object.values(metaSnap.val()) : [];
-        const subsSnap = await get(ref(database, "test_submissions"));
-        const subsData = subsSnap.exists() ? subsSnap.val() : {};
 
-        metaData.filter(Boolean).forEach((t) => {
-            const testSubs = subsData[t.id]?.submissions;
-            if (testSubs) {
-                const subsArray = Object.values(testSubs).filter(Boolean);
-                subsArray.forEach((s, idx) => {
-                    let isExactMatch = (s.uid && currentUser.uid && s.uid === currentUser.uid) ||
-                                       (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-                                       (s.roll && currentUser.rollNo && s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
-                    
-                    if (isExactMatch) {
-                        historyTemp.push({
-                            testId: t.id,
-                            testTitle: t.title,
-                            testCode: t.code,
-                            subject: t.subject || "General",
-                            score: s.score,
-                            totalMarks: t.totalMarks || s.totalMarks,
-                            correct: s.correct || 0,
-                            wrong: s.wrong || 0,
-                            skipped: s.skipped || 0,
-                            time: s.time,
-                            sIdx: idx,
-                            timestamp: s.timestamp || 0
-                        });
-                    }
-                });
+        const safeUserKey = currentUser.uid;
+        const rollKey = currentUser.rollNo
+          ? encodeURIComponent(currentUser.rollNo.trim().toLowerCase()).replace(
+              /\./g,
+              "_",
+            )
+          : null;
+
+        // 🔥 P0.1 FIX: Concurrent O(1) targeted lookups instead of whole tree download
+        const phase3Results = await Promise.all(
+          metaData.filter(Boolean).map(async (t) => {
+            let sub = null;
+            try {
+              // Primary: UID based direct lookup
+              const uidSnap = await get(
+                ref(
+                  database,
+                  `test_submissions/${t.id}/submissions/${safeUserKey}`,
+                ),
+              );
+              if (uidSnap.exists()) {
+                sub = uidSnap.val();
+              } else if (rollKey) {
+                // Secondary: Roll No based direct lookup
+                const rollSnap = await get(
+                  ref(
+                    database,
+                    `test_submissions/${t.id}/submissions/${rollKey}`,
+                  ),
+                );
+                if (rollSnap.exists()) sub = rollSnap.val();
+              }
+
+              // Fallback for pre-atomic fix submissions
+              if (!sub) {
+                const q = query(
+                  ref(database, `test_submissions/${t.id}/submissions`),
+                  orderByChild("uid"),
+                  equalTo(safeUserKey),
+                );
+                const qSnap = await get(q);
+                if (qSnap.exists()) {
+                  sub = Object.values(qSnap.val())[0];
+                }
+              }
+            } catch (e) {
+              console.error("Error fetching sub for test", t.id);
             }
-        });
+
+            if (sub) {
+              // Verification Match
+              let isExactMatch =
+                (sub.uid && currentUser.uid && sub.uid === currentUser.uid) ||
+                (sub.email &&
+                  currentUser.email &&
+                  sub.email.toLowerCase() ===
+                    currentUser.email.toLowerCase()) ||
+                (sub.roll &&
+                  currentUser.rollNo &&
+                  sub.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
+
+              if (isExactMatch) {
+                return {
+                  testId: t.id,
+                  testTitle: t.title,
+                  testCode: t.code,
+                  subject: t.subject || "General",
+                  score: sub.score,
+                  totalMarks: t.totalMarks || sub.totalMarks,
+                  correct: sub.correct || 0,
+                  wrong: sub.wrong || 0,
+                  skipped: sub.skipped || 0,
+                  time: sub.time,
+                  sIdx: 0,
+                  timestamp: sub.timestamp || 0,
+                };
+              }
+            }
+            return null;
+          }),
+        );
+
+        historyTemp.push(...phase3Results.filter(Boolean));
 
         // 2. PURANE ARCHITECTURE SE DATA LAO (Legacy Data Support)
         const oldSnap = await get(ref(database, "tests"));
         if (oldSnap.exists()) {
-          const oldData = Array.isArray(oldSnap.val()) ? oldSnap.val() : Object.values(oldSnap.val());
+          const oldData = Array.isArray(oldSnap.val())
+            ? oldSnap.val()
+            : Object.values(oldSnap.val());
           oldData.filter(Boolean).forEach((t) => {
             if (t.submissions) {
-              const subsArray = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions);
+              const subsArray = Array.isArray(t.submissions)
+                ? t.submissions
+                : Object.values(t.submissions);
               subsArray.filter(Boolean).forEach((s, idx) => {
-                let isExactMatch = (s.uid && currentUser.uid && s.uid === currentUser.uid) ||
-                                   (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-                                   (s.roll && currentUser.rollNo && s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
+                let isExactMatch =
+                  (s.uid && currentUser.uid && s.uid === currentUser.uid) ||
+                  (s.email &&
+                    currentUser.email &&
+                    s.email.toLowerCase() ===
+                      currentUser.email.toLowerCase()) ||
+                  (s.roll &&
+                    currentUser.rollNo &&
+                    s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
 
                 if (isExactMatch) {
                   historyTemp.push({
@@ -94,7 +157,7 @@ export default function StudentDashboard() {
                     skipped: s.skipped || 0,
                     time: s.time,
                     sIdx: idx,
-                    timestamp: s.timestamp || 0
+                    timestamp: s.timestamp || 0,
                   });
                 }
               });
@@ -102,16 +165,21 @@ export default function StudentDashboard() {
           });
         }
 
-        // 🔥 DEDUPLICATION: Remove duplicate entries if same test exists in old and new structure
-        const uniqueHistory = Array.from(new Map(historyTemp.map(item => [item.timestamp || item.time, item])).values());
-        
+        // DEDUPLICATION: Remove duplicate entries
+        const uniqueHistory = Array.from(
+          new Map(
+            historyTemp.map((item) => [item.timestamp || item.time, item]),
+          ).values(),
+        );
+
         // DATE SORTING (Oldest First for the Trend Chart)
         uniqueHistory.sort((a, b) => {
           const parseIndianDate = (dateStr) => {
             if (!dateStr) return 0;
             try {
               const dmy = dateStr.split(",")[0].trim().split("/");
-              if (dmy.length === 3) return new Date(dmy[2], dmy[1] - 1, dmy[0]).getTime();
+              if (dmy.length === 3)
+                return new Date(dmy[2], dmy[1] - 1, dmy[0]).getTime();
               return Date.parse(dateStr) || 0;
             } catch (e) {
               return 0;
@@ -120,7 +188,7 @@ export default function StudentDashboard() {
 
           const timeA = a.timestamp || parseIndianDate(a.time);
           const timeB = b.timestamp || parseIndianDate(b.time);
-          return timeA - timeB; // Ascending order (oldest to newest)
+          return timeA - timeB;
         });
 
         setMyHistory(uniqueHistory);

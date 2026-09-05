@@ -92,48 +92,96 @@ export default function StudentResults() {
         setFetchingResults(true);
         let historyTemp = [];
 
-        // 1. NAYE ARCHITECTURE SE DATA LAO (Phase 3)
+        // 1. NAYE ARCHITECTURE SE DATA LAO (Phase 3 - O(1) Fast Fetch)
         const metaSnap = await get(ref(database, "tests_metadata"));
         const metaData = metaSnap.exists() ? Object.values(metaSnap.val()) : [];
-        const subsSnap = await get(ref(database, "test_submissions"));
-        const subsData = subsSnap.exists() ? subsSnap.val() : {};
 
-        metaData.filter(Boolean).forEach((t) => {
-          const testSubs = subsData[t.id]?.submissions;
-          if (testSubs) {
-            const subsArray = Object.values(testSubs).filter(Boolean);
-            subsArray.forEach((s) => {
-              // MORE ACCURATE MATCHING: Ab Roll No. ko bhi properly match karega
+        const safeUserKey = currentUser.uid;
+        const rollKey = currentUser.rollNo
+          ? encodeURIComponent(currentUser.rollNo.trim().toLowerCase()).replace(
+              /\./g,
+              "_",
+            )
+          : null;
+
+        // 🔥 P0.1 FIX: Never download monolithic 'test_submissions'. Use concurrent O(1) targeted lookups.
+        const phase3Results = await Promise.all(
+          metaData.filter(Boolean).map(async (t) => {
+            let sub = null;
+
+            try {
+              // 1. O(1) Direct Lookup by UID (Super Fast)
+              const uidSnap = await get(
+                ref(
+                  database,
+                  `test_submissions/${t.id}/submissions/${safeUserKey}`,
+                ),
+              );
+              if (uidSnap.exists()) {
+                sub = uidSnap.val();
+              } else if (rollKey) {
+                // 2. O(1) Direct Lookup by Roll No (Fallback)
+                const rollSnap = await get(
+                  ref(
+                    database,
+                    `test_submissions/${t.id}/submissions/${rollKey}`,
+                  ),
+                );
+                if (rollSnap.exists()) sub = rollSnap.val();
+              }
+
+              // 3. Query Fallback (Pre-Atomic Fix submissions)
+              if (!sub) {
+                const q = query(
+                  ref(database, `test_submissions/${t.id}/submissions`),
+                  orderByChild("uid"),
+                  equalTo(safeUserKey),
+                );
+                const qSnap = await get(q);
+                if (qSnap.exists()) {
+                  sub = Object.values(qSnap.val())[0];
+                }
+              }
+            } catch (e) {
+              console.error("Error fetching sub for test", t.id, e);
+            }
+
+            if (sub) {
+              // Strict validation
               let isExactMatch =
-                (s.uid && currentUser.uid && s.uid === currentUser.uid) ||
-                (s.email &&
+                (sub.uid && currentUser.uid && sub.uid === currentUser.uid) ||
+                (sub.email &&
                   currentUser.email &&
-                  s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-                (s.roll &&
+                  sub.email.toLowerCase() ===
+                    currentUser.email.toLowerCase()) ||
+                (sub.roll &&
                   currentUser.rollNo &&
-                  s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
+                  sub.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
 
               if (isExactMatch) {
                 let canView = false;
                 if (
                   t.resultVis === "instant" ||
                   t.released === true ||
-                  s.isPublished === true
+                  sub.isPublished === true
                 )
                   canView = true;
                 else if (t.resultVis === "scheduled" && t.resultPublishTime) {
                   if (Date.now() >= new Date(t.resultPublishTime).getTime())
                     canView = true;
                 }
-                historyTemp.push({
+                return {
                   test: { ...t, _studentCanView: canView },
-                  sub: s,
+                  sub: sub,
                   canView,
-                });
+                };
               }
-            });
-          }
-        });
+            }
+            return null;
+          }),
+        );
+
+        historyTemp.push(...phase3Results.filter(Boolean));
 
         // 2. PURANE ARCHITECTURE SE DATA LAO (Legacy Data Support)
         const oldSnap = await get(ref(database, "tests"));

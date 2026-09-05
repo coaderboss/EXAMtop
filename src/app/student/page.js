@@ -268,12 +268,13 @@ function StudentPortalContent() {
         shuffledQuestions: activeTest.questions,
       };
 
+      // AUTO-SAVE ENCODING (Line ~270)
       const jsonString = JSON.stringify(draftData);
-      const reversedString = jsonString.split("").reverse().join("");
-      const secretPayload = btoa(encodeURIComponent(reversedString));
+      const secretPayload = btoa(encodeURIComponent(jsonString));
 
+      const uidSafe = currentUser?.uid || "nouid";
       localStorage.setItem(
-        `exam_draft_${activeTest.id}_${safeName}_${safeRoll}`,
+        `exam_draft_${activeTest.id}_${safeName}_${safeRoll || "noroll"}_${uidSafe}`,
         secretPayload,
       );
     }
@@ -338,30 +339,56 @@ function StudentPortalContent() {
     return () => clearInterval(qTimer);
   }, [step, curQ, activeTest]);
 
- // 3. AUTO-SYNC OFFLINE SUBMISSIONS (Now linked to Backend API)
+  // 3. AUTO-SYNC OFFLINE SUBMISSIONS (Safe Idempotent Retry)
   useEffect(() => {
     const handleOnline = async () => {
       let pending = JSON.parse(
         localStorage.getItem("examitop_pending_subs") || "[]",
       );
       if (pending.length > 0) {
+        let remaining = [];
         for (let p of pending) {
           try {
-            // Frontend se direct Firebase push ki jagah, API ko hit kiya
-            await fetch('/api/evaluate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(p.payload)
+            const response = await fetch("/api/evaluate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(p.payload),
             });
+
+            const responseText = await response.text();
+            let result;
+            try {
+              result = JSON.parse(responseText);
+            } catch (e) {
+              result = { success: false };
+            }
+
+            if (!response.ok || !result.success) {
+              // If duplicate (403), let it drop. If server error (500), retain it!
+              if (response.status !== 403) remaining.push(p);
+            }
           } catch (e) {
             console.error("Offline Sync failed", e);
+            remaining.push(p); // Retain on network drop
           }
         }
-        localStorage.removeItem("examitop_pending_subs");
-        setSysModal({
-          type: "success",
-          msg: "Internet restored! Pending offline submissions have been securely synced to the server.",
-        });
+
+        if (remaining.length === 0) {
+          localStorage.removeItem("examitop_pending_subs");
+          setSysModal({
+            type: "success",
+            msg: "Internet restored! Pending offline submissions safely synced.",
+          });
+        } else {
+          localStorage.setItem(
+            "examitop_pending_subs",
+            JSON.stringify(remaining),
+          );
+          setSysModal({
+            type: "warning",
+            msg: `Internet restored, but ${remaining.length} submissions failed to sync. Retrying later.`,
+          });
+        }
       }
     };
     window.addEventListener("online", handleOnline);
@@ -568,23 +595,27 @@ function StudentPortalContent() {
       const safeRoll = finalRoll.trim().toLowerCase();
       // PHASE 3: Frontend Bouncer (Checks separate submissions node directly)
       let existingSub = false;
-      const subsSnap = await get(ref(database, `test_submissions/${t.id}/submissions`));
-      
+      const subsSnap = await get(
+        ref(database, `test_submissions/${t.id}/submissions`),
+      );
+
       if (subsSnap.exists()) {
-         const subsArray = Object.values(subsSnap.val()).filter(Boolean);
-         existingSub = subsArray.find(
-           (s) =>
-             s.name?.trim().toLowerCase() === safeName.toLowerCase() &&
-             (s.roll || "").trim().toLowerCase() === safeRoll
-         );
+        const subsArray = Object.values(subsSnap.val()).filter(Boolean);
+        existingSub = subsArray.find(
+          (s) =>
+            s.name?.trim().toLowerCase() === safeName.toLowerCase() &&
+            (s.roll || "").trim().toLowerCase() === safeRoll,
+        );
       } else if (t.submissions) {
-         // Fallback for very old legacy tests
-         const legacySubs = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions);
-         existingSub = legacySubs.find(
-           (s) =>
-             s?.name?.trim().toLowerCase() === safeName.toLowerCase() &&
-             (s?.roll || "").trim().toLowerCase() === safeRoll
-         );
+        // Fallback for very old legacy tests
+        const legacySubs = Array.isArray(t.submissions)
+          ? t.submissions
+          : Object.values(t.submissions);
+        existingSub = legacySubs.find(
+          (s) =>
+            s?.name?.trim().toLowerCase() === safeName.toLowerCase() &&
+            (s?.roll || "").trim().toLowerCase() === safeRoll,
+        );
       }
 
       if (existingSub) {
@@ -598,27 +629,31 @@ function StudentPortalContent() {
       // THE 10K SCALING FIX 2: O(1) Duplicate Checker (Rescues 10GB Bandwidth)
       let isAlreadyLive = false;
       const checkRoll = safeRoll || "N/A"; // Kyunki establishPresence me humne yahi set kiya tha
-      
+
       // Poori list download karne ki jagah, sirf usi roll number ko query karo
       const dupQuery = query(
         ref(database, `live_sessions/${t.id}`),
         orderByChild("roll"),
-        equalTo(checkRoll)
+        equalTo(checkRoll),
       );
-      
+
       const liveSnap = await get(dupQuery);
       if (liveSnap.exists()) {
         const liveData = liveSnap.val();
         // Cross-verify the exact name as well
         isAlreadyLive = Object.values(liveData).some(
-          (session) => session.name.toLowerCase() === safeName.toLowerCase()
+          (session) => session.name.toLowerCase() === safeName.toLowerCase(),
         );
 
-        const draftStr = localStorage.getItem(`exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}`);
+        const uidSafe = currentUser?.uid || "nouid";
+        const draftStr = localStorage.getItem(
+          `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}_${uidSafe}`,
+        );
 
         // Agar student LIVE hai, aur uske paas local draft nahi hai (yani wo naye device ya incognito tab se aaya hai)
         if (isAlreadyLive && !draftStr) {
-          const msg = "Multiple Device Detected: You are already active in this exam on another device or tab.";
+          const msg =
+            "Multiple Device Detected: You are already active in this exam on another device or tab.";
           if (isAutoJoin) setSysModal({ type: "error", msg });
           else setJoinError(msg);
           setIsFetchingTest(false);
@@ -626,7 +661,7 @@ function StudentPortalContent() {
         }
       }
 
-     // 🛡️ THE BULLETPROOF TIER BOUNCER LOGIC
+      // 🛡️ THE BULLETPROOF TIER BOUNCER LOGIC
       const creatorUid = t.creatorUid;
       if (creatorUid) {
         const creatorSnap = await get(ref(database, `users/${creatorUid}`));
@@ -634,7 +669,9 @@ function StudentPortalContent() {
           const creatorData = creatorSnap.val();
 
           // 1. Unlimited Pack Overrides Everything
-          const isUnlimited = creatorData.is_unlimited === true || creatorData.plan === "unlimited";
+          const isUnlimited =
+            creatorData.is_unlimited === true ||
+            creatorData.plan === "unlimited";
 
           const currentSubsCount = t.submissionCount || 0;
 
@@ -644,10 +681,11 @@ function StudentPortalContent() {
           // Agar Examiner Unlimited plan pe nahi hai, TOH test ka tag check karo
           // Agar test "free" token se bana tha (ya old tests jinpe tag nahi hai), toh 10 ki limit lagegi
           if (!isUnlimited) {
-            const isTestFree = t.tokenType === "free" || !t.tokenType; 
+            const isTestFree = t.tokenType === "free" || !t.tokenType;
 
             if (isTestFree && currentSubsCount >= FREE_TIER_LIMIT) {
-              const limitMsg = "This exam has reached its maximum free-tier limit of 10 students. The Examiner needs a Premium Token or an Unlimited Plan for higher intakes.";
+              const limitMsg =
+                "This exam has reached its maximum free-tier limit of 10 students. The Examiner needs a Premium Token or an Unlimited Plan for higher intakes.";
 
               if (isAutoJoin) {
                 setSysModal({ type: "error", msg: limitMsg });
@@ -660,22 +698,21 @@ function StudentPortalContent() {
           }
         }
       }
-    
 
+      const uidSafe = currentUser?.uid || "nouid"; // Agar yahan scope me nahi hai toh wapas define karlo
       const draftStr = localStorage.getItem(
-        `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}`,
+        `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}_${uidSafe}`,
       );
       if (draftStr) {
         try {
+          // DRAFT DECODING (Line ~475)
           const decodedString = decodeURIComponent(atob(draftStr));
-          const originalJson = decodedString.split("").reverse().join("");
-          const draft = JSON.parse(originalJson);
-
+          const draft = JSON.parse(decodedString);
           if (draft.endTime > Date.now()) {
             setDraftToResume(draft);
           } else {
             localStorage.removeItem(
-              `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}`,
+              `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}_${uidSafe}`,
             );
           }
         } catch (e) {
@@ -719,7 +756,10 @@ function StudentPortalContent() {
       clonedTest.questions = clonedTest.questions.map((q) => {
         if ((q.type === "mcq" || q.type === "msq") && q.options) {
           const hasFixedOption = q.options.some((opt) => {
-            let lowerOpt = opt.toLowerCase().replace(/<[^>]*>?/gm, "").trim();
+            let lowerOpt = opt
+              .toLowerCase()
+              .replace(/<[^>]*>?/gm, "")
+              .trim();
             return (
               lowerOpt.includes("all of") ||
               lowerOpt.includes("none of") ||
@@ -737,7 +777,10 @@ function StudentPortalContent() {
 
           for (let i = standardOpts.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [standardOpts[i], standardOpts[j]] = [standardOpts[j], standardOpts[i]];
+            [standardOpts[i], standardOpts[j]] = [
+              standardOpts[j],
+              standardOpts[i],
+            ];
           }
 
           q.options = standardOpts.map((o) => o.text);
@@ -746,7 +789,9 @@ function StudentPortalContent() {
           let newCorrectArray = [];
           if (q.correct) {
             q.correct.forEach((cIdx) => {
-              let newIdx = standardOpts.findIndex((o) => o.originalIdx === cIdx);
+              let newIdx = standardOpts.findIndex(
+                (o) => o.originalIdx === cIdx,
+              );
               if (newIdx !== -1) newCorrectArray.push(newIdx);
             });
           }
@@ -762,7 +807,9 @@ function StudentPortalContent() {
         let finalShuffledQuestions = [];
         clonedTest.sections.forEach((sec) => {
           let sectionQs = clonedTest.questions.filter(
-            (q) => q.section === sec || (!q.section && sec === clonedTest.sections[0])
+            (q) =>
+              q.section === sec ||
+              (!q.section && sec === clonedTest.sections[0]),
           );
           for (let i = sectionQs.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -774,7 +821,10 @@ function StudentPortalContent() {
       } else {
         for (let i = clonedTest.questions.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
-          [clonedTest.questions[i], clonedTest.questions[j]] = [clonedTest.questions[j], clonedTest.questions[i]];
+          [clonedTest.questions[i], clonedTest.questions[j]] = [
+            clonedTest.questions[j],
+            clonedTest.questions[i],
+          ];
         }
       }
     }
@@ -782,27 +832,27 @@ function StudentPortalContent() {
     return clonedTest;
   };
 
- // STALE CLOSURE FIX: 
+  // STALE CLOSURE FIX:
   useEffect(() => {
     handleFinalSubmitRef.current = handleFinalSubmit;
-  }); 
+  });
 
   //Auto-Submit Jitter
   useEffect(() => {
     if (step === "exam" && endTimeRef.current) {
       const remaining = Math.floor((endTimeRef.current - Date.now()) / 1000);
-      
+
       if (remaining <= 0 && !isActionLockedRef.current && !isSubmitting) {
         isActionLockedRef.current = true; // Block double submissions
         setIsSubmitting(true); // Spinner turant screen par aa jayega
-        
+
         // 0 se 3000 milliseconds ka random delay (Firebase Write Load Balancer)
-        const randomDelay = Math.floor(Math.random() * 3000); 
-        
+        const randomDelay = Math.floor(Math.random() * 3000);
+
         setTimeout(() => {
           // Ref ke through call karne se GUARANTEE hai ki answers ekdum latest submit honge
           if (handleFinalSubmitRef.current) {
-            handleFinalSubmitRef.current(); 
+            handleFinalSubmitRef.current();
           }
         }, randomDelay);
       }
@@ -970,34 +1020,54 @@ function StudentPortalContent() {
     // 1. CREATE LIGHTWEIGHT PAYLOAD (Mapping shuffled back to Master Paper)
     const rawAnswers = answers.map((ans, i) => {
       let actualQ = activeTest.questions[i];
-      let origQIdx = actualQ.originalQIdx !== undefined ? actualQ.originalQIdx : i;
-      
-      let origVal = ans.val;
+      let origQIdx =
+        actualQ?.originalQIdx !== undefined ? actualQ.originalQIdx : i;
+
+      let origVal = ans?.val ?? null;
       //Reverse map the selected option to its original backend index
-      if (origVal !== null && (actualQ.type === "mcq" || actualQ.type === "msq") && actualQ.optionMap) {
-         if (Array.isArray(origVal)) {
-             origVal = origVal.map(v => actualQ.optionMap[v]);
-         } else {
-             origVal = actualQ.optionMap[origVal];
-         }
+      if (
+        origVal !== null &&
+        (actualQ?.type === "mcq" || actualQ?.type === "msq") &&
+        actualQ?.optionMap
+      ) {
+        if (Array.isArray(origVal)) {
+          // Safe filter to prevent malformed data
+          origVal = origVal
+            .map((v) => actualQ.optionMap[v])
+            .filter((v) => v !== undefined);
+        } else {
+          origVal =
+            actualQ.optionMap[origVal] !== undefined
+              ? actualQ.optionMap[origVal]
+              : null;
+        }
       }
 
       return {
-        qIndex: origQIdx, // 🔥 CRITICAL FIX: Ensure qIndex is mapped properly
-        val: origVal
+        qIndex: origQIdx,
+        val: origVal,
       };
     });
 
     // Ensure time spent is also mapped to original backend question indices
     let mappedQTime = {};
-    Object.keys(qTime).forEach(shuffledIdx => {
-       let origQIdx = activeTest.questions[shuffledIdx]?.originalQIdx !== undefined ? activeTest.questions[shuffledIdx].originalQIdx : shuffledIdx;
-       mappedQTime[origQIdx] = qTime[shuffledIdx];
+    Object.keys(qTime).forEach((shuffledIdx) => {
+      let origQIdx =
+        activeTest.questions[shuffledIdx]?.originalQIdx !== undefined
+          ? activeTest.questions[shuffledIdx].originalQIdx
+          : shuffledIdx;
+      mappedQTime[origQIdx] = qTime[shuffledIdx];
     });
 
-    const totalSecondsGiven = activeTest.duration ? activeTest.duration * 60 : 0;
-    const exactRemaining = Math.max(0, Math.floor((endTimeRef.current - Date.now()) / 1000));
-    const secondsSpent = totalSecondsGiven > 0 ? totalSecondsGiven - exactRemaining : 0;
+    const totalSecondsGiven = activeTest.duration
+      ? activeTest.duration * 60
+      : 0;
+    const exactRemaining = Math.max(
+      0,
+      Math.floor((endTimeRef.current - Date.now()) / 1000),
+    );
+    const secondsSpent =
+      totalSecondsGiven > 0 ? totalSecondsGiven - exactRemaining : 0;
     const timeTakenStr = formatTime(secondsSpent);
 
     const apiPayload = {
@@ -1010,7 +1080,7 @@ function StudentPortalContent() {
       answers: rawAnswers,
       timeTaken: timeTakenStr,
       timeSpentPerQuestion: mappedQTime, // Sent mapped time
-      cheatLogs: cheatLogsRef.current
+      cheatLogs: cheatLogsRef.current,
     };
 
     // EXPLICITLY KILL LIVE COUNTER
@@ -1018,19 +1088,28 @@ function StudentPortalContent() {
       try {
         await remove(presenceRefTarget.current);
         await onDisconnect(presenceRefTarget.current).cancel();
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        console.error(e);
+      }
     }
 
-    localStorage.removeItem(`exam_draft_${activeTest.id}_${name.trim() || "guest"}_${roll.trim().toLowerCase() || "noroll"}`);
+    // 🔥 FIX: Define uidSafe here so it can be used for deletion
+    const uidSafe = currentUser?.uid || "nouid";
+    localStorage.removeItem(
+      `exam_draft_${activeTest.id}_${name.trim() || "guest"}_${roll.trim().toLowerCase() || "noroll"}_${uidSafe}`,
+    );
     sessionStorage.removeItem("examitop_active_exam");
 
     // OFFLINE VAULT SYNC LOGIC
     if (!navigator.onLine && !activeTest.isLocal) {
-      let pending = JSON.parse(localStorage.getItem("examitop_pending_subs") || "[]");
+      let pending = JSON.parse(
+        localStorage.getItem("examitop_pending_subs") || "[]",
+      );
       pending.push({ testId: activeTest.id, payload: apiPayload });
       localStorage.setItem("examitop_pending_subs", JSON.stringify(pending));
 
-      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch((e) => {});
+      if (document.fullscreenElement && document.exitFullscreen)
+        document.exitFullscreen().catch((e) => {});
       setStep("offline_saved");
       setIsSubmitting(false); // Remove spinner
       return;
@@ -1039,10 +1118,10 @@ function StudentPortalContent() {
     try {
       if (!activeTest.isLocal) {
         // 2. SEND TO THE BRAIN (Backend API Call)
-        const response = await fetch('/api/evaluate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(apiPayload)
+        const response = await fetch("/api/evaluate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(apiPayload),
         });
 
         //Pehle raw text lo, phir JSON me convert karo
@@ -1051,48 +1130,66 @@ function StudentPortalContent() {
         try {
           result = JSON.parse(responseText);
         } catch (jsonError) {
-          console.error("Backend returned HTML instead of JSON. Server crashed!", responseText);
-          throw new Error("Backend API crashed."); 
+          console.error(
+            "Backend returned HTML instead of JSON. Server crashed!",
+            responseText,
+          );
+          throw new Error("Backend API crashed.");
         }
 
-       if (!response.ok || !result.success) {
-          setIsSubmitting(false); // Error aaye toh hi spinner hatao
-          
-          isActionLockedRef.current = false; // Unlock exam state so anti-cheat resumes!
-          
+        if (!response.ok || !result.success) {
+          setIsSubmitting(false);
+
+          // P1.2 FIX: Don't unlock if time is already up! Force offline vault.
+          if (timeLeft > 0) {
+            isActionLockedRef.current = false;
+          }
+
           setSysModal({
             type: "error",
             msg: result.message || "Failed to submit exam.",
             action: () => {
               if (result.message && result.message.includes("Duplicate")) {
                 router.replace("/student-results");
-              } else if (result.message && result.message.includes("Test not found")) {
+              } else if (
+                result.message &&
+                result.message.includes("Test not found")
+              ) {
                 router.replace("/student"); // Completely invalid test, force exit
               }
-            }
+            },
           });
           return;
         }
       }
 
-      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch((e) => {});
-      
+      if (document.fullscreenElement && document.exitFullscreen)
+        document.exitFullscreen().catch((e) => {});
+
       // SUCCESS REDIRECT (No Popup, direct to results)
       // Spinner screen chalti rahegi tab tak jab tak route push na ho jaye
       router.replace("/student-results");
       return;
-
     } catch (error) {
       console.error("Transmission Error:", error);
       setIsSubmitting(false);
-      isActionLockedRef.current = false; //Unlock here as well
+
+      //INJECTION A FIX: Immediate force-save to Offline Vault (Don't wait for user click)
+      let pending = JSON.parse(
+        localStorage.getItem("examitop_pending_subs") || "[]",
+      );
+      pending.push({ testId: activeTest.id, payload: apiPayload });
+      localStorage.setItem("examitop_pending_subs", JSON.stringify(pending));
+
+      // P1.2 FIX: Only unlock the exam UI if they still have time left. Otherwise, keep it locked!
+      if (timeLeft > 0) {
+        isActionLockedRef.current = false;
+      }
+
       setSysModal({
         type: "error",
-        msg: "Failed to securely submit over internet. Activating Offline Vault...",
+        msg: "Network dropped during submission! Your exam has been securely locked in the Offline Vault and will auto-sync when internet returns.",
         action: () => {
-          let pending = JSON.parse(localStorage.getItem("examitop_pending_subs") || "[]");
-          pending.push({ testId: activeTest.id, payload: apiPayload });
-          localStorage.setItem("examitop_pending_subs", JSON.stringify(pending));
           setStep("offline_saved");
         },
       });
@@ -1411,7 +1508,7 @@ function StudentPortalContent() {
                 <i className="ti ti-arrow-left"></i> Go Back
               </button>
             )}
-            
+
             {/* Agar resume mode hai, toh is button ko full width kar do */}
             <button
               className={`w-full ${draftToResume ? "" : "sm:w-2/3"} py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2`}
@@ -2577,12 +2674,12 @@ function StudentPortalContent() {
 
             {/* CONFIRMATION MODAL */}
             {showConfirmModal && (
-              <div 
-                className="fixed inset-0 flex items-center justify-center p-4" 
-                style={{ 
-                    zIndex: 9999,
-                    backdropFilter: "blur(8px)", 
-                    background: "rgba(255, 255, 255, 0.2)" 
+              <div
+                className="fixed inset-0 flex items-center justify-center p-4"
+                style={{
+                  zIndex: 9999,
+                  backdropFilter: "blur(8px)",
+                  background: "rgba(255, 255, 255, 0.2)",
                 }}
               >
                 <div
@@ -2610,7 +2707,7 @@ function StudentPortalContent() {
                       fontSize: "22px",
                       marginBottom: "10px",
                       color: "#1e293b",
-                      fontWeight: 900
+                      fontWeight: 900,
                     }}
                   >
                     Submit Exam?
@@ -2621,7 +2718,7 @@ function StudentPortalContent() {
                       color: "var(--color-text-secondary)",
                       marginBottom: "2rem",
                       lineHeight: 1.6,
-                      fontWeight: 500
+                      fontWeight: 500,
                     }}
                   >
                     You have attempted{" "}
@@ -2639,14 +2736,14 @@ function StudentPortalContent() {
                         fontWeight: 600,
                         backgroundColor: "#f1f5f9",
                         color: "#475569",
-                        border: "1px solid #e2e8f0"
+                        border: "1px solid #e2e8f0",
                       }}
                       onClick={cancelSubmit}
                       disabled={isSubmitting} // Disable cancel while processing
                     >
                       Review Again
                     </button>
-                    
+
                     {/* THE BUTTON FIX: Removed isActionLockedRef to make it active again */}
                     <button
                       className="btn btn-success"
@@ -2655,21 +2752,21 @@ function StudentPortalContent() {
                         padding: "12px",
                         justifyContent: "center",
                         fontWeight: 600,
-                        backgroundColor: isSubmitting ? "#94a3b8" : "#10b981", 
+                        backgroundColor: isSubmitting ? "#94a3b8" : "#10b981",
                         borderColor: isSubmitting ? "#94a3b8" : "#10b981",
-                        cursor: isSubmitting ? "not-allowed" : "pointer"
+                        cursor: isSubmitting ? "not-allowed" : "pointer",
                       }}
-                      onClick={() => handleFinalSubmit()} 
+                      onClick={() => handleFinalSubmit()}
                       disabled={isSubmitting} // 🔥 FIX: Removed isActionLockedRef.current from here!
                     >
                       {/* SPINNER ADDED TO CONFIRM MODAL */}
                       {isSubmitting ? (
-                         <>
-                           <i className="ti ti-loader animate-spin text-lg mr-2"></i>
-                           Submitting...
-                         </>
+                        <>
+                          <i className="ti ti-loader animate-spin text-lg mr-2"></i>
+                          Submitting...
+                        </>
                       ) : (
-                         "Yes, Submit"
+                        "Yes, Submit"
                       )}
                     </button>
                   </div>
@@ -2683,10 +2780,10 @@ function StudentPortalContent() {
       {cheatWarning && (
         <div
           className="fixed inset-0 flex items-center justify-center p-4"
-          style={{ 
-              zIndex: 99999, 
-              backdropFilter: "blur(12px)", 
-              background: "rgba(255, 255, 255, 0.4)" 
+          style={{
+            zIndex: 99999,
+            backdropFilter: "blur(12px)",
+            background: "rgba(255, 255, 255, 0.4)",
           }}
         >
           <div
