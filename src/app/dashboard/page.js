@@ -405,6 +405,12 @@ export default function ExaminerDashboard() {
              <div className="w-8 h-8 rounded-lg bg-blue-100/50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors"><i className="ti ti-pencil-plus text-base"></i></div>
              Manual Creator
           </button>
+
+          {/* NAYA FEATURE: Global Leaderboards Shortcut */}
+          <button onClick={() => router.push('/results')} className="flex items-center gap-3 px-3 py-2.5 hover:bg-amber-50 rounded-xl text-[13px] font-bold text-slate-700 hover:text-amber-700 transition-colors w-full text-left group mt-1">
+             <div className="w-8 h-8 rounded-lg bg-amber-100/50 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-500 group-hover:text-white transition-colors"><i className="ti ti-trophy text-base"></i></div>
+             Global Leaderboards
+          </button>
           
           <button onClick={() => router.push('/tests')} className="flex items-center gap-3 px-3 py-2.5 hover:bg-indigo-50 rounded-xl text-[13px] font-bold text-slate-700 hover:text-indigo-700 transition-colors w-full text-left group mt-1">
              <div className="w-8 h-8 rounded-lg bg-indigo-100/50 text-indigo-600 flex items-center justify-center shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors"><i className="ti ti-chart-bar text-base"></i></div>

@@ -283,12 +283,6 @@ function Header() {
           >
             <i className="ti ti-pencil"></i> Create Test
           </Link>
-          <Link
-            href="/results"
-            className={`nav-tab ${pathname === "/results" ? "active" : ""}`}
-          >
-            <i className="ti ti-world"></i> Global Results
-          </Link>
         </>
       );
     } else if (userRole === "admin") {
