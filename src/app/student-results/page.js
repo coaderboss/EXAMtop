@@ -4,7 +4,7 @@ import { useState, useEffect, memo } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { database } from "../../lib/firebase";
-import { ref, get } from "firebase/database";
+import { ref, get, query, orderByChild, equalTo } from "firebase/database";
 import FigureRenderer from "../../components/FigureRenderer";
 import SmilesViewer from "../../components/SmilesViewer";
 
@@ -142,9 +142,7 @@ export default function StudentResults() {
                   sub = Object.values(qSnap.val())[0];
                 }
               }
-            } catch (e) {
-              console.error("Error fetching sub for test", t.id, e);
-            }
+            } catch (e) { /* Silent ignore */ }
 
             if (sub) {
               // Strict validation

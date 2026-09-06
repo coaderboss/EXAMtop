@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { database } from "../../lib/firebase";
-import { ref, get } from "firebase/database";
+import { ref, get, query, orderByChild, equalTo } from "firebase/database";
 
 export default function StudentDashboard() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -84,7 +84,8 @@ export default function StudentDashboard() {
                 }
               }
             } catch (e) {
-              console.error("Error fetching sub for test", t.id);
+              // Firebase fallback permission errors ignore karo taaki Next.js red screen na de
+              console.warn("Silent fallback skip for test:", t.id);
             }
 
             if (sub) {

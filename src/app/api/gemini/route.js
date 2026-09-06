@@ -15,16 +15,17 @@ export async function POST(req) {
       );
     }
 
-    // Strict prompt taaki Gemini hamesha JSON format me hi answer de
-    const prompt = `Act as an expert examiner for ${examTarget}. Generate ONE multiple-choice question for the subject ${subject}, specifically from the topic/chapter: "${chapter}". 
-        The difficulty should match the ${examTarget} exam level.
-        You MUST return the response ONLY as a raw JSON object. Do not use markdown blocks like \`\`\`json.
+    // Strict prompt taaki Gemini hamesha JSON format me hi answer de aur MathJax ka dhyan rakhe
+    const prompt = `Act as an elite test-setter for ${examTarget}. Generate ONE high-quality multiple-choice question for the subject ${subject}, specifically from the topic: "${chapter}".
+        The difficulty MUST strictly match the ${examTarget} competitive exam level.
+        You MUST return the response ONLY as a valid, raw JSON object. DO NOT wrap the response in markdown blocks (like \`\`\`json).
+        Use standard MathJax/LaTeX formatting (wrap equations in $ or $$) for any mathematical or scientific formulas in both the question and options.
         Format:
         {
-          "question": "Question text here (use MathJax $...$ for equations if needed)",
+          "question": "Clear question text here (with $MathJax$ if needed)",
           "options": ["Option A", "Option B", "Option C", "Option D"],
           "correct_index": 0,
-          "solution": "Detailed step-by-step explanation here"
+          "solution": "Detailed, step-by-step solution explaining the underlying concept."
         }`;
 
     const response = await fetch(
