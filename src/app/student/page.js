@@ -593,20 +593,27 @@ function StudentPortalContent() {
 
       const safeName = finalName.trim();
       const safeRoll = finalRoll.trim().toLowerCase();
-      // PHASE 3: Frontend Bouncer (Checks separate submissions node directly)
+      // PHASE 3: Frontend Bouncer (O(1) Direct Lookup - P0.1 FIX)
       let existingSub = false;
-      const subsSnap = await get(
-        ref(database, `test_submissions/${t.id}/submissions`),
-      );
+      const safeUserKey = currentUser?.uid || "nouid";
+      const rollKey = safeRoll
+        ? encodeURIComponent(safeRoll).replace(/\./g, "_")
+        : null;
 
-      if (subsSnap.exists()) {
-        const subsArray = Object.values(subsSnap.val()).filter(Boolean);
-        existingSub = subsArray.find(
-          (s) =>
-            s.name?.trim().toLowerCase() === safeName.toLowerCase() &&
-            (s.roll || "").trim().toLowerCase() === safeRoll,
+      // Never download the monolithic array. Direct lookup by UID.
+      const uidSnap = await get(
+        ref(database, `test_submissions/${t.id}/submissions/${safeUserKey}`),
+      );
+      if (uidSnap.exists()) {
+        existingSub = true;
+      } else if (rollKey) {
+        const rollSnap = await get(
+          ref(database, `test_submissions/${t.id}/submissions/${rollKey}`),
         );
-      } else if (t.submissions) {
+        if (rollSnap.exists()) existingSub = true;
+      }
+
+      if (!existingSub && t.submissions) {
         // Fallback for very old legacy tests
         const legacySubs = Array.isArray(t.submissions)
           ? t.submissions

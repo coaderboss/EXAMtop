@@ -75,6 +75,24 @@ export async function POST(req) {
       );
     }
 
+    // 🔥 P0.2 SECURITY FIX: Server-Side Deadline Enforcement (Handling both Schemas)
+    const rawDeadline = activeTestMeta.closeDate || activeTestMeta.expiryDate;
+
+    if (rawDeadline) {
+      const closeTime = new Date(rawDeadline).getTime();
+      // 5-minute grace period allowed for slow internet or network delays
+      if (!isNaN(closeTime) && Date.now() > closeTime + 5 * 60 * 1000) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Submission Rejected: Exam deadline has strictly passed. No further submissions accepted.",
+          },
+          { status: 403 },
+        );
+      }
+    }
+
     // 1.5. SECURITY BLOCK: Backend Duplicate Check
     let existingSubs = [];
     if (isLegacy) {

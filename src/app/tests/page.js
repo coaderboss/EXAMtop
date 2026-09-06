@@ -789,6 +789,14 @@ export default function ManageTests() {
       });
       return;
     }
+
+    // 🔥 P1.1 FIX: Sanitize cells against CSV Formula Injection (CWE-1236)
+    const sanitizeCSV = (val) => {
+      let str = String(val ?? "").replace(/"/g, '""');
+      if (/^[=+@\-\t\r]/.test(str)) str = "'" + str; // Block executable Excel commands
+      return `"${str}"`;
+    };
+
     let csv =
       "Student Name,Roll Number,Total Score,Max Marks,Accuracy (%),Correct Qs,Wrong Qs,Skipped Qs,Submission Time\n";
     t.submissions.forEach((s) => {
@@ -796,13 +804,18 @@ export default function ManageTests() {
         s.correct + s.wrong > 0
           ? Math.round((s.correct / (s.correct + s.wrong)) * 100)
           : 0;
-      csv += `"${s.name}","${s.roll || "N/A"}",${s.score},${t.totalMarks},${accuracy},${s.correct},${s.wrong},${s.skipped},"${s.time}"\n`;
+      const safeName = sanitizeCSV(s.name || "Unknown");
+      const safeRoll = sanitizeCSV(s.roll || "N/A");
+
+      csv += `${safeName},${safeRoll},${s.score},${t.totalMarks},${accuracy},${s.correct},${s.wrong},${s.skipped},"${s.time}"\n`;
     });
+
+    const safeTitle = t.title.replace(/[^a-zA-Z0-9]/g, "_");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${t.title.replace(/ /g, "_")}_Results.csv`;
+    link.download = `${safeTitle}_Results.csv`;
     link.click();
   };
 
