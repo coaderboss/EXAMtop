@@ -678,100 +678,135 @@ export default function StudentDashboard() {
     </div>
   );
 
+  // Helper function to render a single history row (Prevents code duplication)
+  const renderHistoryRow = (h, key, forceBestTag = false) => {
+    let validScore = h.score || 0;
+    let validTotal = h.totalMarks || 0;
+    let pct = validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;
+    let corr = h.correct || 0;
+    let wrng = h.wrong || 0;
+    let accPct = corr + wrng > 0 ? Math.round((corr / (corr + wrng)) * 100) : 0;
+
+    const isExcellent = pct >= 75;
+    const isAverage = pct >= 40 && pct < 75;
+    const ringColor = isExcellent ? "border-emerald-400" : isAverage ? "border-amber-400" : "border-rose-400";
+    const ringBg = isExcellent ? "bg-emerald-50 text-emerald-700" : isAverage ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700";
+
+    let performanceTag = null;
+    if (forceBestTag) {
+      performanceTag = (
+        <span className="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shrink-0 shadow-sm">
+          <i className="ti ti-trophy"></i> Personal Best
+        </span>
+      );
+    } else if (pct === highestScorePct && highestScorePct > 0) {
+      performanceTag = (
+        <span className="bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 shrink-0">
+          <i className="ti ti-trophy"></i> Best
+        </span>
+      );
+    } else if (pct < 33) {
+      performanceTag = (
+        <span className="bg-rose-100 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 shrink-0">
+          <i className="ti ti-alert-triangle"></i> Weak
+        </span>
+      );
+    }
+
+    return (
+      <div key={key} className={`bg-white p-3.5 sm:p-5 border ${forceBestTag ? 'border-amber-300 shadow-[0_4px_15px_rgba(245,158,11,0.1)]' : 'border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)]'} rounded-2xl sm:rounded-3xl hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-row items-center justify-between gap-3 sm:gap-4 group`}>
+        <div className="flex flex-col min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h4 className="text-[14px] sm:text-[16px] font-black text-slate-800 m-0 truncate group-hover:text-blue-700 transition-colors leading-none">
+              {h.testTitle || "Unnamed Test"}
+            </h4>
+            {performanceTag}
+          </div>
+          <div className="text-[11px] sm:text-[12px] font-semibold text-slate-500 flex items-center gap-2 sm:gap-3 flex-wrap leading-tight mt-0.5">
+            <span className="flex items-center gap-1.5">
+              <i className="ti ti-calendar text-slate-400"></i> {h.time?.split(",")[0] || "Unknown"}
+            </span>
+            <span className="flex items-center gap-1 font-mono text-[9px] sm:text-[10px] bg-slate-50 px-1.5 sm:px-2 py-0.5 rounded border border-slate-200">
+              <i className="ti ti-hash opacity-60"></i> {h.testCode || "N/A"}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 sm:gap-6 shrink-0 border-l border-slate-100 pl-3 sm:pl-4">
+          <div className="text-right hidden sm:block">
+            <div className="text-[18px] sm:text-[20px] font-black text-slate-800 leading-none mb-1">
+              {validScore} <span className="text-[12px] sm:text-[13px] font-bold text-slate-400">/ {validTotal}</span>
+            </div>
+            <div className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
+              Acc: <span className="text-slate-600">{accPct}%</span>
+            </div>
+          </div>
+
+          <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-[12px] sm:text-[15px] border-2 sm:border-[3px] shadow-sm shrink-0 ${ringColor} ${ringBg} transform group-hover:scale-105 transition-transform`}>
+            {pct}%
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 1. Array ko Newest First order me laao
+  const reversedHistoryForList = [...myHistory].reverse();
+  
+  // 2. Sirf top 3 latest nikal lo
+  const recent3 = reversedHistoryForList.slice(0, 3);
+  
+  // 3. Highest Score wala test dhundho
+  let bestTest = null;
+  let maxBestPct = -1;
+  reversedHistoryForList.forEach(h => {
+      let validScore = h.score || 0;
+      let validTotal = h.totalMarks || 0;
+      let pct = validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;
+      if (pct > maxBestPct) {
+          maxBestPct = pct;
+          bestTest = h;
+      }
+  });
+
   const pastLedgerCard = (
     <div>
-      <h3 className="text-[13px] sm:text-[14px] font-extrabold text-slate-500 uppercase tracking-widest mb-3 sm:mb-4 flex items-center gap-2">
-        <i className="ti ti-folders text-blue-500 text-lg"></i> Complete Exam
-        History
-      </h3>
-      <div className="flex flex-col gap-3 sm:gap-4">
-        {myHistory
-          .slice()
-          .reverse()
-          .map((h, index) => {
-            let validScore = h.score || 0;
-            let validTotal = h.totalMarks || 0;
-            let pct =
-              validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;
-            let corr = h.correct || 0;
-            let wrng = h.wrong || 0;
-            let accPct =
-              corr + wrng > 0 ? Math.round((corr / (corr + wrng)) * 100) : 0;
-
-            const isExcellent = pct >= 75;
-            const isAverage = pct >= 40 && pct < 75;
-            const ringColor = isExcellent
-              ? "border-emerald-400"
-              : isAverage
-                ? "border-amber-400"
-                : "border-rose-400";
-            const ringBg = isExcellent
-              ? "bg-emerald-50 text-emerald-700"
-              : isAverage
-                ? "bg-amber-50 text-amber-700"
-                : "bg-rose-50 text-rose-700";
-
-            let performanceTag = null;
-            if (pct === highestScorePct && highestScorePct > 0)
-              performanceTag = (
-                <span className="bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 shrink-0">
-                  <i className="ti ti-trophy"></i> Best
-                </span>
-              );
-            else if (pct < 33)
-              performanceTag = (
-                <span className="bg-rose-100 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 shrink-0">
-                  <i className="ti ti-alert-triangle"></i> Weak
-                </span>
-              );
-
-            return (
-              <div
-                key={index}
-                className="bg-white p-3.5 sm:p-5 border border-slate-200 rounded-2xl sm:rounded-3xl shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-row items-center justify-between gap-3 sm:gap-4 group"
-              >
-                <div className="flex flex-col min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h4 className="text-[14px] sm:text-[16px] font-black text-slate-800 m-0 truncate group-hover:text-blue-700 transition-colors leading-none">
-                      {h.testTitle || "Unnamed Test"}
-                    </h4>
-                    {performanceTag}
-                  </div>
-                  <div className="text-[11px] sm:text-[12px] font-semibold text-slate-500 flex items-center gap-2 sm:gap-3 flex-wrap leading-tight mt-0.5">
-                    <span className="flex items-center gap-1.5">
-                      <i className="ti ti-calendar text-slate-400"></i>{" "}
-                      {h.time?.split(",")[0] || "Unknown"}
-                    </span>
-                    <span className="flex items-center gap-1 font-mono text-[9px] sm:text-[10px] bg-slate-50 px-1.5 sm:px-2 py-0.5 rounded border border-slate-200">
-                      <i className="ti ti-hash opacity-60"></i>{" "}
-                      {h.testCode || "N/A"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 sm:gap-6 shrink-0 border-l border-slate-100 pl-3 sm:pl-4">
-                  <div className="text-right hidden sm:block">
-                    <div className="text-[18px] sm:text-[20px] font-black text-slate-800 leading-none mb-1">
-                      {validScore}{" "}
-                      <span className="text-[12px] sm:text-[13px] font-bold text-slate-400">
-                        / {validTotal}
-                      </span>
-                    </div>
-                    <div className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
-                      Acc: <span className="text-slate-600">{accPct}%</span>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-[12px] sm:text-[15px] border-2 sm:border-[3px] shadow-sm shrink-0 ${ringColor} ${ringBg} transform group-hover:scale-105 transition-transform`}
-                  >
-                    {pct}%
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <h3 className="text-[13px] sm:text-[14px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-2 m-0">
+          <i className="ti ti-folders text-blue-500 text-lg"></i> Exam Ledger
+        </h3>
+        <button onClick={() => router.push('/student-results')} className="text-[10px] font-black text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+          View Full <i className="ti ti-arrow-right"></i>
+        </button>
       </div>
+      
+      {/* HIGHEST SCORE SECTION */}
+      {bestTest && (
+        <div className="mb-6">
+          <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <i className="ti ti-star"></i> All-Time High Score
+          </span>
+          {renderHistoryRow(bestTest, 'best-test', true)}
+        </div>
+      )}
+
+      {/* RECENT 3 SECTION */}
+      {recent3.length > 0 && (
+        <div>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <i className="ti ti-clock"></i> Recent Activity
+          </span>
+          <div className="flex flex-col gap-3 sm:gap-4">
+            {recent3.map((h, index) => renderHistoryRow(h, `recent-${index}`))}
+          </div>
+        </div>
+      )}
+      
+      {myHistory.length === 0 && (
+         <div className="text-center py-8 text-slate-500 text-sm font-medium border border-dashed border-slate-200 rounded-2xl">
+           No exams taken yet. Go to the Arena to start!
+         </div>
+      )}
     </div>
   );
 
