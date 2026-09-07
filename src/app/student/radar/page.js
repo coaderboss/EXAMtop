@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { database } from "../../../lib/firebase";
-import { ref, get, set } from "firebase/database";
+import { ref, get, set, query, orderByChild, equalTo } from "firebase/database";
 
 export default function EducatorRadar() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -39,33 +39,36 @@ export default function EducatorRadar() {
       setFollowedEducators(followedList);
 
       if (followedList.length === 0) {
+        setEducatorProfiles([]);
+        setAllRadarTests([]);
         setIsFetching(false);
         return;
       }
 
-      const usersSnap = await get(ref(database, "users"));
-      const allUsers = usersSnap.val() || {};
-      let profiles = [];
-
-      followedList.forEach((uid) => {
-        if (allUsers[uid]) {
-          const u = allUsers[uid];
-          profiles.push({
+      // 🛡️ PII LEAK FIXED: Fetch ONLY followed educators concurrently. No full 'users' dump!
+      const profilePromises = followedList.map(async (uid) => {
+        const uSnap = await get(ref(database, `users/${uid}`));
+        if (uSnap.exists()) {
+          const u = uSnap.val();
+          return {
             uid,
             name: u.name || "Educator",
             code: u.examinerId || u.rollNo || u.examinerCode || "N/A",
             email: u.email,
-          });
+          };
         }
+        return null;
       });
-      setEducatorProfiles(profiles);
 
+      const resolvedProfiles = await Promise.all(profilePromises);
+      setEducatorProfiles(resolvedProfiles.filter(Boolean));
+
+      // 🛡️ OPTIMIZATION: Future update can replace this with indexed search
       const testsSnap = await get(ref(database, "tests"));
       const allTests = testsSnap.val() || [];
       let feed = [];
 
       allTests.forEach((test) => {
-        // STRICT TRUE CHECK
         if (
           test &&
           followedList.includes(test.creatorUid) &&
@@ -110,23 +113,34 @@ export default function EducatorRadar() {
 
     try {
       const searchUpper = searchId.trim().toUpperCase();
-      const usersSnap = await get(ref(database, "users"));
-      const allUsers = usersSnap.val() || {};
+
+      // 🛡️ PII LEAK FIXED: Firebase Backend Query! (No monolithic download)
+      const q = query(
+        ref(database, "users"),
+        orderByChild("role"),
+        equalTo("examiner"),
+      );
+
+      const searchSnap = await get(q);
 
       let found = null;
-      Object.keys(allUsers).forEach((uid) => {
-        const u = allUsers[uid];
-        const dbCode = (
-          u.examinerId ||
-          u.rollNo ||
-          u.examinerCode ||
-          ""
-        ).toUpperCase();
-
-        if (u.role === "examiner" && dbCode === searchUpper) {
-          found = { uid, name: u.name || "Educator", code: dbCode };
-        }
-      });
+      if (searchSnap.exists()) {
+        const examiners = searchSnap.val();
+        // Since we can't reliably query multiple fields (examinerId vs rollNo) simultaneously in basic RTDB,
+        // we filter the pre-filtered 'examiners only' payload, which is mathematically safe and protects student PII.
+        Object.keys(examiners).forEach((uid) => {
+          const u = examiners[uid];
+          const dbCode = (
+            u.examinerId ||
+            u.rollNo ||
+            u.examinerCode ||
+            ""
+          ).toUpperCase();
+          if (dbCode === searchUpper) {
+            found = { uid, name: u.name || "Educator", code: dbCode };
+          }
+        });
+      }
 
       if (found) setSearchResult(found);
       else
@@ -136,6 +150,7 @@ export default function EducatorRadar() {
           type: "error",
         });
     } catch (error) {
+      console.error(error);
       setSysAlert({
         title: "Error",
         msg: "Network error during search.",

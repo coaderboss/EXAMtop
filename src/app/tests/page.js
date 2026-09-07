@@ -359,21 +359,17 @@ export default function ManageTests() {
     return () => unsubscribe(); // Cleanup jab test close ho
   }, [selectedTest?.id, isOffline]);
 
-  // Fetch Followers Count on Mount
+  // Fetch Followers Count on Mount (OPTIMIZED & SECURE)
   useEffect(() => {
     if (currentUser?.uid && (userRole === "examiner" || userRole === "admin")) {
       const fetchFollowers = async () => {
         try {
-          const snap = await get(ref(database, "users"));
-          const allUsers = snap.val() || {};
-          let count = 0;
-          // Har student ka account check karo ki unke 'followed' array me is teacher ka UID hai ya nahi
-          Object.values(allUsers).forEach((u) => {
-            if (u.followed && u.followed.includes(currentUser.uid)) {
-              count++;
-            }
-          });
-          setFollowerCount(count);
+          // 🛡️ PII LEAK FIXED: Direct read from educator's profile, no full DB download!
+          const snap = await get(ref(database, `users/${currentUser.uid}`));
+          if (snap.exists()) {
+            const data = snap.val();
+            setFollowerCount(data.followerCount || 0);
+          }
         } catch (e) {
           console.error("Error fetching followers", e);
         }

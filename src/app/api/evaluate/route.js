@@ -93,27 +93,52 @@ export async function POST(req) {
       }
     }
 
-    // 1.5. SECURITY BLOCK: Backend Duplicate Check
-    let existingSubs = [];
+    // 1.5. SECURITY BLOCK: Scalable O(1) Backend Duplicate Check
+    let alreadySubmitted = false;
+
+    // Fast Check Primary Key (UID or Hash)
+    const safeUserKey =
+      student.uid && student.uid !== "anonymous"
+        ? student.uid
+        : encodeURIComponent(
+            (student.roll || student.name || "guest").trim().toLowerCase(),
+          ).replace(/\./g, "_");
+
     if (isLegacy) {
-      existingSubs = activeTestMeta.submissions
+      const legacySubs = activeTestMeta.submissions
         ? Array.isArray(activeTestMeta.submissions)
           ? activeTestMeta.submissions
           : Object.values(activeTestMeta.submissions)
         : [];
+      alreadySubmitted = legacySubs.some(
+        (s) =>
+          s &&
+          (s.roll || "").toLowerCase() === (student.roll || "").toLowerCase(),
+      );
     } else {
-      const subsSnap = await adminDb
-        .ref(`test_submissions/${testId}/submissions`)
+      // 🛡️ THE 100K SCALING OOM FIX: Targeted single node read instead of monolithic download
+      const primarySnap = await adminDb
+        .ref(`test_submissions/${testId}/submissions/${safeUserKey}`)
         .once("value");
-      existingSubs = subsSnap.exists() ? Object.values(subsSnap.val()) : [];
+
+      if (primarySnap.exists()) {
+        alreadySubmitted = true;
+      } else if (student.roll) {
+        // Fast Check Secondary Key (Roll Number)
+        const rollKey = encodeURIComponent(
+          student.roll.trim().toLowerCase(),
+        ).replace(/\./g, "_");
+        const rollSnap = await adminDb
+          .ref(`test_submissions/${testId}/submissions/${rollKey}`)
+          .once("value");
+        if (rollSnap.exists()) {
+          alreadySubmitted = true;
+        }
+      }
     }
 
-    const alreadySubmitted = existingSubs.some(
-      (s) =>
-        s &&
-        (s.roll || "").toLowerCase() === (student.roll || "").toLowerCase(),
-    );
     if (alreadySubmitted) {
+      console.warn(`Duplicate submission blocked for ${safeUserKey}`);
       return NextResponse.json(
         {
           success: false,

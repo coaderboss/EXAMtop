@@ -1,11 +1,31 @@
-// src/app/api/gemini/route.js
 import { NextResponse } from "next/server";
+import { adminAuth } from "../../../lib/firebaseAdmin"; // Ensure admin Auth is imported
 
 export async function POST(req) {
   try {
-    const { examTarget, subject, chapter } = await req.json();
+    // 🛡️ SECURITY LAYER 1: Strictly Require Firebase Auth Token
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.warn("🚨 Blocked unauthorized AI request.");
+      return NextResponse.json(
+        { error: "Unauthorized access blocked" },
+        { status: 401 },
+      );
+    }
 
-    // Tumhari Gemini API Key (isko hum environment variable me rakhenge)
+    const idToken = authHeader.split("Bearer ")[1];
+    try {
+      // 🛡️ SECURITY LAYER 2: Verify Token Cryptographically
+      await adminAuth.verifyIdToken(idToken);
+    } catch (authError) {
+      console.error("Token verification failed:", authError);
+      return NextResponse.json(
+        { error: "Invalid or expired token" },
+        { status: 403 },
+      );
+    }
+
+    const { examTarget, subject, chapter } = await req.json();
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -15,7 +35,6 @@ export async function POST(req) {
       );
     }
 
-    // Strict prompt taaki Gemini hamesha JSON format me hi answer de aur MathJax ka dhyan rakhe
     const prompt = `Act as an elite test-setter for ${examTarget}. Generate ONE high-quality multiple-choice question for the subject ${subject}, specifically from the topic: "${chapter}".
         The difficulty MUST strictly match the ${examTarget} competitive exam level.
         You MUST return the response ONLY as a valid, raw JSON object. DO NOT wrap the response in markdown blocks (like \`\`\`json).
@@ -48,9 +67,7 @@ export async function POST(req) {
 
     const rawText = data.candidates[0].content.parts[0].text;
 
-    //  FIX: Safety net for AI's unpredictable JSON formatting
     try {
-      // Agar Gemini ne markdown tags bhej diye, toh unko clean karna
       const cleanText = rawText
         .replace(/```json/g, "")
         .replace(/```/g, "")
@@ -58,12 +75,6 @@ export async function POST(req) {
       const qData = JSON.parse(cleanText);
       return NextResponse.json(qData);
     } catch (parseError) {
-      console.error(
-        "Gemini JSON Parse Error:",
-        parseError,
-        "Raw Output:",
-        rawText,
-      );
       return NextResponse.json(
         { error: "AI generated invalid format. Please try again." },
         { status: 500 },

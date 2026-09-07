@@ -1,6 +1,7 @@
 // src/lib/firebaseAdmin.js
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getDatabase } from 'firebase-admin/database';
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getDatabase } from "firebase-admin/database";
+import { getAuth } from "firebase-admin/auth";
 
 if (!getApps().length) {
   try {
@@ -9,14 +10,15 @@ if (!getApps().length) {
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         // .replace is crucial for formatting the key correctly in Vercel/Next.js
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
       }),
-      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL
+      databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
     });
   } catch (error) {
-    console.error('Firebase Admin Initialization Error:', error.stack);
+    console.error("Firebase Admin Initialization Error:", error.stack);
   }
 }
 
 const adminDb = getDatabase();
-export { adminDb };
+const adminAuth = getAuth();
+export { adminDb, adminAuth };

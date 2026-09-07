@@ -60,60 +60,30 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  // STUDENT JOIN FETCH (Stitches Metadata + Questions for the Exam Engine)
+  // 🛡️ STUDENT JOIN FETCH (100% Secure: Uses Server-Side Stripping API)
   const fetchSingleTest = async (code) => {
     try {
-      // P0.2 FIX: Answer Key Stripper (Bypass Prevention)
-      const sanitizeQuestions = (questionsArr) => {
-        return (questionsArr || []).map((q) => {
-          // Extract sensitive fields and keep only safe fields
-          const { correct, correctInt, explanation, ...safeQ } = q;
-          return safeQ;
-        });
-      };
-
-      // Pehle naye structure me dhundho
-      const metaQuery = query(
-        ref(database, "tests_metadata"),
-        orderByChild("code"),
-        equalTo(code),
+      // THE FIX: Client ab seedha Firebase ko query nahi karega test_questions ke liye.
+      // Wo sirf Server API ko bulayega, jo Answer Key kaat kar data bhejegi.
+      const response = await fetch(
+        `/api/exam/fetch?code=${encodeURIComponent(code)}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
       );
-      const metaSnap = await get(metaQuery);
 
-      if (metaSnap.exists()) {
-        const metaData = metaSnap.val();
-        const testMeta = Object.values(metaData).find((t) => t?.code === code);
-        if (testMeta) {
-          const qSnap = await get(
-            ref(database, `test_questions/${testMeta.id}`),
-          );
-          const qData = qSnap.exists() ? qSnap.val() : { questions: [] };
-          return { ...testMeta, questions: sanitizeQuestions(qData.questions) }; // STRIPPED KEY SENT
-        }
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        console.error("Test fetch failed:", data.message);
+        return null;
       }
 
-      // Agar naye me nahi mila, purane structure me dhundho
-      const oldQuery = query(
-        ref(database, "tests"),
-        orderByChild("code"),
-        equalTo(code),
-      );
-      const oldSnap = await get(oldQuery);
-
-      if (oldSnap.exists()) {
-        const oldData = oldSnap.val();
-        const testObj = Array.isArray(oldData)
-          ? oldData.find((t) => t?.code === code)
-          : Object.values(oldData).find((t) => t?.code === code);
-        if (testObj) {
-          return {
-            ...testObj,
-            questions: sanitizeQuestions(testObj.questions),
-          }; // STRIPPED KEY SENT
-        }
-      }
-
-      return null;
+      // Safe, stripped data received from Server!
+      return data.testObj;
     } catch (error) {
       console.error("Error finding test:", error);
       return null;

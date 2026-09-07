@@ -144,9 +144,11 @@ export default function PracticeArena() {
     return () => clearInterval(interval);
   }, [gemLoading]);
 
-  // Hydration-Safe HTML Entities Decoder
+ // Hydration-Safe HTML Entities Decoder
   const decodeHTML = (html) => {
     if (!html) return "";
+    
+    // Server Side Render (SSR) Fallback - Simple regex string replace
     if (typeof window === "undefined" || typeof document === "undefined") {
       return html
         .replace(/&quot;/g, '"')
@@ -158,6 +160,8 @@ export default function PracticeArena() {
         .replace(/&eacute;/g, "é")
         .replace(/&deg;/g, "°");
     }
+
+    // Client Side Render (CSR) - Browser's DOMParser
     try {
       const doc = new DOMParser().parseFromString(html, "text/html");
       return doc.body.textContent || "";
@@ -243,9 +247,15 @@ export default function PracticeArena() {
     setGemStatus(null);
 
     try {
+      // 🛡️ SECURE AI FETCH: Inject Firebase Auth Token
+      const token = await currentUser.getIdToken();
+      
       const res = await fetch("/api/gemini", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` 
+        },
         body: JSON.stringify({
           examTarget: gemExam,
           subject: gemSubject,

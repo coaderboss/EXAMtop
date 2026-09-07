@@ -179,9 +179,14 @@ export default function CreateTest() {
           if (snap.exists()) {
             const data = snap.val();
             // Legacy data support rakha hai agar koi purana user ho
-            const free = data.free_tokens !== undefined ? data.free_tokens : (data.available_quota !== undefined ? data.available_quota : 3);
+            const free =
+              data.free_tokens !== undefined
+                ? data.free_tokens
+                : data.available_quota !== undefined
+                  ? data.available_quota
+                  : 3;
             const premium = data.premium_tokens || 0;
-            
+
             setUserQuota(free + premium); // Total quota
             setIsUnlimited(data.is_unlimited || data.plan === "unlimited");
           }
@@ -635,95 +640,103 @@ export default function CreateTest() {
 
   const proceedWithSave = async (finalMarks) => {
     setIsProcessingSave(true);
-    let testTokenType = "free"; // Default fallback
 
-    // 🛡️ DUAL-BUCKET QUOTA CHECK & DEDUCTION LOGIC
-    if (!isOffline && currentUser) {
-      try {
-        const userRef = ref(database, `users/${currentUser.uid}`);
-        const snapshot = await get(userRef);
-        const userData = snapshot.val() || {};
-
-        const isUnlimited = userData.is_unlimited || userData.plan === "unlimited";
-        
-        // SMART BUCKET ALLOCATION
-        const hasNewBuckets = userData.free_tokens !== undefined;
-        let legacyQuota = userData.available_quota !== undefined ? userData.available_quota : 3;
-
-        let premiumTokens = hasNewBuckets ? (userData.premium_tokens || 0) : Math.max(0, legacyQuota - 3);
-        let freeTokens = hasNewBuckets ? userData.free_tokens : Math.min(3, legacyQuota);
-
-        if (isUnlimited) {
-          testTokenType = "unlimited";
-        } else if (premiumTokens > 0) {
-          testTokenType = "premium";
-          premiumTokens -= 1;
-          legacyQuota = Math.max(0, legacyQuota - 1); 
-          await update(userRef, { premium_tokens: premiumTokens, available_quota: legacyQuota });
-          setUserQuota(prev => Math.max(0, prev - 1)); 
-        } else if (freeTokens > 0) {
-          testTokenType = "free";
-          freeTokens -= 1;
-          legacyQuota = Math.max(0, legacyQuota - 1); 
-          await update(userRef, { free_tokens: freeTokens, available_quota: legacyQuota });
-          setUserQuota(prev => Math.max(0, prev - 1)); 
-        } else {
-          setMismatchModal(null);
-          setLimitExceededModal(true); 
-          setIsProcessingSave(false);
-          return; 
-        }
-      } catch (err) {
-        console.error("Quota check failed", err);
-        setSysAlert({ title: "Network Error", msg: "Failed to verify account limits.", type: "error" });
-        setIsProcessingSave(false);
-        return;
-      }
-    }
-
-    const testId = Date.now().toString(); // 🔥 ID MUST BE STRING FOR FIREBASE KEYS
+    const testId = Date.now().toString();
     const testCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const parsedSections = sections.split(",").map((s) => s.trim()).filter((s) => s);
+    const parsedSections = sections
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s);
 
-    // 🔥 NODE 1: LIGHTWEIGHT METADATA (Dashboard)
     const testMetadata = {
       id: testId,
       code: testCode,
-      title, subject, duration, sections: parsedSections,
-      totalMarks: finalMarks, negMarking, expiryDate, access, resultVis, scoreVis,
+      title,
+      subject,
+      duration,
+      sections: parsedSections,
+      totalMarks: finalMarks,
+      negMarking,
+      expiryDate,
+      access,
+      resultVis,
+      scoreVis,
       resultPublishTime: resultVis === "scheduled" ? resultPublishTime : null,
-      allowChange, showPalette, allowNav, randomOrder, shuffleOpts, antiCheat, fullScreenMode,
-      creatorUid: isOffline ? "offline_creator" : currentUser.uid,
-      tokenType: testTokenType, 
-      released: false, isActive: true, sectionRules,
+      allowChange,
+      showPalette,
+      allowNav,
+      randomOrder,
+      shuffleOpts,
+      antiCheat,
+      fullScreenMode,
+      creatorUid: isOffline ? "offline_creator" : currentUser?.uid,
+      released: false,
+      isActive: true,
+      sectionRules,
       createdAt: new Date().toLocaleDateString("en-IN"),
       isLocal: isOffline,
-      questionCount: qList.length, 
-      submissionCount: 0 
+      questionCount: qList.length,
+      submissionCount: 0,
     };
 
     try {
       if (isOffline) {
-        let localTests = JSON.parse(localStorage.getItem("examitop_offline_tests") || "[]");
-        localTests.push({ ...testMetadata, questions: qList, submissions: [] }); 
-        localStorage.setItem("examitop_offline_tests", JSON.stringify(localTests));
+        let localTests = JSON.parse(
+          localStorage.getItem("examitop_offline_tests") || "[]",
+        );
+        localTests.push({ ...testMetadata, questions: qList, submissions: [] });
+        localStorage.setItem(
+          "examitop_offline_tests",
+          JSON.stringify(localTests),
+        );
       } else {
-        //PHASE 3: THE DATABASE SPLIT (Multi-path update)
-        const updates = {};
-        updates[`tests_metadata/${testId}`] = testMetadata;
-        updates[`test_questions/${testId}`] = { questions: qList };
-        
-        await update(ref(database), updates);
+        // 🛡️ ZERO-TRUST FIX: Client calls backend instead of modifying Firebase DB directly!
+        const token = await currentUser.getIdToken();
+        const response = await fetch("/api/tests/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            testId: testId,
+            testMetadata: testMetadata,
+            testQuestions: qList,
+          }),
+        });
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+          if (response.status === 402) {
+            setMismatchModal(null);
+            setLimitExceededModal(true);
+            setIsProcessingSave(false);
+            return;
+          }
+          throw new Error(responseData.error || "Failed to publish test.");
+        }
       }
 
-      const userIdent = currentUser ? currentUser.uid : isOffline ? "offline_user" : "guest";
+      // Cleanup
+      const userIdent = currentUser
+        ? currentUser.uid
+        : isOffline
+          ? "offline_user"
+          : "guest";
       localStorage.removeItem("exam_draft_creator_" + userIdent);
 
       setMismatchModal(null);
       setIsProcessingSave(false);
-      setSuccessModal({ code: testCode, mode: isOffline ? "Local Device" : "Cloud" });
+      setSuccessModal({
+        code: testCode,
+        mode: isOffline ? "Local Device" : "Cloud",
+      });
+
+      // Refresh local quota UI
+      setUserQuota((prev) => Math.max(0, prev - 1));
     } catch (error) {
-      console.error(error);
+      console.error("Save Error:", error);
       setIsProcessingSave(false);
       setSysAlert({ title: "Error", msg: error.message, type: "error" });
     }
@@ -1017,7 +1030,8 @@ export default function CreateTest() {
                   value={resultVis}
                   onChange={(e) => {
                     setResultVis(e.target.value);
-                    if (e.target.value !== "scheduled") setResultPublishTime("");
+                    if (e.target.value !== "scheduled")
+                      setResultPublishTime("");
                   }}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 outline-none focus:border-blue-400 transition-all appearance-none cursor-pointer"
                 >
@@ -1028,12 +1042,13 @@ export default function CreateTest() {
                 <i className="ti ti-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
               </div>
             </div>
-            
+
             {/* 🔥 SCHEDULED TIME INPUT (Sirf tab dikhega jab Scheduled select hoga) */}
             {resultVis === "scheduled" ? (
               <div className="animate-[fadeIn_0.3s_ease]">
                 <label className="text-[12px] font-bold text-slate-600 mb-1.5 flex items-center gap-1">
-                  <i className="ti ti-clock-play text-blue-500"></i> Publish Date & Time
+                  <i className="ti ti-clock-play text-blue-500"></i> Publish
+                  Date & Time
                 </label>
                 <input
                   type="datetime-local"
@@ -1081,7 +1096,7 @@ export default function CreateTest() {
               </div>
             </div>
           )}
-          
+
           <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar flex flex-col gap-2 max-h-[300px]">
             {/* Toggles */}
             {[
