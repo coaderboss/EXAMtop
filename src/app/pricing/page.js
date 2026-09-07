@@ -126,44 +126,46 @@ export default function PricingPage() {
     setIsProcessingPayment(true);
 
     try {
-      // 1. Backend se Secure Order ID generate karwana
+      // 1. Secure Plan Mapping mapping based on button clicked
+      const planId = planName === "Starter Pack" ? "starter_pack" : planName === "Growth Pack" ? "growth_pack" : "unlimited_vip";
+      
+      // 2. Fetch Secure Order ID from Backend (No 'amount' sent from client)
       const orderRes = await fetch("/api/razorpay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ planId, userId: currentUser.uid }),
       });
       const orderData = await orderRes.json();
 
-      if (!orderRes.ok) throw new Error("Failed to create order");
+      if (!orderRes.ok) throw new Error(orderData.error || "Failed to create order");
 
-      // 2. Razorpay Script Load karna
+      // 3. Load Razorpay Script
       const res = await loadRazorpayScript(
         "https://checkout.razorpay.com/v1/checkout.js",
       );
       if (!res) {
         setSysAlert({
           title: "Network Error",
-          msg: "Failed to load payment gateway. Check your internet.",
+          msg: "Failed to load payment gateway. Check your internet connection.",
           type: "error",
         });
         setIsProcessingPayment(false);
         return;
       }
 
-      // 3. Payment Gateway Open karna
+      // 4. Open Payment Gateway
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: amount * 100,
+        amount: amount * 100, // Only for UI display in the Razorpay Modal
         currency: "INR",
         name: "ExamiTop Engine",
-        description: makeUnlimited
-          ? "1 Year Unlimited Pro Access"
-          : `${tokensToAdd} Premium Test Tokens`,
+        description: planName,
         image: "/logo.png",
         order_id: orderData.id,
         handler: async function (response) {
           try {
-            // 🚨 THE SAFETY NET: Verify signature strictly in backend before DB update
+            // 🚨 ZERO-TRUST SECURITY: Send only signatures and IDs to backend. 
+            // The backend /api/verify will strictly credit the account using Firebase Admin.
             const verifyRes = await fetch("/api/verify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -171,58 +173,18 @@ export default function PricingPage() {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
+                userId: currentUser.uid,
+                planId: planId
               }),
             });
+            
             const verifyData = await verifyRes.json();
 
             if (!verifyData.success) {
-              throw new Error("Security breach: Payment signature mismatch.");
+              throw new Error("Security breach: Payment signature mismatch or backend rejection.");
             }
 
-            // 4. Payment 100% Verify ho gayi! Ab Firebase update karo
-            const userRef = ref(database, `users/${currentUser.uid}`);
-            const snapshot = await get(userRef);
-            const userData = snapshot.val() || {};
-
-            let currentQuota = userData.available_quota || 0;
-            const history = userData.billingHistory || [];
-            const now = new Date().toISOString();
-
-            const newRecord = {
-              date: now,
-              plan: planName,
-              tokensAdded: tokensToAdd,
-              type: makeUnlimited ? "Subscription" : "Tokens",
-              source: "Razorpay Gateway",
-              paymentId: response.razorpay_payment_id,
-            };
-
-            let updates = {
-              billingHistory: [newRecord, ...history],
-              last_upgrade_date: now,
-              last_upgrade_plan: planName,
-            };
-
-            if (makeUnlimited) {
-              updates.is_unlimited = true;
-              const expiry = new Date();
-              expiry.setFullYear(expiry.getFullYear() + 1);
-              updates.unlimited_expiry_date = expiry.toISOString();
-            } else {
-              const currentLegacy = userData.available_quota || 0;
-              const hasNewBuckets = userData.free_tokens !== undefined;
-              
-              const currentPremium = hasNewBuckets ? (userData.premium_tokens || 0) : Math.max(0, currentLegacy - 3);
-              const currentFree = hasNewBuckets ? userData.free_tokens : Math.min(3, currentLegacy);
-              
-              updates.premium_tokens = currentPremium + tokensToAdd; 
-              updates.free_tokens = currentFree; // Purane 3 tokens ko naye bucket me fix kar do
-              updates.available_quota = currentLegacy + tokensToAdd; // Old modules ke liye sync
-            }
-
-            await update(userRef, updates);
-
-            // Yahan update karna hai (Line 135 ke aas-pass)
+            // SUCCESS! Account upgraded securely by backend.
             setSysAlert({
               title: "Payment Successful! 🎉",
               msg: `Transaction ID: ${response.razorpay_payment_id}. Your account has been upgraded.`,
@@ -242,6 +204,7 @@ export default function PricingPage() {
               },
             });
           } catch (error) {
+            console.error("Payment Handler Error:", error);
             setSysAlert({
               title: "Verification Error",
               msg: "Payment verification failed. If money was deducted, contact support.",
@@ -250,7 +213,7 @@ export default function PricingPage() {
           }
         },
         prefill: {
-          name: currentUser?.displayName || "Examiner",
+          name: currentUser?.displayName || "Educator",
           email: currentUser?.email || "",
         },
         theme: { color: "#185FA5" },
@@ -266,8 +229,8 @@ export default function PricingPage() {
     } catch (error) {
       console.error(error);
       setSysAlert({
-        title: "Server Error",
-        msg: "Could not initialize secure payment. Try again later.",
+        title: "Transaction Failed",
+        msg: error.message || "Could not initialize secure payment. Try again later.",
         type: "error",
       });
       setIsProcessingPayment(false);

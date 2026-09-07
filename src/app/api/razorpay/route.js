@@ -6,21 +6,36 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
+// 🛡️ ACTUAL PRICING CATALOG
+const PLAN_PRICES = {
+  "starter_pack": 49,
+  "growth_pack": 99,
+  "unlimited_vip": 199,
+};
+
 export async function POST(req) {
   try {
-    const { amount } = await req.json();
+    const { planId, userId } = await req.json(); 
 
-    // Razorpay amount humesha paise me leta hai (amount * 100)
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    
+    if (!planId || !PLAN_PRICES[planId]) {
+      return NextResponse.json({ error: "Invalid Plan Selected." }, { status: 400 });
+    }
+
+    const exactAmount = PLAN_PRICES[planId];
+
     const options = {
-      amount: amount * 100,
+      amount: exactAmount * 100, // INR in paise
       currency: "INR",
-      receipt: `rcpt_${Date.now()}`,
+      receipt: `rcpt_${userId.substring(0,5)}_${Date.now()}`,
+      notes: { planId, userId }
     };
 
     const order = await razorpay.orders.create(options);
     return NextResponse.json(order);
   } catch (error) {
     console.error("Razorpay Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Payment Gateway Error" }, { status: 500 });
   }
 }
