@@ -566,10 +566,23 @@ function StudentPortalContent() {
       );
       t = localTests.find((x) => x.code === codeUpper);
 
+      // 🚀 THE MASTER API FALLBACK: Uses Admin SDK to bypass client rules and guarantee test fetch!
       if (!t) {
-        t = await fetchSingleTest(codeUpper);
+        try {
+          const res = await fetch(`/api/exam/fetch?code=${codeUpper}`);
+          const data = await res.json();
+          if (data.success && data.testObj) {
+            t = data.testObj;
+          } else {
+            t = await fetchSingleTest(codeUpper); // Final fail-safe to context
+          }
+        } catch (apiErr) {
+          console.warn("API Fetch Failed, relying on context.");
+          t = await fetchSingleTest(codeUpper);
+        }
       }
 
+      // 🛡️ Final Check
       if (!t) {
         if (isAutoJoin)
           setSysModal({ type: "error", msg: "Invalid Test Link." });
