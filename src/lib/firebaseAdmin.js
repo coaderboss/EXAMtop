@@ -1,11 +1,16 @@
 // src/lib/firebaseAdmin.js
-import * as admin from "firebase-admin";
+import admin from "firebase-admin";
 
-if (!admin.apps || admin.apps.length === 0) 
-  {  const projectId =
+// THE VERCEL TURBOPACK FIX: Automatically unwrap the module if Next.js nested it
+const coreAdmin = admin.credential ? admin : admin.default;
+
+if (!coreAdmin.apps || coreAdmin.apps.length === 0) {
+  const projectId =
     process.env.FIREBASE_PROJECT_ID ||
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  
+  // Clean up private key formatting perfectly
   const privateKey = process.env.FIREBASE_PRIVATE_KEY
     ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n").replace(/"/g, "")
     : undefined;
@@ -19,15 +24,15 @@ if (!admin.apps || admin.apps.length === 0)
   };
 
   if (projectId && clientEmail && privateKey) {
-    adminConfig.credential = admin.credential.cert({
+    adminConfig.credential = coreAdmin.credential.cert({
       projectId,
       clientEmail,
       privateKey,
     });
   }
 
-  admin.initializeApp(adminConfig);
+  coreAdmin.initializeApp(adminConfig);
 }
 
-export const adminDb = admin.database();
-export const adminAuth = admin.auth();
+export const adminDb = coreAdmin.database();
+export const adminAuth = coreAdmin.auth();
