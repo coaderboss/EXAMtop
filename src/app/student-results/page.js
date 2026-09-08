@@ -110,7 +110,7 @@ export default function StudentResults() {
               let totalMarks = sub.totalMarks;
               let subject = sub.subject || "General";
 
-              // 🛡️ AUTO-REPAIR & GHOST PURGE
+              // 🛡️ AUTO-REPAIR & SAFE FALLBACK
               if (
                 !title ||
                 title.trim() === "" ||
@@ -121,27 +121,19 @@ export default function StudentResults() {
                   let metaSnap = await get(
                     ref(database, `tests_metadata/${testId}`),
                   );
-                  if (!metaSnap.exists())
-                    metaSnap = await get(ref(database, `tests/${testId}`));
-
                   if (metaSnap.exists()) {
                     const m = metaSnap.val();
-                    title = m.title || "";
+                    title = m.title || title || `Assessment (${code})`;
                     code = m.code || code;
-                    totalMarks = m.totalMarks || totalMarks;
-                    subject = m.subject || subject;
-
-                    if (
-                      !title ||
-                      title.trim() === "" ||
-                      title.toLowerCase().includes("unnamed")
-                    )
-                      continue;
+                    totalMarks = m.totalMarks || totalMarks || 100;
+                    subject = m.subject || subject || "General";
                   } else {
-                    continue; // 🚨 GHOST DETECTED
+                    title = title || `Assessment (${code})`;
+                    totalMarks = totalMarks || 100;
                   }
                 } catch (e) {
-                  continue;
+                  title = title || `Assessment (${code})`;
+                  totalMarks = totalMarks || 100;
                 }
               }
 
@@ -278,7 +270,7 @@ export default function StudentResults() {
         roll: currentUser?.rollNo || historyItem.sub?.roll || "N/A",
         score: targetScore,
         totalMarks: Number(historyItem.test?.totalMarks || 100),
-        details: historyItem.sub?.details || [] // Empty array ensures the "Synchronizing" UI shows safely
+        details: historyItem.sub?.details || [], // Empty array ensures the "Synchronizing" UI shows safely
       };
 
       if (testId) {
@@ -288,20 +280,31 @@ export default function StudentResults() {
           if (metaSnap.exists()) {
             fullTest = { ...fullTest, ...metaSnap.val() };
           }
-        } catch (err) { console.warn("Meta fetch skipped"); }
+        } catch (err) {
+          console.warn("Meta fetch skipped");
+        }
 
         // 2. STRICTLY find the EXACT submission (No fuzzy guessing!)
         let foundDbSub = null;
         const exactStudentKey = historyItem.sub?.studentKey || safeUserKey;
-        const rollKey = currentUser?.rollNo ? encodeURIComponent(currentUser.rollNo.trim().toLowerCase()).replace(/\./g, "_") : null;
+        const rollKey = currentUser?.rollNo
+          ? encodeURIComponent(currentUser.rollNo.trim().toLowerCase()).replace(
+              /\./g,
+              "_",
+            )
+          : null;
 
         // Try exact key first, then UID, then Roll Number
-        const searchKeys = [exactStudentKey, safeUserKey, rollKey].filter(Boolean);
+        const searchKeys = [exactStudentKey, safeUserKey, rollKey].filter(
+          Boolean,
+        );
 
         for (const key of searchKeys) {
           if (foundDbSub) break;
           try {
-            const subSnap = await get(ref(database, `test_submissions/${testId}/submissions/${key}`));
+            const subSnap = await get(
+              ref(database, `test_submissions/${testId}/submissions/${key}`),
+            );
             if (subSnap.exists()) {
               const cand = subSnap.val();
               // THE STRICT LOCK: Only pick if the score EXACTLY matches the card clicked
@@ -309,7 +312,9 @@ export default function StudentResults() {
                 foundDbSub = cand;
               }
             }
-          } catch (err) { /* ignore permission/network errors */ }
+          } catch (err) {
+            /* ignore permission/network errors */
+          }
         }
 
         // 3. Fallback to Legacy Tests (If old demo tests exist)
@@ -318,16 +323,23 @@ export default function StudentResults() {
             const legacySnap = await get(ref(database, `tests/${testId}`));
             if (legacySnap.exists()) {
               const legacyData = legacySnap.val();
-              if (legacyData.questions) fullTest.questions = legacyData.questions;
+              if (legacyData.questions)
+                fullTest.questions = legacyData.questions;
               if (legacyData.submissions) {
-                const rawSubs = Array.isArray(legacyData.submissions) ? legacyData.submissions : Object.values(legacyData.submissions);
-                foundDbSub = rawSubs.find(s =>
-                  s && (s.uid === safeUserKey || s.email === currentUser?.email) &&
-                  Math.abs(Number(s.score || 0) - targetScore) < 0.1 // THE STRICT LOCK FOR LEGACY
+                const rawSubs = Array.isArray(legacyData.submissions)
+                  ? legacyData.submissions
+                  : Object.values(legacyData.submissions);
+                foundDbSub = rawSubs.find(
+                  (s) =>
+                    s &&
+                    (s.uid === safeUserKey || s.email === currentUser?.email) &&
+                    Math.abs(Number(s.score || 0) - targetScore) < 0.1, // THE STRICT LOCK FOR LEGACY
                 );
               }
             }
-          } catch (err) { console.warn("Legacy fetch skipped"); }
+          } catch (err) {
+            console.warn("Legacy fetch skipped");
+          }
         }
 
         // If found in DB, merge it perfectly into our fallback
@@ -337,11 +349,11 @@ export default function StudentResults() {
       }
 
       // 4. Force UI Render (Will NEVER say "not found" again)
-      fullTest.totalMarks = Number(fullTest.totalMarks) || Number(fullSub.totalMarks) || 100;
+      fullTest.totalMarks =
+        Number(fullTest.totalMarks) || Number(fullSub.totalMarks) || 100;
       fullTest.title = fullTest.title || "Assessment";
-      
-      setSelectedResult({ test: fullTest, sub: fullSub, canView: true });
 
+      setSelectedResult({ test: fullTest, sub: fullSub, canView: true });
     } catch (error) {
       console.error("Unbreakable Catch:", error);
       alert("A temporary glitch occurred, but your data is safe.");

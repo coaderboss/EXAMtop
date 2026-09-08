@@ -566,19 +566,41 @@ function StudentPortalContent() {
       );
       t = localTests.find((x) => x.code === codeUpper);
 
-      // 🚀 THE MASTER API FALLBACK: Uses Admin SDK to bypass client rules and guarantee test fetch!
+      // 🚀 THE MASTER API & CLIENT FALLBACK ENGINE
       if (!t) {
         try {
           const res = await fetch(`/api/exam/fetch?code=${codeUpper}`);
-          const data = await res.json();
-          if (data.success && data.testObj) {
-            t = data.testObj;
-          } else {
-            t = await fetchSingleTest(codeUpper); // Final fail-safe to context
+          const textRes = await res.text(); // 🔥 FIX: Padhne se pehle text me convert karo taaki DOCTYPE crash na ho!
+          
+          try {
+            const data = JSON.parse(textRes);
+            if (data.success && data.testObj) t = data.testObj;
+          } catch (parseErr) {
+            console.warn("Vercel API Crashed (Returned HTML). Switching to Direct Client Fetch.");
           }
         } catch (apiErr) {
-          console.warn("API Fetch Failed, relying on context.");
-          t = await fetchSingleTest(codeUpper);
+          console.warn("Network Error on API.");
+        }
+      }
+
+      // 🛡️ FRONTEND DIRECT FALLBACK (Agar API Vercel .env issue ki wajah se fail ho jaye)
+      if (!t) {
+        try {
+          // 1. Check New Metadata Node
+          const metaQuery = query(ref(database, "tests_metadata"), orderByChild("code"), equalTo(codeUpper));
+          const metaSnap = await get(metaQuery);
+          if (metaSnap.exists()) {
+             t = Object.values(metaSnap.val())[0];
+          } else {
+             // 2. Check Legacy Tests Node
+             const legacyQuery = query(ref(database, "tests"), orderByChild("code"), equalTo(codeUpper));
+             const legacySnap = await get(legacyQuery);
+             if (legacySnap.exists()) {
+                t = Object.values(legacySnap.val())[0];
+             }
+          }
+        } catch (clientErr) {
+          console.error("Client Database Fetch Blocked:", clientErr);
         }
       }
 
@@ -612,7 +634,9 @@ function StudentPortalContent() {
       const safeEmail = currentUser?.email?.toLowerCase() || "";
 
       // 1. Direct Personal Index Check (100% Accurate)
-      const userSubRef = await get(ref(database, `user_submissions/${safeUserKey}/${t.id}`));
+      const userSubRef = await get(
+        ref(database, `user_submissions/${safeUserKey}/${t.id}`),
+      );
       if (userSubRef.exists()) {
         existingSub = true;
       }
@@ -622,19 +646,23 @@ function StudentPortalContent() {
         const legacySubs = Array.isArray(t.submissions)
           ? t.submissions
           : Object.values(t.submissions);
-        
+
         existingSub = legacySubs.some((s) => {
           if (!s) return false;
           // Block if UID matches, Email matches, OR Roll Number matches
-          if (s.uid && s.uid === safeUserKey && safeUserKey !== "nouid") return true;
-          if (s.email && safeEmail && s.email.toLowerCase() === safeEmail) return true;
-          if (s.roll && safeRoll && s.roll.toLowerCase() === safeRoll) return true;
+          if (s.uid && s.uid === safeUserKey && safeUserKey !== "nouid")
+            return true;
+          if (s.email && safeEmail && s.email.toLowerCase() === safeEmail)
+            return true;
+          if (s.roll && safeRoll && s.roll.toLowerCase() === safeRoll)
+            return true;
           return false;
         });
       }
 
       if (existingSub) {
-        const msg = "You have already submitted this exam. Multiple attempts are not allowed.";
+        const msg =
+          "You have already submitted this exam. Multiple attempts are not allowed.";
         if (isAutoJoin) setSysModal({ type: "error", msg });
         else setJoinError(msg);
         setIsFetchingTest(false);
@@ -679,38 +707,45 @@ function StudentPortalContent() {
       // 🛡️ THE BULLETPROOF TIER BOUNCER LOGIC
       const creatorUid = t.creatorUid;
       if (creatorUid) {
-        const creatorSnap = await get(ref(database, `users/${creatorUid}`));
-        if (creatorSnap.exists()) {
-          const creatorData = creatorSnap.val();
+        try {
+          const creatorSnap = await get(ref(database, `users/${creatorUid}`));
+          if (creatorSnap.exists()) {
+            const creatorData = creatorSnap.val();
 
-          // 1. Unlimited Pack Overrides Everything
-          const isUnlimited =
-            creatorData.is_unlimited === true ||
-            creatorData.plan === "unlimited";
+            // 1. Unlimited Pack Overrides Everything
+            const isUnlimited =
+              creatorData.is_unlimited === true ||
+              creatorData.plan === "unlimited";
 
-          const currentSubsCount = t.submissionCount || 0;
+            const currentSubsCount = t.submissionCount || 0;
 
-          const FREE_TIER_LIMIT = 10;
+            const FREE_TIER_LIMIT = 10;
 
-          // 🔥 THE MASTER CHECK:
-          // Agar Examiner Unlimited plan pe nahi hai, TOH test ka tag check karo
-          // Agar test "free" token se bana tha (ya old tests jinpe tag nahi hai), toh 10 ki limit lagegi
-          if (!isUnlimited) {
-            const isTestFree = t.tokenType === "free" || !t.tokenType;
+            // 🔥 THE MASTER CHECK:
+            // Agar Examiner Unlimited plan pe nahi hai, TOH test ka tag check karo
+            // Agar test "free" token se bana tha (ya old tests jinpe tag nahi hai), toh 10 ki limit lagegi
+            if (!isUnlimited) {
+              const isTestFree = t.tokenType === "free" || !t.tokenType;
 
-            if (isTestFree && currentSubsCount >= FREE_TIER_LIMIT) {
-              const limitMsg =
-                "This exam has reached its maximum free-tier limit of 10 students. The Examiner needs a Premium Token or an Unlimited Plan for higher intakes.";
+              if (isTestFree && currentSubsCount >= FREE_TIER_LIMIT) {
+                const limitMsg =
+                  "This exam has reached its maximum free-tier limit of 10 students. The Examiner needs a Premium Token or an Unlimited Plan for higher intakes.";
 
-              if (isAutoJoin) {
-                setSysModal({ type: "error", msg: limitMsg });
-              } else {
-                setJoinError(limitMsg);
+                if (isAutoJoin) {
+                  setSysModal({ type: "error", msg: limitMsg });
+                } else {
+                  setJoinError(limitMsg);
+                }
+                setIsFetchingTest(false);
+                return; // ENTRY BLOCKED
               }
-              setIsFetchingTest(false);
-              return; // ENTRY BLOCKED
             }
           }
+        } catch (tierErr) {
+          console.warn(
+            "Creator quota check bypassed at security boundary:",
+            tierErr,
+          );
         }
       }
 

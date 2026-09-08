@@ -27,15 +27,20 @@ export const DataProvider = ({ children }) => {
         : [];
 
       // Purane Architecture se data (Legacy Support)
-      const qOld = query(
-        ref(database, "tests"),
-        orderByChild("creatorUid"),
-        equalTo(uid),
-      );
-      const snapOld = await get(qOld);
-      let oldTests = snapOld.exists()
-        ? Object.values(snapOld.val()).filter(Boolean)
-        : [];
+      let oldTests = [];
+      try {
+        const qOld = query(
+          ref(database, "tests"),
+          orderByChild("creatorUid"),
+          equalTo(uid),
+        );
+        const snapOld = await get(qOld);
+        if (snapOld.exists()) {
+          oldTests = Object.values(snapOld.val()).filter(Boolean);
+        }
+      } catch (legacyErr) {
+        console.warn("Legacy tests query bypassed:", legacyErr);
+      }
 
       // Purane data ke arrays fix karo
       oldTests.forEach((t) => {

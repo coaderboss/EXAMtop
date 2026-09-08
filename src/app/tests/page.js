@@ -599,28 +599,48 @@ export default function ManageTests() {
         const isSplitArchitecture = metaCheckSnap.exists();
 
         if (!isSplitArchitecture) {
-          const legacyQ = query(
-            ref(database, "tests"),
-            orderByChild("code"),
-            equalTo(updatedTest.code),
-          );
-          const snapOld = await get(legacyQ);
-          let legacyKey = null;
+          let legacyKey = updatedTest.dbKey || null;
 
-          if (snapOld.exists()) {
-            legacyKey = Object.keys(snapOld.val())[0];
-          } else {
-            const snapshot = await get(ref(database, "tests"));
-            const allTests = snapshot.val() || {};
-            legacyKey = Object.keys(allTests).find(
-              (k) =>
-                allTests[k] &&
-                String(allTests[k].id) === String(updatedTest.id),
-            );
+          if (!legacyKey) {
+            try {
+              const legacyQ = query(
+                ref(database, "tests"),
+                orderByChild("code"),
+                equalTo(updatedTest.code),
+              );
+              const snapOld = await get(legacyQ);
+
+              if (snapOld.exists()) {
+                legacyKey = Object.keys(snapOld.val())[0];
+              } else {
+                const snapshot = await get(ref(database, "tests"));
+                const allTests = snapshot.val() || {};
+                legacyKey = Object.keys(allTests).find(
+                  (k) =>
+                    allTests[k] &&
+                    String(allTests[k].id) === String(updatedTest.id),
+                );
+              }
+            } catch (lookupErr) {
+              console.warn(
+                "Legacy lookup failed, defaulting to test id:",
+                lookupErr,
+              );
+              legacyKey = updatedTest.id;
+            }
           }
 
-          if (legacyKey !== null)
-            await update(ref(database, `tests/${legacyKey}`), updatedTest);
+          if (legacyKey) {
+            const safeLegacyPayload = {
+              ...updatedTest,
+              creatorUid: updatedTest.creatorUid || currentUser?.uid,
+              uid: updatedTest.uid || currentUser?.uid,
+            };
+            await update(
+              ref(database, `tests/${legacyKey}`),
+              safeLegacyPayload,
+            );
+          }
         } else {
           const updates = {};
           updates[`tests_metadata/${updatedTest.id}`] = metaPayload;
@@ -700,10 +720,22 @@ export default function ManageTests() {
               );
               setLocalTests(newLocal);
             } else {
-              // Direct ID based update
-              await update(ref(database, `tests_metadata/${t.id}`), {
-                isDeletedByExaminer: true,
-              });
+              // Check if split architecture or legacy
+              const metaCheckSnap = await get(
+                ref(database, `tests_metadata/${t.id}`),
+              );
+              if (metaCheckSnap.exists()) {
+                await update(ref(database, `tests_metadata/${t.id}`), {
+                  isDeletedByExaminer: true,
+                });
+              } else {
+                const legacyKey = t.dbKey || t.id;
+                await update(ref(database, `tests/${legacyKey}`), {
+                  isDeletedByExaminer: true,
+                  creatorUid: t.creatorUid || currentUser?.uid,
+                  uid: t.uid || currentUser?.uid,
+                });
+              }
 
               if (setTests) {
                 setTests((prev) =>
