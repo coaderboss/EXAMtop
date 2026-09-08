@@ -81,7 +81,7 @@ export default function StudentResults() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
- // 🚀 BULLETPROOF FETCH WITH RUTHLESS GHOST FILTER (RESULTS PAGE)
+  // 🚀 BULLETPROOF FETCH WITH RUTHLESS GHOST FILTER (RESULTS PAGE)
   useEffect(() => {
     const fetchStudentHistory = async () => {
       if (!currentUser) return;
@@ -92,7 +92,9 @@ export default function StudentResults() {
 
         // 1. NEW ARCHITECTURE FETCH
         try {
-          const userSubSnap = await get(ref(database, `user_submissions/${safeUserKey}`));
+          const userSubSnap = await get(
+            ref(database, `user_submissions/${safeUserKey}`),
+          );
           if (userSubSnap.exists()) {
             const userSubs = userSubSnap.val();
 
@@ -100,7 +102,8 @@ export default function StudentResults() {
               const sub = userSubs[key];
               const testId = sub.testId || key;
 
-              if (!testId || testId === "undefined" || sub.score === undefined) continue;
+              if (!testId || testId === "undefined" || sub.score === undefined)
+                continue;
 
               let title = sub.testTitle || "";
               let code = sub.testCode || "N/A";
@@ -108,10 +111,18 @@ export default function StudentResults() {
               let subject = sub.subject || "General";
 
               // 🛡️ AUTO-REPAIR & GHOST PURGE
-              if (!title || title.trim() === "" || title.toLowerCase().includes("unnamed") || !totalMarks) {
+              if (
+                !title ||
+                title.trim() === "" ||
+                title.toLowerCase().includes("unnamed") ||
+                !totalMarks
+              ) {
                 try {
-                  let metaSnap = await get(ref(database, `tests_metadata/${testId}`));
-                  if (!metaSnap.exists()) metaSnap = await get(ref(database, `tests/${testId}`));
+                  let metaSnap = await get(
+                    ref(database, `tests_metadata/${testId}`),
+                  );
+                  if (!metaSnap.exists())
+                    metaSnap = await get(ref(database, `tests/${testId}`));
 
                   if (metaSnap.exists()) {
                     const m = metaSnap.val();
@@ -120,11 +131,18 @@ export default function StudentResults() {
                     totalMarks = m.totalMarks || totalMarks;
                     subject = m.subject || subject;
 
-                    if (!title || title.trim() === "" || title.toLowerCase().includes("unnamed")) continue;
+                    if (
+                      !title ||
+                      title.trim() === "" ||
+                      title.toLowerCase().includes("unnamed")
+                    )
+                      continue;
                   } else {
                     continue; // 🚨 GHOST DETECTED
                   }
-                } catch (e) { continue; }
+                } catch (e) {
+                  continue;
+                }
               }
 
               historyTemp.push({
@@ -139,7 +157,11 @@ export default function StudentResults() {
                 },
                 sub: {
                   score: Number(sub.score || 0),
-                  time: sub.time || (sub.timestamp ? new Date(sub.timestamp).toLocaleString("en-IN") : "Recent"),
+                  time:
+                    sub.time ||
+                    (sub.timestamp
+                      ? new Date(sub.timestamp).toLocaleString("en-IN")
+                      : "Recent"),
                   timestamp: sub.timestamp || 0,
                   correct: sub.correct || 0,
                   wrong: sub.wrong || 0,
@@ -158,23 +180,45 @@ export default function StudentResults() {
         try {
           const oldSnap = await get(ref(database, "tests"));
           if (oldSnap.exists()) {
-            const oldData = Array.isArray(oldSnap.val()) ? oldSnap.val() : Object.values(oldSnap.val());
+            const oldData = Array.isArray(oldSnap.val())
+              ? oldSnap.val()
+              : Object.values(oldSnap.val());
             oldData.filter(Boolean).forEach((t) => {
               // 🛡️ STRICT LEGACY FILTER: Bina title wale tests turant block karo
               let tTitle = t.title || "";
-              if (!t.id || !tTitle || tTitle.trim() === "" || tTitle.toLowerCase().includes("unnamed")) return;
+              if (
+                !t.id ||
+                !tTitle ||
+                tTitle.trim() === "" ||
+                tTitle.toLowerCase().includes("unnamed")
+              )
+                return;
 
               if (t.submissions) {
-                const subsArray = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions);
+                const subsArray = Array.isArray(t.submissions)
+                  ? t.submissions
+                  : Object.values(t.submissions);
                 subsArray.filter(Boolean).forEach((s) => {
-                  let isExactMatch = (s.uid && s.uid === currentUser.uid) || 
-                                     (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) || 
-                                     (s.roll && currentUser.rollNo && s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
+                  let isExactMatch =
+                    (s.uid && s.uid === currentUser.uid) ||
+                    (s.email &&
+                      currentUser.email &&
+                      s.email.toLowerCase() ===
+                        currentUser.email.toLowerCase()) ||
+                    (s.roll &&
+                      currentUser.rollNo &&
+                      s.roll.toLowerCase() ===
+                        currentUser.rollNo.toLowerCase());
                   if (isExactMatch) {
                     historyTemp.push({
-                      test: { ...t, title: tTitle, _studentCanView: true, released: true },
+                      test: {
+                        ...t,
+                        title: tTitle,
+                        _studentCanView: true,
+                        released: true,
+                      },
                       sub: { ...s, isPublished: true },
-                      canView: true
+                      canView: true,
                     });
                   }
                 });
@@ -186,8 +230,17 @@ export default function StudentResults() {
         }
 
         // DEDUPLICATION & SORTING
-        const uniqueHistory = Array.from(new Map(historyTemp.map((item) => [`${item.test.id}_${item.sub.timestamp || 0}_${item.sub.score ?? 0}`, item])).values());
-        uniqueHistory.sort((a, b) => (b.sub.timestamp || 0) - (a.sub.timestamp || 0));
+        const uniqueHistory = Array.from(
+          new Map(
+            historyTemp.map((item) => [
+              `${item.test.id}_${item.sub.timestamp || 0}_${item.sub.score ?? 0}`,
+              item,
+            ]),
+          ).values(),
+        );
+        uniqueHistory.sort(
+          (a, b) => (b.sub.timestamp || 0) - (a.sub.timestamp || 0),
+        );
 
         setMyHistory(uniqueHistory);
       } catch (error) {
@@ -199,15 +252,16 @@ export default function StudentResults() {
     fetchStudentHistory();
   }, [currentUser]);
 
-  // ⚡ ON-DEMAND HEAVY FETCH (Fixed Loader State)
+  // ⚡ ON-DEMAND HEAVY FETCH (No Answer-Key Theft & Collision Proof)
   const handleOpenReport = async (historyItem, idx, e) => {
+    // 🛡️ FIX: Added 'idx' parameter so 'e' correctly receives the click event
     e.stopPropagation();
-    
-    // 🎯 Use simple map index for 100% accurate loader
-    setOpeningResultId(idx);
 
     const targetScore = Number(historyItem.sub.score || 0);
     const targetTimestamp = Number(historyItem.sub.timestamp || 0);
+
+    // 🎯 Use simple map index for 100% accurate loader spinning
+    setOpeningResultId(idx);
 
     try {
       const safeUserKey = currentUser.uid;
@@ -216,10 +270,9 @@ export default function StudentResults() {
       let fullTest = null;
       let fullSub = null;
 
-      // 1. Try fetching from the New Architecture
-      const [metaSnap, qSnap, subSnap] = await Promise.all([
+      // 1. Fetch WITHOUT fetching test_questions (Zero-Trust Model)
+      const [metaSnap, subSnap] = await Promise.all([
         get(ref(database, `tests_metadata/${testId}`)),
-        get(ref(database, `test_questions/${testId}`)),
         get(
           ref(
             database,
@@ -231,7 +284,7 @@ export default function StudentResults() {
       if (metaSnap.exists()) {
         fullTest = {
           ...metaSnap.val(),
-          questions: qSnap.exists() ? qSnap.val().questions : [],
+          questions: [], // Questions are embedded in sub.details anyway!
         };
       }
 
@@ -294,11 +347,7 @@ export default function StudentResults() {
         fullTest.title =
           fullTest.title || historyItem.test.title || "Assessment";
 
-        setSelectedResult({
-          test: fullTest,
-          sub: fullSub,
-          canView: true,
-        });
+        setSelectedResult({ test: fullTest, sub: fullSub, canView: true });
       } else {
         alert("Detailed result not found or still processing.");
       }
@@ -892,23 +941,19 @@ export default function StudentResults() {
   // VIEW 2: DETAILED RESULT ANALYSIS
   const { test: rawTest, sub } = selectedResult;
 
-  // 🛡️ GHOST REPAIR: Double protection against missing Total Marks
   const test = {
     ...rawTest,
     totalMarks: rawTest.totalMarks || sub.totalMarks || 100,
   };
-
   const pct =
     test.totalMarks > 0 ? Math.round((sub.score / test.totalMarks) * 100) : 0;
   const accuracy =
     sub.correct + sub.wrong > 0
       ? Math.round((sub.correct / (sub.correct + sub.wrong)) * 100)
       : 0;
-
   const maxH = Math.max(sub.correct, sub.wrong, sub.skipped, 1);
   const bH = (c) => Math.max(16, Math.round((c / maxH) * 80));
 
-  //   NAYA: Helper for Time Formatting
   const formatQTime = (seconds) => {
     if (!seconds) return "00s";
     const m = Math.floor(seconds / 60);
@@ -916,12 +961,12 @@ export default function StudentResults() {
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
 
-  //   NAYA: Dynamic Time Calculation Based on Section Filter
   let displayTimeStr = sub.timeTaken || "00s";
-  if (sub.timeSpentPerQuestion) {
+  // 🛡️ CRASH GUARD: Ensure sub.details is a valid array
+  if (sub.timeSpentPerQuestion && Array.isArray(sub.details)) {
     let totalSecs = 0;
     sub.details.forEach((d, idx) => {
-      const sec = d.q.section || "General";
+      const sec = d?.q?.section || "General";
       if (sectionFilter === "all_sections" || sec === sectionFilter) {
         totalSecs += sub.timeSpentPerQuestion[idx] || 0;
       }
@@ -2205,11 +2250,14 @@ export default function StudentResults() {
             </h3>
 
             {(() => {
-              const secDetails = sub.details.filter(
+              // 🛡️ CRASH GUARD: Defensive Array Fallback
+              const safeDetails = Array.isArray(sub.details) ? sub.details : [];
+
+              const secDetails = safeDetails.filter(
                 (d) =>
                   sectionFilter === "all_sections" ||
-                  d.q.section === sectionFilter ||
-                  (!d.q.section && sectionFilter === test.sections?.[0]),
+                  d?.q?.section === sectionFilter ||
+                  (!d?.q?.section && sectionFilter === test.sections?.[0]),
               );
               const countAll = secDetails.length;
               const countCorrect = secDetails.filter(
@@ -2316,8 +2364,8 @@ export default function StudentResults() {
             .svg-eval-container svg { max-width: 100%; height: auto; max-height: 280px; min-height: 100px; }
         `}</style>
 
-        {/* 🔥 OPTIMIZATION: Map first to preserve original index (O(1) performance), then filter */}
-        {sub.details
+        {/* 🔥 OPTIMIZATION & CRASH GUARD: Safe Array Mapping */}
+        {(Array.isArray(sub.details) ? sub.details : [])
           .map((d, index) => ({ d, originalQIdx: index }))
           .filter(({ d }) => {
             let sMatch =
@@ -2327,8 +2375,8 @@ export default function StudentResults() {
                 (d.status === "submitted" || d.status === "evaluated"));
             let secMatch =
               sectionFilter === "all_sections" ||
-              d.q.section === sectionFilter ||
-              (!d.q.section && sectionFilter === test.sections?.[0]);
+              d?.q?.section === sectionFilter ||
+              (!d?.q?.section && sectionFilter === test.sections?.[0]);
             return sMatch && secMatch;
           })
           .map(({ d, originalQIdx }, i) => {
