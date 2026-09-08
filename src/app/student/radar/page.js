@@ -73,9 +73,11 @@ export default function EducatorRadar() {
 
       // 🛡️ OPTIMIZATION: Future update can replace this with indexed search
       const testsSnap = await get(ref(database, "tests"));
-      const allTests = testsSnap.val() || [];
+      const testsVal = testsSnap.val() || {};
+      
+      //Firebase returns an Object. We must safely convert it to an Array before using .forEach
+      const allTests = Array.isArray(testsVal) ? testsVal : Object.values(testsVal);
       let feed = [];
-
       allTests.forEach((test) => {
         if (
           test &&
