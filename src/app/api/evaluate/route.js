@@ -96,13 +96,10 @@ export async function POST(req) {
     // 1.5. SECURITY BLOCK: Scalable O(1) Backend Duplicate Check
     let alreadySubmitted = false;
 
-    // Fast Check Primary Key (UID or Hash)
     const safeUserKey =
       student.uid && student.uid !== "anonymous"
         ? student.uid
-        : encodeURIComponent(
-            (student.roll || student.name || "guest").trim().toLowerCase(),
-          ).replace(/\./g, "_");
+        : encodeURIComponent((student.roll || student.name || "guest").trim().toLowerCase()).replace(/\./g, "_");
 
     if (isLegacy) {
       const legacySubs = activeTestMeta.submissions
@@ -110,11 +107,16 @@ export async function POST(req) {
           ? activeTestMeta.submissions
           : Object.values(activeTestMeta.submissions)
         : [];
-      alreadySubmitted = legacySubs.some(
-        (s) =>
-          s &&
-          (s.roll || "").toLowerCase() === (student.roll || "").toLowerCase(),
-      );
+      
+      // FIX: Strict UID, Email & Roll Check for Legacy Tests
+      alreadySubmitted = legacySubs.some((s) => {
+        if (!s) return false;
+        const studentUid = student.uid || "anonymous";
+        if (s.uid && s.uid === studentUid && studentUid !== "anonymous") return true;
+        if (s.email && student.email && s.email.toLowerCase() === student.email.toLowerCase()) return true;
+        if (s.roll && student.roll && s.roll.toLowerCase() === student.roll.toLowerCase()) return true;
+        return false;
+      });
     } else {
       // 🛡️ THE 100K SCALING OOM FIX: Targeted single node read instead of monolithic download
       const primarySnap = await adminDb
@@ -279,15 +281,28 @@ export async function POST(req) {
 
     if (isLegacy) {
       await adminDb.ref(`tests/${legacyTestKey}/submissions`).push(finalSub);
-    } else {
-      // P0.3 FIX: Use a deterministic key based on UID or Roll Number instead of random push
-      const safeUserKey =
-        student.uid && student.uid !== "anonymous"
-          ? student.uid
-          : encodeURIComponent(
-              (student.roll || student.name).trim().toLowerCase(),
-            ).replace(/\./g, "_");
 
+      const dashboardRef = adminDb.ref(
+        `user_submissions/${safeUserKey}/${testId || legacyTestKey}`,
+      );
+      await dashboardRef.set({
+        testId: testId || legacyTestKey,
+        legacyTestKey: legacyTestKey,
+        testTitle: activeTestMeta.title || "Untitled Assessment",
+        testCode: activeTestMeta.code || "N/A",
+        subject: activeTestMeta.subject || "General",
+        score: Number(score.toFixed(2)),
+        totalMarks: activeTestMeta.totalMarks || 0,
+        correct: correct,
+        wrong: wrong,
+        skipped: skipped,
+        time: new Date().toLocaleString("en-IN"),
+        timestamp: Date.now(),
+        studentRoll: student.roll || "",
+        studentName: student.name || "",
+        studentKey: safeUserKey,
+      });
+    } else {
       const lockRef = adminDb.ref(
         `test_submissions/${testId}/submissions/${safeUserKey}`,
       );
@@ -312,7 +327,9 @@ export async function POST(req) {
       }
 
       // 🛡️ FIXED: Save complete metadata in the index so student-results never shows N/A
-      const dashboardRef = adminDb.ref(`user_submissions/${safeUserKey}/${testId}`);
+      const dashboardRef = adminDb.ref(
+        `user_submissions/${safeUserKey}/${testId}`,
+      );
       await dashboardRef.set({
         testId: testId,
         testTitle: activeTestMeta.title || "Untitled Assessment",
@@ -324,7 +341,10 @@ export async function POST(req) {
         wrong: wrong,
         skipped: skipped,
         time: new Date().toLocaleString("en-IN"),
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        studentRoll: student.roll || "",
+        studentName: student.name || "",
+        studentKey: safeUserKey,
       });
 
       // Safely increment count

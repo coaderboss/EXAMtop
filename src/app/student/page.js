@@ -593,40 +593,35 @@ function StudentPortalContent() {
 
       const safeName = finalName.trim();
       const safeRoll = finalRoll.trim().toLowerCase();
-      // PHASE 3: Frontend Bouncer (O(1) Direct Lookup - P0.1 FIX)
+      // PHASE 3: Frontend Bouncer (STRICT O(1) LOCKOUT)
       let existingSub = false;
       const safeUserKey = currentUser?.uid || "nouid";
-      const rollKey = safeRoll
-        ? encodeURIComponent(safeRoll).replace(/\./g, "_")
-        : null;
+      const safeEmail = currentUser?.email?.toLowerCase() || "";
 
-      // Never download the monolithic array. Direct lookup by UID.
-      const uidSnap = await get(
-        ref(database, `test_submissions/${t.id}/submissions/${safeUserKey}`),
-      );
-      if (uidSnap.exists()) {
+      // 1. Direct Personal Index Check (100% Accurate)
+      const userSubRef = await get(ref(database, `user_submissions/${safeUserKey}/${t.id}`));
+      if (userSubRef.exists()) {
         existingSub = true;
-      } else if (rollKey) {
-        const rollSnap = await get(
-          ref(database, `test_submissions/${t.id}/submissions/${rollKey}`),
-        );
-        if (rollSnap.exists()) existingSub = true;
       }
 
+      // 2. Deep Legacy Array Check (Agar index corrupt ho toh backup)
       if (!existingSub && t.submissions) {
-        // Fallback for very old legacy tests
         const legacySubs = Array.isArray(t.submissions)
           ? t.submissions
           : Object.values(t.submissions);
-        existingSub = legacySubs.find(
-          (s) =>
-            s?.name?.trim().toLowerCase() === safeName.toLowerCase() &&
-            (s?.roll || "").trim().toLowerCase() === safeRoll,
-        );
+        
+        existingSub = legacySubs.some((s) => {
+          if (!s) return false;
+          // Block if UID matches, Email matches, OR Roll Number matches
+          if (s.uid && s.uid === safeUserKey && safeUserKey !== "nouid") return true;
+          if (s.email && safeEmail && s.email.toLowerCase() === safeEmail) return true;
+          if (s.roll && safeRoll && s.roll.toLowerCase() === safeRoll) return true;
+          return false;
+        });
       }
 
       if (existingSub) {
-        const msg = "You have already submitted this exam.";
+        const msg = "You have already submitted this exam. Multiple attempts are not allowed.";
         if (isAutoJoin) setSysModal({ type: "error", msg });
         else setJoinError(msg);
         setIsFetchingTest(false);

@@ -26,7 +26,15 @@ export async function GET(req) {
     const metaSnap = await metaQuery.once("value");
 
     if (metaSnap.exists()) {
-      testMeta = Object.values(metaSnap.val())[0];
+      const metaVal = metaSnap.val();
+      const entry =
+        Object.entries(metaVal).find(([k, v]) => v?.code === code) ||
+        Object.entries(metaVal)[0];
+      testMeta = {
+        ...entry[1],
+        id: entry[1]?.id || entry[0],
+        dbKey: entry[0],
+      };
     } else {
       // Fallback to Legacy Architecture
       const oldQuery = adminDb.ref("tests").orderByChild("code").equalTo(code);
@@ -34,9 +42,20 @@ export async function GET(req) {
 
       if (oldSnap.exists()) {
         const oldData = oldSnap.val();
-        testMeta = Array.isArray(oldData)
-          ? oldData.find((t) => t?.code === code)
-          : Object.values(oldData)[0];
+        if (Array.isArray(oldData)) {
+          testMeta = oldData.find((t) => t?.code === code);
+        } else {
+          const entry =
+            Object.entries(oldData).find(([k, v]) => v?.code === code) ||
+            Object.entries(oldData)[0];
+          if (entry) {
+            testMeta = {
+              ...entry[1],
+              id: entry[1]?.id || entry[0],
+              dbKey: entry[0],
+            };
+          }
+        }
         isLegacy = true;
       }
     }
