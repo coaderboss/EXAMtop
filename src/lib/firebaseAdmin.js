@@ -1,5 +1,5 @@
 // src/lib/firebaseAdmin.js
-import admin from "firebase-admin";
+import * as admin from "firebase-admin";
 
 if (!admin.apps || admin.apps.length === 0) 
   {  const projectId =
