@@ -43,6 +43,7 @@ export default function StudentResults() {
   const [isMathReady, setIsMathReady] = useState(true);
 
   const [openCardId, setOpenCardId] = useState(null);
+  const [openingResultId, setOpeningResultId] = useState(null); // Spinner for specific test click
 
   // 🔥 MISSING FUNCTION JO ADD KARNA HAI
   const [nowTick, setNowTick] = useState(Date.now());
@@ -80,179 +81,113 @@ export default function StudentResults() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  //Fetch results ON-DEMAND only when this page is opened
+ // 🚀 BULLETPROOF FETCH WITH RUTHLESS GHOST FILTER (RESULTS PAGE)
   useEffect(() => {
     const fetchStudentHistory = async () => {
-      if (!currentUser) {
-        setFetchingResults(false);
-        return;
-      }
-
+      if (!currentUser) return;
       try {
         setFetchingResults(true);
         let historyTemp = [];
-
-        // 1. NAYE ARCHITECTURE SE DATA LAO (Phase 3 - O(1) Fast Fetch)
-        const metaSnap = await get(ref(database, "tests_metadata"));
-        const metaData = metaSnap.exists() ? Object.values(metaSnap.val()) : [];
-
         const safeUserKey = currentUser.uid;
-        const rollKey = currentUser.rollNo
-          ? encodeURIComponent(currentUser.rollNo.trim().toLowerCase()).replace(
-              /\./g,
-              "_",
-            )
-          : null;
 
-        // 🔥 P0.1 FIX: Never download monolithic 'test_submissions'. Use concurrent O(1) targeted lookups.
-        const phase3Results = await Promise.all(
-          metaData.filter(Boolean).map(async (t) => {
-            let sub = null;
+        // 1. NEW ARCHITECTURE FETCH
+        try {
+          const userSubSnap = await get(ref(database, `user_submissions/${safeUserKey}`));
+          if (userSubSnap.exists()) {
+            const userSubs = userSubSnap.val();
 
-            try {
-              // 1. O(1) Direct Lookup by UID (Super Fast)
-              const uidSnap = await get(
-                ref(
-                  database,
-                  `test_submissions/${t.id}/submissions/${safeUserKey}`,
-                ),
-              );
-              if (uidSnap.exists()) {
-                sub = uidSnap.val();
-              } else if (rollKey) {
-                // 2. O(1) Direct Lookup by Roll No (Fallback)
-                const rollSnap = await get(
-                  ref(
-                    database,
-                    `test_submissions/${t.id}/submissions/${rollKey}`,
-                  ),
-                );
-                if (rollSnap.exists()) sub = rollSnap.val();
-              }
+            for (const key of Object.keys(userSubs)) {
+              const sub = userSubs[key];
+              const testId = sub.testId || key;
 
-              // 3. Query Fallback (Pre-Atomic Fix submissions)
-              if (!sub) {
-                const q = query(
-                  ref(database, `test_submissions/${t.id}/submissions`),
-                  orderByChild("uid"),
-                  equalTo(safeUserKey),
-                );
-                const qSnap = await get(q);
-                if (qSnap.exists()) {
-                  sub = Object.values(qSnap.val())[0];
-                }
-              }
-            } catch (e) { /* Silent ignore */ }
+              if (!testId || testId === "undefined" || sub.score === undefined) continue;
 
-            if (sub) {
-              // Strict validation
-              let isExactMatch =
-                (sub.uid && currentUser.uid && sub.uid === currentUser.uid) ||
-                (sub.email &&
-                  currentUser.email &&
-                  sub.email.toLowerCase() ===
-                    currentUser.email.toLowerCase()) ||
-                (sub.roll &&
-                  currentUser.rollNo &&
-                  sub.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
+              let title = sub.testTitle || "";
+              let code = sub.testCode || "N/A";
+              let totalMarks = sub.totalMarks;
+              let subject = sub.subject || "General";
 
-              if (isExactMatch) {
-                let canView = false;
-                if (
-                  t.resultVis === "instant" ||
-                  t.released === true ||
-                  sub.isPublished === true
-                )
-                  canView = true;
-                else if (t.resultVis === "scheduled" && t.resultPublishTime) {
-                  if (Date.now() >= new Date(t.resultPublishTime).getTime())
-                    canView = true;
-                }
-                return {
-                  test: { ...t, _studentCanView: canView },
-                  sub: sub,
-                  canView,
-                };
-              }
-            }
-            return null;
-          }),
-        );
+              // 🛡️ AUTO-REPAIR & GHOST PURGE
+              if (!title || title.trim() === "" || title.toLowerCase().includes("unnamed") || !totalMarks) {
+                try {
+                  let metaSnap = await get(ref(database, `tests_metadata/${testId}`));
+                  if (!metaSnap.exists()) metaSnap = await get(ref(database, `tests/${testId}`));
 
-        historyTemp.push(...phase3Results.filter(Boolean));
+                  if (metaSnap.exists()) {
+                    const m = metaSnap.val();
+                    title = m.title || "";
+                    code = m.code || code;
+                    totalMarks = m.totalMarks || totalMarks;
+                    subject = m.subject || subject;
 
-        // 2. PURANE ARCHITECTURE SE DATA LAO (Legacy Data Support)
-        const oldSnap = await get(ref(database, "tests"));
-        if (oldSnap.exists()) {
-          const oldData = Array.isArray(oldSnap.val())
-            ? oldSnap.val()
-            : Object.values(oldSnap.val());
-          oldData.filter(Boolean).forEach((t) => {
-            if (t.submissions) {
-              const subsArray = Array.isArray(t.submissions)
-                ? t.submissions
-                : Object.values(t.submissions);
-              subsArray.filter(Boolean).forEach((s) => {
-                let isExactMatch =
-                  (s.uid && currentUser.uid && s.uid === currentUser.uid) ||
-                  (s.email &&
-                    currentUser.email &&
-                    s.email.toLowerCase() ===
-                      currentUser.email.toLowerCase()) ||
-                  (s.roll &&
-                    currentUser.rollNo &&
-                    s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
-
-                if (isExactMatch) {
-                  let canView = false;
-                  if (t.resultVis === "instant" || t.released === true)
-                    canView = true;
-                  else if (t.resultVis === "scheduled" && t.resultPublishTime) {
-                    if (Date.now() >= new Date(t.resultPublishTime).getTime())
-                      canView = true;
+                    if (!title || title.trim() === "" || title.toLowerCase().includes("unnamed")) continue;
+                  } else {
+                    continue; // 🚨 GHOST DETECTED
                   }
+                } catch (e) { continue; }
+              }
 
-                  // Puraana 'prevent duplicates' wala if block hata diya,
-                  // Taaki agar student ne test retake kiya hai toh naya result show ho!
-                  historyTemp.push({
-                    test: { ...t, _studentCanView: canView },
-                    sub: s,
-                    canView,
-                  });
-                }
+              historyTemp.push({
+                test: {
+                  id: testId,
+                  title: title,
+                  code: code,
+                  subject: subject,
+                  totalMarks: Number(totalMarks || 100),
+                  resultVis: "instant",
+                  released: true,
+                },
+                sub: {
+                  score: Number(sub.score || 0),
+                  time: sub.time || (sub.timestamp ? new Date(sub.timestamp).toLocaleString("en-IN") : "Recent"),
+                  timestamp: sub.timestamp || 0,
+                  correct: sub.correct || 0,
+                  wrong: sub.wrong || 0,
+                  skipped: sub.skipped || 0,
+                  isPublished: true,
+                },
+                canView: true,
               });
             }
-          });
+          }
+        } catch (err) {
+          console.warn("Fast fetch error:", err);
         }
 
-        // DEDUPLICATION: Agar same submission galti se naye aur purane dono jagah se fetch ho gayi, toh usko filter kar dega
-        const uniqueHistory = Array.from(
-          new Map(
-            historyTemp.map((item) => [
-              item.sub.timestamp || item.sub.time,
-              item,
-            ]),
-          ).values(),
-        );
+        // 2. LEGACY FALLBACK (PURANE KACHRE KO ROKNE WALA FILTER)
+        try {
+          const oldSnap = await get(ref(database, "tests"));
+          if (oldSnap.exists()) {
+            const oldData = Array.isArray(oldSnap.val()) ? oldSnap.val() : Object.values(oldSnap.val());
+            oldData.filter(Boolean).forEach((t) => {
+              // 🛡️ STRICT LEGACY FILTER: Bina title wale tests turant block karo
+              let tTitle = t.title || "";
+              if (!t.id || !tTitle || tTitle.trim() === "" || tTitle.toLowerCase().includes("unnamed")) return;
 
-        // DATE SORTING (Latest First)
-        uniqueHistory.sort((a, b) => {
-          const parseIndianDate = (dateStr) => {
-            if (!dateStr) return 0;
-            try {
-              const dmy = dateStr.split(",")[0].trim().split("/");
-              if (dmy.length === 3)
-                return new Date(dmy[2], dmy[1] - 1, dmy[0]).getTime();
-              return Date.parse(dateStr) || 0;
-            } catch (e) {
-              return 0;
-            }
-          };
+              if (t.submissions) {
+                const subsArray = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions);
+                subsArray.filter(Boolean).forEach((s) => {
+                  let isExactMatch = (s.uid && s.uid === currentUser.uid) || 
+                                     (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) || 
+                                     (s.roll && currentUser.rollNo && s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
+                  if (isExactMatch) {
+                    historyTemp.push({
+                      test: { ...t, title: tTitle, _studentCanView: true, released: true },
+                      sub: { ...s, isPublished: true },
+                      canView: true
+                    });
+                  }
+                });
+              }
+            });
+          }
+        } catch (legacyErr) {
+          console.warn("Legacy fallback blocked.");
+        }
 
-          const timeA = a.sub.timestamp || parseIndianDate(a.sub.time);
-          const timeB = b.sub.timestamp || parseIndianDate(b.sub.time);
-          return timeB - timeA;
-        });
+        // DEDUPLICATION & SORTING
+        const uniqueHistory = Array.from(new Map(historyTemp.map((item) => [`${item.test.id}_${item.sub.timestamp || 0}_${item.sub.score ?? 0}`, item])).values());
+        uniqueHistory.sort((a, b) => (b.sub.timestamp || 0) - (a.sub.timestamp || 0));
 
         setMyHistory(uniqueHistory);
       } catch (error) {
@@ -261,9 +196,120 @@ export default function StudentResults() {
         setFetchingResults(false);
       }
     };
-
     fetchStudentHistory();
   }, [currentUser]);
+
+  // ⚡ ON-DEMAND HEAVY FETCH (Fixed Loader State)
+  const handleOpenReport = async (historyItem, idx, e) => {
+    e.stopPropagation();
+    
+    // 🎯 Use simple map index for 100% accurate loader
+    setOpeningResultId(idx);
+
+    const targetScore = Number(historyItem.sub.score || 0);
+    const targetTimestamp = Number(historyItem.sub.timestamp || 0);
+
+    try {
+      const safeUserKey = currentUser.uid;
+      const testId = historyItem.test.id;
+
+      let fullTest = null;
+      let fullSub = null;
+
+      // 1. Try fetching from the New Architecture
+      const [metaSnap, qSnap, subSnap] = await Promise.all([
+        get(ref(database, `tests_metadata/${testId}`)),
+        get(ref(database, `test_questions/${testId}`)),
+        get(
+          ref(
+            database,
+            `test_submissions/${testId}/submissions/${safeUserKey}`,
+          ),
+        ),
+      ]);
+
+      if (metaSnap.exists()) {
+        fullTest = {
+          ...metaSnap.val(),
+          questions: qSnap.exists() ? qSnap.val().questions : [],
+        };
+      }
+
+      if (subSnap.exists()) {
+        const cand = subSnap.val();
+        if (Math.abs(Number(cand.score || 0) - targetScore) < 0.1) {
+          fullSub = cand;
+        }
+      }
+
+      // 2. Fallback: Search in the Legacy Architecture (Fixes the Retake/Pointer bug)
+      if (!fullSub) {
+        const legacySnap = await get(ref(database, `tests/${testId}`));
+        if (legacySnap.exists()) {
+          const legacyData = legacySnap.val();
+          if (!fullTest) fullTest = legacyData;
+          if (
+            fullTest &&
+            (!fullTest.questions || fullTest.questions.length === 0)
+          ) {
+            fullTest.questions = legacyData.questions || [];
+          }
+
+          if (legacyData.submissions) {
+            const rawSubs = Array.isArray(legacyData.submissions)
+              ? legacyData.submissions
+              : Object.values(legacyData.submissions);
+
+            // 🛡️ STRICT MATCHING: Find the EXACT attempt the user clicked
+            const exactMatch = rawSubs.find((s) => {
+              if (
+                !s ||
+                (s.uid !== safeUserKey && s.email !== currentUser.email)
+              )
+                return false;
+              let candScore = Number(s.score || 0);
+              let candTs = Number(s.timestamp || 0);
+
+              if (
+                targetTimestamp > 0 &&
+                Math.abs(candTs - targetTimestamp) < 2000
+              )
+                return true;
+              if (candScore === targetScore) return true;
+              return false;
+            });
+
+            fullSub = exactMatch || rawSubs.find((s) => s.uid === safeUserKey); // Final fallback
+          }
+        }
+      }
+
+      // 3. Final Validation & Auto-Repair (Fixes NaN% and 31/ )
+      if (fullTest && fullSub) {
+        fullTest.totalMarks =
+          Number(fullTest.totalMarks) ||
+          Number(historyItem.test.totalMarks) ||
+          Number(fullSub.totalMarks) ||
+          100;
+        fullTest.title =
+          fullTest.title || historyItem.test.title || "Assessment";
+
+        setSelectedResult({
+          test: fullTest,
+          sub: fullSub,
+          canView: true,
+        });
+      } else {
+        alert("Detailed result not found or still processing.");
+      }
+    } catch (error) {
+      console.error("Error fetching detailed report:", error);
+      alert("Failed to load details. Please try again.");
+    } finally {
+      setOpeningResultId(null);
+    }
+  };
+
   //  PREMIUM EXAMITOP CERTIFICATE GENERATOR (1-Page Fix)
   const generateCertificate = () => {
     const { test, sub } = selectedResult;
@@ -713,14 +759,15 @@ export default function StudentResults() {
                       </div>
                     </div>
 
-                    {/* 🔥 HIDDEN DROPDOWN CONTENT (Makkhan Animation - Super Soft) */}
+                    {/* 🔥 HIDDEN DROPDOWN CONTENT (Jerk Fixed with min-h-0) */}
                     <div
-                      className={`grid transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] bg-slate-50/50 ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+                      className={`grid transition-all duration-500 ease-in-out bg-slate-50/50 ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
                     >
-                      <div className="overflow-hidden">
-                        <div className="px-5 pb-6 pt-1 border-t border-slate-100/80">
+                      {/* Add min-h-0 here to stop CSS Grid jerking */}
+                      <div className="overflow-hidden min-h-0">
+                        <div className="px-5 pb-6 pt-4 border-t border-slate-100/80">
                           {/* Meta Information */}
-                          <div className="flex flex-col gap-3 mb-6 pt-4">
+                          <div className="flex flex-col gap-3 mb-6">
                             <div className="flex items-center gap-2 text-[12px] font-bold text-slate-500 bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm">
                               <i className="ti ti-calendar-time text-slate-400 text-[16px]"></i>{" "}
                               {h.sub.time}
@@ -764,13 +811,21 @@ export default function StudentResults() {
                                   </span>
                                 </div>
                                 <button
-                                  className="px-6 py-2.5 bg-[#185FA5] hover:bg-[#0C447C] text-white font-bold rounded-xl text-[13px] shadow-md shadow-[#185FA5]/20 transition-all duration-300 active:scale-95 flex items-center gap-1.5 hover:shadow-lg hover:-translate-y-0.5"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedResult(h);
-                                  }}
+                                  className="px-6 py-2.5 bg-[#185FA5] hover:bg-[#0C447C] text-white font-bold rounded-xl text-[13px] shadow-md shadow-[#185FA5]/20 transition-all duration-300 active:scale-95 flex items-center gap-1.5 hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-70"
+                                  onClick={(e) => handleOpenReport(h, idx, e)}
+                                  disabled={openingResultId === idx}
                                 >
-                                  Report <i className="ti ti-arrow-right"></i>
+                                  {openingResultId === idx ? (
+                                    <>
+                                      <i className="ti ti-loader animate-spin"></i>{" "}
+                                      Loading...
+                                    </>
+                                  ) : (
+                                    <>
+                                      Report{" "}
+                                      <i className="ti ti-arrow-right"></i>
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             ) : (
@@ -834,11 +889,17 @@ export default function StudentResults() {
     );
   }
 
-  // ==========================================
   // VIEW 2: DETAILED RESULT ANALYSIS
-  // ==========================================
-  const { test, sub } = selectedResult;
-  const pct = Math.round((sub.score / test.totalMarks) * 100);
+  const { test: rawTest, sub } = selectedResult;
+
+  // 🛡️ GHOST REPAIR: Double protection against missing Total Marks
+  const test = {
+    ...rawTest,
+    totalMarks: rawTest.totalMarks || sub.totalMarks || 100,
+  };
+
+  const pct =
+    test.totalMarks > 0 ? Math.round((sub.score / test.totalMarks) * 100) : 0;
   const accuracy =
     sub.correct + sub.wrong > 0
       ? Math.round((sub.correct / (sub.correct + sub.wrong)) * 100)

@@ -4,7 +4,15 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { database } from "../../../lib/firebase";
-import { ref, get, set, query, orderByChild, equalTo } from "firebase/database";
+import {
+  ref,
+  get,
+  set,
+  query,
+  orderByChild,
+  equalTo,
+  runTransaction,
+} from "firebase/database";
 
 export default function EducatorRadar() {
   const { currentUser, loading: authLoading } = useAuth();
@@ -175,7 +183,17 @@ export default function EducatorRadar() {
 
     try {
       const newList = [...followedEducators, searchResult.uid];
+      // 1. Update Student's Following List
       await set(ref(database, `users/${currentUser.uid}/followed`), newList);
+
+      // 2. 🛡️ NAYA FIX: Safely Increment Educator's Follower Count in Backend
+      await runTransaction(
+        ref(database, `users/${searchResult.uid}/followerCount`),
+        (currentCount) => {
+          return (currentCount || 0) + 1;
+        },
+      );
+
       setSearchResult(null);
       setSearchId("");
       setSysAlert({
@@ -185,6 +203,7 @@ export default function EducatorRadar() {
       });
       fetchRadarData();
     } catch (error) {
+      console.error("Follow Error:", error);
       setSysAlert({
         title: "Error",
         msg: "Failed to connect with educator.",

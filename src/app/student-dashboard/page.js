@@ -24,6 +24,7 @@ export default function StudentDashboard() {
     }
   }, [fetchingResults, myHistory]);
 
+// 🚀 CLEAN DASHBOARD FETCH WITH RUTHLESS GHOST FILTER
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!currentUser) {
@@ -33,164 +34,110 @@ export default function StudentDashboard() {
       try {
         setFetchingResults(true);
         let historyTemp = [];
-
-        // 1. NAYE ARCHITECTURE SE DATA LAO (Phase 3 - O(1) Direct Lookup)
-        const metaSnap = await get(ref(database, "tests_metadata"));
-        const metaData = metaSnap.exists() ? Object.values(metaSnap.val()) : [];
-
         const safeUserKey = currentUser.uid;
-        const rollKey = currentUser.rollNo
-          ? encodeURIComponent(currentUser.rollNo.trim().toLowerCase()).replace(
-              /\./g,
-              "_",
-            )
-          : null;
 
-        // 🔥 P0.1 FIX: Concurrent O(1) targeted lookups instead of whole tree download
-        const phase3Results = await Promise.all(
-          metaData.filter(Boolean).map(async (t) => {
-            let sub = null;
-            try {
-              // Primary: UID based direct lookup
-              const uidSnap = await get(
-                ref(
-                  database,
-                  `test_submissions/${t.id}/submissions/${safeUserKey}`,
-                ),
-              );
-              if (uidSnap.exists()) {
-                sub = uidSnap.val();
-              } else if (rollKey) {
-                // Secondary: Roll No based direct lookup
-                const rollSnap = await get(
-                  ref(
-                    database,
-                    `test_submissions/${t.id}/submissions/${rollKey}`,
-                  ),
-                );
-                if (rollSnap.exists()) sub = rollSnap.val();
+        // 1. O(1) DASHBOARD FETCH
+        try {
+          const userSubSnap = await get(ref(database, `user_submissions/${safeUserKey}`));
+          if (userSubSnap.exists()) {
+            const userSubs = userSubSnap.val();
+
+            for (const key of Object.keys(userSubs)) {
+              const sub = userSubs[key];
+              const testId = sub.testId || key;
+
+              if (!testId || testId === "undefined" || sub.score === undefined) continue;
+
+              let title = sub.testTitle || "";
+              let code = sub.testCode || "N/A";
+              let totalMarks = sub.totalMarks;
+              let subject = sub.subject || "General";
+
+              // 🛡️ AUTO-REPAIR & GHOST PURGE
+              if (!title || title.trim() === "" || title.toLowerCase().includes("unnamed") || !totalMarks) {
+                try {
+                  let metaSnap = await get(ref(database, `tests_metadata/${testId}`));
+                  if (!metaSnap.exists()) metaSnap = await get(ref(database, `tests/${testId}`));
+                  
+                  if (metaSnap.exists()) {
+                    const m = metaSnap.val();
+                    title = m.title || "";
+                    code = m.code || code;
+                    totalMarks = m.totalMarks || totalMarks;
+                    subject = m.subject || subject;
+                    
+                    // Final Check: Agar DB me bhi title khali hai, toh bhaag jao!
+                    if (!title || title.trim() === "" || title.toLowerCase().includes("unnamed")) continue;
+                  } else {
+                    continue; // 🚨 GHOST DETECTED: DB me test nahi hai, hide it!
+                  }
+                } catch (e) { continue; }
               }
 
-              // Fallback for pre-atomic fix submissions
-              if (!sub) {
-                const q = query(
-                  ref(database, `test_submissions/${t.id}/submissions`),
-                  orderByChild("uid"),
-                  equalTo(safeUserKey),
-                );
-                const qSnap = await get(q);
-                if (qSnap.exists()) {
-                  sub = Object.values(qSnap.val())[0];
-                }
-              }
-            } catch (e) {
-              // Firebase fallback permission errors ignore karo taaki Next.js red screen na de
-              console.warn("Silent fallback skip for test:", t.id);
-            }
-
-            if (sub) {
-              // Verification Match
-              let isExactMatch =
-                (sub.uid && currentUser.uid && sub.uid === currentUser.uid) ||
-                (sub.email &&
-                  currentUser.email &&
-                  sub.email.toLowerCase() ===
-                    currentUser.email.toLowerCase()) ||
-                (sub.roll &&
-                  currentUser.rollNo &&
-                  sub.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
-
-              if (isExactMatch) {
-                return {
-                  testId: t.id,
-                  testTitle: t.title,
-                  testCode: t.code,
-                  subject: t.subject || "General",
-                  score: sub.score,
-                  totalMarks: t.totalMarks || sub.totalMarks,
-                  correct: sub.correct || 0,
-                  wrong: sub.wrong || 0,
-                  skipped: sub.skipped || 0,
-                  time: sub.time,
-                  sIdx: 0,
-                  timestamp: sub.timestamp || 0,
-                };
-              }
-            }
-            return null;
-          }),
-        );
-
-        historyTemp.push(...phase3Results.filter(Boolean));
-
-        // 2. PURANE ARCHITECTURE SE DATA LAO (Legacy Data Support)
-        const oldSnap = await get(ref(database, "tests"));
-        if (oldSnap.exists()) {
-          const oldData = Array.isArray(oldSnap.val())
-            ? oldSnap.val()
-            : Object.values(oldSnap.val());
-          oldData.filter(Boolean).forEach((t) => {
-            if (t.submissions) {
-              const subsArray = Array.isArray(t.submissions)
-                ? t.submissions
-                : Object.values(t.submissions);
-              subsArray.filter(Boolean).forEach((s, idx) => {
-                let isExactMatch =
-                  (s.uid && currentUser.uid && s.uid === currentUser.uid) ||
-                  (s.email &&
-                    currentUser.email &&
-                    s.email.toLowerCase() ===
-                      currentUser.email.toLowerCase()) ||
-                  (s.roll &&
-                    currentUser.rollNo &&
-                    s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
-
-                if (isExactMatch) {
-                  historyTemp.push({
-                    testId: t.id,
-                    testTitle: t.title,
-                    testCode: t.code,
-                    subject: t.subject || "General",
-                    score: s.score,
-                    totalMarks: t.totalMarks || s.totalMarks,
-                    correct: s.correct || 0,
-                    wrong: s.wrong || 0,
-                    skipped: s.skipped || 0,
-                    time: s.time,
-                    sIdx: idx,
-                    timestamp: s.timestamp || 0,
-                  });
-                }
+              historyTemp.push({
+                testId: testId,
+                testTitle: title,
+                testCode: code,
+                subject: subject,
+                score: Number(sub.score || 0),
+                totalMarks: Number(totalMarks || 100),
+                correct: sub.correct || 0,
+                wrong: sub.wrong || 0,
+                skipped: sub.skipped || 0,
+                time: sub.time || (sub.timestamp ? new Date(sub.timestamp).toLocaleString("en-IN") : "Recent"),
+                sIdx: 0,
+                timestamp: sub.timestamp || 0,
               });
             }
-          });
+          }
+        } catch (error) {
+          console.warn("Primary fetch error:", error);
         }
 
-        // DEDUPLICATION: Remove duplicate entries
-        const uniqueHistory = Array.from(
-          new Map(
-            historyTemp.map((item) => [item.timestamp || item.time, item]),
-          ).values(),
-        );
+        // 2. LEGACY FALLBACK (PURGE EMPTY BOXES)
+        try {
+          const oldSnap = await get(ref(database, "tests"));
+          if (oldSnap.exists()) {
+            const oldData = Array.isArray(oldSnap.val()) ? oldSnap.val() : Object.values(oldSnap.val());
+            oldData.filter(Boolean).forEach((t) => {
+              let tTitle = t.title || "";
+              
+              // 🔥 STRICT GHOST FILTER: Ignore missing names or "Unnamed Test" completely
+              if (!t.id || tTitle.trim() === "" || tTitle.toLowerCase().includes("unnamed")) return;
 
-        // DATE SORTING (Oldest First for the Trend Chart)
-        uniqueHistory.sort((a, b) => {
-          const parseIndianDate = (dateStr) => {
-            if (!dateStr) return 0;
-            try {
-              const dmy = dateStr.split(",")[0].trim().split("/");
-              if (dmy.length === 3)
-                return new Date(dmy[2], dmy[1] - 1, dmy[0]).getTime();
-              return Date.parse(dateStr) || 0;
-            } catch (e) {
-              return 0;
-            }
-          };
+              if (t.submissions) {
+                const subsArray = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions);
+                subsArray.filter(Boolean).forEach((s, idx) => {
+                  let isExactMatch = (s.uid && s.uid === currentUser.uid) || 
+                                     (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) || 
+                                     (s.roll && currentUser.rollNo && s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
+                  if (isExactMatch) {
+                    historyTemp.push({
+                      testId: t.id,
+                      testTitle: tTitle,
+                      testCode: t.code || "N/A",
+                      subject: t.subject || "General",
+                      score: Number(s.score || 0),
+                      totalMarks: Number(t.totalMarks || s.totalMarks || 100),
+                      correct: s.correct || 0,
+                      wrong: s.wrong || 0,
+                      skipped: s.skipped || 0,
+                      time: s.time || "Unknown Date",
+                      sIdx: idx,
+                      timestamp: s.timestamp || 0,
+                    });
+                  }
+                });
+              }
+            });
+          }
+        } catch (legacyError) {
+          console.warn("Legacy tests access blocked.");
+        }
 
-          const timeA = a.timestamp || parseIndianDate(a.time);
-          const timeB = b.timestamp || parseIndianDate(b.time);
-          return timeA - timeB;
-        });
+        // DEDUPLICATION & SORTING
+        const uniqueHistory = Array.from(new Map(historyTemp.map((item) => [`${item.testId}_${item.timestamp || 0}_${item.score ?? 0}`, item])).values());
+        uniqueHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
         setMyHistory(uniqueHistory);
       } catch (error) {
@@ -689,8 +636,16 @@ export default function StudentDashboard() {
 
     const isExcellent = pct >= 75;
     const isAverage = pct >= 40 && pct < 75;
-    const ringColor = isExcellent ? "border-emerald-400" : isAverage ? "border-amber-400" : "border-rose-400";
-    const ringBg = isExcellent ? "bg-emerald-50 text-emerald-700" : isAverage ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700";
+    const ringColor = isExcellent
+      ? "border-emerald-400"
+      : isAverage
+        ? "border-amber-400"
+        : "border-rose-400";
+    const ringBg = isExcellent
+      ? "bg-emerald-50 text-emerald-700"
+      : isAverage
+        ? "bg-amber-50 text-amber-700"
+        : "bg-rose-50 text-rose-700";
 
     let performanceTag = null;
     if (forceBestTag) {
@@ -714,7 +669,10 @@ export default function StudentDashboard() {
     }
 
     return (
-      <div key={key} className={`bg-white p-3.5 sm:p-5 border ${forceBestTag ? 'border-amber-300 shadow-[0_4px_15px_rgba(245,158,11,0.1)]' : 'border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)]'} rounded-2xl sm:rounded-3xl hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-row items-center justify-between gap-3 sm:gap-4 group`}>
+      <div
+        key={key}
+        className={`bg-white p-3.5 sm:p-5 border ${forceBestTag ? "border-amber-300 shadow-[0_4px_15px_rgba(245,158,11,0.1)]" : "border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)]"} rounded-2xl sm:rounded-3xl hover:border-blue-300 hover:shadow-md transition-all duration-300 flex flex-row items-center justify-between gap-3 sm:gap-4 group`}
+      >
         <div className="flex flex-col min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <h4 className="text-[14px] sm:text-[16px] font-black text-slate-800 m-0 truncate group-hover:text-blue-700 transition-colors leading-none">
@@ -724,7 +682,8 @@ export default function StudentDashboard() {
           </div>
           <div className="text-[11px] sm:text-[12px] font-semibold text-slate-500 flex items-center gap-2 sm:gap-3 flex-wrap leading-tight mt-0.5">
             <span className="flex items-center gap-1.5">
-              <i className="ti ti-calendar text-slate-400"></i> {h.time?.split(",")[0] || "Unknown"}
+              <i className="ti ti-calendar text-slate-400"></i>{" "}
+              {h.time?.split(",")[0] || "Unknown"}
             </span>
             <span className="flex items-center gap-1 font-mono text-[9px] sm:text-[10px] bg-slate-50 px-1.5 sm:px-2 py-0.5 rounded border border-slate-200">
               <i className="ti ti-hash opacity-60"></i> {h.testCode || "N/A"}
@@ -735,14 +694,19 @@ export default function StudentDashboard() {
         <div className="flex items-center gap-3 sm:gap-6 shrink-0 border-l border-slate-100 pl-3 sm:pl-4">
           <div className="text-right hidden sm:block">
             <div className="text-[18px] sm:text-[20px] font-black text-slate-800 leading-none mb-1">
-              {validScore} <span className="text-[12px] sm:text-[13px] font-bold text-slate-400">/ {validTotal}</span>
+              {validScore}{" "}
+              <span className="text-[12px] sm:text-[13px] font-bold text-slate-400">
+                / {validTotal}
+              </span>
             </div>
             <div className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
               Acc: <span className="text-slate-600">{accPct}%</span>
             </div>
           </div>
 
-          <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-[12px] sm:text-[15px] border-2 sm:border-[3px] shadow-sm shrink-0 ${ringColor} ${ringBg} transform group-hover:scale-105 transition-transform`}>
+          <div
+            className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-[12px] sm:text-[15px] border-2 sm:border-[3px] shadow-sm shrink-0 ${ringColor} ${ringBg} transform group-hover:scale-105 transition-transform`}
+          >
             {pct}%
           </div>
         </div>
@@ -752,21 +716,21 @@ export default function StudentDashboard() {
 
   // 1. Array ko Newest First order me laao
   const reversedHistoryForList = [...myHistory].reverse();
-  
+
   // 2. Sirf top 3 latest nikal lo
   const recent3 = reversedHistoryForList.slice(0, 3);
-  
+
   // 3. Highest Score wala test dhundho
   let bestTest = null;
   let maxBestPct = -1;
-  reversedHistoryForList.forEach(h => {
-      let validScore = h.score || 0;
-      let validTotal = h.totalMarks || 0;
-      let pct = validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;
-      if (pct > maxBestPct) {
-          maxBestPct = pct;
-          bestTest = h;
-      }
+  reversedHistoryForList.forEach((h) => {
+    let validScore = h.score || 0;
+    let validTotal = h.totalMarks || 0;
+    let pct = validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;
+    if (pct > maxBestPct) {
+      maxBestPct = pct;
+      bestTest = h;
+    }
   });
 
   const pastLedgerCard = (
@@ -775,18 +739,21 @@ export default function StudentDashboard() {
         <h3 className="text-[13px] sm:text-[14px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-2 m-0">
           <i className="ti ti-folders text-blue-500 text-lg"></i> Exam Ledger
         </h3>
-        <button onClick={() => router.push('/student-results')} className="text-[10px] font-black text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+        <button
+          onClick={() => router.push("/student-results")}
+          className="text-[10px] font-black text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+        >
           View Full <i className="ti ti-arrow-right"></i>
         </button>
       </div>
-      
+
       {/* HIGHEST SCORE SECTION */}
       {bestTest && (
         <div className="mb-6">
           <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
             <i className="ti ti-star"></i> All-Time High Score
           </span>
-          {renderHistoryRow(bestTest, 'best-test', true)}
+          {renderHistoryRow(bestTest, "best-test", true)}
         </div>
       )}
 
@@ -801,11 +768,11 @@ export default function StudentDashboard() {
           </div>
         </div>
       )}
-      
+
       {myHistory.length === 0 && (
-         <div className="text-center py-8 text-slate-500 text-sm font-medium border border-dashed border-slate-200 rounded-2xl">
-           No exams taken yet. Go to the Arena to start!
-         </div>
+        <div className="text-center py-8 text-slate-500 text-sm font-medium border border-dashed border-slate-200 rounded-2xl">
+          No exams taken yet. Go to the Arena to start!
+        </div>
       )}
     </div>
   );

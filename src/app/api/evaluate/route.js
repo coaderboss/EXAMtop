@@ -311,6 +311,22 @@ export async function POST(req) {
         );
       }
 
+      // 🛡️ FIXED: Save complete metadata in the index so student-results never shows N/A
+      const dashboardRef = adminDb.ref(`user_submissions/${safeUserKey}/${testId}`);
+      await dashboardRef.set({
+        testId: testId,
+        testTitle: activeTestMeta.title || "Untitled Assessment",
+        testCode: activeTestMeta.code || "N/A",
+        subject: activeTestMeta.subject || "General",
+        score: Number(score.toFixed(2)),
+        totalMarks: activeTestMeta.totalMarks || 0,
+        correct: correct,
+        wrong: wrong,
+        skipped: skipped,
+        time: new Date().toLocaleString("en-IN"),
+        timestamp: Date.now()
+      });
+
       // Safely increment count
       await adminDb
         .ref(`tests_metadata/${testId}/submissionCount`)
