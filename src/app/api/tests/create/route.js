@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../../lib/firebaseAdmin"; // Ensure correct path
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req) {
   try {
     // 1. Verify User Token

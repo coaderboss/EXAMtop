@@ -1,8 +1,8 @@
 // src/lib/firebaseAdmin.js
 import admin from "firebase-admin";
 
-if (!admin.apps.length) {
-  const projectId =
+if (!admin.apps || admin.apps.length === 0) 
+  {  const projectId =
     process.env.FIREBASE_PROJECT_ID ||
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
