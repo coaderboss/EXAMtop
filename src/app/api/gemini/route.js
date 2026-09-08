@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { adminAuth } from "../../../lib/firebaseAdmin"; // Ensure admin Auth is imported
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req) {
   try {
     // 🛡️ SECURITY LAYER 1: Strictly Require Firebase Auth Token
