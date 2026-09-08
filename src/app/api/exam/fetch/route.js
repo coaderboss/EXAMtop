@@ -1,6 +1,7 @@
 // src/app/api/exam/fetch/route.js
 import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebaseAdmin"; // Ensure this path matches your project structure
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   try {
