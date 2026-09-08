@@ -1,16 +1,13 @@
 // src/lib/firebaseAdmin.js
-import admin from "firebase-admin";
+// 🔥 THE NUCLEAR FIX: Bypass Vercel's broken compiler using native Node require()
+const admin = require("firebase-admin");
 
-// THE VERCEL TURBOPACK FIX: Automatically unwrap the module if Next.js nested it
-const coreAdmin = admin.credential ? admin : admin.default;
-
-if (!coreAdmin.apps || coreAdmin.apps.length === 0) {
+if (!admin.apps.length) {
   const projectId =
     process.env.FIREBASE_PROJECT_ID ||
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   
-  // Clean up private key formatting perfectly
   const privateKey = process.env.FIREBASE_PRIVATE_KEY
     ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n").replace(/"/g, "")
     : undefined;
@@ -24,15 +21,15 @@ if (!coreAdmin.apps || coreAdmin.apps.length === 0) {
   };
 
   if (projectId && clientEmail && privateKey) {
-    adminConfig.credential = coreAdmin.credential.cert({
+    adminConfig.credential = admin.credential.cert({
       projectId,
       clientEmail,
       privateKey,
     });
   }
 
-  coreAdmin.initializeApp(adminConfig);
+  admin.initializeApp(adminConfig);
 }
 
-export const adminDb = coreAdmin.database();
-export const adminAuth = coreAdmin.auth();
+export const adminDb = admin.database();
+export const adminAuth = admin.auth();
