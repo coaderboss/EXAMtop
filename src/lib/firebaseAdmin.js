@@ -1,7 +1,9 @@
 // src/lib/firebaseAdmin.js
-import admin from "firebase-admin";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getDatabase } from "firebase-admin/database";
+import { getAuth } from "firebase-admin/auth";
 
-if (!admin.apps?.length) {
+if (!getApps().length) {
   const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   // 🔥 THE FIX: Forcefully convert string '\n' to actual line breaks
@@ -10,8 +12,8 @@ if (!admin.apps?.length) {
     : undefined;
 
   if (projectId && clientEmail && privateKey) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
+    initializeApp({
+      credential: cert({
         projectId,
         clientEmail,
         privateKey,
@@ -23,5 +25,5 @@ if (!admin.apps?.length) {
   }
 }
 
-export const adminDb = admin.apps?.length ? admin.database() : null;
-export const adminAuth = admin.apps?.length ? admin.auth() : null;
+export const adminDb = getApps().length ? getDatabase() : null;
+export const adminAuth = getApps().length ? getAuth() : null;
