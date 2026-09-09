@@ -571,12 +571,14 @@ function StudentPortalContent() {
         try {
           const res = await fetch(`/api/exam/fetch?code=${codeUpper}`);
           const textRes = await res.text(); // 🔥 FIX: Padhne se pehle text me convert karo taaki DOCTYPE crash na ho!
-          
+
           try {
             const data = JSON.parse(textRes);
             if (data.success && data.testObj) t = data.testObj;
           } catch (parseErr) {
-            console.warn("Vercel API Crashed (Returned HTML). Switching to Direct Client Fetch.");
+            console.warn(
+              "Vercel API Crashed (Returned HTML). Switching to Direct Client Fetch.",
+            );
           }
         } catch (apiErr) {
           console.warn("Network Error on API.");
@@ -587,17 +589,25 @@ function StudentPortalContent() {
       if (!t) {
         try {
           // 1. Check New Metadata Node
-          const metaQuery = query(ref(database, "tests_metadata"), orderByChild("code"), equalTo(codeUpper));
+          const metaQuery = query(
+            ref(database, "tests_metadata"),
+            orderByChild("code"),
+            equalTo(codeUpper),
+          );
           const metaSnap = await get(metaQuery);
           if (metaSnap.exists()) {
-             t = Object.values(metaSnap.val())[0];
+            t = Object.values(metaSnap.val())[0];
           } else {
-             // 2. Check Legacy Tests Node
-             const legacyQuery = query(ref(database, "tests"), orderByChild("code"), equalTo(codeUpper));
-             const legacySnap = await get(legacyQuery);
-             if (legacySnap.exists()) {
-                t = Object.values(legacySnap.val())[0];
-             }
+            // 2. Check Legacy Tests Node
+            const legacyQuery = query(
+              ref(database, "tests"),
+              orderByChild("code"),
+              equalTo(codeUpper),
+            );
+            const legacySnap = await get(legacyQuery);
+            if (legacySnap.exists()) {
+              t = Object.values(legacySnap.val())[0];
+            }
           }
         } catch (clientErr) {
           console.error("Client Database Fetch Blocked:", clientErr);

@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { database } from "../../lib/firebase";
 import { ref, set, get, update, runTransaction } from "firebase/database";
 import SmilesViewer from "../../components/SmilesViewer";
+import { auth } from "../../lib/firebase";
+
 
 export default function CreateTest() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
@@ -690,8 +692,17 @@ export default function CreateTest() {
           JSON.stringify(localTests),
         );
       } else {
-        // 🛡️ ZERO-TRUST FIX: Client calls backend instead of modifying Firebase DB directly!
-        const token = await currentUser.getIdToken();
+      //// 🛡️ ZERO-TRUST FIX: Safely retrieve the token      
+      let token = "";
+      try {
+        // ALWAYS use the raw Firebase Auth singleton!
+        const activeUser = auth.currentUser;
+        if (!activeUser) throw new Error("Not logged in");
+        token = await activeUser.getIdToken(true); // Force refresh token
+      } catch (err) {
+        console.error("Token fetch failed:", err);
+        throw new Error("User session expired or invalid. Please refresh the page and try again.");
+      }
         const response = await fetch("/api/tests/create", {
           method: "POST",
           headers: {

@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
             const userData = snapshot.val();
             setUserRole(userData.role);
             
-            // THE MASTER OVERRIDE: Ab puri app me 'displayName' ki jagah legalName dikhega
+            // 🛡️ THE FIX: Do NOT mutate the Firebase User object. Create a new safe object for React state.
             setCurrentUser({
                 uid: user.uid,
                 email: user.email,
@@ -52,7 +52,6 @@ export const AuthProvider = ({ children }) => {
                 is_unlimited: userData.is_unlimited || false 
             });
           } else {
-            // 🛠️ Auto-Create DB Record for Manual Firebase Auth Users
             const defaultRole = 'student'; 
             
             await set(userRef, {
