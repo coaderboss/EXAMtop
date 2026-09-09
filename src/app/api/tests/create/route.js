@@ -16,10 +16,18 @@ export async function POST(req) {
     }
 
     const idToken = authHeader.split("Bearer ")[1];
+    
+    // THE FIX: Catch uninitialized Admin SDK before it crashes
+    if (!adminAuth) {
+      console.error("Firebase Admin Auth is uninitialized. Check Vercel environment variables.");
+      return NextResponse.json({ error: "Server authentication service unavailable" }, { status: 500 });
+    }
+
     let decodedToken;
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
     } catch (authError) {
+      console.error("Token verification failed:", authError.message);
       return NextResponse.json({ error: "Invalid token" }, { status: 403 });
     }
 

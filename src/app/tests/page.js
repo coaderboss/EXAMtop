@@ -642,14 +642,17 @@ export default function ManageTests() {
             );
           }
         } else {
-          const updates = {};
-          updates[`tests_metadata/${updatedTest.id}`] = metaPayload;
-
-          if (updatedTest.questions) {
-            updates[`test_questions/${updatedTest.id}/questions`] =
-              updatedTest.questions;
+          // 🔥 THE FIX: Avoid multi-path collisions if questions haven't changed
+          if (!updatedTest.questions) {
+            // Sirf metadata update karo, taaki Firebase test_questions block na kare
+            await update(ref(database, `tests_metadata/${updatedTest.id}`), metaPayload);
+          } else {
+            // Agar questions bhi badle hain tabhi dono ek sath update karo
+            const updates = {};
+            updates[`tests_metadata/${updatedTest.id}`] = metaPayload;
+            updates[`test_questions/${updatedTest.id}/questions`] = updatedTest.questions;
+            await update(ref(database), updates);
           }
-          await update(ref(database), updates);
         }
 
         if (setTests)
