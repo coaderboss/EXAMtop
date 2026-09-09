@@ -1,11 +1,16 @@
 // src/lib/firebaseAdmin.js
-// 🔥 THE NUCLEAR FIX: Bypass Vercel's broken compiler using native Node require()
-const admin = require("firebase-admin");
+import admin from "firebase-admin";
 
-if (!admin.apps.length) {
+// 🔥 Vercel Module Wrapper Bypass
+const firebaseAdmin = admin.default || admin;
+
+// 🛡️ THE ULTIMATE FIX: Notice the question mark (?.) before length.
+// Ye system ko batata hai ki "Agar apps undefined hai, toh CRASH mat karo, seedha aage badho!"
+if (!firebaseAdmin.apps?.length) {
   const projectId =
     process.env.FIREBASE_PROJECT_ID ||
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   
   const privateKey = process.env.FIREBASE_PRIVATE_KEY
@@ -21,15 +26,16 @@ if (!admin.apps.length) {
   };
 
   if (projectId && clientEmail && privateKey) {
-    adminConfig.credential = admin.credential.cert({
+    // Optional chaining (?.) yaha bhi lagaya hai safety ke liye
+    adminConfig.credential = firebaseAdmin.credential?.cert({
       projectId,
       clientEmail,
       privateKey,
     });
   }
 
-  admin.initializeApp(adminConfig);
+  firebaseAdmin.initializeApp(adminConfig);
 }
 
-export const adminDb = admin.database();
-export const adminAuth = admin.auth();
+export const adminDb = firebaseAdmin.database();
+export const adminAuth = firebaseAdmin.auth();
