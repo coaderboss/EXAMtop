@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
-import { database } from "../../lib/firebase";
+import { database, auth } from "../../lib/firebase";
 import { ref, set, get, update, runTransaction } from "firebase/database";
 import SmilesViewer from "../../components/SmilesViewer";
-import { auth } from "../../lib/firebase";
+import { getIdToken } from "firebase/auth";
 
 
 export default function CreateTest() {
@@ -692,17 +692,18 @@ export default function CreateTest() {
           JSON.stringify(localTests),
         );
       } else {
-      //// 🛡️ ZERO-TRUST FIX: Safely retrieve the token      
-      let token = "";
-      try {
-        // ALWAYS use the raw Firebase Auth singleton!
-        const activeUser = auth.currentUser;
-        if (!activeUser) throw new Error("Not logged in");
-        token = await activeUser.getIdToken(true); // Force refresh token
-      } catch (err) {
-        console.error("Token fetch failed:", err);
-        throw new Error("User session expired or invalid. Please refresh the page and try again.");
-      }
+        // 🛡️ ZERO-TRUST FIX: Bulletproof Token Fetch using Modular SDK
+        let token = "";
+        try {
+          const activeUser = auth.currentUser;
+          if (!activeUser) throw new Error("Not logged in");
+          // 🔥 The absolute fix for "o.getIdToken is not a function"
+          token = await getIdToken(activeUser, true); 
+        } catch (err) {
+          console.error("Token fetch failed:", err);
+          throw new Error("User session expired or invalid. Please refresh the page and try again.");
+        }
+
         const response = await fetch("/api/tests/create", {
           method: "POST",
           headers: {
@@ -730,11 +731,7 @@ export default function CreateTest() {
       }
 
       // Cleanup
-      const userIdent = currentUser
-        ? currentUser.uid
-        : isOffline
-          ? "offline_user"
-          : "guest";
+      const userIdent = currentUser ? currentUser.uid : isOffline ? "offline_user" : "guest";
       localStorage.removeItem("exam_draft_creator_" + userIdent);
 
       setMismatchModal(null);

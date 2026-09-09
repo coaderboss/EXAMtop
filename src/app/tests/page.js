@@ -254,40 +254,54 @@ export default function ManageTests() {
     }
   }, [selectedTest]);
 
-  //ON-DEMAND HEAVY DATA FETCHER (Phase 3)
+ //ON-DEMAND HEAVY DATA FETCHER (Phase 3)
   useEffect(() => {
     if (selectedTest && !selectedTest.isLocal && !selectedTest.isHeavyLoaded) {
-      // 🔥 GUARD: Agar test already heavy hai (purana test), toh dobara khali data mat fetch karo
-      if (selectedTest.questions && selectedTest.questions.length > 0) {
-        setSelectedTest((prev) => ({ ...prev, isHeavyLoaded: true }));
-        return;
-      }
-
       const fetchHeavyData = async () => {
         try {
-          const qSnap = await get(
-            ref(database, `test_questions/${selectedTest.id}`),
-          );
-          const sSnap = await get(
-            ref(database, `test_submissions/${selectedTest.id}`),
-          );
+          // 1. Fetch Questions Safely
+          let questions = [];
+          if (selectedTest.questions && selectedTest.questions.length > 0) {
+             questions = selectedTest.questions; 
+          } else {
+             try {
+                 const qSnap = await get(ref(database, `test_questions/${selectedTest.id}`));
+                 questions = qSnap.exists() ? qSnap.val().questions || [] : [];
+             } catch (e) {
+                 console.warn("Could not read test_questions, fallback applied.");
+             }
+          }
 
+          // 2. Fetch Submissions with "Try/Catch" Shield (THE FIX)
           let fetchedSubs = [];
-          if (sSnap.exists() && sSnap.val().submissions) {
-            const subData = sSnap.val().submissions;
-            fetchedSubs = Object.keys(subData)
-              .map((k) => ({ ...subData[k], fbKey: k }))
-              .filter(Boolean);
+          
+          try {
+              // Pehle Naye architecture me try karo
+              const sSnap = await get(ref(database, `test_submissions/${selectedTest.id}`));
+              if (sSnap.exists() && sSnap.val().submissions) {
+                 const subData = sSnap.val().submissions;
+                 fetchedSubs = Object.keys(subData).map((k) => ({ ...subData[k], fbKey: k })).filter(Boolean);
+              }
+          } catch (err) {
+              // Firebase ne block kar diya? Koi baat nahi, app crash nahi hoga!
+              console.warn("Permission denied for test_submissions. Expected for legacy tests.");
+          }
+
+          // 3. Agar Naya data khali hai, toh Purane Test (JM Hindi 4) ka data uthao!
+          if (fetchedSubs.length === 0 && selectedTest.submissions) {
+             fetchedSubs = Array.isArray(selectedTest.submissions) 
+                 ? selectedTest.submissions.filter(Boolean) 
+                 : Object.values(selectedTest.submissions).filter(Boolean);
           }
 
           setSelectedTest((prev) => ({
             ...prev,
-            questions: qSnap.exists() ? qSnap.val().questions || [] : [],
+            questions: questions,
             submissions: fetchedSubs,
             isHeavyLoaded: true,
           }));
         } catch (e) {
-          console.error("Heavy data fetch error:", e);
+          console.error("Critical heavy data fetch error:", e);
         }
       };
       fetchHeavyData();
@@ -667,41 +681,55 @@ export default function ManageTests() {
     }
   };
 
-  // --- DASHBOARD ACTIONS ---
+ // --- DASHBOARD ACTIONS ---
   const toggleTestStatus = async (t) => {
+    setIsActionLoading(true);
     try {
-      // 1. Pehle check karo test ka current asali status kya hai
       const now = Date.now();
       const closeTime = t.closeDate ? new Date(t.closeDate).getTime() : null;
       const openTime = t.openDate ? new Date(t.openDate).getTime() : null;
 
       let currentStatus = "live";
-      if (t.isActive === false || (closeTime && now > closeTime))
-        currentStatus = "closed";
+      if (t.isActive === false || (closeTime && now > closeTime)) currentStatus = "closed";
       else if (openTime && now < openTime) currentStatus = "upcoming";
 
-      let updatedTest = { ...t };
-
-      if (currentStatus === "live") {
-        // Agar abhi LIVE hai, toh manual close karo
-        updatedTest.isActive = false;
-      } else {
-        // Agar CLOSED ya UPCOMING hai, toh FORCE OPEN karo
-        updatedTest.isActive = true;
-        //   MAGIC: Jo bhi time lock lagaga tha, usko mita do taaki test turant khul jaye
+      let nextState = currentStatus !== "live";
+      let updatedTest = { ...t, isActive: nextState };
+      
+      if (nextState) {
         if (closeTime && now > closeTime) updatedTest.closeDate = "";
         if (openTime && now < openTime) updatedTest.openDate = "";
       }
 
-      await updateTestGlobal(updatedTest);
+      // THE FIX: Isolated updates so one failure doesn't crash the other
+      let isMetaUpdated = false;
+      try {
+        const metaCheckSnap = await get(ref(database, `tests_metadata/${t.id}`));
+        if (metaCheckSnap.exists()) {
+           await update(ref(database, `tests_metadata/${t.id}`), { isActive: nextState });
+           isMetaUpdated = true;
+        }
+      } catch(e) { console.warn("tests_metadata block restricted."); }
+      
+      try {
+          const legacyKey = t.dbKey || t.id;
+          await update(ref(database, `tests/${legacyKey}`), { isActive: nextState });
+      } catch (err) {
+          console.warn("Legacy test node restricted.", err);
+      }
+
+      // UI force update
+      setTests(tests.map((testItem) => (testItem.id === t.id ? updatedTest : testItem)));
+      if(selectedTest && selectedTest.id === t.id) setSelectedTest(updatedTest);
+      
     } catch (e) {
-      setSysAlert({
-        title: "Error",
-        msg: "Error toggling status.",
-        type: "error",
-      });
+      console.error(e);
+      setSysAlert({ title: "Error", msg: "Error toggling status.", type: "error" });
+    } finally {
+      setIsActionLoading(false);
     }
   };
+
 
   // ABSOLUTE SAFE DELETER (Only updates 1 field, touches nothing else)
   const triggerDelete = (t) => {
@@ -1429,28 +1457,25 @@ export default function ManageTests() {
       const targetSub = selectedTest.submissions[sIdx];
       const newStatus = !currentStatus;
 
-      // 1. Direct targeted Firebase update (Zero Array Overwrites!)
       if (!selectedTest.isLocal) {
-        const metaCheckSnap = await get(
-          ref(database, `tests_metadata/${selectedTest.id}`),
-        );
-        if (metaCheckSnap.exists() && targetSub.fbKey) {
-          await update(
-            ref(
-              database,
-              `test_submissions/${selectedTest.id}/submissions/${targetSub.fbKey}`,
-            ),
-            { isPublished: newStatus },
-          );
+        const metaCheckSnap = await get(ref(database, `tests_metadata/${selectedTest.id}`));
+        
+        // 🔥 SAME FIX HERE
+        const isNewArchitecture = metaCheckSnap.exists() && metaCheckSnap.val().creatorUid;
+
+        if (isNewArchitecture && targetSub.fbKey) {
+          await update(ref(database, `test_submissions/${selectedTest.id}/submissions/${targetSub.fbKey}`), { isPublished: newStatus });
         } else {
-          await update(
-            ref(database, `tests/${selectedTest.id}/submissions/${sIdx}`),
-            { isPublished: newStatus },
-          );
+          // Legacy update
+          const legacyKey = selectedTest.dbKey || selectedTest.id;
+          if (targetSub.fbKey) {
+              await update(ref(database, `tests/${legacyKey}/submissions/${targetSub.fbKey}`), { isPublished: newStatus });
+          } else {
+              await update(ref(database, `tests/${legacyKey}/submissions/${sIdx}`), { isPublished: newStatus });
+          }
         }
       }
 
-      // 2. Safe Local State Update
       let updatedTest = { ...selectedTest };
       let safeSubs = [...updatedTest.submissions];
       safeSubs[sIdx] = { ...targetSub, isPublished: newStatus };
@@ -1463,11 +1488,7 @@ export default function ManageTests() {
         type: "success",
       });
     } catch (e) {
-      setSysAlert({
-        title: "Error",
-        msg: "Failed to update individual publish status.",
-        type: "error",
-      });
+      setSysAlert({ title: "Error", msg: "Failed to update individual publish status.", type: "error" });
     } finally {
       setIsActionLoading(false);
     }
@@ -1482,41 +1503,57 @@ export default function ManageTests() {
         try {
           const targetSub = selectedTest.submissions[sIdx];
 
-          // 1. Specific Node Deletion (Zero Array Overwrite)
           if (!selectedTest.isLocal) {
-            const metaCheckSnap = await get(
-              ref(database, `tests_metadata/${selectedTest.id}`),
-            );
-            if (metaCheckSnap.exists() && targetSub.fbKey) {
-              await remove(
-                ref(
-                  database,
-                  `test_submissions/${selectedTest.id}/submissions/${targetSub.fbKey}`,
-                ),
-              );
-              // Safely reduce metadata count
-              await get(
-                ref(
-                  database,
-                  `tests_metadata/${selectedTest.id}/submissionCount`,
-                ),
-              ).then((snap) => {
-                const currentCount = snap.val() || 1;
-                update(ref(database, `tests_metadata/${selectedTest.id}`), {
-                  submissionCount: Math.max(0, currentCount - 1),
-                });
-              });
+            // 1. Identify TRUE Architecture (Bypass the Ghost Node Trap)
+            const metaCheckSnap = await get(ref(database, `tests_metadata/${selectedTest.id}`));
+            
+            // 🔥 THE FIX: Check if creatorUid exists to confirm it's a REAL new test!
+            const isNewArchitecture = metaCheckSnap.exists() && metaCheckSnap.val().creatorUid;
+            
+            if (isNewArchitecture && targetSub.fbKey) {
+               // PATH A: NEW ARCHITECTURE DELETION
+               await remove(ref(database, `test_submissions/${selectedTest.id}/submissions/${targetSub.fbKey}`));
+               
+               const countSnap = await get(ref(database, `tests_metadata/${selectedTest.id}/submissionCount`));
+               const currentCount = countSnap.val() || 1;
+               await update(ref(database, `tests_metadata/${selectedTest.id}`), {
+                 submissionCount: Math.max(0, currentCount - 1),
+               });
             } else {
-              let safeSubs = [...selectedTest.submissions];
-              safeSubs.splice(sIdx, 1);
-              await set(
-                ref(database, `tests/${selectedTest.id}/submissions`),
-                safeSubs,
-              );
+               // PATH B: LEGACY TEST DELETION
+               const legacyKey = selectedTest.dbKey || selectedTest.id;
+               const legacySubRef = ref(database, `tests/${legacyKey}/submissions`);
+               const lSnap = await get(legacySubRef);
+               
+               if (lSnap.exists()) {
+                  if (Array.isArray(lSnap.val())) {
+                     // Agar purana test array me save hua tha
+                     let safeSubs = [...lSnap.val()];
+                     safeSubs.splice(sIdx, 1);
+                     await set(legacySubRef, safeSubs);
+                  } else if (targetSub.fbKey) {
+                     // Agar purana test object me save hua tha
+                     await remove(ref(database, `tests/${legacyKey}/submissions/${targetSub.fbKey}`));
+                  }
+               }
             }
+
+            // 2. BACKGROUND RECEIPT CLEANUP
+            try {
+              fetch("/api/exam/submission/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  testId: selectedTest.id,
+                  studentUid: targetSub.uid || null,
+                  subKey: targetSub.fbKey || sIdx.toString(),
+                  isLegacy: !isNewArchitecture
+                })
+              }).catch(() => {});
+            } catch(apiErr) { }
           }
 
-          // 2. Local State Update
+          // 3. Safe Local UI Update
           let updatedTest = { ...selectedTest };
           let safeSubs = [...updatedTest.submissions];
           safeSubs.splice(sIdx, 1);
@@ -1529,9 +1566,10 @@ export default function ManageTests() {
             type: "success",
           });
         } catch (e) {
+          console.error("Delete Error:", e);
           setSysAlert({
             title: "Error",
-            msg: "Failed to delete submission.",
+            msg: "Failed to delete submission from database.",
             type: "error",
           });
         } finally {
