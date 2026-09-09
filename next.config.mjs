@@ -2,8 +2,8 @@
 const nextConfig = {
   reactCompiler: true,
   
-  // 🔥 THE ULTIMATE FIX: Block firebase-admin AND its inner ESM dependencies
-  serverExternalPackages: ['firebase-admin', 'jose', 'jwks-rsa'],
+  // Bas firebase-admin ko bahar rakhna kaafi hai v11.11.1 ke liye
+  serverExternalPackages: ['firebase-admin'],
 };
 
 export default nextConfig;
