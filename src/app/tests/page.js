@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, memo } from "react"; //   FIX: memo import
 import { useAuth } from "../../context/AuthContext";
 import { useData } from "../../context/DataContext";
 import { useRouter } from "next/navigation";
-import { database } from "../../lib/firebase";
+import { database, auth } from "../../lib/firebase";
 import { ref, set, update, remove, get, onValue } from "firebase/database";
 import FigureRenderer from "../../components/FigureRenderer";
 import SmilesViewer from "../../components/SmilesViewer";
@@ -48,8 +48,7 @@ export default function ManageTests() {
   const [vaultSearchQuery, setVaultSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [visibleCount, setVisibleCount] = useState(5);
-  const searchRef =
-    typeof window !== "undefined" ? require("react").useRef(null) : null;
+  const searchRef = useRef(null);
 
   // --- MODALS & SUB-VIEWS ---
   const [modalType, setModalType] = useState(null); // 'analytics' | 'editKey' | 'audit'
@@ -254,7 +253,7 @@ export default function ManageTests() {
     }
   }, [selectedTest]);
 
- //ON-DEMAND HEAVY DATA FETCHER (Phase 3)
+  //ON-DEMAND HEAVY DATA FETCHER (Phase 3)
   useEffect(() => {
     if (selectedTest && !selectedTest.isLocal && !selectedTest.isHeavyLoaded) {
       const fetchHeavyData = async () => {
@@ -262,36 +261,103 @@ export default function ManageTests() {
           // 1. Fetch Questions Safely
           let questions = [];
           if (selectedTest.questions && selectedTest.questions.length > 0) {
-             questions = selectedTest.questions; 
+            questions = selectedTest.questions;
           } else {
-             try {
-                 const qSnap = await get(ref(database, `test_questions/${selectedTest.id}`));
-                 questions = qSnap.exists() ? qSnap.val().questions || [] : [];
-             } catch (e) {
-                 console.warn("Could not read test_questions, fallback applied.");
-             }
+            try {
+              const qSnap = await get(
+                ref(database, `test_questions/${selectedTest.id}`),
+              );
+              questions = qSnap.exists() ? qSnap.val().questions || [] : [];
+            } catch (e) {
+              console.warn("Could not read test_questions, fallback applied.");
+            }
           }
 
           // 2. Fetch Submissions with "Try/Catch" Shield (THE FIX)
           let fetchedSubs = [];
-          
+
           try {
-              // Pehle Naye architecture me try karo
-              const sSnap = await get(ref(database, `test_submissions/${selectedTest.id}`));
-              if (sSnap.exists() && sSnap.val().submissions) {
-                 const subData = sSnap.val().submissions;
-                 fetchedSubs = Object.keys(subData).map((k) => ({ ...subData[k], fbKey: k })).filter(Boolean);
-              }
+            // Pehle Naye architecture me try karo
+            const sSnap = await get(
+              ref(database, `test_submissions/${selectedTest.id}`),
+            );
+            if (sSnap.exists() && sSnap.val().submissions) {
+              const subData = sSnap.val().submissions;
+              fetchedSubs = Object.keys(subData)
+                .map((k) => ({ ...subData[k], fbKey: k }))
+                .filter(Boolean);
+            }
           } catch (err) {
-              // Firebase ne block kar diya? Koi baat nahi, app crash nahi hoga!
-              console.warn("Permission denied for test_submissions. Expected for legacy tests.");
+            // Firebase ne block kar diya? Koi baat nahi, app crash nahi hoga!
+            console.warn(
+              "Permission denied for test_submissions. Expected for legacy tests.",
+            );
           }
 
-          // 3. Agar Naya data khali hai, toh Purane Test (JM Hindi 4) ka data uthao!
+          // 3. GOD-MODE DATA RECOVERY: If new architecture submissions are empty, recover trapped legacy data!
+          const isLegacyCandidate =
+            !selectedTest.creatorUid || Boolean(selectedTest.dbKey);
+
+          if (fetchedSubs.length === 0 && isLegacyCandidate) {
+            try {
+              // 🔥 Get secure token before fetching
+              const token = auth.currentUser
+                ? await auth.currentUser.getIdToken(true)
+                : "";
+
+              const recRes = await fetch("/api/exam/legacy/recover", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`, // Send token to prove Examiner identity
+                },
+                body: JSON.stringify({
+                  testId: selectedTest.id,
+                  legacyKey: selectedTest.dbKey || selectedTest.id,
+                }),
+              });
+
+              if (recRes.ok) {
+                const recData = await recRes.json();
+                if (recData.success) {
+                  if (
+                    Array.isArray(recData.submissions) &&
+                    recData.submissions.length > 0
+                  ) {
+                    fetchedSubs = recData.submissions;
+                  }
+                  if (
+                    (!questions || questions.length === 0) &&
+                    Array.isArray(recData.questions) &&
+                    recData.questions.length > 0
+                  ) {
+                    questions = recData.questions;
+                  }
+                }
+              }
+            } catch (recErr) {
+              console.warn("Legacy recovery fetch error:", recErr);
+            }
+          }
+
+          // 4. Fallback to local selectedTest.submissions if still empty
           if (fetchedSubs.length === 0 && selectedTest.submissions) {
-             fetchedSubs = Array.isArray(selectedTest.submissions) 
-                 ? selectedTest.submissions.filter(Boolean) 
-                 : Object.values(selectedTest.submissions).filter(Boolean);
+            if (Array.isArray(selectedTest.submissions)) {
+              fetchedSubs = selectedTest.submissions
+                .map((sub, idx) =>
+                  sub
+                    ? {
+                        ...sub,
+                        fbKey: sub.fbKey || sub.studentKey || idx.toString(),
+                      }
+                    : null,
+                )
+                .filter(Boolean);
+            } else {
+              fetchedSubs = Object.entries(selectedTest.submissions)
+                .map(([k, v]) => (v ? { ...v, fbKey: k } : null))
+                .filter(Boolean);
+            }
           }
 
           setSelectedTest((prev) => ({
@@ -659,12 +725,16 @@ export default function ManageTests() {
           // 🔥 THE FIX: Avoid multi-path collisions if questions haven't changed
           if (!updatedTest.questions) {
             // Sirf metadata update karo, taaki Firebase test_questions block na kare
-            await update(ref(database, `tests_metadata/${updatedTest.id}`), metaPayload);
+            await update(
+              ref(database, `tests_metadata/${updatedTest.id}`),
+              metaPayload,
+            );
           } else {
             // Agar questions bhi badle hain tabhi dono ek sath update karo
             const updates = {};
             updates[`tests_metadata/${updatedTest.id}`] = metaPayload;
-            updates[`test_questions/${updatedTest.id}/questions`] = updatedTest.questions;
+            updates[`test_questions/${updatedTest.id}/questions`] =
+              updatedTest.questions;
             await update(ref(database), updates);
           }
         }
@@ -681,7 +751,7 @@ export default function ManageTests() {
     }
   };
 
- // --- DASHBOARD ACTIONS ---
+  // --- DASHBOARD ACTIONS ---
   const toggleTestStatus = async (t) => {
     setIsActionLoading(true);
     try {
@@ -690,46 +760,66 @@ export default function ManageTests() {
       const openTime = t.openDate ? new Date(t.openDate).getTime() : null;
 
       let currentStatus = "live";
-      if (t.isActive === false || (closeTime && now > closeTime)) currentStatus = "closed";
+      if (t.isActive === false || (closeTime && now > closeTime))
+        currentStatus = "closed";
       else if (openTime && now < openTime) currentStatus = "upcoming";
 
       let nextState = currentStatus !== "live";
       let updatedTest = { ...t, isActive: nextState };
-      
+
       if (nextState) {
         if (closeTime && now > closeTime) updatedTest.closeDate = "";
         if (openTime && now < openTime) updatedTest.openDate = "";
       }
 
-      // THE FIX: Isolated updates so one failure doesn't crash the other
-      let isMetaUpdated = false;
-      try {
-        const metaCheckSnap = await get(ref(database, `tests_metadata/${t.id}`));
-        if (metaCheckSnap.exists()) {
-           await update(ref(database, `tests_metadata/${t.id}`), { isActive: nextState });
-           isMetaUpdated = true;
+      // 🔥 GOD MODE FIX: Route through Backend API to bypass client security rules
+      if (!t.isLocal) {
+        const legacyKey = t.dbKey || t.id;
+        const token = auth.currentUser
+          ? await auth.currentUser.getIdToken(true)
+          : "";
+        const res = await fetch("/api/exam/legacy/toggle", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            testId: t.id,
+            legacyKey: legacyKey,
+            isActive: nextState,
+            closeDate: updatedTest.closeDate,
+            openDate: updatedTest.openDate,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(
+            errData.message || "Failed to toggle test status via server",
+          );
         }
-      } catch(e) { console.warn("tests_metadata block restricted."); }
-      
-      try {
-          const legacyKey = t.dbKey || t.id;
-          await update(ref(database, `tests/${legacyKey}`), { isActive: nextState });
-      } catch (err) {
-          console.warn("Legacy test node restricted.", err);
       }
 
       // UI force update
-      setTests(tests.map((testItem) => (testItem.id === t.id ? updatedTest : testItem)));
-      if(selectedTest && selectedTest.id === t.id) setSelectedTest(updatedTest);
-      
+      setTests(
+        tests.map((testItem) =>
+          testItem.id === t.id ? updatedTest : testItem,
+        ),
+      );
+      if (selectedTest && selectedTest.id === t.id)
+        setSelectedTest(updatedTest);
     } catch (e) {
       console.error(e);
-      setSysAlert({ title: "Error", msg: "Error toggling status.", type: "error" });
+      setSysAlert({
+        title: "Error",
+        msg: "Error toggling status.",
+        type: "error",
+      });
     } finally {
       setIsActionLoading(false);
     }
   };
-
 
   // ABSOLUTE SAFE DELETER (Only updates 1 field, touches nothing else)
   const triggerDelete = (t) => {
@@ -751,21 +841,30 @@ export default function ManageTests() {
               );
               setLocalTests(newLocal);
             } else {
-              // Check if split architecture or legacy
-              const metaCheckSnap = await get(
-                ref(database, `tests_metadata/${t.id}`),
-              );
-              if (metaCheckSnap.exists()) {
-                await update(ref(database, `tests_metadata/${t.id}`), {
-                  isDeletedByExaminer: true,
-                });
-              } else {
-                const legacyKey = t.dbKey || t.id;
-                await update(ref(database, `tests/${legacyKey}`), {
-                  isDeletedByExaminer: true,
+              // 🔥 GOD MODE FIX: Route through Backend API to bypass client security rules
+              const legacyKey = t.dbKey || t.id;
+              const token = auth.currentUser
+                ? await auth.currentUser.getIdToken(true)
+                : "";
+              const res = await fetch("/api/exam/legacy/delete", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                  testId: t.id,
+                  legacyKey: legacyKey,
                   creatorUid: t.creatorUid || currentUser?.uid,
                   uid: t.uid || currentUser?.uid,
-                });
+                }),
+              });
+
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(
+                  errData.message || "Failed to soft-delete test via server",
+                );
               }
 
               if (setTests) {
@@ -840,7 +939,11 @@ export default function ManageTests() {
   };
 
   const exportToCSV = (t) => {
-    if (!t.submissions || !t.submissions.length) {
+    const safeSubs = Array.isArray(t.submissions)
+      ? t.submissions.filter(Boolean)
+      : Object.values(t.submissions || {}).filter(Boolean);
+
+    if (safeSubs.length === 0) {
       setSysAlert({
         title: "Empty",
         msg: "No submissions available to export yet.",
@@ -858,7 +961,7 @@ export default function ManageTests() {
 
     let csv =
       "Student Name,Roll Number,Total Score,Max Marks,Accuracy (%),Correct Qs,Wrong Qs,Skipped Qs,Submission Time\n";
-    t.submissions.forEach((s) => {
+    safeSubs.forEach((s) => {
       const accuracy =
         s.correct + s.wrong > 0
           ? Math.round((s.correct / (s.correct + s.wrong)) * 100)
@@ -1191,6 +1294,35 @@ export default function ManageTests() {
     }
 
     try {
+      if (
+        !selectedTest.isLocal &&
+        updatedTest.submissions &&
+        updatedTest.submissions.length > 0
+      ) {
+        const token = auth.currentUser
+          ? await auth.currentUser.getIdToken(true)
+          : "";
+        const res = await fetch("/api/exam/evaluation/regrade-all", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            testId: selectedTest.id,
+            recalculatedSubmissionsArray: updatedTest.submissions,
+            isLegacy: !selectedTest.creatorUid,
+            legacyKey: selectedTest.dbKey || selectedTest.id,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(
+            errData.message || "Failed to persist regraded submissions",
+          );
+        }
+      }
+
       await updateTestGlobal(updatedTest);
       setModalType(null);
       setSysAlert({
@@ -1199,6 +1331,7 @@ export default function ManageTests() {
         type: "success",
       });
     } catch (e) {
+      console.error("Save new key error:", e);
       setSysAlert({
         title: "Error",
         msg: "Error saving new key.",
@@ -1273,26 +1406,37 @@ export default function ManageTests() {
     newSub.skipped = newSkipped;
 
     try {
-      // 1. Direct Targeted Firebase Update (No Full Array Overwrite)
+      // 1. Direct Targeted Firebase Update via Secure Admin API
       if (!selectedTest.isLocal) {
-        const metaCheckSnap = await get(
-          ref(database, `tests_metadata/${selectedTest.id}`),
-        );
-        if (metaCheckSnap.exists() && evaluateSub.sub.fbKey) {
-          await update(
-            ref(
-              database,
-              `test_submissions/${selectedTest.id}/submissions/${evaluateSub.sub.fbKey}`,
-            ),
-            newSub,
-          );
-        } else {
-          await update(
-            ref(
-              database,
-              `tests/${selectedTest.id}/submissions/${evaluateSub.sIdx}`,
-            ),
-            newSub,
+        const token = auth.currentUser
+          ? await auth.currentUser.getIdToken(true)
+          : "";
+        const res = await fetch("/api/exam/evaluation/save", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            testId: selectedTest.id,
+            studentKey:
+              evaluateSub.sub.uid ||
+              evaluateSub.sub.studentKey ||
+              evaluateSub.sub.roll ||
+              null,
+            subKey:
+              evaluateSub.sub.fbKey ||
+              evaluateSub.sub.studentKey ||
+              evaluateSub.sIdx?.toString(),
+            newSubPayload: newSub,
+            isLegacy: !selectedTest.creatorUid,
+            legacyKey: selectedTest.dbKey || selectedTest.id,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(
+            errData.message || "Failed to save evaluation via API",
           );
         }
       }
@@ -1428,6 +1572,35 @@ export default function ManageTests() {
     });
 
     try {
+      if (
+        !selectedTest.isLocal &&
+        updatedTest.submissions &&
+        updatedTest.submissions.length > 0
+      ) {
+        const token = auth.currentUser
+          ? await auth.currentUser.getIdToken(true)
+          : "";
+        const res = await fetch("/api/exam/evaluation/regrade-all", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            testId: selectedTest.id,
+            recalculatedSubmissionsArray: updatedTest.submissions,
+            isLegacy: !selectedTest.creatorUid,
+            legacyKey: selectedTest.dbKey || selectedTest.id,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(
+            errData.message || "Failed to persist recalculated scores",
+          );
+        }
+      }
+
       await updateTestGlobal(updatedTest);
       setSysAlert({
         title: "System Restored!",
@@ -1435,6 +1608,7 @@ export default function ManageTests() {
         type: "success",
       });
     } catch (e) {
+      console.error("Recalculate error:", e);
       setSysAlert({
         title: "Error",
         msg: "Failed to recalculate scores.",
@@ -1454,30 +1628,39 @@ export default function ManageTests() {
   const toggleIndividualPublish = async (sIdx, currentStatus) => {
     setIsActionLoading(true);
     try {
-      const targetSub = selectedTest.submissions[sIdx];
+      const safeSubmissions = Array.isArray(selectedTest.submissions)
+        ? selectedTest.submissions.filter(Boolean)
+        : Object.values(selectedTest.submissions || {}).filter(Boolean);
+      const targetSub = safeSubmissions[sIdx];
+      if (!targetSub) throw new Error("Target submission not found");
+
       const newStatus = !currentStatus;
 
       if (!selectedTest.isLocal) {
-        const metaCheckSnap = await get(ref(database, `tests_metadata/${selectedTest.id}`));
-        
-        // 🔥 SAME FIX HERE
-        const isNewArchitecture = metaCheckSnap.exists() && metaCheckSnap.val().creatorUid;
+        const token = auth.currentUser
+          ? await auth.currentUser.getIdToken(true)
+          : "";
+        const res = await fetch("/api/exam/submission/publish", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            testId: selectedTest.id,
+            studentKey: targetSub.uid || targetSub.studentKey || null,
+            subKey: targetSub.fbKey || targetSub.studentKey || sIdx.toString(),
+            isPublished: newStatus,
+            isLegacy: !selectedTest.creatorUid,
+            legacyKey: selectedTest.dbKey || selectedTest.id,
+          }),
+        });
 
-        if (isNewArchitecture && targetSub.fbKey) {
-          await update(ref(database, `test_submissions/${selectedTest.id}/submissions/${targetSub.fbKey}`), { isPublished: newStatus });
-        } else {
-          // Legacy update
-          const legacyKey = selectedTest.dbKey || selectedTest.id;
-          if (targetSub.fbKey) {
-              await update(ref(database, `tests/${legacyKey}/submissions/${targetSub.fbKey}`), { isPublished: newStatus });
-          } else {
-              await update(ref(database, `tests/${legacyKey}/submissions/${sIdx}`), { isPublished: newStatus });
-          }
-        }
+        if (!res.ok) throw new Error("API Publish Toggle Failed");
       }
 
       let updatedTest = { ...selectedTest };
-      let safeSubs = [...updatedTest.submissions];
+      let safeSubs = [...safeSubmissions];
       safeSubs[sIdx] = { ...targetSub, isPublished: newStatus };
       updatedTest.submissions = safeSubs;
       setSelectedTest(updatedTest);
@@ -1488,7 +1671,12 @@ export default function ManageTests() {
         type: "success",
       });
     } catch (e) {
-      setSysAlert({ title: "Error", msg: "Failed to update individual publish status.", type: "error" });
+      console.error("Publish Toggle Error:", e);
+      setSysAlert({
+        title: "Error",
+        msg: "Failed to update individual publish status.",
+        type: "error",
+      });
     } finally {
       setIsActionLoading(false);
     }
@@ -1501,75 +1689,54 @@ export default function ManageTests() {
       action: async () => {
         setIsActionLoading(true);
         try {
-          const targetSub = selectedTest.submissions[sIdx];
+          // Force convert object to array to prevent crashes
+          const safeSubmissions = Array.isArray(selectedTest.submissions)
+            ? selectedTest.submissions.filter(Boolean)
+            : Object.values(selectedTest.submissions || {}).filter(Boolean);
+          const targetSub = safeSubmissions[sIdx];
+          if (!targetSub) throw new Error("Target submission not found");
 
           if (!selectedTest.isLocal) {
-            // 1. Identify TRUE Architecture (Bypass the Ghost Node Trap)
-            const metaCheckSnap = await get(ref(database, `tests_metadata/${selectedTest.id}`));
-            
-            // 🔥 THE FIX: Check if creatorUid exists to confirm it's a REAL new test!
-            const isNewArchitecture = metaCheckSnap.exists() && metaCheckSnap.val().creatorUid;
-            
-            if (isNewArchitecture && targetSub.fbKey) {
-               // PATH A: NEW ARCHITECTURE DELETION
-               await remove(ref(database, `test_submissions/${selectedTest.id}/submissions/${targetSub.fbKey}`));
-               
-               const countSnap = await get(ref(database, `tests_metadata/${selectedTest.id}/submissionCount`));
-               const currentCount = countSnap.val() || 1;
-               await update(ref(database, `tests_metadata/${selectedTest.id}`), {
-                 submissionCount: Math.max(0, currentCount - 1),
-               });
-            } else {
-               // PATH B: LEGACY TEST DELETION
-               const legacyKey = selectedTest.dbKey || selectedTest.id;
-               const legacySubRef = ref(database, `tests/${legacyKey}/submissions`);
-               const lSnap = await get(legacySubRef);
-               
-               if (lSnap.exists()) {
-                  if (Array.isArray(lSnap.val())) {
-                     // Agar purana test array me save hua tha
-                     let safeSubs = [...lSnap.val()];
-                     safeSubs.splice(sIdx, 1);
-                     await set(legacySubRef, safeSubs);
-                  } else if (targetSub.fbKey) {
-                     // Agar purana test object me save hua tha
-                     await remove(ref(database, `tests/${legacyKey}/submissions/${targetSub.fbKey}`));
-                  }
-               }
-            }
+            // 🔥 THE GOD-MODE FIX: Strictly use the Backend API. Zero Client-side DB calls!
+            const token = auth.currentUser
+              ? await auth.currentUser.getIdToken(true)
+              : "";
+            const res = await fetch("/api/exam/submission/delete", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                testId: selectedTest.id,
+                studentUid: targetSub.uid || targetSub.studentKey || null,
+                subKey:
+                  targetSub.fbKey || targetSub.studentKey || sIdx.toString(),
+                isLegacy: !selectedTest.creatorUid,
+                legacyKey: selectedTest.dbKey || selectedTest.id,
+              }),
+            });
 
-            // 2. BACKGROUND RECEIPT CLEANUP
-            try {
-              fetch("/api/exam/submission/delete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  testId: selectedTest.id,
-                  studentUid: targetSub.uid || null,
-                  subKey: targetSub.fbKey || sIdx.toString(),
-                  isLegacy: !isNewArchitecture
-                })
-              }).catch(() => {});
-            } catch(apiErr) { }
+            if (!res.ok) throw new Error("API Delete Failed");
           }
 
-          // 3. Safe Local UI Update
+          // Safe Local UI Update
           let updatedTest = { ...selectedTest };
-          let safeSubs = [...updatedTest.submissions];
+          let safeSubs = [...safeSubmissions];
           safeSubs.splice(sIdx, 1);
           updatedTest.submissions = safeSubs;
           setSelectedTest(updatedTest);
 
           setSysAlert({
             title: "Deleted",
-            msg: "Demo submission removed successfully.",
+            msg: "Submission removed securely.",
             type: "success",
           });
         } catch (e) {
           console.error("Delete Error:", e);
           setSysAlert({
             title: "Error",
-            msg: "Failed to delete submission from database.",
+            msg: "Failed to delete submission.",
             type: "error",
           });
         } finally {
@@ -3135,65 +3302,20 @@ export default function ManageTests() {
             })()}
 
           {/*   PREMIUM SUBMISSIONS LEDGER (Tailwind SaaS Style)   */}
-          {activeTab === "subs" && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-8 animate-[fadeIn_0.3s_ease]">
-              {/* Ledger Header & Controls */}
-              <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-[16px] sm:text-[18px] font-black text-slate-800 flex items-center gap-2 m-0 tracking-tight">
-                    <i className="ti ti-users-group text-blue-600 text-xl"></i>
-                    Submissions Ledger
-                    <span className="bg-blue-100 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-bold ml-1 border border-blue-200">
-                      {selectedTest.submissions
-                        ? selectedTest.submissions.length
-                        : 0}
-                    </span>
-                  </h3>
-                </div>
+          {activeTab === "subs" &&
+            (() => {
+              // 🔥 THE CRASH FIX: Ensure selectedTest exists before extracting submissions
+              if (!selectedTest) return null;
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                  {/* Search Bar */}
-                  <div className="relative flex-1 sm:min-w-[260px]">
-                    <i className="ti ti-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none"></i>
-                    <input
-                      type="text"
-                      placeholder="Search by Name or Roll No..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm"
-                    />
-                  </div>
+              const rawSubs = selectedTest.submissions;
+              const safeSubmissions = Array.isArray(rawSubs)
+                ? rawSubs.filter(Boolean)
+                : Object.values(rawSubs || {}).filter(Boolean);
 
-                  {/*   NAYA: Publish Ranks Button   */}
-                  <button
-                    className={`flex items-center justify-center gap-2 px-5 py-2.5 font-bold text-[13px] sm:text-sm rounded-xl transition-colors active:scale-95 shadow-sm whitespace-nowrap border ${selectedTest.ranksPublished ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"}`}
-                    onClick={() => toggleRankPublish(selectedTest)}
-                  >
-                    <i
-                      className={`ti ${selectedTest.ranksPublished ? "ti-eye-off" : "ti-medal"} text-lg`}
-                    ></i>
-                    {selectedTest.ranksPublished
-                      ? "Hide Ranks"
-                      : "Publish Ranks"}
-                  </button>
-
-                  {/* Export CSV Button */}
-                  <button
-                    className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[13px] sm:text-sm rounded-xl hover:bg-emerald-100 transition-colors active:scale-95 shadow-sm whitespace-nowrap"
-                    onClick={() => exportToCSV(selectedTest)}
-                  >
-                    <i className="ti ti-file-spreadsheet text-lg"></i> Export
-                    CSV
-                  </button>
-                </div>
-              </div>
-
-              {/* Ledger List Container */}
-              <div className="p-4 sm:p-6 bg-slate-50/30">
-                {!selectedTest.submissions ||
-                selectedTest.submissions.length === 0 ? (
-                  /* Empty State */
-                  <div className="text-center py-12 px-4 bg-white rounded-xl border border-slate-100 shadow-sm">
+              // Prevent SSR mismatched arrays
+              if (safeSubmissions.length === 0)
+                return (
+                  <div className="text-center py-12 px-4 bg-white rounded-xl border border-slate-100 shadow-sm mt-8">
                     <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
                       <i className="ti ti-ghost text-4xl text-slate-300"></i>
                     </div>
@@ -3204,177 +3326,262 @@ export default function ManageTests() {
                       Wait for students to complete and submit the test.
                     </p>
                   </div>
-                ) : (
-                  /* Scrollable Submissions List */
-                  <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1 sm:pr-2">
-                    {(searchQuery
-                      ? selectedTest.submissions.filter(
-                          (s) =>
-                            s.name
-                              .toLowerCase()
-                              .includes(searchQuery.toLowerCase()) ||
-                            (s.roll &&
-                              s.roll
-                                .toLowerCase()
-                                .includes(searchQuery.toLowerCase())),
-                        )
-                      : selectedTest.submissions
-                    ).map((s, sIdx) => (
-                      <div
-                        key={sIdx}
-                        className="bg-white p-4 rounded-xl border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-200 hover:shadow-md transition-all duration-200 group"
-                      >
-                        {/* Left: Student Info */}
-                        <div className="flex items-center gap-3.5">
-                          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-500 text-lg shrink-0 shadow-inner group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                            {(s.name || "A").charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 truncate mb-0.5 group-hover:text-blue-700 transition-colors">
-                              {s.name}
-                            </div>
-                            <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-widest">
-                              <i className="ti ti-id"></i> Roll:{" "}
-                              <span className="text-slate-500">
-                                {s.roll || "N/A"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                );
 
-                        {/* Right: Score & Actions (Border top on mobile) */}
-                        <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto mt-1 sm:mt-0 pt-3 sm:pt-0 border-t border-slate-100 sm:border-0">
-                          {/* Status / Score display */}
-                          <div className="text-left sm:text-right shrink-0">
-                            {(() => {
-                              // 🔥 NAYA: Smart Time Check for Examiner
-                              const isAutoPublished =
-                                selectedTest.resultVis === "scheduled" &&
-                                selectedTest.resultPublishTime &&
-                                Date.now() >=
-                                  new Date(
-                                    selectedTest.resultPublishTime,
-                                  ).getTime();
-                              const isScheduledPending =
-                                selectedTest.resultVis === "scheduled" &&
-                                selectedTest.resultPublishTime &&
-                                Date.now() <
-                                  new Date(
-                                    selectedTest.resultPublishTime,
-                                  ).getTime();
+              const filteredSubs = searchQuery
+                ? safeSubmissions.filter(
+                    (s) =>
+                      s?.name
+                        ?.toLowerCase()
+                        .includes(searchQuery.toLowerCase()) ||
+                      s?.roll
+                        ?.toLowerCase()
+                        .includes(searchQuery.toLowerCase()),
+                  )
+                : safeSubmissions;
 
-                              const showScore =
-                                s.evaluated ||
-                                selectedTest.resultVis === "instant" ||
-                                selectedTest.released ||
-                                isAutoPublished;
+              return (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-8 animate-[fadeIn_0.3s_ease]">
+                  {/* Ledger Header & Controls */}
+                  <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-[16px] sm:text-[18px] font-black text-slate-800 flex items-center gap-2 m-0 tracking-tight">
+                        <i className="ti ti-users-group text-blue-600 text-xl"></i>
+                        Submissions Ledger
+                        <span className="bg-blue-100 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-bold ml-1 border border-blue-200">
+                          {safeSubmissions.length}
+                        </span>
+                      </h3>
+                    </div>
 
-                              if (showScore) {
-                                return (
-                                  <div className="flex flex-col items-start sm:items-end">
-                                    <div className="text-[16px] sm:text-[18px] font-black text-blue-700 leading-none mb-1.5">
-                                      {s.score}{" "}
-                                      <span className="text-[11px] sm:text-[12px] font-bold text-slate-400">
-                                        / {selectedTest.totalMarks}
-                                      </span>
-                                    </div>
-                                    <div className="text-[9px] font-extrabold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1">
-                                      <i className="ti ti-check"></i>{" "}
-                                      {s.evaluated
-                                        ? "Evaluated"
-                                        : isAutoPublished
-                                          ? "Auto-Published"
-                                          : "Published"}
-                                    </div>
-                                  </div>
-                                );
-                              } else if (isScheduledPending) {
-                                return (
-                                  <div className="flex flex-col items-start sm:items-end">
-                                    <div className="text-[13px] sm:text-[14px] font-bold text-blue-600 leading-none mb-1.5 flex items-center gap-1">
-                                      <i className="ti ti-clock-play text-lg"></i>{" "}
-                                      Scheduled
-                                    </div>
-                                    <div className="text-[9px] font-extrabold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 uppercase tracking-widest">
-                                      Waiting for Time
-                                    </div>
-                                  </div>
-                                );
-                              } else {
-                                return (
-                                  <div className="flex flex-col items-start sm:items-end">
-                                    <div className="text-[13px] sm:text-[14px] font-bold text-amber-600 leading-none mb-1.5 flex items-center gap-1">
-                                      <i className="ti ti-clock text-lg"></i>{" "}
-                                      Pending
-                                    </div>
-                                    <div className="text-[9px] font-extrabold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest">
-                                      Needs Check
-                                    </div>
-                                  </div>
-                                );
-                              }
-                            })()}
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              className="px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white font-bold text-[13px] sm:text-sm rounded-xl shadow-md shadow-blue-600/20 hover:bg-blue-700 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center gap-1.5"
-                              onClick={() => {
-                                setEvaluateSub({
-                                  sub: s,
-                                  test: selectedTest,
-                                  sIdx,
-                                });
-                                setEvalFilter("all");
-                              }}
-                            >
-                              <i className="ti ti-microscope text-[16px] sm:text-lg"></i>{" "}
-                              <span className="hidden sm:inline">Evaluate</span>
-                            </button>
-
-                            {/* 🔥 NAYA FIX: Individual Publish Toggle */}
-                            {selectedTest.resultVis === "manual" &&
-                              !selectedTest.released && (
-                                <button
-                                  className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border transition-colors active:scale-95 shrink-0 shadow-sm ${s.isPublished ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100" : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600"}`}
-                                  title={
-                                    s.isPublished
-                                      ? "Hide Result"
-                                      : "Publish Result Individually"
-                                  }
-                                  onClick={() =>
-                                    toggleIndividualPublish(sIdx, s.isPublished)
-                                  }
-                                  disabled={isActionLoading}
-                                >
-                                  <i
-                                    className={`ti ${s.isPublished ? "ti-eye" : "ti-eye-off"} text-lg`}
-                                  ></i>
-                                </button>
-                              )}
-
-                            {/* Demo Test Delete Button (Only for Admin/Owner) */}
-                            {(userRole === "admin" ||
-                              s.uid === currentUser?.uid ||
-                              s.email === currentUser?.email) && (
-                              <button
-                                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-white text-rose-500 border border-rose-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors active:scale-95 shrink-0 shadow-sm"
-                                title="Delete Demo Submission"
-                                onClick={() => deleteSubmission(sIdx, s.name)}
-                              >
-                                <i className="ti ti-trash text-lg"></i>
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                      {/* Search Bar */}
+                      <div className="relative flex-1 sm:min-w-[260px]">
+                        <i className="ti ti-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none"></i>
+                        <input
+                          type="text"
+                          placeholder="Search by Name or Roll No..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm"
+                        />
                       </div>
-                    ))}
+
+                      {/* Publish Ranks Button */}
+                      <button
+                        className={`flex items-center justify-center gap-2 px-5 py-2.5 font-bold text-[13px] sm:text-sm rounded-xl transition-colors active:scale-95 shadow-sm whitespace-nowrap border ${selectedTest.ranksPublished ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"}`}
+                        onClick={() => toggleRankPublish(selectedTest)}
+                      >
+                        <i
+                          className={`ti ${selectedTest.ranksPublished ? "ti-eye-off" : "ti-medal"} text-lg`}
+                        ></i>
+                        {selectedTest.ranksPublished
+                          ? "Hide Ranks"
+                          : "Publish Ranks"}
+                      </button>
+
+                      {/* Export CSV Button */}
+                      <button
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[13px] sm:text-sm rounded-xl hover:bg-emerald-100 transition-colors active:scale-95 shadow-sm whitespace-nowrap"
+                        onClick={() => exportToCSV(selectedTest)}
+                      >
+                        <i className="ti ti-file-spreadsheet text-lg"></i>{" "}
+                        Export CSV
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          )}
+
+                  {/* Ledger List Container */}
+                  <div className="p-4 sm:p-6 bg-slate-50/30">
+                    {filteredSubs.length === 0 ? (
+                      /* Empty State */
+                      <div className="text-center py-12 px-4 bg-white rounded-xl border border-slate-100 shadow-sm">
+                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                          <i className="ti ti-ghost text-4xl text-slate-300"></i>
+                        </div>
+                        <h4 className="text-lg font-bold text-slate-700 mb-1">
+                          No Submissions Found
+                        </h4>
+                        <p className="text-sm text-slate-500 font-medium">
+                          Wait for students to complete and submit the test.
+                        </p>
+                      </div>
+                    ) : (
+                      /* Scrollable Submissions List */
+                      <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1 sm:pr-2">
+                        {filteredSubs.map((s, mapIdx) => {
+                          const trueIdx = safeSubmissions.indexOf(s);
+                          const targetIdx = trueIdx !== -1 ? trueIdx : mapIdx;
+
+                          return (
+                            <div
+                              key={targetIdx}
+                              className="bg-white p-4 rounded-xl border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-200 hover:shadow-md transition-all duration-200 group"
+                            >
+                              {/* Left: Student Info */}
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-500 text-lg shrink-0 shadow-inner group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                                  {(s?.name || "S").charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 truncate mb-0.5 group-hover:text-blue-700 transition-colors">
+                                    {s?.name || "Unknown Student"}
+                                  </div>
+                                  <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-widest">
+                                    <i className="ti ti-id"></i> Roll:{" "}
+                                    <span className="text-slate-500">
+                                      {s?.roll || "N/A"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Right: Score & Actions (Border top on mobile) */}
+                              <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto mt-1 sm:mt-0 pt-3 sm:pt-0 border-t border-slate-100 sm:border-0">
+                                {/* Status / Score display */}
+                                <div className="text-left sm:text-right shrink-0">
+                                  {(() => {
+                                    const isAutoPublished =
+                                      selectedTest.resultVis === "scheduled" &&
+                                      selectedTest.resultPublishTime &&
+                                      Date.now() >=
+                                        new Date(
+                                          selectedTest.resultPublishTime,
+                                        ).getTime();
+                                    const isScheduledPending =
+                                      selectedTest.resultVis === "scheduled" &&
+                                      selectedTest.resultPublishTime &&
+                                      Date.now() <
+                                        new Date(
+                                          selectedTest.resultPublishTime,
+                                        ).getTime();
+
+                                    const showScore =
+                                      s.evaluated ||
+                                      selectedTest.resultVis === "instant" ||
+                                      selectedTest.released ||
+                                      isAutoPublished;
+
+                                    if (showScore) {
+                                      return (
+                                        <div className="flex flex-col items-start sm:items-end">
+                                          <div className="text-[16px] sm:text-[18px] font-black text-blue-700 leading-none mb-1.5">
+                                            {s.score}{" "}
+                                            <span className="text-[11px] sm:text-[12px] font-bold text-slate-400">
+                                              / {selectedTest.totalMarks}
+                                            </span>
+                                          </div>
+                                          <div className="text-[9px] font-extrabold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1">
+                                            <i className="ti ti-check"></i>{" "}
+                                            {s.evaluated
+                                              ? "Evaluated"
+                                              : isAutoPublished
+                                                ? "Auto-Published"
+                                                : "Published"}
+                                          </div>
+                                        </div>
+                                      );
+                                    } else if (isScheduledPending) {
+                                      return (
+                                        <div className="flex flex-col items-start sm:items-end">
+                                          <div className="text-[13px] sm:text-[14px] font-bold text-blue-600 leading-none mb-1.5 flex items-center gap-1">
+                                            <i className="ti ti-clock-play text-lg"></i>{" "}
+                                            Scheduled
+                                          </div>
+                                          <div className="text-[9px] font-extrabold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-200 uppercase tracking-widest flex items-center gap-1">
+                                            {new Date(
+                                              selectedTest.resultPublishTime,
+                                            ).toLocaleTimeString([], {
+                                              hour: "2-digit",
+                                              minute: "2-digit",
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    } else {
+                                      return (
+                                        <div className="flex flex-col items-start sm:items-end">
+                                          <div className="text-[13px] sm:text-[14px] font-bold text-amber-600 leading-none mb-1.5 flex items-center gap-1">
+                                            <i className="ti ti-lock text-lg"></i>{" "}
+                                            In Review
+                                          </div>
+                                          <div className="text-[9px] font-extrabold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest flex items-center gap-1">
+                                            Manual Release
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                  })()}
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white font-bold text-[13px] sm:text-sm rounded-xl shadow-md shadow-blue-600/20 hover:bg-blue-700 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center gap-1.5"
+                                    onClick={() => {
+                                      setEvaluateSub({
+                                        sub: s,
+                                        test: selectedTest,
+                                        sIdx: targetIdx,
+                                      });
+                                      setEvalFilter("all");
+                                    }}
+                                  >
+                                    <i className="ti ti-microscope text-[16px] sm:text-lg"></i>{" "}
+                                    <span className="hidden sm:inline">
+                                      Evaluate
+                                    </span>
+                                  </button>
+
+                                  {/* Individual Publish Toggle */}
+                                  {selectedTest.resultVis === "manual" &&
+                                    !selectedTest.released && (
+                                      <button
+                                        className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border transition-colors active:scale-95 shrink-0 shadow-sm ${s.isPublished ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100" : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600"}`}
+                                        title={
+                                          s.isPublished
+                                            ? "Hide Result"
+                                            : "Publish Result Individually"
+                                        }
+                                        onClick={() =>
+                                          toggleIndividualPublish(
+                                            targetIdx,
+                                            s.isPublished,
+                                          )
+                                        }
+                                        disabled={isActionLoading}
+                                      >
+                                        <i
+                                          className={`ti ${s.isPublished ? "ti-eye" : "ti-eye-off"} text-lg`}
+                                        ></i>
+                                      </button>
+                                    )}
+
+                                  {/* Demo Test Delete Button */}
+                                  {(userRole === "admin" ||
+                                    s.uid === currentUser?.uid ||
+                                    s.email === currentUser?.email) && (
+                                    <button
+                                      className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-white text-rose-500 border border-rose-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors active:scale-95 shrink-0 shadow-sm"
+                                      title="Delete Demo Submission"
+                                      onClick={() =>
+                                        deleteSubmission(targetIdx, s.name)
+                                      }
+                                    >
+                                      <i className="ti ti-trash text-lg"></i>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
           {modalType === "editKey" && (
             <div
@@ -3928,39 +4135,47 @@ export default function ManageTests() {
                 </div>
 
                 {(() => {
-                  if (
-                    !selectedTest.submissions ||
-                    selectedTest.submissions.length === 0
+                  const safeSubmissions = Array.isArray(
+                    selectedTest.submissions,
                   )
+                    ? selectedTest.submissions.filter(Boolean)
+                    : Object.values(selectedTest.submissions || {}).filter(
+                        Boolean,
+                      );
+
+                  if (safeSubmissions.length === 0)
                     return (
                       <p>Not enough data! At least 1 student must submit.</p>
                     );
 
-                  const totalStudents = selectedTest.submissions.length;
-                  const scores = selectedTest.submissions.map((s) => s.score);
+                  const totalStudents = safeSubmissions.length;
+                  const scores = safeSubmissions.map((s) => s.score);
                   const maxScore = Math.max(...scores);
                   const minScore = Math.min(...scores);
                   const avgScore = (
                     scores.reduce((a, b) => a + b, 0) / totalStudents
                   ).toFixed(2);
                   const passRate = Math.round(
-                    (selectedTest.submissions.filter(
-                      (s) => s.score / selectedTest.totalMarks >= 0.33,
+                    (safeSubmissions.filter(
+                      (s) => s.score / (selectedTest.totalMarks || 1) >= 0.33,
                     ).length /
                       totalStudents) *
                       100,
                   );
 
-                  let qStats = selectedTest.questions.map((q, i) => ({
+                  let qStats = (selectedTest.questions || []).map((q, i) => ({
                     qIndex: i,
                     text: q.text,
                     wrongCount: 0,
                     correctCount: 0,
                   }));
-                  selectedTest.submissions.forEach((sub) => {
-                    sub.details.forEach((d, i) => {
-                      if (d.status === "wrong") qStats[i].wrongCount++;
-                      else if (d.status === "correct") qStats[i].correctCount++;
+                  safeSubmissions.forEach((sub) => {
+                    (sub.details || []).forEach((d, i) => {
+                      if (qStats[i]) {
+                        if (d.status === "wrong") qStats[i].wrongCount++;
+                        else if (d.status === "correct")
+                          qStats[i].correctCount++;
+                      }
                     });
                   });
 

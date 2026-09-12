@@ -49,16 +49,37 @@ export async function GET(req) {
           .once("value");
       }
 
+      // 🔥 FIX: Strict Type Resolution for ID lookup (String vs Number fallback)
+      if (!oldSnap.exists()) {
+        oldSnap = await adminDb
+          .ref("tests")
+          .orderByChild("id")
+          .equalTo(String(code))
+          .once("value");
+
+        if (!oldSnap.exists() && !isNaN(Number(code))) {
+          oldSnap = await adminDb
+            .ref("tests")
+            .orderByChild("id")
+            .equalTo(Number(code))
+            .once("value");
+        }
+      }
+
       if (oldSnap.exists()) {
         const oldData = oldSnap.val();
         if (Array.isArray(oldData)) {
           testMeta = oldData.find(
-            (t) => t?.code?.toUpperCase() === code.toUpperCase(),
+            (t) =>
+              t?.code?.toUpperCase() === code.toUpperCase() ||
+              String(t?.id) === String(code),
           );
         } else {
           const entry =
             Object.entries(oldData).find(
-              ([k, v]) => v?.code?.toUpperCase() === code.toUpperCase(),
+              ([k, v]) =>
+                v?.code?.toUpperCase() === code.toUpperCase() ||
+                String(v?.id) === String(code),
             ) || Object.entries(oldData)[0];
           if (entry) {
             testMeta = {

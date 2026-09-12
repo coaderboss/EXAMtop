@@ -6,10 +6,10 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
-    const { testId, studentUid, subKey, isLegacy, legacyKey } =
+    const { testId, studentKey, subKey, isPublished, isLegacy, legacyKey } =
       await req.json();
 
-    if (!testId || (!subKey && !studentUid)) {
+    if (!testId || (!subKey && !studentKey)) {
       return NextResponse.json(
         { success: false, message: "Missing parameters" },
         { status: 400 },
@@ -25,39 +25,42 @@ export async function POST(req) {
       );
     }
 
-    const targetSubKey = subKey || studentUid;
+    const newPublishStatus = Boolean(isPublished);
+    const updates = {};
 
-    // 1. DELETE FROM EXAMINER STORE
+    // 1. Update in Examiner's Submission Ledger
+    const targetSubKey = subKey || studentKey;
     if (isLegacy) {
       const activeLegacyKey = legacyKey || testId;
-      await adminDb
-        .ref(`tests/${activeLegacyKey}/submissions/${targetSubKey}`)
-        .remove();
+      updates[
+        `tests/${activeLegacyKey}/submissions/${targetSubKey}/isPublished`
+      ] = newPublishStatus;
     } else {
-      await adminDb
-        .ref(`test_submissions/${testId}/submissions/${targetSubKey}`)
-        .remove();
-
-      // Submit count safely reduce karo
-      const countRef = adminDb.ref(`tests_metadata/${testId}/submissionCount`);
-      await countRef.transaction((count) => Math.max((count || 0) - 1, 0));
+      updates[
+        `test_submissions/${testId}/submissions/${targetSubKey}/isPublished`
+      ] = newPublishStatus;
     }
 
-    // 2. GHOST BOUNCER CURE: Wipe the student's personal receipt!
-    const targetStudentKeys = [studentUid, subKey].filter(Boolean);
+    // 2. Update in Student's Personal Ledger (user_submissions)
+    const targetStudentKeys = [studentKey, subKey].filter(Boolean);
     for (const key of targetStudentKeys) {
-      await adminDb.ref(`user_submissions/${key}/${testId}`).remove();
+      updates[`user_submissions/${key}/${testId}/isPublished`] =
+        newPublishStatus;
       if (isLegacy && legacyKey) {
-        await adminDb.ref(`user_submissions/${key}/${legacyKey}`).remove();
+        updates[`user_submissions/${key}/${legacyKey}/isPublished`] =
+          newPublishStatus;
       }
     }
 
+    await adminDb.ref().update(updates);
+
     return NextResponse.json({
       success: true,
-      message: "Deleted permanently via God Mode",
+      message: `Status successfully set to ${newPublishStatus ? "Published" : "Hidden"}`,
+      isPublished: newPublishStatus,
     });
   } catch (error) {
-    console.error("Delete API Error:", error);
+    console.error("Publish API Error:", error);
     return NextResponse.json(
       { success: false, message: "Server Error" },
       { status: 500 },

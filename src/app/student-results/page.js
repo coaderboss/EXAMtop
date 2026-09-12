@@ -3,7 +3,7 @@
 import { useState, useEffect, memo } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
-import { database } from "../../lib/firebase";
+import { database, auth } from "../../lib/firebase";
 import { ref, get, query, orderByChild, equalTo } from "firebase/database";
 import FigureRenderer from "../../components/FigureRenderer";
 import SmilesViewer from "../../components/SmilesViewer";
@@ -45,13 +45,66 @@ export default function StudentResults() {
   const [openCardId, setOpenCardId] = useState(null);
   const [openingResultId, setOpeningResultId] = useState(null); // Spinner for specific test click
 
-  // 🔥 MISSING FUNCTION JO ADD KARNA HAI
   const [nowTick, setNowTick] = useState(Date.now());
+  const [leaderboardData, setLeaderboardData] = useState({
+    rank: null,
+    totalParticipants: null,
+    loading: false,
+  });
 
   useEffect(() => {
     const interval = setInterval(() => setNowTick(Date.now()), 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!selectedResult || !selectedResult.test?.ranksPublished) {
+      setLeaderboardData({
+        rank: null,
+        totalParticipants: null,
+        loading: false,
+      });
+      return;
+    }
+
+    let isSubscribed = true;
+    const fetchLeaderboardRank = async () => {
+      try {
+        setLeaderboardData((prev) => ({ ...prev, loading: true }));
+        const res = await fetch("/api/exam/leaderboard", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            testId: selectedResult.test.id,
+            studentScore: selectedResult.sub?.score,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && isSubscribed) {
+            setLeaderboardData({
+              rank: data.rank,
+              totalParticipants: data.totalParticipants,
+              loading: false,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Leaderboard fetch error:", err);
+      } finally {
+        if (isSubscribed) {
+          setLeaderboardData((prev) => ({ ...prev, loading: false }));
+        }
+      }
+    };
+
+    fetchLeaderboardRank();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [selectedResult]);
 
   const isResultVisible = (t, s) => {
     if (!t) return false;
@@ -62,7 +115,8 @@ export default function StudentResults() {
     )
       return true;
     if (t.resultVis === "scheduled" && t.resultPublishTime) {
-      return nowTick >= new Date(t.resultPublishTime).getTime();
+      const pubTime = new Date(t.resultPublishTime).getTime();
+      return !isNaN(pubTime) && nowTick >= pubTime;
     }
     return false;
   };
@@ -110,32 +164,38 @@ export default function StudentResults() {
               let totalMarks = sub.totalMarks;
               let subject = sub.subject || "General";
 
-              // 🛡️ AUTO-REPAIR & SAFE FALLBACK
-              if (
-                !title ||
-                title.trim() === "" ||
-                title.toLowerCase().includes("unnamed") ||
-                !totalMarks
-              ) {
-                try {
-                  let metaSnap = await get(
-                    ref(database, `tests_metadata/${testId}`),
-                  );
-                  if (metaSnap.exists()) {
-                    const m = metaSnap.val();
-                    title = m.title || title || `Assessment (${code})`;
-                    code = m.code || code;
-                    totalMarks = m.totalMarks || totalMarks || 100;
-                    subject = m.subject || subject || "General";
-                  } else {
-                    title = title || `Assessment (${code})`;
-                    totalMarks = totalMarks || 100;
-                  }
-                } catch (e) {
+              // Stop hardcoding 'instant'. Read real settings from Metadata!
+              let tVis = sub.resultVis || "manual";
+              let tReleased = false;
+              let tPubTime = sub.resultPublishTime || null;
+
+              try {
+                let metaSnap = await get(
+                  ref(database, `tests_metadata/${testId}`),
+                );
+                if (metaSnap.exists()) {
+                  const m = metaSnap.val();
+                  title = m.title || title || `Assessment (${code})`;
+                  code = m.code || code;
+                  totalMarks = m.totalMarks || totalMarks || 100;
+                  subject = m.subject || subject || "General";
+                  tVis = m.resultVis || sub.resultVis || "manual";
+                  tReleased = m.released === true;
+                  tPubTime =
+                    m.resultPublishTime || sub.resultPublishTime || null;
+                } else {
                   title = title || `Assessment (${code})`;
                   totalMarks = totalMarks || 100;
+                  tVis = sub.resultVis || "manual";
                 }
+              } catch (e) {
+                title = title || `Assessment (${code})`;
+                totalMarks = totalMarks || 100;
+                tVis = sub.resultVis || "manual";
               }
+
+              // Read isPublished boolean directly from user_submissions node! Zero client permission dependencies!
+              const individualPublishStatus = sub.isPublished === true;
 
               historyTemp.push({
                 test: {
@@ -145,8 +205,9 @@ export default function StudentResults() {
                   code: code,
                   subject: subject,
                   totalMarks: Number(totalMarks || 100),
-                  resultVis: "instant",
-                  released: true,
+                  resultVis: tVis,
+                  released: tReleased,
+                  resultPublishTime: tPubTime,
                 },
                 sub: {
                   score: Number(sub.score || 0),
@@ -159,7 +220,7 @@ export default function StudentResults() {
                   correct: sub.correct || 0,
                   wrong: sub.wrong || 0,
                   skipped: sub.skipped || 0,
-                  isPublished: true,
+                  isPublished: individualPublishStatus, // 🔥 Use the fetched live status here
                   roll: sub.studentRoll || sub.roll || null,
                   studentKey: sub.studentKey || key,
                 },
@@ -320,16 +381,28 @@ export default function StudentResults() {
         // 3. Fallback to Legacy Tests (If old demo tests exist)
         if (!foundDbSub) {
           try {
-            const legacySnap = await get(ref(database, `tests/${testId}`));
-            if (legacySnap.exists()) {
-              const legacyData = legacySnap.val();
-              if (legacyData.questions)
-                fullTest.questions = legacyData.questions;
-              if (legacyData.submissions) {
-                const rawSubs = Array.isArray(legacyData.submissions)
-                  ? legacyData.submissions
-                  : Object.values(legacyData.submissions);
-                foundDbSub = rawSubs.find(
+            const token = auth.currentUser
+              ? await auth.currentUser.getIdToken(true)
+              : "";
+            const recRes = await fetch("/api/exam/legacy/recover", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                testId,
+                legacyKey: historyItem.test?.dbKey || testId,
+              }),
+            });
+
+            if (recRes.ok) {
+              const recData = await recRes.json();
+              if (recData?.questions && Array.isArray(recData.questions)) {
+                fullTest.questions = recData.questions;
+              }
+              if (recData?.submissions && Array.isArray(recData.submissions)) {
+                foundDbSub = recData.submissions.find(
                   (s) =>
                     s &&
                     (s.uid === safeUserKey || s.email === currentUser?.email) &&
@@ -338,13 +411,41 @@ export default function StudentResults() {
               }
             }
           } catch (err) {
-            console.warn("Legacy fetch skipped");
+            console.warn("Legacy recovery fetch skipped:", err);
           }
         }
 
         // If found in DB, merge it perfectly into our fallback
         if (foundDbSub) {
           fullSub = { ...fullSub, ...foundDbSub };
+          // Defensive check: If details are empty but questions & answers exist, construct details
+          if (
+            (!fullSub.details || fullSub.details.length === 0) &&
+            Array.isArray(fullTest.questions) &&
+            fullTest.questions.length > 0 &&
+            Array.isArray(fullSub.answers)
+          ) {
+            fullSub.details = fullTest.questions.map((q, qIdx) => {
+              const ansObj = fullSub.answers.find(
+                (a) => String(a.qIndex) === String(qIdx),
+              );
+              const val = ansObj ? ansObj.val : "";
+              return {
+                q,
+                ans: { val },
+                status: val ? "submitted" : "skipped",
+                earned: 0,
+              };
+            });
+          }
+        }
+
+        if (
+          (!fullTest.questions || fullTest.questions.length === 0) &&
+          Array.isArray(fullSub.details) &&
+          fullSub.details.length > 0
+        ) {
+          fullTest.questions = fullSub.details.map((d) => d.q).filter(Boolean);
         }
       }
 
@@ -696,7 +797,10 @@ export default function StudentResults() {
               <div className="w-px h-16 bg-slate-200"></div>
               <div className="text-center px-2">
                 <div className="text-3xl sm:text-[42px] font-black text-emerald-500 leading-none mb-2">
-                  {myHistory.filter((h) => isResultVisible(h.test)).length}
+                  {
+                    myHistory.filter((h) => isResultVisible(h.test, h.sub))
+                      .length
+                  }
                 </div>
                 <div className="text-[10px] sm:text-[11px] font-black text-emerald-600/60 uppercase tracking-widest">
                   Evaluated
@@ -739,7 +843,7 @@ export default function StudentResults() {
                   h.test.totalMarks > 0
                     ? Math.round((h.sub.score / h.test.totalMarks) * 100)
                     : 0;
-                const canViewNow = isResultVisible(h.test);
+                const canViewNow = isResultVisible(h.test, h.sub);
 
                 // Track if this specific card is open
                 const isOpen = openCardId === idx;
@@ -1367,18 +1471,35 @@ export default function StudentResults() {
             : 0;
         const attemptRate =
           totalQs > 0 ? ((totalAttempted / totalQs) * 100).toFixed(1) : 0;
-        // FIX: Ensure submissions is an Array before calling map
+        // Secure Rank Calculation via Backend Leaderboard API
         let parsedSubmissions = [];
         if (test.submissions) {
           parsedSubmissions = Array.isArray(test.submissions)
-            ? test.submissions
-            : Object.values(test.submissions);
+            ? test.submissions.filter(Boolean)
+            : Object.values(test.submissions).filter(Boolean);
         }
+        const fallbackScores = parsedSubmissions.map((s) => s?.score || 0);
+        const fallbackRank =
+          fallbackScores.length > 0
+            ? fallbackScores.filter((sc) => sc > sub.score).length + 1
+            : 1;
+        const fallbackTotal =
+          fallbackScores.length > 0
+            ? fallbackScores.length
+            : test.submissionCount || 1;
 
-        const allScores = parsedSubmissions.map((s) => s?.score || 0);
         const myRank =
-          allScores.filter((score) => score > sub.score).length + 1;
-        const totalParticipants = allScores.length;
+          leaderboardData.rank !== null
+            ? leaderboardData.rank
+            : leaderboardData.loading
+              ? "..."
+              : fallbackRank;
+        const totalParticipants =
+          leaderboardData.totalParticipants !== null
+            ? leaderboardData.totalParticipants
+            : leaderboardData.loading
+              ? "..."
+              : fallbackTotal;
 
         // Negative Marks Calculation
         const negMarks = (sub.wrong * (test.negMarking || 0)).toFixed(2);

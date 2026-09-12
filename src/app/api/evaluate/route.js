@@ -1,7 +1,7 @@
 // src/app/api/evaluate/route.js
 import { NextResponse } from "next/server";
 import { adminDb } from "../../../lib/firebaseAdmin";
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
@@ -39,12 +39,21 @@ export async function POST(req) {
         testQuestions = activeTestMeta.questions || [];
         isLegacy = true;
       } else {
-        // 2. Query lookup fallback (High Speed Indexed)
-        const oldSnapById = await adminDb
+        // 2. Query lookup fallback (High Speed Indexed with String & Number Type Resolution)
+        let oldSnapById = await adminDb
           .ref("tests")
           .orderByChild("id")
-          .equalTo(testId)
+          .equalTo(String(testId))
           .once("value");
+
+        if (!oldSnapById.exists() && !isNaN(Number(testId))) {
+          oldSnapById = await adminDb
+            .ref("tests")
+            .orderByChild("id")
+            .equalTo(Number(testId))
+            .once("value");
+        }
+
         if (oldSnapById.exists()) {
           const oldData = oldSnapById.val();
           legacyTestKey = Object.keys(oldData)[0];
@@ -100,7 +109,9 @@ export async function POST(req) {
     const safeUserKey =
       student.uid && student.uid !== "anonymous"
         ? student.uid
-        : encodeURIComponent((student.roll || student.name || "guest").trim().toLowerCase()).replace(/\./g, "_");
+        : encodeURIComponent(
+            (student.roll || student.name || "guest").trim().toLowerCase(),
+          ).replace(/\./g, "_");
 
     if (isLegacy) {
       const legacySubs = activeTestMeta.submissions
@@ -108,14 +119,25 @@ export async function POST(req) {
           ? activeTestMeta.submissions
           : Object.values(activeTestMeta.submissions)
         : [];
-      
+
       // FIX: Strict UID, Email & Roll Check for Legacy Tests
       alreadySubmitted = legacySubs.some((s) => {
         if (!s) return false;
         const studentUid = student.uid || "anonymous";
-        if (s.uid && s.uid === studentUid && studentUid !== "anonymous") return true;
-        if (s.email && student.email && s.email.toLowerCase() === student.email.toLowerCase()) return true;
-        if (s.roll && student.roll && s.roll.toLowerCase() === student.roll.toLowerCase()) return true;
+        if (s.uid && s.uid === studentUid && studentUid !== "anonymous")
+          return true;
+        if (
+          s.email &&
+          student.email &&
+          s.email.toLowerCase() === student.email.toLowerCase()
+        )
+          return true;
+        if (
+          s.roll &&
+          student.roll &&
+          s.roll.toLowerCase() === student.roll.toLowerCase()
+        )
+          return true;
         return false;
       });
     } else {
@@ -261,11 +283,15 @@ export async function POST(req) {
       return { q, ans: { val: safeVal }, status, earned };
     });
 
+    // 🛡️ SANITIZER ENGINE: Strips all undefined properties so Firebase Admin never crashes
+    const sanitizePayload = (obj) =>
+      JSON.parse(JSON.stringify(obj, (k, v) => (v === undefined ? null : v)));
+
     // 3. SECURE PAYLOAD PUSH (Atomic Transaction to prevent Race Conditions)
     const finalSub = {
       uid: student.uid || "anonymous",
-      name: student.name,
-      roll: student.roll,
+      name: student.name || "Student",
+      roll: student.roll || "",
       score: Number(score.toFixed(2)),
       correct,
       wrong,
@@ -273,36 +299,49 @@ export async function POST(req) {
       details,
       time: new Date().toLocaleString("en-IN"),
       timestamp: Date.now(),
-      totalMarks: activeTestMeta.totalMarks,
+      totalMarks: Number(activeTestMeta.totalMarks || 0),
       cheatLogs: cheatLogs || [],
-      timeTaken: timeTaken,
+      timeTaken: timeTaken || "00:00",
       timeSpentPerQuestion: timeSpentPerQuestion || {},
       isPublished: false,
     };
 
+    const cleanFinalSub = sanitizePayload(finalSub);
+
     if (isLegacy) {
-      await adminDb.ref(`tests/${legacyTestKey}/submissions`).push(finalSub);
+      await adminDb
+        .ref(`tests/${legacyTestKey}/submissions`)
+        .push(cleanFinalSub);
 
       const dashboardRef = adminDb.ref(
         `user_submissions/${safeUserKey}/${testId || legacyTestKey}`,
       );
-      await dashboardRef.set({
-        testId: testId || legacyTestKey,
-        legacyTestKey: legacyTestKey,
-        testTitle: activeTestMeta.title || "Untitled Assessment",
-        testCode: activeTestMeta.code || "N/A",
-        subject: activeTestMeta.subject || "General",
-        score: Number(score.toFixed(2)),
-        totalMarks: activeTestMeta.totalMarks || 0,
-        correct: correct,
-        wrong: wrong,
-        skipped: skipped,
-        time: new Date().toLocaleString("en-IN"),
-        timestamp: Date.now(),
-        studentRoll: student.roll || "",
-        studentName: student.name || "",
-        studentKey: safeUserKey,
-      });
+      await dashboardRef.set(
+        sanitizePayload({
+          testId: testId || legacyTestKey,
+          legacyTestKey: legacyTestKey,
+          testTitle: activeTestMeta.title || "Untitled Assessment",
+          testCode: activeTestMeta.code || "N/A",
+          subject: activeTestMeta.subject || "General",
+          score: Number(score.toFixed(2)),
+          totalMarks: Number(activeTestMeta.totalMarks || 0),
+          correct: correct,
+          wrong: wrong,
+          skipped: skipped,
+          time: new Date().toLocaleString("en-IN"),
+          timestamp: Date.now(),
+          studentRoll: student.roll || "",
+          studentName: student.name || "",
+          studentKey: safeUserKey,
+          isPublished: false,
+          resultVis: activeTestMeta.resultVis || "instant",
+          resultPublishTime:
+            activeTestMeta.resultVis === "scheduled"
+              ? activeTestMeta.resultPublishTime || null
+              : null,
+          details: cleanFinalSub.details || [],
+        }),
+      );
     } else {
       const lockRef = adminDb.ref(
         `test_submissions/${testId}/submissions/${safeUserKey}`,
@@ -310,7 +349,7 @@ export async function POST(req) {
 
       const { committed } = await lockRef.transaction((currentData) => {
         if (currentData === null) {
-          return finalSub; // Only write if it does not exist
+          return cleanFinalSub; // Only write if it does not exist
         } else {
           return; // Abort transaction, duplicate detected at database level
         }
@@ -331,22 +370,31 @@ export async function POST(req) {
       const dashboardRef = adminDb.ref(
         `user_submissions/${safeUserKey}/${testId}`,
       );
-      await dashboardRef.set({
-        testId: testId,
-        testTitle: activeTestMeta.title || "Untitled Assessment",
-        testCode: activeTestMeta.code || "N/A",
-        subject: activeTestMeta.subject || "General",
-        score: Number(score.toFixed(2)),
-        totalMarks: activeTestMeta.totalMarks || 0,
-        correct: correct,
-        wrong: wrong,
-        skipped: skipped,
-        time: new Date().toLocaleString("en-IN"),
-        timestamp: Date.now(),
-        studentRoll: student.roll || "",
-        studentName: student.name || "",
-        studentKey: safeUserKey,
-      });
+      await dashboardRef.set(
+        sanitizePayload({
+          testId: testId,
+          testTitle: activeTestMeta.title || "Untitled Assessment",
+          testCode: activeTestMeta.code || "N/A",
+          subject: activeTestMeta.subject || "General",
+          score: Number(score.toFixed(2)),
+          totalMarks: Number(activeTestMeta.totalMarks || 0),
+          correct: correct,
+          wrong: wrong,
+          skipped: skipped,
+          time: new Date().toLocaleString("en-IN"),
+          timestamp: Date.now(),
+          studentRoll: student.roll || "",
+          studentName: student.name || "",
+          studentKey: safeUserKey,
+          isPublished: false,
+          resultVis: activeTestMeta.resultVis || "instant",
+          resultPublishTime:
+            activeTestMeta.resultVis === "scheduled"
+              ? activeTestMeta.resultPublishTime || null
+              : null,
+          details: cleanFinalSub.details || [],
+        }),
+      );
 
       // Safely increment count
       await adminDb
