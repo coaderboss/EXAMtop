@@ -101,10 +101,21 @@ async function handleRecovery(testId, legacyKey, req) {
     }
   }
 
-  if (!testData) {
+  // 🛡️ CRITICAL FIX: If metadata/legacy tests node misses questions, recover them from split test_questions node!
+  if (!testData && testId) {
+    const splitQSnap = await adminDb.ref(`test_questions/${testId}`).once("value");
+    if (splitQSnap.exists()) {
+      return {
+        success: true,
+        message: "Recovered from split architecture.",
+        submissions: [],
+        questions: splitQSnap.val().questions || [],
+        status: 200,
+      };
+    }
     return {
       success: true,
-      message: "No legacy test found.",
+      message: "No legacy test or split questions found.",
       submissions: [],
       questions: [],
       status: 200,

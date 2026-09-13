@@ -154,62 +154,6 @@ export default function StudentDashboard() {
           console.warn("Primary fetch error:", error);
         }
 
-        // 2. LEGACY FALLBACK (PURGE EMPTY BOXES)
-        try {
-          const oldSnap = await get(ref(database, "tests"));
-          if (oldSnap.exists()) {
-            const oldData = Array.isArray(oldSnap.val())
-              ? oldSnap.val()
-              : Object.values(oldSnap.val());
-            oldData.filter(Boolean).forEach((t) => {
-              let tTitle = t.title || "";
-
-              // 🔥 STRICT GHOST FILTER: Ignore missing names or "Unnamed Test" completely
-              if (
-                !t.id ||
-                tTitle.trim() === "" ||
-                tTitle.toLowerCase().includes("unnamed")
-              )
-                return;
-
-              if (t.submissions) {
-                const subsArray = Array.isArray(t.submissions)
-                  ? t.submissions
-                  : Object.values(t.submissions);
-                subsArray.filter(Boolean).forEach((s, idx) => {
-                  let isExactMatch =
-                    (s.uid && s.uid === currentUser.uid) ||
-                    (s.email &&
-                      currentUser.email &&
-                      s.email.toLowerCase() ===
-                        currentUser.email.toLowerCase()) ||
-                    (s.roll &&
-                      currentUser.rollNo &&
-                      s.roll.toLowerCase() ===
-                        currentUser.rollNo.toLowerCase());
-                  if (isExactMatch) {
-                    historyTemp.push({
-                      testId: t.id,
-                      testTitle: tTitle,
-                      testCode: t.code || "N/A",
-                      subject: t.subject || "General",
-                      score: Number(s.score || 0),
-                      totalMarks: Number(t.totalMarks || s.totalMarks || 100),
-                      correct: s.correct || 0,
-                      wrong: s.wrong || 0,
-                      skipped: s.skipped || 0,
-                      time: s.time || "Unknown Date",
-                      sIdx: idx,
-                      timestamp: s.timestamp || 0,
-                    });
-                  }
-                });
-              }
-            });
-          }
-        } catch (legacyError) {
-          console.warn("Legacy tests access blocked.");
-        }
 
         // DEDUPLICATION & SORTING
         const uniqueHistory = Array.from(

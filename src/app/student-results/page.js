@@ -467,7 +467,7 @@ export default function StudentResults() {
         fullTest.questions[0].type !== "subjective"
       ) {
          try {
-           const token = currentUser ? await currentUser.getIdToken() : "";
+           const token = auth.currentUser ? await auth.currentUser.getIdToken(true) : "";
            const recRes = await fetch("/api/exam/legacy/recover", {
              method: "POST",
              headers: {

@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
-import { database, auth } from "../../lib/firebase";
-import { ref, get, update, set, remove } from "firebase/database";
+import { ref, get, update, set, remove, query, limitToLast } from "firebase/database";
 import { motion, AnimatePresence } from "framer-motion";
 import { getApps, initializeApp } from "firebase/app";
 import {
@@ -109,15 +108,16 @@ export default function GodMode() {
     }
   }, [activeTab, allTests]);
 
-  // 🟢 1. MODULAR FETCH: TESTS (Phase 3 Split DB Support)
+  // 🟢 1. MODULAR FETCH: TESTS (Phase 4 Scalable Fetching)
   const fetchTestsData = async () => {
     if (allTests.length > 0 || isLoadingTests) return;
     setIsLoadingTests(true);
     try {
       let tData = [];
 
-      // A. Naye Architecture (Phase 3) ka lightweight Metadata
-      const metaSnap = await get(ref(database, "tests_metadata"));
+      // 🛡️ SCALE-04 FIX: Fetch ONLY the 1000 most recent tests to prevent 5GB memory crash
+      const testsQuery = query(ref(database, "tests_metadata"), limitToLast(1000));
+      const metaSnap = await get(testsQuery);
       if (metaSnap.exists()) {
         const rawMeta = metaSnap.val();
         Object.keys(rawMeta).forEach((key) => {
@@ -125,8 +125,9 @@ export default function GodMode() {
         });
       }
 
-      // B. Purane Legacy Tests
-      const testsSnap = await get(ref(database, "tests"));
+      // Legacy fallback (Limited as well)
+      const legacyQuery = query(ref(database, "tests"), limitToLast(500));
+      const testsSnap = await get(legacyQuery);
       if (testsSnap.exists()) {
         const rawTests = testsSnap.val();
         Object.keys(rawTests).forEach((key) => {
@@ -144,19 +145,21 @@ export default function GodMode() {
     }
   };
 
-  // 🟢 2. MODULAR FETCH: USERS
+  // 🟢 2. MODULAR FETCH: USERS (Phase 4 Scalable Fetching)
   const fetchUsersData = async () => {
     if (allUsers.length > 0 || isLoadingUsers) return;
     setIsLoadingUsers(true);
     try {
-      const usersSnap = await get(ref(database, "users"));
+      // 🛡️ SCALE-04 FIX: Fetch ONLY the 1000 most recent users
+      const usersQuery = query(ref(database, "users"), limitToLast(1000));
+      const usersSnap = await get(usersQuery);
       if (usersSnap.exists()) {
         const rawUsers = usersSnap.val();
         const uData = Object.keys(rawUsers).map((key) => ({
           uid: key,
           ...rawUsers[key],
         }));
-        setAllUsers(uData);
+        setAllUsers(uData.sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
       }
     } catch (e) {
       console.error("Users Data Error:", e);
@@ -1042,7 +1045,11 @@ export default function GodMode() {
             );
           }
 
-          let newSubs = safeArray(t.submissions).filter((_, i) => i !== idx);
+          // 🛡️ FIX: Locally remove from the array state WITHOUT sending that array back to Firebase
+          let newSubs = safeArray(t.submissions).filter((sub) => {
+            const currentSubUid = sub?.fbKey || sub?.studentKey || sub?.uid;
+            return currentSubUid !== targetUid;
+          });
           const updatedTest = {
             ...t,
             submissions: newSubs,

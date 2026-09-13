@@ -426,26 +426,30 @@ export default function ManageTests() {
     activeTab,
   ]);
 
- useEffect(() => {
+  useEffect(() => {
     // 🛡️ SCALE FIX: Replace monolithic onValue socket storm with lightweight interval polling
     if (!selectedTest?.id || isOffline) return;
-    
+
     let isSubscribed = true;
     const fetchLiveCount = async () => {
       try {
-        const snap = await get(ref(database, `live_sessions/${selectedTest.id}`));
+        const snap = await get(
+          ref(database, `live_sessions/${selectedTest.id}`),
+        );
         if (isSubscribed) {
-           setLiveCount(snap.exists() ? Object.keys(snap.val()).length : 0);
+          setLiveCount(snap.exists() ? Object.keys(snap.val()).length : 0);
         }
-      } catch(e) { /* silent fail */ }
+      } catch (e) {
+        /* silent fail */
+      }
     };
-    
+
     fetchLiveCount(); // Initial fetch
     const interval = setInterval(fetchLiveCount, 15000); // Poll every 15 seconds
 
     return () => {
-       isSubscribed = false;
-       clearInterval(interval);
+      isSubscribed = false;
+      clearInterval(interval);
     };
   }, [selectedTest?.id, isOffline]);
 
@@ -1312,24 +1316,35 @@ export default function ManageTests() {
         const token = auth.currentUser
           ? await auth.currentUser.getIdToken(true)
           : "";
-        const res = await fetch("/api/exam/evaluation/regrade-all", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            testId: selectedTest.id,
-            recalculatedSubmissionsArray: updatedTest.submissions,
-            isLegacy: !selectedTest.creatorUid,
-            legacyKey: selectedTest.dbKey || selectedTest.id,
-          }),
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(
-            errData.message || "Failed to persist regraded submissions",
-          );
+
+        // 🛡️ SCALE-05 FIX: Batch processing to prevent 413 Payload Too Large
+        const BATCH_SIZE = 250; // Keep payload well under 4.5MB
+        const allSubs = updatedTest.submissions;
+
+        for (let i = 0; i < allSubs.length; i += BATCH_SIZE) {
+          const batch = allSubs.slice(i, i + BATCH_SIZE);
+
+          const res = await fetch("/api/exam/evaluation/regrade-all", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              testId: selectedTest.id,
+              recalculatedSubmissionsArray: batch,
+              isLegacy: !selectedTest.creatorUid,
+              legacyKey: selectedTest.dbKey || selectedTest.id,
+            }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(
+              errData.message ||
+                `Failed to persist batch ${i / BATCH_SIZE + 1}`,
+            );
+          }
         }
       }
 
@@ -2287,7 +2302,7 @@ export default function ManageTests() {
             {/* CSS Hack for SVGs */}
             <style>{`.svg-eval-container svg { max-width: 100%; height: auto; max-height: 280px; min-height: 100px; }`}</style>
 
-           {evaluateSub.sub.details
+            {evaluateSub.sub.details
               .filter((d) => {
                 let sMatch =
                   evalFilter === "all" ||
@@ -2303,11 +2318,12 @@ export default function ManageTests() {
               })
               .map((d, index) => {
                 const originalQIdx = evaluateSub.sub.details.indexOf(d);
-                
+
                 // 🛡️ ARCHITECTURE FIX: Fetch full question with options from the master test array!
-                const masterQ = evaluateSub.test.questions?.[d.q?.index ?? originalQIdx];
-                const q = masterQ || d.q; 
-                
+                const masterQ =
+                  evaluateSub.test.questions?.[d.q?.index ?? originalQIdx];
+                const q = masterQ || d.q;
+
                 const ans = d.ans;
 
                 const statusColors = {

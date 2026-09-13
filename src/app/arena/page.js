@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, memo } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { auth } from "../../lib/firebase";
 import Link from "next/link";
 
 // 🛡️ MathJax Re-renderer with Strict Mobile Overflow-X Protection
@@ -247,8 +248,8 @@ export default function PracticeArena() {
     setGemStatus(null);
 
     try {
-      // 🛡️ SECURE AI FETCH: Inject Firebase Auth Token
-      const token = await currentUser.getIdToken();
+      // 🛡️ SECURE AI FETCH: Inject Firebase Auth Token properly via auth.currentUser
+      const token = auth.currentUser ? await auth.currentUser.getIdToken(true) : "";
       
       const res = await fetch("/api/gemini", {
         method: "POST",

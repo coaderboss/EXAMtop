@@ -101,7 +101,16 @@ export async function POST(req) {
       }
     });
 
-    await adminDb.ref().update(updates);
+    // 🛡️ SCALE-05 FIX: Chunk Firebase Multi-Path Updates to prevent >1000 keys limit crash
+    const updateEntries = Object.entries(updates);
+    const FIREBASE_LIMIT = 500;
+
+    for (let i = 0; i < updateEntries.length; i += FIREBASE_LIMIT) {
+      const chunk = Object.fromEntries(
+        updateEntries.slice(i, i + FIREBASE_LIMIT),
+      );
+      await adminDb.ref().update(chunk);
+    }
 
     return NextResponse.json({
       success: true,
