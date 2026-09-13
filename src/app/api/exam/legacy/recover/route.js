@@ -103,6 +103,30 @@ async function handleRecovery(testId, legacyKey, req) {
 
   // 🛡️ CRITICAL FIX: If metadata/legacy tests node misses questions, recover them from split test_questions node!
   if (!testData && testId) {
+    const metaSnap = await adminDb.ref(`tests_metadata/${testId}`).once("value");
+    const testMeta = metaSnap.val();
+    
+    // Check if caller is creator or admin
+    const isOwner = testMeta && (testMeta.creatorUid === callerUid || testMeta.uid === callerUid);
+    const hasFullAccess = isAdmin || isOwner;
+    
+    // Check if results are released to students
+    const isResultReleased = testMeta && (
+      testMeta.resultVis === "instant" ||
+      testMeta.released === true ||
+      (testMeta.resultVis === "scheduled" && testMeta.resultPublishTime && Date.now() >= new Date(testMeta.resultPublishTime).getTime())
+    );
+
+    if (!hasFullAccess && !isResultReleased) {
+      return {
+        success: false,
+        message: "Questions are locked until results are officially released.",
+        questions: [],
+        submissions: [],
+        status: 403,
+      };
+    }
+
     const splitQSnap = await adminDb.ref(`test_questions/${testId}`).once("value");
     if (splitQSnap.exists()) {
       return {
