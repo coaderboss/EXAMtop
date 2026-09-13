@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "../../../../lib/firebaseAdmin";
+import { adminDb, adminAuth } from "../../../../lib/firebaseAdmin";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
+    // 🛡️ SCALE-02 & SEC FIX: Authenticate caller to prevent Leaderboard DDoS attacks
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ success: false, message: "Unauthorized: Missing Token" }, { status: 401 });
+    }
+    try {
+      const token = authHeader.split("Bearer ")[1].trim();
+      await adminAuth.verifyIdToken(token);
+    } catch (err) {
+      return NextResponse.json({ success: false, message: "Forbidden: Invalid Token" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { testId, studentScore, score } = body;
     const targetScore = Number(

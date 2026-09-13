@@ -8,7 +8,6 @@ import { ref, set, get, update, runTransaction } from "firebase/database";
 import SmilesViewer from "../../components/SmilesViewer";
 import { getIdToken } from "firebase/auth";
 
-
 export default function CreateTest() {
   const { currentUser, userRole, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -644,7 +643,15 @@ export default function CreateTest() {
     setIsProcessingSave(true);
 
     const testId = Date.now().toString();
-    const testCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const generateTestCode = () => {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let res = "";
+      for (let i = 0; i < 8; i++) {
+        res += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return res;
+    };
+    const testCode = generateTestCode();
     const parsedSections = sections
       .split(",")
       .map((s) => s.trim())
@@ -698,10 +705,12 @@ export default function CreateTest() {
           const activeUser = auth.currentUser;
           if (!activeUser) throw new Error("Not logged in");
           // 🔥 The absolute fix for "o.getIdToken is not a function"
-          token = await getIdToken(activeUser, true); 
+          token = await getIdToken(activeUser, true);
         } catch (err) {
           console.error("Token fetch failed:", err);
-          throw new Error("User session expired or invalid. Please refresh the page and try again.");
+          throw new Error(
+            "User session expired or invalid. Please refresh the page and try again.",
+          );
         }
 
         const response = await fetch("/api/tests/create", {
@@ -731,7 +740,11 @@ export default function CreateTest() {
       }
 
       // Cleanup
-      const userIdent = currentUser ? currentUser.uid : isOffline ? "offline_user" : "guest";
+      const userIdent = currentUser
+        ? currentUser.uid
+        : isOffline
+          ? "offline_user"
+          : "guest";
       localStorage.removeItem("exam_draft_creator_" + userIdent);
 
       setMismatchModal(null);

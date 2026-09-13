@@ -1,0 +1,62 @@
+{
+  "rules": {
+    "user_submissions": {
+      "$uid": {
+        ".read": "auth != null && $uid === auth.uid",
+        ".write": false
+      }
+    },
+    "tests_metadata": {
+      ".read": "auth != null",
+      ".indexOn": ["creatorUid", "code", "id", "isActive"],
+      "$testId": {
+        ".write": "auth != null && (!data.exists() || data.child('creatorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      }
+    },
+    "test_submissions": {
+      ".indexOn": ["uid", "roll", "email"],
+      "$testId": {
+        ".read": "auth != null && (root.child('tests_metadata').child($testId).child('creatorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".write": "auth != null && (root.child('tests_metadata').child($testId).child('creatorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        "submissions": {
+          "$studentUid": {
+            ".read": "auth != null && ($studentUid === auth.uid || !data.exists() || data.child('uid').val() === auth.uid)",
+            ".write": false
+          }
+        }
+      }
+    },
+    "test_questions": {
+      "$testId": {
+        ".read": "auth != null && (root.child('tests_metadata').child($testId).child('creatorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".write": "auth != null && (!data.exists() || root.child('tests_metadata').child($testId).child('creatorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      }
+    },
+    "tests": {
+      ".read": "auth != null",
+      ".indexOn": ["creatorUid", "code", "id"],
+      "$testId": {
+        ".write": "auth != null && (!data.exists() || data.child('creatorUid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      }
+    },
+    "users": {
+      ".indexOn": ["role"],
+      ".read": "auth != null && query.orderByChild === 'role' && query.equalTo === 'examiner'",
+      "$uid": {
+        ".read": "auth != null && ($uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || data.child('role').val() === 'examiner' || data.child('role').val() === 'admin')",
+        ".write": "auth != null && ($uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin') && (!data.exists() || ((!newData.child('role').exists() || newData.child('role').val() === data.child('role').val()) && (!newData.child('is_unlimited').exists() || newData.child('is_unlimited').val() === data.child('is_unlimited').val()) && (!newData.child('premium_tokens').exists() || newData.child('premium_tokens').val() === data.child('premium_tokens').val())))"
+      }
+    },
+    "live_sessions": {
+      ".read": "auth != null",
+      "$testId": {
+        ".indexOn": ["roll"],
+        ".write": "auth != null"
+      }
+    },
+    "platform_stats": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+    }
+  }
+}

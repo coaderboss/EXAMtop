@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from "next/navigation";
-import { database } from "../../../lib/firebase";
+import { database, auth } from "../../../lib/firebase";
 import {
   ref,
   get,
@@ -71,38 +71,26 @@ export default function EducatorRadar() {
       const resolvedProfiles = await Promise.all(profilePromises);
       setEducatorProfiles(resolvedProfiles.filter(Boolean));
 
-      // 🛡️ OPTIMIZATION: Future update can replace this with indexed search
-      const testsSnap = await get(ref(database, "tests"));
-      const testsVal = testsSnap.val() || {};
-      
-      //Firebase returns an Object. We must safely convert it to an Array before using .forEach
-      const allTests = Array.isArray(testsVal) ? testsVal : Object.values(testsVal);
-      let feed = [];
-      allTests.forEach((test) => {
-        if (
-          test &&
-          followedList.includes(test.creatorUid) &&
-          test.radarVisible === true
-        ) {
-          if (test.expiryDate) {
-            const expiryTime = new Date(test.expiryDate).getTime();
-            if (Date.now() - expiryTime > 18 * 60 * 60 * 1000) return;
-          }
-          feed.push(test);
-        }
+      // 🚀 SECURE RADAR SERVER-SIDE API: Zero client database access to tests/tests_metadata
+      const token = auth.currentUser
+        ? await auth.currentUser.getIdToken(true)
+        : "";
+
+      const res = await fetch("/api/exam/radar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ followedList }),
       });
 
-      feed.sort((a, b) => {
-        const timeA = a.openDate
-          ? new Date(a.openDate).getTime()
-          : new Date(a.createdAt).getTime();
-        const timeB = b.openDate
-          ? new Date(b.openDate).getTime()
-          : new Date(b.createdAt).getTime();
-        return timeB - timeA;
-      });
-
-      setAllRadarTests(feed);
+      if (res.ok) {
+        const data = await res.json();
+        setAllRadarTests(data.feed || []);
+      } else {
+        setAllRadarTests([]);
+      }
     } catch (error) {
       console.error("Radar Fetch Error:", error);
     } finally {
@@ -258,7 +246,7 @@ export default function EducatorRadar() {
         }
 
         // 2.   Sab theek hai toh code ko Base64 me encrypt karke (token banakar) push karo
-        const secretToken = btoa(`${test.code}-EXAMITOP-AUTO`);
+        const secretToken = btoa(`${test.code}-EXAMITOP-AUTO-RADAR`);
         router.push(`/student?token=${secretToken}`);
       } catch (error) {
         setSysAlert({

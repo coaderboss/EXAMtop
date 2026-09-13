@@ -71,9 +71,13 @@ export default function StudentResults() {
     const fetchLeaderboardRank = async () => {
       try {
         setLeaderboardData((prev) => ({ ...prev, loading: true }));
+        const token = auth.currentUser ? await auth.currentUser.getIdToken(true) : "";
         const res = await fetch("/api/exam/leaderboard", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+             "Content-Type": "application/json",
+             ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
           body: JSON.stringify({
             testId: selectedResult.test.id,
             studentScore: selectedResult.sub?.score,
@@ -152,12 +156,14 @@ export default function StudentResults() {
           if (userSubSnap.exists()) {
             const userSubs = userSubSnap.val();
 
-            for (const key of Object.keys(userSubs)) {
+            // 🔥 FIX LOGIC.4: Parallelized Promise.all() Map (Eliminates N+1 Sequential Network Waterfall)
+            const historyPromises = Object.keys(userSubs).map(async (key) => {
               const sub = userSubs[key];
+              if (!sub) return null;
               const testId = sub.testId || key;
 
               if (!testId || testId === "undefined" || sub.score === undefined)
-                continue;
+                return null;
 
               let title = sub.testTitle || "";
               let code = sub.testCode || "N/A";
@@ -197,7 +203,7 @@ export default function StudentResults() {
               // Read isPublished boolean directly from user_submissions node! Zero client permission dependencies!
               const individualPublishStatus = sub.isPublished === true;
 
-              historyTemp.push({
+              return {
                 test: {
                   id: testId,
                   dbKey: key,
@@ -225,8 +231,12 @@ export default function StudentResults() {
                   studentKey: sub.studentKey || key,
                 },
                 canView: true,
-              });
-            }
+              };
+            });
+
+            const resolvedHistory = await Promise.all(historyPromises);
+            const validHistory = resolvedHistory.filter(Boolean);
+            historyTemp.push(...validHistory);
           }
         } catch (err) {
           console.warn("Fast fetch error:", err);
@@ -449,9 +459,39 @@ export default function StudentResults() {
         }
       }
 
+      // 🛡️ ARCHITECTURE FIX: If questions are stripped (no options), recover full questions from backend!
+      if (
+        fullTest.questions && 
+        fullTest.questions.length > 0 && 
+        !fullTest.questions[0].options && 
+        fullTest.questions[0].type !== "subjective"
+      ) {
+         try {
+           const token = currentUser ? await currentUser.getIdToken() : "";
+           const recRes = await fetch("/api/exam/legacy/recover", {
+             method: "POST",
+             headers: {
+               "Content-Type": "application/json",
+               ...(token ? { Authorization: `Bearer ${token}` } : {}),
+             },
+             body: JSON.stringify({
+               testId: testId,
+               legacyKey: historyItem.test?.dbKey || testId,
+             }),
+           });
+           if (recRes.ok) {
+             const recData = await recRes.json();
+             if (recData?.questions && Array.isArray(recData.questions)) {
+                fullTest.questions = recData.questions;
+             }
+           }
+         } catch(e) {
+           console.warn("Failed to inflate stripped questions", e);
+         }
+      }
+
       // 4. Force UI Render (Will NEVER say "not found" again)
-      fullTest.totalMarks =
-        Number(fullTest.totalMarks) || Number(fullSub.totalMarks) || 100;
+      fullTest.totalMarks = Number(fullTest.totalMarks) || Number(fullSub.totalMarks) || 100;
       fullTest.title = fullTest.title || "Assessment";
 
       setSelectedResult({ test: fullTest, sub: fullSub, canView: true });

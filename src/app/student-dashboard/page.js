@@ -24,7 +24,23 @@ export default function StudentDashboard() {
     }
   }, [fetchingResults, myHistory]);
 
-// 🚀 CLEAN DASHBOARD FETCH WITH RUTHLESS GHOST FILTER
+  // 🛡️ RESULT VISIBILITY CHECKER (Mirrored identically from student-results)
+  const isResultVisible = (t, s) => {
+    if (!t) return false;
+    if (
+      t.resultVis === "instant" ||
+      t.released === true ||
+      (s && s.isPublished === true)
+    )
+      return true;
+    if (t.resultVis === "scheduled" && t.resultPublishTime) {
+      const pubTime = new Date(t.resultPublishTime).getTime();
+      return !isNaN(pubTime) && Date.now() >= pubTime;
+    }
+    return false;
+  };
+
+  // 🚀 CLEAN DASHBOARD FETCH WITH RUTHLESS GHOST FILTER & VISIBILITY SYNC
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!currentUser) {
@@ -36,45 +52,79 @@ export default function StudentDashboard() {
         let historyTemp = [];
         const safeUserKey = currentUser.uid;
 
-        // 1. O(1) DASHBOARD FETCH
+        // 1. O(1) DASHBOARD FETCH WITH METADATA VISIBILITY CHECK
         try {
-          const userSubSnap = await get(ref(database, `user_submissions/${safeUserKey}`));
+          const userSubSnap = await get(
+            ref(database, `user_submissions/${safeUserKey}`),
+          );
           if (userSubSnap.exists()) {
             const userSubs = userSubSnap.val();
 
-            for (const key of Object.keys(userSubs)) {
+            const subPromises = Object.keys(userSubs).map(async (key) => {
               const sub = userSubs[key];
+              if (!sub) return null;
               const testId = sub.testId || key;
 
-              if (!testId || testId === "undefined" || sub.score === undefined) continue;
+              if (!testId || testId === "undefined" || sub.score === undefined)
+                return null;
 
               let title = sub.testTitle || "";
               let code = sub.testCode || "N/A";
               let totalMarks = sub.totalMarks;
               let subject = sub.subject || "General";
+              let tVis = sub.resultVis || "manual";
+              let tReleased = false;
+              let tPubTime = sub.resultPublishTime || null;
 
-              // 🛡️ AUTO-REPAIR & GHOST PURGE
-              if (!title || title.trim() === "" || title.toLowerCase().includes("unnamed") || !totalMarks) {
-                try {
-                  let metaSnap = await get(ref(database, `tests_metadata/${testId}`));
-                  if (!metaSnap.exists()) metaSnap = await get(ref(database, `tests/${testId}`));
-                  
-                  if (metaSnap.exists()) {
-                    const m = metaSnap.val();
-                    title = m.title || "";
-                    code = m.code || code;
-                    totalMarks = m.totalMarks || totalMarks;
-                    subject = m.subject || subject;
-                    
-                    // Final Check: Agar DB me bhi title khali hai, toh bhaag jao!
-                    if (!title || title.trim() === "" || title.toLowerCase().includes("unnamed")) continue;
-                  } else {
-                    continue; // 🚨 GHOST DETECTED: DB me test nahi hai, hide it!
-                  }
-                } catch (e) { continue; }
+              try {
+                let metaSnap = await get(
+                  ref(database, `tests_metadata/${testId}`),
+                );
+
+                if (metaSnap.exists()) {
+                  const m = metaSnap.val();
+                  title = m.title || title;
+                  code = m.code || code;
+                  totalMarks = m.totalMarks || totalMarks || 100;
+                  subject = m.subject || subject || "General";
+                  tVis = m.resultVis || sub.resultVis || "manual";
+                  tReleased = m.released === true;
+                  tPubTime =
+                    m.resultPublishTime || sub.resultPublishTime || null;
+
+                  if (
+                    !title ||
+                    title.trim() === "" ||
+                    title.toLowerCase().includes("unnamed")
+                  )
+                    return null;
+                } else {
+                  if (
+                    !title ||
+                    title.trim() === "" ||
+                    title.toLowerCase().includes("unnamed")
+                  )
+                    return null;
+                }
+              } catch (e) {
+                if (
+                  !title ||
+                  title.trim() === "" ||
+                  title.toLowerCase().includes("unnamed")
+                )
+                  return null;
               }
 
-              historyTemp.push({
+              const isVisible = isResultVisible(
+                {
+                  resultVis: tVis,
+                  released: tReleased,
+                  resultPublishTime: tPubTime,
+                },
+                { isPublished: sub.isPublished === true },
+              );
+
+              return {
                 testId: testId,
                 testTitle: title,
                 testCode: code,
@@ -84,11 +134,21 @@ export default function StudentDashboard() {
                 correct: sub.correct || 0,
                 wrong: sub.wrong || 0,
                 skipped: sub.skipped || 0,
-                time: sub.time || (sub.timestamp ? new Date(sub.timestamp).toLocaleString("en-IN") : "Recent"),
+                time:
+                  sub.time ||
+                  (sub.timestamp
+                    ? new Date(sub.timestamp).toLocaleString("en-IN")
+                    : "Recent"),
                 sIdx: 0,
                 timestamp: sub.timestamp || 0,
-              });
-            }
+                isVisible: isVisible,
+                resultVis: tVis,
+                isPublished: sub.isPublished === true,
+              };
+            });
+
+            const resolvedSubs = await Promise.all(subPromises);
+            historyTemp.push(...resolvedSubs.filter(Boolean));
           }
         } catch (error) {
           console.warn("Primary fetch error:", error);
@@ -98,19 +158,35 @@ export default function StudentDashboard() {
         try {
           const oldSnap = await get(ref(database, "tests"));
           if (oldSnap.exists()) {
-            const oldData = Array.isArray(oldSnap.val()) ? oldSnap.val() : Object.values(oldSnap.val());
+            const oldData = Array.isArray(oldSnap.val())
+              ? oldSnap.val()
+              : Object.values(oldSnap.val());
             oldData.filter(Boolean).forEach((t) => {
               let tTitle = t.title || "";
-              
+
               // 🔥 STRICT GHOST FILTER: Ignore missing names or "Unnamed Test" completely
-              if (!t.id || tTitle.trim() === "" || tTitle.toLowerCase().includes("unnamed")) return;
+              if (
+                !t.id ||
+                tTitle.trim() === "" ||
+                tTitle.toLowerCase().includes("unnamed")
+              )
+                return;
 
               if (t.submissions) {
-                const subsArray = Array.isArray(t.submissions) ? t.submissions : Object.values(t.submissions);
+                const subsArray = Array.isArray(t.submissions)
+                  ? t.submissions
+                  : Object.values(t.submissions);
                 subsArray.filter(Boolean).forEach((s, idx) => {
-                  let isExactMatch = (s.uid && s.uid === currentUser.uid) || 
-                                     (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) || 
-                                     (s.roll && currentUser.rollNo && s.roll.toLowerCase() === currentUser.rollNo.toLowerCase());
+                  let isExactMatch =
+                    (s.uid && s.uid === currentUser.uid) ||
+                    (s.email &&
+                      currentUser.email &&
+                      s.email.toLowerCase() ===
+                        currentUser.email.toLowerCase()) ||
+                    (s.roll &&
+                      currentUser.rollNo &&
+                      s.roll.toLowerCase() ===
+                        currentUser.rollNo.toLowerCase());
                   if (isExactMatch) {
                     historyTemp.push({
                       testId: t.id,
@@ -136,7 +212,14 @@ export default function StudentDashboard() {
         }
 
         // DEDUPLICATION & SORTING
-        const uniqueHistory = Array.from(new Map(historyTemp.map((item) => [`${item.testId}_${item.timestamp || 0}_${item.score ?? 0}`, item])).values());
+        const uniqueHistory = Array.from(
+          new Map(
+            historyTemp.map((item) => [
+              `${item.testId}_${item.timestamp || 0}_${item.score ?? 0}`,
+              item,
+            ]),
+          ).values(),
+        );
         uniqueHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
         setMyHistory(uniqueHistory);
@@ -198,6 +281,7 @@ export default function StudentDashboard() {
   let weaknessData = {}; // For graphical weakness analysis
 
   myHistory.forEach((h) => {
+    if (h.isVisible === false) return; // 🛡️ Prevent leaking hidden exam stats into global aggregations!
     totalCorrect += h.correct;
     totalWrong += h.wrong;
     totalEarned += h.score;
@@ -442,6 +526,34 @@ export default function StudentDashboard() {
           </div>
 
           {recentTrend.map((h, i) => {
+            if (h.isVisible === false) {
+              return (
+                <div
+                  key={i}
+                  className="flex flex-col items-center justify-end flex-1 h-full relative group z-10"
+                >
+                  <div className="text-[10px] sm:text-[12px] font-black text-amber-600 mb-1 sm:mb-2">
+                    <i className="ti ti-lock"></i>
+                  </div>
+                  <div
+                    className="w-full max-w-[30px] sm:max-w-[44px] rounded-t-lg sm:rounded-t-xl border-t border-x border-amber-300 bg-amber-50 cursor-pointer relative overflow-hidden group-hover:-translate-y-1 transition-transform shadow-sm flex items-center justify-center"
+                    style={{ height: "15%" }}
+                    title="Result In Review by Examiner"
+                  >
+                    <span className="text-[8px] font-black text-amber-600 uppercase">
+                      Hold
+                    </span>
+                  </div>
+                  <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[9px] sm:text-[11px] font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg pointer-events-none whitespace-nowrap shadow-xl z-20">
+                    {h.testTitle}{" "}
+                    <span className="text-amber-400 font-medium">
+                      (In Review)
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
             let validScore = h.score || 0;
             let validTotal = h.totalMarks || 0;
             let pct =
@@ -634,21 +746,33 @@ export default function StudentDashboard() {
     let wrng = h.wrong || 0;
     let accPct = corr + wrng > 0 ? Math.round((corr / (corr + wrng)) * 100) : 0;
 
+    const isVisible = h.isVisible !== false;
+
     const isExcellent = pct >= 75;
     const isAverage = pct >= 40 && pct < 75;
-    const ringColor = isExcellent
-      ? "border-emerald-400"
-      : isAverage
-        ? "border-amber-400"
-        : "border-rose-400";
-    const ringBg = isExcellent
-      ? "bg-emerald-50 text-emerald-700"
-      : isAverage
-        ? "bg-amber-50 text-amber-700"
-        : "bg-rose-50 text-rose-700";
+    const ringColor = !isVisible
+      ? "border-amber-300"
+      : isExcellent
+        ? "border-emerald-400"
+        : isAverage
+          ? "border-amber-400"
+          : "border-rose-400";
+    const ringBg = !isVisible
+      ? "bg-amber-50 text-amber-700"
+      : isExcellent
+        ? "bg-emerald-50 text-emerald-700"
+        : isAverage
+          ? "bg-amber-50 text-amber-700"
+          : "bg-rose-50 text-rose-700";
 
     let performanceTag = null;
-    if (forceBestTag) {
+    if (!isVisible) {
+      performanceTag = (
+        <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shrink-0 shadow-sm">
+          <i className="ti ti-lock"></i> In Review
+        </span>
+      );
+    } else if (forceBestTag) {
       performanceTag = (
         <span className="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shrink-0 shadow-sm">
           <i className="ti ti-trophy"></i> Personal Best
@@ -692,23 +816,45 @@ export default function StudentDashboard() {
         </div>
 
         <div className="flex items-center gap-3 sm:gap-6 shrink-0 border-l border-slate-100 pl-3 sm:pl-4">
-          <div className="text-right hidden sm:block">
-            <div className="text-[18px] sm:text-[20px] font-black text-slate-800 leading-none mb-1">
-              {validScore}{" "}
-              <span className="text-[12px] sm:text-[13px] font-bold text-slate-400">
-                / {validTotal}
-              </span>
-            </div>
-            <div className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
-              Acc: <span className="text-slate-600">{accPct}%</span>
-            </div>
-          </div>
+          {isVisible ? (
+            <>
+              <div className="text-right hidden sm:block">
+                <div className="text-[18px] sm:text-[20px] font-black text-slate-800 leading-none mb-1">
+                  {validScore}{" "}
+                  <span className="text-[12px] sm:text-[13px] font-bold text-slate-400">
+                    / {validTotal}
+                  </span>
+                </div>
+                <div className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
+                  Acc: <span className="text-slate-600">{accPct}%</span>
+                </div>
+              </div>
 
-          <div
-            className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-[12px] sm:text-[15px] border-2 sm:border-[3px] shadow-sm shrink-0 ${ringColor} ${ringBg} transform group-hover:scale-105 transition-transform`}
-          >
-            {pct}%
-          </div>
+              <div
+                className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-[12px] sm:text-[15px] border-2 sm:border-[3px] shadow-sm shrink-0 ${ringColor} ${ringBg} transform group-hover:scale-105 transition-transform`}
+              >
+                {pct}%
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-right hidden sm:block">
+                <div className="text-[14px] sm:text-[15px] font-black text-amber-600 leading-none mb-1 flex items-center gap-1 justify-end">
+                  <i className="ti ti-lock"></i> In Review
+                </div>
+                <div className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
+                  Score Hidden
+                </div>
+              </div>
+
+              <div
+                className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-[12px] sm:text-[15px] border-2 sm:border-[3px] shadow-sm shrink-0 bg-amber-50 border-amber-300 text-amber-600 transform group-hover:scale-105 transition-transform`}
+                title="Result In Review by Examiner"
+              >
+                <i className="ti ti-lock text-base"></i>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -724,6 +870,7 @@ export default function StudentDashboard() {
   let bestTest = null;
   let maxBestPct = -1;
   reversedHistoryForList.forEach((h) => {
+    if (h.isVisible === false) return; // 🛡️ Skip hidden exams for personal best!
     let validScore = h.score || 0;
     let validTotal = h.totalMarks || 0;
     let pct = validTotal > 0 ? Math.round((validScore / validTotal) * 100) : 0;

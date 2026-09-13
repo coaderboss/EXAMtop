@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, memo, Suspense } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useData } from "../../context/DataContext";
 import { useRouter, useSearchParams } from "next/navigation";
-import { database } from "../../lib/firebase";
+import { database, auth } from "../../lib/firebase";
 import {
   ref,
   push,
@@ -349,9 +349,15 @@ function StudentPortalContent() {
         let remaining = [];
         for (let p of pending) {
           try {
+            const token = auth.currentUser
+              ? await auth.currentUser.getIdToken(true)
+              : "";
             const response = await fetch("/api/evaluate", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
               body: JSON.stringify(p.payload),
             });
 
@@ -416,7 +422,11 @@ function StudentPortalContent() {
           fatal: true,
           msg: "SECURITY ALERT: Exam Blocked! Rules violated 3 times. Auto-submitting paper.",
         });
-        setTimeout(() => handleFinalSubmit(), 3000);
+        setTimeout(() => {
+          if (handleFinalSubmitRef.current) {
+            handleFinalSubmitRef.current();
+          }
+        }, 3000);
       } else {
         setCheatWarning({
           fatal: false,
@@ -1177,10 +1187,16 @@ function StudentPortalContent() {
 
     try {
       if (!activeTest.isLocal) {
-        // 2. SEND TO THE BRAIN (Backend API Call)
+        // 2. SEND TO THE BRAIN (Backend API Call with Auth Token)
+        const token = auth.currentUser
+          ? await auth.currentUser.getIdToken(true)
+          : "";
         const response = await fetch("/api/evaluate", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify(apiPayload),
         });
 

@@ -44,11 +44,18 @@ export async function POST(req) {
     }
 
     // 2. GHOST BOUNCER CURE: Wipe the student's personal receipt!
-    const targetStudentKeys = [studentUid, subKey].filter(Boolean);
+    const safeRollKey = studentUid && studentUid !== "anonymous" 
+      ? studentUid 
+      : (subKey ? subKey.trim().toLowerCase().replace(/\./g, "_") : null);
+
+    const targetStudentKeys = [studentUid, subKey, safeRollKey].filter(Boolean);
     for (const key of targetStudentKeys) {
       await adminDb.ref(`user_submissions/${key}/${testId}`).remove();
+      await adminDb.ref(`user_submissions/${encodeURIComponent(key)}/${testId}`).remove();
+      
       if (isLegacy && legacyKey) {
         await adminDb.ref(`user_submissions/${key}/${legacyKey}`).remove();
+        await adminDb.ref(`user_submissions/${encodeURIComponent(key)}/${legacyKey}`).remove();
       }
     }
 

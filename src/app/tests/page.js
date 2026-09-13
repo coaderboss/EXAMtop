@@ -426,17 +426,27 @@ export default function ManageTests() {
     activeTab,
   ]);
 
-  useEffect(() => {
-    // Jab bhi koi test open hoga, ye listener background me active ho jayega
+ useEffect(() => {
+    // 🛡️ SCALE FIX: Replace monolithic onValue socket storm with lightweight interval polling
     if (!selectedTest?.id || isOffline) return;
-    const liveRef = ref(database, `live_sessions/${selectedTest.id}`);
+    
+    let isSubscribed = true;
+    const fetchLiveCount = async () => {
+      try {
+        const snap = await get(ref(database, `live_sessions/${selectedTest.id}`));
+        if (isSubscribed) {
+           setLiveCount(snap.exists() ? Object.keys(snap.val()).length : 0);
+        }
+      } catch(e) { /* silent fail */ }
+    };
+    
+    fetchLiveCount(); // Initial fetch
+    const interval = setInterval(fetchLiveCount, 15000); // Poll every 15 seconds
 
-    const unsubscribe = onValue(liveRef, (snapshot) => {
-      const data = snapshot.val();
-      // Data me active users ki keys hongi, unki length = Live Students
-      setLiveCount(data ? Object.keys(data).length : 0);
-    });
-    return () => unsubscribe(); // Cleanup jab test close ho
+    return () => {
+       isSubscribed = false;
+       clearInterval(interval);
+    };
   }, [selectedTest?.id, isOffline]);
 
   // Fetch Followers Count on Mount (OPTIMIZED & SECURE)
@@ -2277,7 +2287,7 @@ export default function ManageTests() {
             {/* CSS Hack for SVGs */}
             <style>{`.svg-eval-container svg { max-width: 100%; height: auto; max-height: 280px; min-height: 100px; }`}</style>
 
-            {evaluateSub.sub.details
+           {evaluateSub.sub.details
               .filter((d) => {
                 let sMatch =
                   evalFilter === "all" ||
@@ -2293,7 +2303,11 @@ export default function ManageTests() {
               })
               .map((d, index) => {
                 const originalQIdx = evaluateSub.sub.details.indexOf(d);
-                const q = d.q;
+                
+                // 🛡️ ARCHITECTURE FIX: Fetch full question with options from the master test array!
+                const masterQ = evaluateSub.test.questions?.[d.q?.index ?? originalQIdx];
+                const q = masterQ || d.q; 
+                
                 const ans = d.ans;
 
                 const statusColors = {
@@ -4149,9 +4163,23 @@ export default function ManageTests() {
                     );
 
                   const totalStudents = safeSubmissions.length;
-                  const scores = safeSubmissions.map((s) => s.score);
-                  const maxScore = Math.max(...scores);
-                  const minScore = Math.min(...scores);
+                  const scores = safeSubmissions.map((s) =>
+                    Number(s.score || 0),
+                  );
+                  const maxScore =
+                    scores.length > 0
+                      ? scores.reduce(
+                          (max, s) => (s > max ? s : max),
+                          scores[0],
+                        )
+                      : 0;
+                  const minScore =
+                    scores.length > 0
+                      ? scores.reduce(
+                          (min, s) => (s < min ? s : min),
+                          scores[0],
+                        )
+                      : 0;
                   const avgScore = (
                     scores.reduce((a, b) => a + b, 0) / totalStudents
                   ).toFixed(2);
@@ -4194,7 +4222,10 @@ export default function ManageTests() {
                     else if (pct <= 75) brackets[2]++;
                     else brackets[3]++;
                   });
-                  const maxBracket = Math.max(...brackets, 1);
+                  const maxBracket = brackets.reduce(
+                    (max, b) => (b > max ? b : max),
+                    1,
+                  );
 
                   return (
                     <>

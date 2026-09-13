@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../../lib/firebaseAdmin"; // Ensure correct path
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
@@ -16,11 +16,16 @@ export async function POST(req) {
     }
 
     const idToken = authHeader.split("Bearer ")[1];
-    
+
     // THE FIX: Catch uninitialized Admin SDK before it crashes
     if (!adminAuth) {
-      console.error("Firebase Admin Auth is uninitialized. Check Vercel environment variables.");
-      return NextResponse.json({ error: "Server authentication service unavailable" }, { status: 500 });
+      console.error(
+        "Firebase Admin Auth is uninitialized. Check Vercel environment variables.",
+      );
+      return NextResponse.json(
+        { error: "Server authentication service unavailable" },
+        { status: 500 },
+      );
     }
 
     let decodedToken;
@@ -34,6 +39,52 @@ export async function POST(req) {
     const uid = decodedToken.uid;
     const body = await req.json();
     const { testId, testMetadata, testQuestions } = body;
+
+    if (!testId || !testMetadata || !testQuestions) {
+      return NextResponse.json(
+        { error: "Missing required test creation parameters." },
+        { status: 400 },
+      );
+    }
+
+    // 🛡️ SEC-02 FIX: Prevent Exam Overwriting / Hijacking
+    const existingMetaSnap = await adminDb
+      .ref(`tests_metadata/${testId}`)
+      .once("value");
+    if (existingMetaSnap.exists()) {
+      return NextResponse.json(
+        { error: "Conflict: Test ID already exists. Overwriting blocked." },
+        { status: 409 },
+      );
+    }
+
+    const existingLegacySnap = await adminDb
+      .ref(`tests/${testId}`)
+      .once("value");
+    if (existingLegacySnap.exists()) {
+      return NextResponse.json(
+        { error: "Conflict: Test ID already exists in legacy records." },
+        { status: 409 },
+      );
+    }
+
+    // 🛡️ LOGIC-01 & SEC-02 FIX: Ensure 8-character alphanumeric test code without hyphens
+    const generateCleanCode = () => {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let code = "";
+      for (let i = 0; i < 8; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    };
+
+    if (
+      !testMetadata.code ||
+      testMetadata.code.length !== 8 ||
+      testMetadata.code.includes("-")
+    ) {
+      testMetadata.code = generateCleanCode();
+    }
 
     // 2. Fetch User Quota Details
     const userRef = adminDb.ref(`users/${uid}`);

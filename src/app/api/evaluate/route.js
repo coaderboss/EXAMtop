@@ -1,10 +1,25 @@
 // src/app/api/evaluate/route.js
 import { NextResponse } from "next/server";
 import { adminDb } from "../../../lib/firebaseAdmin";
+import { verifyCaller } from "../../../lib/authGuard";
 export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
+    // 🛡️ SEC-01 FIX: Authenticate caller & prevent identity spoofing
+    const authResult = await verifyCaller(req);
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            authResult.message ||
+            "Forbidden: Missing or invalid authorization token.",
+        },
+        { status: 403 },
+      );
+    }
+
     const body = await req.json();
     const {
       testId,
@@ -14,6 +29,18 @@ export async function POST(req) {
       timeSpentPerQuestion,
       cheatLogs,
     } = body;
+
+    // Enforce that callerUid matches student.uid exactly
+    if (!student || !student.uid || student.uid !== authResult.callerUid) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Forbidden: Identity spoofing detected. Caller UID does not match student UID.",
+        },
+        { status: 403 },
+      );
+    }
 
     let activeTestMeta = null;
     let testQuestions = [];
@@ -280,7 +307,13 @@ export async function POST(req) {
       )
         safeVal = "";
 
-      return { q, ans: { val: safeVal }, status, earned };
+      // 🛡️ SCALE-01 FIX: Store lightweight question reference instead of complete duplicate question payload
+      return {
+        q: { index: i, type: q.type, marks: q.marks },
+        ans: { val: safeVal },
+        status,
+        earned,
+      };
     });
 
     // 🛡️ SANITIZER ENGINE: Strips all undefined properties so Firebase Admin never crashes
@@ -396,10 +429,17 @@ export async function POST(req) {
         }),
       );
 
-      // Safely increment count
-      await adminDb
-        .ref(`tests_metadata/${testId}/submissionCount`)
-        .transaction((count) => (count || 0) + 1);
+      // 🛡️ SCALE.1 FIX: Isolated Non-blocking Counter Increment (prevents 500 on concurrency contention)
+      try {
+        await adminDb
+          .ref(`tests_metadata/${testId}/submissionCount`)
+          .transaction((count) => (count || 0) + 1);
+      } catch (countErr) {
+        console.warn(
+          "Non-blocking submissionCount transaction contention bypassed:",
+          countErr?.message || countErr,
+        );
+      }
     }
 
     return NextResponse.json({

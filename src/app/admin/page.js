@@ -7,7 +7,11 @@ import { database, auth } from "../../lib/firebase";
 import { ref, get, update, set, remove } from "firebase/database";
 import { motion, AnimatePresence } from "framer-motion";
 import { getApps, initializeApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
 
 //  UTILITY: Safe Array Converter
 const safeArray = (data) => {
@@ -38,7 +42,7 @@ export default function GodMode() {
   const [broadcastMsg, setBroadcastMsg] = useState("");
   const [currentBroadcast, setCurrentBroadcast] = useState("");
 
- // Modular Loading States
+  // Modular Loading States
   const [isLoadingTests, setIsLoadingTests] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
@@ -69,7 +73,16 @@ export default function GodMode() {
 
   // CUSTOM BULK ADD STATES & FUNCTIONS
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkData, setBulkData] = useState([{ id: Date.now(), name: "", email: "", password: "", rollNo: "", role: "student" }]);
+  const [bulkData, setBulkData] = useState([
+    {
+      id: Date.now(),
+      name: "",
+      email: "",
+      password: "",
+      rollNo: "",
+      role: "student",
+    },
+  ]);
   const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [bulkResult, setBulkResult] = useState(null);
@@ -102,7 +115,7 @@ export default function GodMode() {
     setIsLoadingTests(true);
     try {
       let tData = [];
-      
+
       // A. Naye Architecture (Phase 3) ka lightweight Metadata
       const metaSnap = await get(ref(database, "tests_metadata"));
       if (metaSnap.exists()) {
@@ -118,7 +131,7 @@ export default function GodMode() {
         const rawTests = testsSnap.val();
         Object.keys(rawTests).forEach((key) => {
           // Avoid duplicates if already migrated
-          if (!tData.find(t => t.id === rawTests[key].id)) {
+          if (!tData.find((t) => t.id === rawTests[key].id)) {
             tData.push({ ...rawTests[key], dbKey: key, isPhase3: false });
           }
         });
@@ -140,7 +153,8 @@ export default function GodMode() {
       if (usersSnap.exists()) {
         const rawUsers = usersSnap.val();
         const uData = Object.keys(rawUsers).map((key) => ({
-          uid: key, ...rawUsers[key],
+          uid: key,
+          ...rawUsers[key],
         }));
         setAllUsers(uData);
       }
@@ -169,11 +183,11 @@ export default function GodMode() {
     } catch (e) {
       console.error("Logs Data Error:", e);
       // 🔥 NAYA: Graceful Degradation (App crash nahi hogi)
-      setSystemErrors([]); 
+      setSystemErrors([]);
       setSysAlert({
         title: "Access Denied",
         msg: "Firebase Rules blocked access to 'system_errors'.",
-        type: "error"
+        type: "error",
       });
     } finally {
       setIsLoadingLogs(false);
@@ -185,13 +199,17 @@ export default function GodMode() {
     if (platformInstalls > 0 || isLoadingMisc) return;
     setIsLoadingMisc(true);
     try {
-      const statsSnap = await get(ref(database, "platform_stats/total_downloads"));
+      const statsSnap = await get(
+        ref(database, "platform_stats/total_downloads"),
+      );
       setPlatformInstalls(statsSnap.exists() ? statsSnap.val() : 42);
-    } catch (err) { }
+    } catch (err) {}
     try {
-      const broadSnap = await get(ref(database, "platform_settings/announcement"));
+      const broadSnap = await get(
+        ref(database, "platform_settings/announcement"),
+      );
       if (broadSnap.exists()) setCurrentBroadcast(broadSnap.val());
-    } catch (err) { }
+    } catch (err) {}
     setIsLoadingMisc(false);
   };
 
@@ -204,7 +222,11 @@ export default function GodMode() {
       fetchMiscData();
       fetchTestsData();
       fetchUsersData();
-    } else if (activeTab === "analytics" || activeTab === "examiners" || activeTab === "radar") {
+    } else if (
+      activeTab === "analytics" ||
+      activeTab === "examiners" ||
+      activeTab === "radar"
+    ) {
       fetchTestsData();
       fetchUsersData();
     } else if (activeTab === "tests") {
@@ -428,15 +450,27 @@ export default function GodMode() {
   };
 
   const handleAddBulkRow = () => {
-    setBulkData([...bulkData, { id: Date.now(), name: "", email: "", password: "", rollNo: "", role: "student" }]);
+    setBulkData([
+      ...bulkData,
+      {
+        id: Date.now(),
+        name: "",
+        email: "",
+        password: "",
+        rollNo: "",
+        role: "student",
+      },
+    ]);
   };
 
   const handleRemoveBulkRow = (id) => {
-    setBulkData(bulkData.filter(row => row.id !== id));
+    setBulkData(bulkData.filter((row) => row.id !== id));
   };
 
   const handleBulkChange = (id, field, value) => {
-    setBulkData(bulkData.map(row => row.id === id ? { ...row, [field]: value } : row));
+    setBulkData(
+      bulkData.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+    );
   };
 
   // 📝 CSV PARSER FUNCTION
@@ -446,22 +480,26 @@ export default function GodMode() {
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target.result;
-      const rows = text.split('\n').filter(row => row.trim() !== '');
-      
+      const rows = text.split("\n").filter((row) => row.trim() !== "");
+
       // Assumes CSV format: Name, Email, Password, RollNo, Role
       const parsedData = rows.slice(1).map((row, index) => {
-        const cols = row.split(',').map(c => c.trim());
+        const cols = row.split(",").map((c) => c.trim());
         return {
           id: Date.now() + index,
-          name: cols[0] || '',
-          email: cols[1] || '',
-          password: cols[2] || '',
-          rollNo: cols[3] || '',
-          role: (cols[4] || 'student').toLowerCase()
+          name: cols[0] || "",
+          email: cols[1] || "",
+          password: cols[2] || "",
+          rollNo: cols[3] || "",
+          role: (cols[4] || "student").toLowerCase(),
         };
       });
       setBulkData(parsedData);
-      setSysAlert({ title: "CSV Loaded", msg: `${parsedData.length} rows imported successfully.`, type: "success" });
+      setSysAlert({
+        title: "CSV Loaded",
+        msg: `${parsedData.length} rows imported successfully.`,
+        type: "success",
+      });
     };
     reader.readAsText(file);
     e.target.value = null; // Reset input
@@ -470,9 +508,15 @@ export default function GodMode() {
   // THE MAGIC: BACKGROUND BULK CREATOR (No Logout Hack)
   const executeBulkAdd = async () => {
     // Basic validation
-    const validData = bulkData.filter(row => row.email && row.password && row.name);
+    const validData = bulkData.filter(
+      (row) => row.email && row.password && row.name,
+    );
     if (validData.length === 0) {
-      setSysAlert({ title: "Validation Error", msg: "Please fill at least Name, Email, and Password.", type: "error" });
+      setSysAlert({
+        title: "Validation Error",
+        msg: "Please fill at least Name, Email, and Password.",
+        type: "error",
+      });
       return;
     }
 
@@ -483,10 +527,10 @@ export default function GodMode() {
     const secondaryAppName = "ExamiTopBulkLoader";
     let secondaryApp;
     const apps = getApps();
-    const existingApp = apps.find(a => a.name === secondaryAppName);
+    const existingApp = apps.find((a) => a.name === secondaryAppName);
     if (existingApp) secondaryApp = existingApp;
     else secondaryApp = initializeApp(auth.app.options, secondaryAppName);
-    
+
     const secondaryAuth = getAuth(secondaryApp);
     let successCount = 0;
     let failedList = [];
@@ -495,10 +539,14 @@ export default function GodMode() {
     for (let i = 0; i < validData.length; i++) {
       const item = validData[i];
       setBulkProgress({ current: i + 1, total: validData.length });
-      
+
       try {
         // 1. Create Auth Account in Background
-        const userCred = await createUserWithEmailAndPassword(secondaryAuth, item.email, item.password);
+        const userCred = await createUserWithEmailAndPassword(
+          secondaryAuth,
+          item.email,
+          item.password,
+        );
         const uid = userCred.user.uid;
 
         // 2. Save full profile to Realtime Database
@@ -509,12 +557,12 @@ export default function GodMode() {
           uid: uid,
           role: item.role,
           rollNo: item.rollNo || "N/A",
-          profileLocked: true, 
-          free_tokens: item.role === 'examiner' ? 3 : 0, // Initial 3 Free Tokens
+          profileLocked: true,
+          free_tokens: item.role === "examiner" ? 3 : 0, // Initial 3 Free Tokens
           premium_tokens: 0, // 0 Premium initially
-          available_quota: item.role === 'examiner' ? 3 : 0, // Legacy sync
+          available_quota: item.role === "examiner" ? 3 : 0, // Legacy sync
           is_unlimited: false,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         });
 
         // 3. Clear session so it's ready for the next one
@@ -587,7 +635,7 @@ export default function GodMode() {
     setRadarEducator(educator);
   };
 
- // 3. TOGGLE RADAR VISIBILITY FUNCTION
+  // 3. TOGGLE RADAR VISIBILITY FUNCTION
   const toggleRadarVisibility = async (test) => {
     const currentVis = test.radarVisible === true;
     setSysConfirm({
@@ -595,12 +643,28 @@ export default function GodMode() {
       msg: `Are you sure you want to ${currentVis ? "remove" : "add"} "${test.title}" ${currentVis ? "from" : "to"} the public radar?`,
       action: async () => {
         try {
-          const targetPath = test.isPhase3 ? `tests_metadata/${test.id}` : `tests/${test.dbKey}`;
-          await update(ref(database, targetPath), { radarVisible: !currentVis });
-          setAllTests((prev) => prev.map((t) => t.id === test.id ? { ...t, radarVisible: !currentVis } : t));
-          setSysAlert({ title: "Success", msg: `Radar visibility updated.`, type: "success" });
+          const targetPath = test.isPhase3
+            ? `tests_metadata/${test.id}`
+            : `tests/${test.dbKey}`;
+          await update(ref(database, targetPath), {
+            radarVisible: !currentVis,
+          });
+          setAllTests((prev) =>
+            prev.map((t) =>
+              t.id === test.id ? { ...t, radarVisible: !currentVis } : t,
+            ),
+          );
+          setSysAlert({
+            title: "Success",
+            msg: `Radar visibility updated.`,
+            type: "success",
+          });
         } catch (e) {
-          setSysAlert({ title: "Error", msg: "Failed to update radar status.", type: "error" });
+          setSysAlert({
+            title: "Error",
+            msg: "Failed to update radar status.",
+            type: "error",
+          });
         }
       },
     });
@@ -756,9 +820,11 @@ export default function GodMode() {
 
   const markErrorResolved = async (errorId) => {
     try {
-      await update(ref(database, `system_errors/${errorId}`), { status: "resolved" });
+      await update(ref(database, `system_errors/${errorId}`), {
+        status: "resolved",
+      });
       setSystemErrors((prev) =>
-        prev.map((e) => (e.id === errorId ? { ...e, status: "resolved" } : e))
+        prev.map((e) => (e.id === errorId ? { ...e, status: "resolved" } : e)),
       );
       setSysAlert({
         title: "Error Resolved",
@@ -766,7 +832,11 @@ export default function GodMode() {
         type: "success",
       });
     } catch (e) {
-      setSysAlert({ title: "Failed", msg: "Could not update error status.", type: "error" });
+      setSysAlert({
+        title: "Failed",
+        msg: "Could not update error status.",
+        type: "error",
+      });
     }
   };
 
@@ -785,11 +855,15 @@ export default function GodMode() {
 
     // NAYA: TXN ID and Amount generation
     const history = targetUser.billingHistory || [];
-    const generateTxnId = () => "TXN" + Date.now().toString().slice(-6) + Math.random().toString(36).substring(2, 6).toUpperCase();
-    
+    const generateTxnId = () =>
+      "TXN" +
+      Date.now().toString().slice(-6) +
+      Math.random().toString(36).substring(2, 6).toUpperCase();
+
     // Amount decide karo (Admin override hai isliye actual money nahi katti, par bill jaisa dikhega)
     let estimatedAmount = 0;
-    if (planType === "unlimited") estimatedAmount = 199; // Unlimited plan price
+    if (planType === "unlimited")
+      estimatedAmount = 199; // Unlimited plan price
     else if (planType === "tokens") estimatedAmount = customTokens * 5; // Basic logic: Rs 5 per token
 
     const newRecord = {
@@ -798,8 +872,13 @@ export default function GodMode() {
       date: now,
       plan: planName,
       tokensAdded: customTokens,
-      type: planType === "revoke" ? "Revoke" : planType === "unlimited" ? "Subscription" : "Tokens",
-      source: "Admin Override", 
+      type:
+        planType === "revoke"
+          ? "Revoke"
+          : planType === "unlimited"
+            ? "Subscription"
+            : "Tokens",
+      source: "Admin Override",
     };
 
     if (planType === "unlimited") {
@@ -821,12 +900,16 @@ export default function GodMode() {
       };
       msg = `Revoked UNLIMITED PRO access from ${targetUser.name || targetUser.email}`;
     } else {
-      const currentLegacy = targetUser.available_quota || 0; 
+      const currentLegacy = targetUser.available_quota || 0;
       const hasNewBuckets = targetUser.free_tokens !== undefined;
-      
-      const currentPremium = hasNewBuckets ? (targetUser.premium_tokens || 0) : Math.max(0, currentLegacy - 3);
-      const currentFree = hasNewBuckets ? targetUser.free_tokens : Math.min(3, currentLegacy);
-      
+
+      const currentPremium = hasNewBuckets
+        ? targetUser.premium_tokens || 0
+        : Math.max(0, currentLegacy - 3);
+      const currentFree = hasNewBuckets
+        ? targetUser.free_tokens
+        : Math.min(3, currentLegacy);
+
       updates = {
         premium_tokens: currentPremium + customTokens, // Gift hamesha Premium me jayega
         free_tokens: currentFree, // Free tokens permanently fix ho jayenge
@@ -872,17 +955,21 @@ export default function GodMode() {
     setNukeConfirm(t); // Modal open karega
   };
 
- const executeTotalWipe = async (t) => {
+  const executeTotalWipe = async (t) => {
     try {
       if (t.isPhase3) {
-         await remove(ref(database, `tests_metadata/${t.id}`));
-         await remove(ref(database, `test_questions/${t.id}`));
-         await remove(ref(database, `test_submissions/${t.id}`));
+        await remove(ref(database, `tests_metadata/${t.id}`));
+        await remove(ref(database, `test_questions/${t.id}`));
+        await remove(ref(database, `test_submissions/${t.id}`));
       } else {
-         await remove(ref(database, `tests/${t.dbKey}`));
+        await remove(ref(database, `tests/${t.dbKey}`));
       }
       setAllTests((prev) => prev.filter((test) => test.id !== t.id));
-      setSysAlert({ title: "Eradicated", msg: "Test wiped from existence permanently.", type: "success" });
+      setSysAlert({
+        title: "Eradicated",
+        msg: "Test wiped from existence permanently.",
+        type: "success",
+      });
       setViewingSubsFor(null);
       setNukeConfirm(null);
     } catch (e) {
@@ -892,14 +979,23 @@ export default function GodMode() {
 
   const executeStudentArchive = async (t) => {
     try {
-      const updates = { isDeletedByExaminer: true, isArchivedForStudents: true };
+      const updates = {
+        isDeletedByExaminer: true,
+        isArchivedForStudents: true,
+      };
       if (t.isPhase3) {
-         await update(ref(database, `tests_metadata/${t.id}`), updates);
+        await update(ref(database, `tests_metadata/${t.id}`), updates);
       } else {
-         await update(ref(database, `tests/${t.dbKey}`), updates);
+        await update(ref(database, `tests/${t.dbKey}`), updates);
       }
-      setAllTests((prev) => prev.map((test) => test.id === t.id ? { ...test, ...updates } : test));
-      setSysAlert({ title: "Archived", msg: "Student copy preserved. Test hidden from Admin Vault.", type: "success" });
+      setAllTests((prev) =>
+        prev.map((test) => (test.id === t.id ? { ...test, ...updates } : test)),
+      );
+      setSysAlert({
+        title: "Archived",
+        msg: "Student copy preserved. Test hidden from Admin Vault.",
+        type: "success",
+      });
       setViewingSubsFor(null);
       setNukeConfirm(null);
     } catch (e) {
@@ -907,28 +1003,67 @@ export default function GodMode() {
     }
   };
 
-  const deleteIndividualSub = (t, idx, sName) => {
+  const deleteIndividualSub = (t, s, idx) => {
+    const targetUid =
+      s?.fbKey ||
+      s?.studentKey ||
+      s?.uid ||
+      (typeof s === "string" ? s : idx.toString());
+    const sName = s?.name || "Student";
     setSysConfirm({
       title: "DELETE RECORD?",
       msg: `Erase submission of ${sName} from "${t.title}"?`,
       action: async () => {
         try {
-          let newSubs = safeArray(t.submissions);
-          newSubs.splice(idx, 1);
-          
           if (t.isPhase3) {
-             await set(ref(database, `test_submissions/${t.id}/submissions`), newSubs);
-             await update(ref(database, `tests_metadata/${t.id}`), { submissionCount: newSubs.length });
+            // 🛡️ DATA-01 FIX: Direct targeted key deletion. NEVER write an array over the map!
+            await remove(
+              ref(
+                database,
+                `test_submissions/${t.id}/submissions/${targetUid}`,
+              ),
+            );
+
+            // Wipe student receipt if studentKey/uid exists
+            const candidateKeys = [s?.uid, s?.studentKey, targetUid].filter(
+              Boolean,
+            );
+            for (const cKey of candidateKeys) {
+              await remove(ref(database, `user_submissions/${cKey}/${t.id}`));
+            }
+
+            // Decrement submission count safely
+            await update(ref(database, `tests_metadata/${t.id}`), {
+              submissionCount: Math.max((t.submissionCount || 1) - 1, 0),
+            });
           } else {
-             await set(ref(database, `tests/${t.dbKey}/submissions`), newSubs);
+            await remove(
+              ref(database, `tests/${t.dbKey}/submissions/${targetUid}`),
+            );
           }
-          
-          const updatedTest = { ...t, submissions: newSubs, submissionCount: newSubs.length };
+
+          let newSubs = safeArray(t.submissions).filter((_, i) => i !== idx);
+          const updatedTest = {
+            ...t,
+            submissions: newSubs,
+            submissionCount: Math.max((t.submissionCount || 1) - 1, 0),
+          };
           setViewingSubsFor(updatedTest);
-          setAllTests((prev) => prev.map((test) => (test.id === t.id ? updatedTest : test)));
-          setSysAlert({ title: "Deleted", msg: `${sName}'s record removed.`, type: "success" });
+          setAllTests((prev) =>
+            prev.map((test) => (test.id === t.id ? updatedTest : test)),
+          );
+          setSysAlert({
+            title: "Deleted",
+            msg: `${sName}'s record removed permanently without corrupting database keys.`,
+            type: "success",
+          });
         } catch (e) {
-          setSysAlert({ title: "Error", msg: "Failed to delete record.", type: "error" });
+          console.error("Delete sub error:", e);
+          setSysAlert({
+            title: "Error",
+            msg: "Failed to delete record.",
+            type: "error",
+          });
         }
       },
     });
@@ -1133,7 +1268,7 @@ export default function GodMode() {
                           <button
                             className="px-3 py-2 font-bold bg-[#FCEBEB] text-[#A32D2D] border border-[#F7C1C1] rounded-md hover:bg-red-100 transition-colors text-[13px] flex items-center justify-end gap-1.5 ml-auto"
                             onClick={() =>
-                              deleteIndividualSub(viewingSubsFor, idx, s.name)
+                              deleteIndividualSub(viewingSubsFor, s, idx)
                             }
                           >
                             <i className="ti ti-trash-x"></i> Purge
@@ -1207,51 +1342,74 @@ export default function GodMode() {
       {/* 🔥 FLOATING SIDEBAR TOGGLE (SMART APP-STYLE MENU) */}
       <button
         onClick={() => setIsSidebarOpen(true)}
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:top-32 sm:bottom-auto sm:left-6 z-[90] h-12 sm:w-14 sm:h-14 bg-[#0B0F19] text-[#D4AF37] rounded-full shadow-[0_8px_30px_rgba(212,175,55,0.4)] flex items-center justify-center text-xl sm:text-2xl hover:bg-slate-900 transition-all duration-300 border border-[#D4AF37]/50 group cursor-pointer px-6 sm:px-0 gap-2 ${isSidebarOpen ? 'opacity-0 scale-50 pointer-events-none' : 'opacity-100 scale-100 hover:scale-105'}`}
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:top-32 sm:bottom-auto sm:left-6 z-[90] h-12 sm:w-14 sm:h-14 bg-[#0B0F19] text-[#D4AF37] rounded-full shadow-[0_8px_30px_rgba(212,175,55,0.4)] flex items-center justify-center text-xl sm:text-2xl hover:bg-slate-900 transition-all duration-300 border border-[#D4AF37]/50 group cursor-pointer px-6 sm:px-0 gap-2 ${isSidebarOpen ? "opacity-0 scale-50 pointer-events-none" : "opacity-100 scale-100 hover:scale-105"}`}
         title="Open Admin Tabs"
       >
-        <i className="ti ti-menu-2"></i> 
+        <i className="ti ti-menu-2"></i>
         {/* Sirf phone me dikhega 'MENU' text */}
-        <span className="font-black text-sm tracking-widest sm:hidden">MENU</span>
+        <span className="font-black text-sm tracking-widest sm:hidden">
+          MENU
+        </span>
       </button>
-
       {/* 🔥 SLIDING SIDEBAR WINDOW */}
       <AnimatePresence>
         {isSidebarOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               onClick={() => setIsSidebarOpen(false)}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
             ></motion.div>
 
             <motion.div
-              initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
               className="fixed top-0 left-0 h-full w-[280px] bg-[#0B0F19] border-r border-[#D4AF37]/20 z-[80] shadow-[20px_0_50px_rgba(0,0,0,0.5)] flex flex-col px-6 pb-6 pt-16 sm:pt-36"
             >
               <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-800">
                 <div className="text-[#D4AF37] font-black text-xl tracking-widest flex items-center gap-2">
-                    <i className="ti ti-crown text-2xl"></i> GOD MODE
+                  <i className="ti ti-crown text-2xl"></i> GOD MODE
                 </div>
-                <button onClick={() => setIsSidebarOpen(false)} className="text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-full w-8 h-8 flex items-center justify-center">
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="text-slate-500 hover:text-white transition-colors bg-slate-800 rounded-full w-8 h-8 flex items-center justify-center"
+                >
                   <i className="ti ti-x text-lg"></i>
                 </button>
               </div>
 
               <div className="flex flex-col gap-2 overflow-y-auto hide-scrollbar">
                 {[
-                  { id: "pulse", icon: "ti-activity-heartbeat", label: "System Pulse" },
+                  {
+                    id: "pulse",
+                    icon: "ti-activity-heartbeat",
+                    label: "System Pulse",
+                  },
                   { id: "analytics", icon: "ti-chart-pie", label: "Analytics" },
-                  { id: "users", icon: "ti-users-group", label: "Citizen Matrix" },
-                  { id: "examiners", icon: "ti-briefcase", label: "Examiners Ops" },
+                  {
+                    id: "users",
+                    icon: "ti-users-group",
+                    label: "Citizen Matrix",
+                  },
+                  {
+                    id: "examiners",
+                    icon: "ti-briefcase",
+                    label: "Examiners Ops",
+                  },
                   { id: "tests", icon: "ti-database", label: "Global Vault" },
                   { id: "radar", icon: "ti-radar", label: "Radar Ops" },
                   { id: "logs", icon: "ti-bug", label: "System Logs" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => { setActiveTab(tab.id); setIsSidebarOpen(false); }}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setIsSidebarOpen(false);
+                    }}
                     className={`w-full text-left px-5 py-4 font-black rounded-2xl transition-all flex items-center gap-3 text-[15px] tracking-wide ${activeTab === tab.id ? "bg-gradient-to-r from-[#8B0000] to-red-900 text-white shadow-lg shadow-red-900/40 border border-red-500/30" : "bg-transparent text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
                   >
                     <i className={`ti ${tab.icon} text-[22px]`}></i> {tab.label}
@@ -1262,57 +1420,56 @@ export default function GodMode() {
           </>
         )}
       </AnimatePresence>
-
       {/* 🔥 PREMIUM HERO CARD (Perfectly Responsive) */}
       <div className="bg-gradient-to-br from-[#0B0F19] to-[#121626] rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 md:p-10 text-white mb-8 sm:mb-10 flex flex-col lg:flex-row justify-between lg:items-center gap-5 sm:gap-8 relative overflow-hidden border border-slate-800 shadow-2xl sm:ml-24 pb-6 sm:pb-8">
-         {/* Background Glows */}
-         <div className="absolute -top-16 -right-16 sm:-top-24 sm:-right-24 w-48 h-48 sm:w-64 sm:h-64 bg-[#D4AF37]/10 blur-[60px] sm:blur-[80px] rounded-full pointer-events-none"></div>
-         <div className="absolute -bottom-16 -left-16 sm:-bottom-24 sm:-left-24 w-48 h-48 sm:w-64 sm:h-64 bg-blue-600/10 blur-[60px] sm:blur-[80px] rounded-full pointer-events-none"></div>
-         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+        {/* Background Glows */}
+        <div className="absolute -top-16 -right-16 sm:-top-24 sm:-right-24 w-48 h-48 sm:w-64 sm:h-64 bg-[#D4AF37]/10 blur-[60px] sm:blur-[80px] rounded-full pointer-events-none"></div>
+        <div className="absolute -bottom-16 -left-16 sm:-bottom-24 sm:-left-24 w-48 h-48 sm:w-64 sm:h-64 bg-blue-600/10 blur-[60px] sm:blur-[80px] rounded-full pointer-events-none"></div>
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
 
-         {/* Left Content (Logo + Titles) */}
-         <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 w-full lg:w-auto z-10">
-           
-           {/* Mobile Side-by-Side Wrapper */}
-           <div className="flex items-center gap-4 w-full sm:w-auto">
-             <div className="w-14 h-14 sm:w-20 sm:h-20 bg-gradient-to-br from-[#1a1c29] to-[#0B0F19] border border-[#D4AF37]/30 rounded-[14px] sm:rounded-2xl flex items-center justify-center text-3xl sm:text-4xl text-[#D4AF37] shadow-[0_0_20px_rgba(212,175,55,0.15)] shrink-0">
-               <i className="ti ti-infinity"></i>
-             </div>
-             <div className="flex flex-col items-start min-w-0">
-               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 shadow-sm">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span> <span className="truncate">ROOT CLEARANCE</span>
-               </div>
-               <h2 className="m-0 text-[24px] sm:text-[36px] md:text-[42px] font-black tracking-tight text-white leading-none truncate w-full">
-                 OMNI-CONTROL
-               </h2>
-             </div>
-           </div>
-           
-           {/* UID Badge */}
-           <div className="w-full sm:w-auto mt-1 sm:mt-12 sm:-ml-2">
-              <div className="text-[11px] sm:text-[12px] text-slate-400 font-mono font-bold tracking-wide bg-black/40 px-3 py-1.5 rounded-lg border border-slate-700/50 inline-flex items-center gap-2">
-                 <i className="ti ti-fingerprint text-[#D4AF37]"></i> UID: {currentUser.uid.substring(0, 10)}...
+        {/* Left Content (Logo + Titles) */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 w-full lg:w-auto z-10">
+          {/* Mobile Side-by-Side Wrapper */}
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <div className="w-14 h-14 sm:w-20 sm:h-20 bg-gradient-to-br from-[#1a1c29] to-[#0B0F19] border border-[#D4AF37]/30 rounded-[14px] sm:rounded-2xl flex items-center justify-center text-3xl sm:text-4xl text-[#D4AF37] shadow-[0_0_20px_rgba(212,175,55,0.15)] shrink-0">
+              <i className="ti ti-infinity"></i>
+            </div>
+            <div className="flex flex-col items-start min-w-0">
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>{" "}
+                <span className="truncate">ROOT CLEARANCE</span>
               </div>
-           </div>
-         </div>
+              <h2 className="m-0 text-[24px] sm:text-[36px] md:text-[42px] font-black tracking-tight text-white leading-none truncate w-full">
+                OMNI-CONTROL
+              </h2>
+            </div>
+          </div>
 
-         {/* Right Content (Stats Box) */}
-         <div className="w-full lg:w-auto z-10 mt-2 lg:mt-0">
-           <div className="bg-white/5 backdrop-blur-md px-5 py-4 sm:px-8 sm:py-5 rounded-xl sm:rounded-[20px] border border-white/10 flex items-center justify-between gap-6 shadow-xl relative overflow-hidden group hover:bg-white/10 transition-colors w-full lg:min-w-[250px]">
-             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-             <div>
-               <div className="text-3xl sm:text-[42px] font-black text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-amber-200 leading-none mb-1 filter drop-shadow-lg">
-                 {platformInstalls}
-               </div>
-               <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-[2px]">
-                 Global Installs
-               </div>
-             </div>
-             <i className="ti ti-world text-4xl sm:text-5xl text-white/10 group-hover:text-white/20 transition-colors"></i>
-           </div>
-         </div>
+          {/* UID Badge */}
+          <div className="w-full sm:w-auto mt-1 sm:mt-12 sm:-ml-2">
+            <div className="text-[11px] sm:text-[12px] text-slate-400 font-mono font-bold tracking-wide bg-black/40 px-3 py-1.5 rounded-lg border border-slate-700/50 inline-flex items-center gap-2">
+              <i className="ti ti-fingerprint text-[#D4AF37]"></i> UID:{" "}
+              {currentUser.uid.substring(0, 10)}...
+            </div>
+          </div>
+        </div>
+
+        {/* Right Content (Stats Box) */}
+        <div className="w-full lg:w-auto z-10 mt-2 lg:mt-0">
+          <div className="bg-white/5 backdrop-blur-md px-5 py-4 sm:px-8 sm:py-5 rounded-xl sm:rounded-[20px] border border-white/10 flex items-center justify-between gap-6 shadow-xl relative overflow-hidden group hover:bg-white/10 transition-colors w-full lg:min-w-[250px]">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+            <div>
+              <div className="text-3xl sm:text-[42px] font-black text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-amber-200 leading-none mb-1 filter drop-shadow-lg">
+                {platformInstalls}
+              </div>
+              <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-[2px]">
+                Global Installs
+              </div>
+            </div>
+            <i className="ti ti-world text-4xl sm:text-5xl text-white/10 group-hover:text-white/20 transition-colors"></i>
+          </div>
+        </div>
       </div>
-
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
@@ -1575,7 +1732,10 @@ export default function GodMode() {
                 {/* NAYA BUTTON ADD KIYA */}
                 <button
                   className="flex items-center justify-center gap-2 px-4 py-2 bg-[#8B0000] text-white font-medium rounded-md hover:bg-red-900 transition-colors text-sm w-full sm:w-auto shadow-md"
-                  onClick={() => { setShowBulkModal(true); setBulkResult(null); }}
+                  onClick={() => {
+                    setShowBulkModal(true);
+                    setBulkResult(null);
+                  }}
                 >
                   <i className="ti ti-users-plus"></i> Custom Add+
                 </button>
@@ -1765,7 +1925,8 @@ export default function GodMode() {
 
                 {/* Quick Filters */}
                 <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full xl:w-auto overflow-x-auto hide-scrollbar shrink-0">
-                  {["all", "live", "closed", "deleted"].map((f) => ( //DELETED ADD KIYA
+                  {["all", "live", "closed", "deleted"].map((f) => (
+                    //DELETED ADD KIYA
                     <button
                       key={f}
                       onClick={() => setVaultFilter(f)}
@@ -1775,12 +1936,14 @@ export default function GodMode() {
                         ? "All Exams"
                         : f === "live"
                           ? "Live Intakes"
-                          : f === "closed" ? "Closed" : "🗑️ Deleted"}
+                          : f === "closed"
+                            ? "Closed"
+                            : "🗑️ Deleted"}
                     </button>
                   ))}
                 </div>
-              </div> {/* 🔥 YE WALA DIV GAYAB HO GAYA THA! */}
-
+              </div>{" "}
+              {/* 🔥 YE WALA DIV GAYAB HO GAYA THA! */}
               {/* 📊 Premium Vault Table */}
               <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden p-0 relative">
                 {/* Background Pattern */}
@@ -1824,11 +1987,13 @@ export default function GodMode() {
                             return t.isDeletedByExaminer === true;
                           } else {
                             // Baki normal tabs me deleted tests hide rahenge
-                            if (t.isDeletedByExaminer) return false; 
+                            if (t.isDeletedByExaminer) return false;
                           }
 
-                          if (vaultFilter === "live") return t.isActive !== false;
-                          if (vaultFilter === "closed") return t.isActive === false;
+                          if (vaultFilter === "live")
+                            return t.isActive !== false;
+                          if (vaultFilter === "closed")
+                            return t.isActive === false;
 
                           return true;
                         });
@@ -1936,8 +2101,26 @@ export default function GodMode() {
                                     onClick={async () => {
                                       // 🔥 On-Demand Fetch for Phase 3
                                       if (t.isPhase3 && !t.submissions) {
-                                        const subSnap = await get(ref(database, `test_submissions/${t.id}/submissions`));
-                                        t.submissions = subSnap.exists() ? Object.values(subSnap.val()) : [];
+                                        const subSnap = await get(
+                                          ref(
+                                            database,
+                                            `test_submissions/${t.id}/submissions`,
+                                          ),
+                                        );
+                                        if (subSnap.exists()) {
+                                          const rawVal = subSnap.val();
+                                          t.submissions = Array.isArray(rawVal)
+                                            ? rawVal.filter(Boolean)
+                                            : Object.entries(rawVal).map(
+                                                ([k, v]) => ({
+                                                  ...v,
+                                                  fbKey: k,
+                                                  uid: v?.uid || k,
+                                                }),
+                                              );
+                                        } else {
+                                          t.submissions = [];
+                                        }
                                       }
                                       setViewingSubsFor(t);
                                     }}
@@ -2270,12 +2453,31 @@ export default function GodMode() {
                           <div className="text-2xl font-black text-slate-800">
                             {selectedExaminer.is_unlimited
                               ? "∞"
-                              : (selectedExaminer.free_tokens !== undefined 
-                                  ? (selectedExaminer.free_tokens + (selectedExaminer.premium_tokens || 0)) 
-                                  : (selectedExaminer.available_quota || 0))}
+                              : selectedExaminer.free_tokens !== undefined
+                                ? selectedExaminer.free_tokens +
+                                  (selectedExaminer.premium_tokens || 0)
+                                : selectedExaminer.available_quota || 0}
                           </div>
                           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                             <span className="text-slate-500">Free: {selectedExaminer.free_tokens !== undefined ? selectedExaminer.free_tokens : Math.min(3, selectedExaminer.available_quota || 0)}</span> | <span className="text-emerald-600">Premium: {selectedExaminer.premium_tokens !== undefined ? selectedExaminer.premium_tokens : Math.max(0, (selectedExaminer.available_quota || 0) - 3)}</span>
+                            <span className="text-slate-500">
+                              Free:{" "}
+                              {selectedExaminer.free_tokens !== undefined
+                                ? selectedExaminer.free_tokens
+                                : Math.min(
+                                    3,
+                                    selectedExaminer.available_quota || 0,
+                                  )}
+                            </span>{" "}
+                            |{" "}
+                            <span className="text-emerald-600">
+                              Premium:{" "}
+                              {selectedExaminer.premium_tokens !== undefined
+                                ? selectedExaminer.premium_tokens
+                                : Math.max(
+                                    0,
+                                    (selectedExaminer.available_quota || 0) - 3,
+                                  )}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -2474,9 +2676,23 @@ export default function GodMode() {
                                     </span>
                                   </div>
                                   <div className="flex flex-wrap items-center gap-3 text-[11px] sm:text-[12px] font-bold text-slate-500 font-mono bg-white px-3 py-1.5 rounded-lg border border-slate-200 w-fit">
-                                    <span className="text-[#185FA5]"><i className="ti ti-fingerprint"></i> {txn.txnId || 'TXN-LEGACY'}</span>
-                                    <span className="hidden sm:inline text-slate-300">|</span>
-                                    <span><i className="ti ti-clock"></i> {new Date(txn.date).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</span>
+                                    <span className="text-[#185FA5]">
+                                      <i className="ti ti-fingerprint"></i>{" "}
+                                      {txn.txnId || "TXN-LEGACY"}
+                                    </span>
+                                    <span className="hidden sm:inline text-slate-300">
+                                      |
+                                    </span>
+                                    <span>
+                                      <i className="ti ti-clock"></i>{" "}
+                                      {new Date(txn.date).toLocaleString(
+                                        "en-IN",
+                                        {
+                                          dateStyle: "medium",
+                                          timeStyle: "short",
+                                        },
+                                      )}
+                                    </span>
                                   </div>
                                 </div>
 
@@ -2490,7 +2706,8 @@ export default function GodMode() {
                                     </span>
                                   ) : txn.type === "Subscription" ? (
                                     <span className="text-[#D4AF37] font-black text-xs sm:text-sm bg-[#fff8e7] px-4 py-2 rounded-xl border border-[#D4AF37]/50 flex items-center gap-1.5">
-                                      <i className="ti ti-crown text-lg"></i> 1 Year Pro
+                                      <i className="ti ti-crown text-lg"></i> 1
+                                      Year Pro
                                     </span>
                                   ) : (
                                     <span className="text-emerald-600 font-black text-xs sm:text-sm bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200">
@@ -2655,24 +2872,41 @@ export default function GodMode() {
               {systemErrors.length === 0 ? (
                 <div className="text-center py-12 bg-emerald-50 rounded-2xl border border-emerald-100">
                   <i className="ti ti-shield-check text-5xl text-emerald-500 mb-3 block"></i>
-                  <div className="font-bold text-emerald-700 text-lg">System is 100% stable. No errors logged.</div>
+                  <div className="font-bold text-emerald-700 text-lg">
+                    System is 100% stable. No errors logged.
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
                   {systemErrors.map((err) => (
-                    <div key={err.id} className={`p-5 rounded-2xl border-l-4 flex flex-col md:flex-row justify-between md:items-center gap-4 ${err.status === 'resolved' ? 'bg-slate-50 border-emerald-400' : 'bg-red-50 border-red-500'}`}>
+                    <div
+                      key={err.id}
+                      className={`p-5 rounded-2xl border-l-4 flex flex-col md:flex-row justify-between md:items-center gap-4 ${err.status === "resolved" ? "bg-slate-50 border-emerald-400" : "bg-red-50 border-red-500"}`}
+                    >
                       <div className="flex-1 overflow-hidden">
                         <div className="flex items-center gap-3 mb-2">
-                          <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md ${err.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-500 text-white shadow-sm shadow-red-500/30'}`}>
+                          <span
+                            className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md ${err.status === "resolved" ? "bg-emerald-100 text-emerald-700" : "bg-red-500 text-white shadow-sm shadow-red-500/30"}`}
+                          >
                             {err.status}
                           </span>
-                          <span className="text-xs font-bold text-slate-500"><i className="ti ti-clock"></i> {new Date(err.timestamp).toLocaleString()}</span>
+                          <span className="text-xs font-bold text-slate-500">
+                            <i className="ti ti-clock"></i>{" "}
+                            {new Date(err.timestamp).toLocaleString()}
+                          </span>
                         </div>
-                        <div className="font-black text-slate-800 text-[15px] mb-1.5 break-words">{err.message}</div>
-                        <div className="text-xs text-slate-500 font-mono break-words bg-white/50 p-2 rounded-lg border border-slate-200/50">{err.url}</div>
+                        <div className="font-black text-slate-800 text-[15px] mb-1.5 break-words">
+                          {err.message}
+                        </div>
+                        <div className="text-xs text-slate-500 font-mono break-words bg-white/50 p-2 rounded-lg border border-slate-200/50">
+                          {err.url}
+                        </div>
                       </div>
-                      {err.status !== 'resolved' && (
-                        <button onClick={() => markErrorResolved(err.id)} className="px-5 py-2.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-500 hover:text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shrink-0 active:scale-95">
+                      {err.status !== "resolved" && (
+                        <button
+                          onClick={() => markErrorResolved(err.id)}
+                          className="px-5 py-2.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-500 hover:text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shrink-0 active:scale-95"
+                        >
                           <i className="ti ti-check"></i> Mark Resolved
                         </button>
                       )}
@@ -2681,24 +2915,32 @@ export default function GodMode() {
                 </div>
               )}
             </div>
-          )}          
+          )}
         </motion.div>
       </AnimatePresence>
-
       {/* ALERTS & MODALS (Exact original style but animated) */}
       <AnimatePresence>
         {sysAlert && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-[9999] bg-white/20 backdrop-blur-md flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
               className={`bg-white border-2 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl ${sysAlert.type === "error" ? "border-rose-400" : "border-emerald-400"}`}
             >
-              <i className={`ti ${sysAlert.type === "error" ? "ti-alert-octagon text-rose-500" : "ti-circle-check text-emerald-500"} text-5xl mb-4 block`}></i>
-              <h3 className="text-[20px] text-slate-800 font-black mb-2">{sysAlert.title}</h3>
-              <p className="text-slate-500 mb-8 font-medium text-[15px]">{sysAlert.msg}</p>
+              <i
+                className={`ti ${sysAlert.type === "error" ? "ti-alert-octagon text-rose-500" : "ti-circle-check text-emerald-500"} text-5xl mb-4 block`}
+              ></i>
+              <h3 className="text-[20px] text-slate-800 font-black mb-2">
+                {sysAlert.title}
+              </h3>
+              <p className="text-slate-500 mb-8 font-medium text-[15px]">
+                {sysAlert.msg}
+              </p>
               <button
                 className={`w-full py-3 font-black text-white rounded-xl shadow-md transition-all active:scale-95 ${sysAlert.type === "error" ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-500 hover:bg-emerald-600"}`}
                 onClick={() => setSysAlert(null)}
@@ -2711,16 +2953,23 @@ export default function GodMode() {
 
         {sysConfirm && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-[9999] bg-white/20 backdrop-blur-md flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
               className="bg-white border-2 border-amber-400 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl"
             >
               <i className="ti ti-alert-triangle text-5xl text-amber-500 mb-4 block"></i>
-              <h3 className="text-[20px] text-slate-800 font-black mb-3">{sysConfirm.title}</h3>
-              <p className="text-slate-500 mb-8 font-medium leading-relaxed text-[15px]">{sysConfirm.msg}</p>
+              <h3 className="text-[20px] text-slate-800 font-black mb-3">
+                {sysConfirm.title}
+              </h3>
+              <p className="text-slate-500 mb-8 font-medium leading-relaxed text-[15px]">
+                {sysConfirm.msg}
+              </p>
               <div className="flex gap-3">
                 <button
                   className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all active:scale-95"
@@ -2730,7 +2979,10 @@ export default function GodMode() {
                 </button>
                 <button
                   className="flex-1 py-3 bg-amber-500 text-white font-black rounded-xl hover:bg-amber-600 shadow-md shadow-amber-500/30 transition-all active:scale-95"
-                  onClick={() => { sysConfirm.action(); setSysConfirm(null); }}
+                  onClick={() => {
+                    sysConfirm.action();
+                    setSysConfirm(null);
+                  }}
                 >
                   EXECUTE
                 </button>
@@ -2739,36 +2991,48 @@ export default function GodMode() {
           </motion.div>
         )}
       </AnimatePresence>
-
       {/* =============================================== */}
       {/* 🚀 CUSTOM BULK ADD MODAL (THE MATRIX UPLOADER)  */}
       {/* =============================================== */}
       <AnimatePresence>
         {showBulkModal && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-[99999] bg-[#0B0F19]/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-8"
           >
             <motion.div
-              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
               className="bg-white rounded-3xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200"
             >
               {/* HEADER */}
               <div className="bg-[#0B0F19] p-5 md:p-6 flex justify-between items-center shrink-0 border-b-4 border-[#D4AF37]">
                 <div>
                   <h2 className="text-xl font-black text-white m-0 flex items-center gap-2">
-                    <i className="ti ti-users-plus text-[#D4AF37]"></i> Bulk Citizen Provisioning
+                    <i className="ti ti-users-plus text-[#D4AF37]"></i> Bulk
+                    Citizen Provisioning
                   </h2>
                   <div className="text-slate-400 text-xs font-semibold mt-1">
-                    Upload a CSV or manually enter details. Format: Name, Email, Password, RollNo, Role
+                    Upload a CSV or manually enter details. Format: Name, Email,
+                    Password, RollNo, Role
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <label className="cursor-pointer px-4 py-2 bg-slate-800 border border-slate-700 text-[#D4AF37] font-bold rounded-lg hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm">
                     <i className="ti ti-upload"></i> Upload CSV
-                    <input type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+                    <input
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={handleCSVUpload}
+                    />
                   </label>
-                  <button onClick={() => setShowBulkModal(false)} className="w-9 h-9 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors">
+                  <button
+                    onClick={() => setShowBulkModal(false)}
+                    className="w-9 h-9 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                  >
                     <i className="ti ti-x text-lg"></i>
                   </button>
                 </div>
@@ -2779,22 +3043,52 @@ export default function GodMode() {
                 {bulkResult ? (
                   // RESULT SCREEN
                   <div className="max-w-2xl mx-auto text-center py-10">
-                    <i className={`ti ${bulkResult.failed.length === 0 ? 'ti-circle-check text-emerald-500' : 'ti-alert-triangle text-[#8B0000]'} text-6xl block mb-4`}></i>
-                    <h3 className="text-2xl font-black text-slate-900 mb-2">Provisioning Complete</h3>
+                    <i
+                      className={`ti ${bulkResult.failed.length === 0 ? "ti-circle-check text-emerald-500" : "ti-alert-triangle text-[#8B0000]"} text-6xl block mb-4`}
+                    ></i>
+                    <h3 className="text-2xl font-black text-slate-900 mb-2">
+                      Provisioning Complete
+                    </h3>
                     <div className="text-lg font-bold text-slate-600 mb-8">
-                      <span className="text-emerald-600">{bulkResult.success} Created Successfully</span> • <span className="text-red-500">{bulkResult.failed.length} Failed</span>
+                      <span className="text-emerald-600">
+                        {bulkResult.success} Created Successfully
+                      </span>{" "}
+                      •{" "}
+                      <span className="text-red-500">
+                        {bulkResult.failed.length} Failed
+                      </span>
                     </div>
                     {bulkResult.failed.length > 0 && (
                       <div className="bg-red-50 text-left p-4 rounded-xl border border-red-200 max-h-[300px] overflow-y-auto">
-                        <div className="font-black text-red-800 mb-3 text-sm">Error Logs:</div>
+                        <div className="font-black text-red-800 mb-3 text-sm">
+                          Error Logs:
+                        </div>
                         {bulkResult.failed.map((f, i) => (
-                          <div key={i} className="text-xs text-red-600 mb-1 font-mono break-words border-b border-red-100 pb-1">
+                          <div
+                            key={i}
+                            className="text-xs text-red-600 mb-1 font-mono break-words border-b border-red-100 pb-1"
+                          >
                             <strong>{f.email}:</strong> {f.error}
                           </div>
                         ))}
                       </div>
                     )}
-                    <button onClick={() => { setShowBulkModal(false); setBulkData([{ id: Date.now(), name: "", email: "", password: "", rollNo: "", role: "student" }]); }} className="mt-8 px-8 py-3 bg-[#0B0F19] text-[#D4AF37] font-black rounded-xl hover:bg-slate-900">
+                    <button
+                      onClick={() => {
+                        setShowBulkModal(false);
+                        setBulkData([
+                          {
+                            id: Date.now(),
+                            name: "",
+                            email: "",
+                            password: "",
+                            rollNo: "",
+                            role: "student",
+                          },
+                        ]);
+                      }}
+                      className="mt-8 px-8 py-3 bg-[#0B0F19] text-[#D4AF37] font-black rounded-xl hover:bg-slate-900"
+                    >
                       Close Matrix
                     </button>
                   </div>
@@ -2802,9 +3096,12 @@ export default function GodMode() {
                   // LOADING SCREEN
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <div className="w-16 h-16 border-4 border-[#185FA5] border-t-transparent rounded-full animate-spin mb-6"></div>
-                    <h3 className="text-xl font-black text-slate-900 mb-2">Forging Identities...</h3>
+                    <h3 className="text-xl font-black text-slate-900 mb-2">
+                      Forging Identities...
+                    </h3>
                     <div className="text-sm font-bold text-slate-500 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
-                      Processing {bulkProgress.current} of {bulkProgress.total} records
+                      Processing {bulkProgress.current} of {bulkProgress.total}{" "}
+                      records
                     </div>
                   </div>
                 ) : (
@@ -2818,32 +3115,124 @@ export default function GodMode() {
                           <th className="p-4 font-black">Password *</th>
                           <th className="p-4 font-black">Roll No / ID</th>
                           <th className="p-4 font-black">Role</th>
-                          <th className="p-4 font-black text-center"><i className="ti ti-settings"></i></th>
+                          <th className="p-4 font-black text-center">
+                            <i className="ti ti-settings"></i>
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {bulkData.map((row, index) => (
-                          <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-3"><input type="text" value={row.name} onChange={(e) => handleBulkChange(row.id, 'name', e.target.value)} placeholder="Name" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all" /></td>
-                            <td className="p-3"><input type="email" value={row.email} onChange={(e) => handleBulkChange(row.id, 'email', e.target.value)} placeholder="email@domain.com" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all" /></td>
-                            <td className="p-3"><input type="text" value={row.password} onChange={(e) => handleBulkChange(row.id, 'password', e.target.value)} placeholder="Min 6 chars" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all font-mono" /></td>
-                            <td className="p-3"><input type="text" value={row.rollNo} onChange={(e) => handleBulkChange(row.id, 'rollNo', e.target.value)} placeholder="Optional" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all" /></td>
+                          <tr
+                            key={row.id}
+                            className="hover:bg-slate-50 transition-colors"
+                          >
                             <td className="p-3">
-                              <select value={row.role} onChange={(e) => handleBulkChange(row.id, 'role', e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] cursor-pointer">
+                              <input
+                                type="text"
+                                value={row.name}
+                                onChange={(e) =>
+                                  handleBulkChange(
+                                    row.id,
+                                    "name",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="Name"
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="email"
+                                value={row.email}
+                                onChange={(e) =>
+                                  handleBulkChange(
+                                    row.id,
+                                    "email",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="email@domain.com"
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="text"
+                                value={row.password}
+                                onChange={(e) =>
+                                  handleBulkChange(
+                                    row.id,
+                                    "password",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="Min 6 chars"
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all font-mono"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="text"
+                                value={row.rollNo}
+                                onChange={(e) =>
+                                  handleBulkChange(
+                                    row.id,
+                                    "rollNo",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder="Optional"
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] focus:bg-white transition-all"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <select
+                                value={row.role}
+                                onChange={(e) =>
+                                  handleBulkChange(
+                                    row.id,
+                                    "role",
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:border-[#185FA5] cursor-pointer"
+                              >
                                 <option value="student">Student</option>
                                 <option value="examiner">Examiner</option>
                               </select>
                             </td>
                             <td className="p-3 text-center">
-                              <button onClick={() => handleBulkChange(row.id, 'password', Math.random().toString(36).slice(-8))} className="p-2 text-slate-400 hover:text-[#185FA5] transition-colors" title="Generate Password"><i className="ti ti-key"></i></button>
-                              <button onClick={() => handleRemoveBulkRow(row.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Delete Row"><i className="ti ti-trash"></i></button>
+                              <button
+                                onClick={() =>
+                                  handleBulkChange(
+                                    row.id,
+                                    "password",
+                                    Math.random().toString(36).slice(-8),
+                                  )
+                                }
+                                className="p-2 text-slate-400 hover:text-[#185FA5] transition-colors"
+                                title="Generate Password"
+                              >
+                                <i className="ti ti-key"></i>
+                              </button>
+                              <button
+                                onClick={() => handleRemoveBulkRow(row.id)}
+                                className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                                title="Delete Row"
+                              >
+                                <i className="ti ti-trash"></i>
+                              </button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                     <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-center">
-                      <button onClick={handleAddBulkRow} className="px-5 py-2.5 border-2 border-dashed border-slate-300 text-slate-500 font-bold rounded-xl hover:border-[#185FA5] hover:text-[#185FA5] hover:bg-blue-50 transition-all flex items-center gap-2 text-sm">
+                      <button
+                        onClick={handleAddBulkRow}
+                        className="px-5 py-2.5 border-2 border-dashed border-slate-300 text-slate-500 font-bold rounded-xl hover:border-[#185FA5] hover:text-[#185FA5] hover:bg-blue-50 transition-all flex items-center gap-2 text-sm"
+                      >
                         <i className="ti ti-plus"></i> Add Empty Row
                       </button>
                     </div>
@@ -2855,9 +3244,18 @@ export default function GodMode() {
               {!bulkResult && !isSubmittingBulk && (
                 <div className="bg-white p-5 border-t border-slate-200 flex justify-between items-center shrink-0">
                   <div className="text-sm font-bold text-slate-500">
-                    Valid Records to Process: <span className="text-[#185FA5] font-black">{bulkData.filter(r => r.email && r.name && r.password).length}</span>
+                    Valid Records to Process:{" "}
+                    <span className="text-[#185FA5] font-black">
+                      {
+                        bulkData.filter((r) => r.email && r.name && r.password)
+                          .length
+                      }
+                    </span>
                   </div>
-                  <button onClick={executeBulkAdd} className="px-8 py-3.5 bg-[#10B981] text-white font-black rounded-xl hover:bg-[#059669] transition-colors flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95">
+                  <button
+                    onClick={executeBulkAdd}
+                    className="px-8 py-3.5 bg-[#10B981] text-white font-black rounded-xl hover:bg-[#059669] transition-colors flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95"
+                  >
                     Execute Bulk Import <i className="ti ti-bolt text-lg"></i>
                   </button>
                 </div>
@@ -2865,39 +3263,49 @@ export default function GodMode() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence> {/* 🔥 Bulk Modal yahan close hona chahiye */}
-
+      </AnimatePresence>{" "}
+      {/* 🔥 Bulk Modal yahan close hona chahiye */}
       {/* 🔥 SMART NUKE CONFIRM MODAL */}
       <AnimatePresence>
         {nukeConfirm && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-[9999] bg-white/20 backdrop-blur-md flex items-center justify-center p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }}
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
               className="bg-white border border-rose-200 rounded-3xl p-8 max-w-lg w-full text-center shadow-2xl"
             >
               <div className="w-20 h-20 mx-auto bg-rose-50 text-rose-600 rounded-full flex items-center justify-center text-4xl mb-6 shadow-inner border border-rose-100">
-                 <i className="ti ti-flame"></i>
+                <i className="ti ti-flame"></i>
               </div>
-              <h3 className="text-2xl text-slate-900 font-black mb-3">Nuke Protocol Initiated</h3>
+              <h3 className="text-2xl text-slate-900 font-black mb-3">
+                Nuke Protocol Initiated
+              </h3>
               <p className="text-slate-500 mb-8 font-semibold leading-relaxed text-[15px]">
-                You are about to eradicate <strong>"{nukeConfirm.title}"</strong>. <br/> Do you want to wipe it completely, or retain a background copy so students can still view their reports?
+                You are about to eradicate{" "}
+                <strong>"{nukeConfirm.title}"</strong>. <br /> Do you want to
+                wipe it completely, or retain a background copy so students can
+                still view their reports?
               </p>
-              
+
               <div className="flex flex-col gap-3">
                 <button
                   className="w-full py-4 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 text-[15px]"
                   onClick={() => executeStudentArchive(nukeConfirm)}
                 >
-                  <i className="ti ti-archive text-xl"></i> Create Student Copy & Delete
+                  <i className="ti ti-archive text-xl"></i> Create Student Copy
+                  & Delete
                 </button>
                 <button
                   className="w-full py-4 bg-rose-600 text-white font-black rounded-xl hover:bg-rose-700 tracking-widest uppercase shadow-md shadow-rose-600/20 flex items-center justify-center gap-2 text-[13px]"
                   onClick={() => executeTotalWipe(nukeConfirm)}
                 >
-                  <i className="ti ti-trash-x text-xl"></i> Total Nuke (Wipe Everything)
+                  <i className="ti ti-trash-x text-xl"></i> Total Nuke (Wipe
+                  Everything)
                 </button>
                 <button
                   className="w-full py-3 mt-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
@@ -2910,7 +3318,6 @@ export default function GodMode() {
           </motion.div>
         )}
       </AnimatePresence>
-
       <style jsx global>{`
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
