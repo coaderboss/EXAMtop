@@ -72,7 +72,7 @@ export async function POST(req) {
     const generateCleanCode = () => {
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
       let code = "";
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 6; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
       return code;

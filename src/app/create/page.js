@@ -646,7 +646,8 @@ export default function CreateTest() {
     const generateTestCode = () => {
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
       let res = "";
-      for (let i = 0; i < 8; i++) {
+      // 8 ki jagah wapas 6 kar diya gaya hai
+      for (let i = 0; i < 6; i++) {
         res += chars.charAt(Math.floor(Math.random() * chars.length));
       }
       return res;
