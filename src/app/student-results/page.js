@@ -490,9 +490,17 @@ export default function StudentResults() {
          }
       }
 
-      // 4. Force UI Render (Will NEVER say "not found" again)
+      // 4. Force UI Render & Schema Alignment (Will NEVER say "not found" again)
       fullTest.totalMarks = Number(fullTest.totalMarks) || Number(fullSub.totalMarks) || 100;
       fullTest.title = fullTest.title || "Assessment";
+
+      // 🛡️ CRASH GUARD: Ensure EVERY question has a fallback options array before giving it to React
+      if (Array.isArray(fullTest.questions)) {
+        fullTest.questions = fullTest.questions.map((q) => ({
+          ...q,
+          options: Array.isArray(q.options) ? q.options : [],
+        }));
+      }
 
       setSelectedResult({ test: fullTest, sub: fullSub, canView: true });
     } catch (error) {
