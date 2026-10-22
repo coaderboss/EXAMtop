@@ -1121,7 +1121,8 @@ export default function StudentResults() {
   if (sub.timeSpentPerQuestion && Array.isArray(sub.details)) {
     let totalSecs = 0;
     sub.details.forEach((d, idx) => {
-      const sec = d?.q?.section || "General";
+      // 🛡️ FIX: Section Time mapped correctly from master questions
+      const sec = test.questions?.[d.q?.index !== undefined ? d.q.index : idx]?.section || d?.q?.section || test.sections?.[0] || "General";
       if (sectionFilter === "all_sections" || sec === sectionFilter) {
         totalSecs += sub.timeSpentPerQuestion[idx] || 0;
       }
@@ -1564,7 +1565,8 @@ export default function StudentResults() {
 
         if (sub.details) {
           sub.details.forEach((item, idx) => {
-            const sec = item.q.section || "General";
+            // 🛡️ FIX: Analytics section mapped correctly from master questions
+            const sec = test.questions?.[item.q?.index ?? idx]?.section || item.q?.section || "General";
             if (!sectionStats[sec])
               sectionStats[sec] = {
                 score: 0,
@@ -2425,12 +2427,11 @@ export default function StudentResults() {
               // 🛡️ CRASH GUARD: Defensive Array Fallback
               const safeDetails = Array.isArray(sub.details) ? sub.details : [];
 
-              const secDetails = safeDetails.filter(
-                (d) =>
-                  sectionFilter === "all_sections" ||
-                  d?.q?.section === sectionFilter ||
-                  (!d?.q?.section && sectionFilter === test.sections?.[0]),
-              );
+              // 🛡️ FIX: Badge counts mapped correctly from master questions
+              const secDetails = safeDetails.filter((d, idx) => {
+                const qSec = test.questions?.[d.q?.index !== undefined ? d.q.index : idx]?.section || d?.q?.section || test.sections?.[0] || "General";
+                return sectionFilter === "all_sections" || qSec === sectionFilter;
+              });
               const countAll = secDetails.length;
               const countCorrect = secDetails.filter(
                 (d) => d.status === "correct" || d.status === "partial",
@@ -2539,21 +2540,24 @@ export default function StudentResults() {
         {/* 🔥 OPTIMIZATION & CRASH GUARD: Safe Array Mapping */}
         {(Array.isArray(sub.details) ? sub.details : [])
           .map((d, index) => ({ d, originalQIdx: index }))
-          .filter(({ d }) => {
+          .filter(({ d, originalQIdx }) => {
             let sMatch =
               filter === "all" ||
               d.status === filter ||
               (filter === "skipped" &&
                 (d.status === "submitted" || d.status === "evaluated"));
-            let secMatch =
-              sectionFilter === "all_sections" ||
-              d?.q?.section === sectionFilter ||
-              (!d?.q?.section && sectionFilter === test.sections?.[0]);
+            
+            // 🛡️ FIX: Always look up the section from the master test questions array
+            const qSec = test.questions?.[d.q?.index !== undefined ? d.q.index : originalQIdx]?.section || d?.q?.section || test.sections?.[0] || "General";
+            let secMatch = sectionFilter === "all_sections" || qSec === sectionFilter;
+            
             return sMatch && secMatch;
           })
+          // 🛡️ ARCHITECTURE FIX: Join stripped submission reference with master test questions!
           .map(({ d, originalQIdx }, i) => {
-            const q = d.q;
-            const ans = d.ans;
+            const masterQ = test.questions?.[d.q?.index !== undefined ? d.q.index : originalQIdx];
+            const q = masterQ || d.q || {};
+            const ans = d.ans || { val: "" };
 
             // Super Vibrant Colors
             const sProps = {
@@ -2765,7 +2769,9 @@ export default function StudentResults() {
                   <div className="flex flex-col gap-4">
                     {/* MCQ / MSQ Options */}
                     <div className="flex flex-col gap-2.5">
+                      {/* 🛡️ CRASH GUARD: Ensure options is always an array before mapping */}
                       {(q.type === "mcq" || q.type === "msq") &&
+                        Array.isArray(q.options) &&
                         q.options.map((o, j) => {
                           let isUser = userSel.includes(j);
                           let isCorr = corrSel.includes(j);
@@ -2808,7 +2814,7 @@ export default function StudentResults() {
                                 {String.fromCharCode(65 + j)}
                               </div>
                               <div className="flex-1 flex flex-col gap-1.5 min-w-0 pt-0.5">
-                                {o.startsWith("[smiles]") ? (
+                                {String(o || "").startsWith("[smiles]") ? (
                                   <div className="pointer-events-none bg-white p-1.5 rounded-lg border border-slate-200 inline-block w-fit">
                                     <SmilesViewer
                                       smilesCode={o

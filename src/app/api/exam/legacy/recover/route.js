@@ -110,12 +110,23 @@ async function handleRecovery(testId, legacyKey, req) {
     const isOwner = testMeta && (testMeta.creatorUid === callerUid || testMeta.uid === callerUid);
     const hasFullAccess = isAdmin || isOwner;
     
-    // Check if results are released to students
-    const isResultReleased = testMeta && (
+    // 🛡️ FIX: Check if teacher published result for this individual student
+    let isIndividuallyPublished = false;
+    if (!hasFullAccess && testMeta && testId && callerUid) {
+      try {
+        const userSubSnap = await adminDb.ref(`user_submissions/${callerUid}/${testId}/isPublished`).once("value");
+        isIndividuallyPublished = userSubSnap.val() === true;
+      } catch (e) {
+        /* ignore read errors */
+      }
+    }
+
+    // Check if results are released to students (globally or individually)
+    const isResultReleased = (testMeta && (
       testMeta.resultVis === "instant" ||
       testMeta.released === true ||
       (testMeta.resultVis === "scheduled" && testMeta.resultPublishTime && Date.now() >= new Date(testMeta.resultPublishTime).getTime())
-    );
+    )) || isIndividuallyPublished;
 
     if (!hasFullAccess && !isResultReleased) {
       return {

@@ -78,9 +78,11 @@ export async function POST(req) {
       return code;
     };
 
+    // 🛡️ FIX: Allowed code length is 6 to 8 to avoid overwriting clean frontend 6-character codes
     if (
       !testMetadata.code ||
-      testMetadata.code.length !== 8 ||
+      testMetadata.code.length < 6 ||
+      testMetadata.code.length > 8 ||
       testMetadata.code.includes("-")
     ) {
       testMetadata.code = generateCleanCode();
