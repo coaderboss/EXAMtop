@@ -88,63 +88,86 @@ export async function POST(req) {
       testMetadata.code = generateCleanCode();
     }
 
-    // 2. Fetch User Quota Details
+    // 2. ATOMIC QUOTA TRANSACTION (PREVENTS TOCTOU RACE CONDITIONS)
     const userRef = adminDb.ref(`users/${uid}`);
-    const snapshot = await userRef.once("value");
-    const userData = snapshot.val() || {};
-
-    const isUnlimited = userData.is_unlimited || userData.plan === "unlimited";
-    const hasNewBuckets = userData.free_tokens !== undefined;
-    let legacyQuota =
-      userData.available_quota !== undefined ? userData.available_quota : 3;
-
-    let premiumTokens = hasNewBuckets
-      ? userData.premium_tokens || 0
-      : Math.max(0, legacyQuota - 3);
-    let freeTokens = hasNewBuckets
-      ? userData.free_tokens
-      : Math.min(3, legacyQuota);
-
     let testTokenType = "free";
-    let updates = {};
 
-    // 3. SECURE TOKEN DEDUCTION LOGIC
-    if (isUnlimited) {
-      testTokenType = "unlimited";
-    } else if (premiumTokens > 0) {
-      testTokenType = "premium";
-      updates["premium_tokens"] = premiumTokens - 1;
-      updates["available_quota"] = Math.max(0, legacyQuota - 1);
-    } else if (freeTokens > 0) {
-      testTokenType = "free";
-      updates["free_tokens"] = freeTokens - 1;
-      updates["available_quota"] = Math.max(0, legacyQuota - 1);
-    } else {
+    const txResult = await userRef.transaction((userData) => {
+      if (!userData) {
+        userData = { free_tokens: 3, available_quota: 3, premium_tokens: 0 };
+      }
+
+      if (userData.is_unlimited || userData.plan === "unlimited") {
+        return userData;
+      }
+
+      const hasNewBuckets = userData.free_tokens !== undefined;
+      const legacyQuota =
+        userData.available_quota !== undefined ? userData.available_quota : 3;
+      const premiumTokens = hasNewBuckets
+        ? userData.premium_tokens || 0
+        : Math.max(0, legacyQuota - 3);
+      const freeTokens = hasNewBuckets
+        ? userData.free_tokens || 0
+        : Math.min(3, legacyQuota);
+
+      if (premiumTokens > 0) {
+        userData.premium_tokens = premiumTokens - 1;
+        userData.available_quota = Math.max(0, legacyQuota - 1);
+        userData.last_deducted_type = "premium";
+        return userData;
+      } else if (freeTokens > 0) {
+        userData.free_tokens = freeTokens - 1;
+        userData.available_quota = Math.max(0, legacyQuota - 1);
+        userData.last_deducted_type = "free";
+        return userData;
+      } else {
+        return; // Abort transaction (Zero tokens available)
+      }
+    });
+
+    if (!txResult.committed) {
       return NextResponse.json(
         { error: "Limit Exceeded. Zero tokens available." },
         { status: 402 },
       );
     }
 
+    const finalUser = txResult.snapshot.val() || {};
+    const isUnlimited =
+      finalUser.is_unlimited || finalUser.plan === "unlimited";
+    if (isUnlimited) {
+      testTokenType = "unlimited";
+    } else {
+      testTokenType = finalUser.last_deducted_type || "free";
+    }
+
     // Attach true token type to metadata (Server overriding client payload just in case)
     testMetadata.tokenType = testTokenType;
     testMetadata.creatorUid = uid;
 
-    // 4. ATOMIC DATABASE WRITE (Deduct Token + Save Test Together)
-    const dbUpdates = {};
-
-    // User token updates
-    if (Object.keys(updates).length > 0) {
-      for (const [key, val] of Object.entries(updates)) {
-        dbUpdates[`users/${uid}/${key}`] = val;
+    // 3. ATOMIC EXAM PERSISTENCE (WITH ROLLBACK REVERSAL ON DATABASE FAILURE)
+    try {
+      const dbUpdates = {};
+      dbUpdates[`tests_metadata/${testId}`] = testMetadata;
+      dbUpdates[`test_questions/${testId}`] = { questions: testQuestions };
+      await adminDb.ref().update(dbUpdates);
+    } catch (dbErr) {
+      // Rollback quota deduction if exam data write fails
+      if (!isUnlimited) {
+        await userRef.transaction((data) => {
+          if (!data) return data;
+          data.available_quota = (data.available_quota || 0) + 1;
+          if (testTokenType === "premium") {
+            data.premium_tokens = (data.premium_tokens || 0) + 1;
+          } else {
+            data.free_tokens = (data.free_tokens || 0) + 1;
+          }
+          return data;
+        });
       }
+      throw dbErr;
     }
-
-    // Exam Data
-    dbUpdates[`tests_metadata/${testId}`] = testMetadata;
-    dbUpdates[`test_questions/${testId}`] = { questions: testQuestions };
-
-    await adminDb.ref().update(dbUpdates);
 
     return NextResponse.json({
       success: true,

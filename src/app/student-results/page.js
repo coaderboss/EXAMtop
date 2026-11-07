@@ -7,6 +7,7 @@ import { database, auth } from "../../lib/firebase";
 import { ref, get, query, orderByChild, equalTo } from "firebase/database";
 import FigureRenderer from "../../components/FigureRenderer";
 import SmilesViewer from "../../components/SmilesViewer";
+import { sanitizeSvg } from "../../lib/sanitizeSvg";
 
 //   THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
@@ -240,64 +241,6 @@ export default function StudentResults() {
           }
         } catch (err) {
           console.warn("Fast fetch error:", err);
-        }
-
-        // 2. LEGACY FALLBACK (PURANE KACHRE KO ROKNE WALA FILTER)
-        try {
-          const oldSnap = await get(ref(database, "tests"));
-          if (oldSnap.exists()) {
-            const oldVal = oldSnap.val();
-            const oldEntries = Array.isArray(oldVal)
-              ? oldVal.map((item, idx) => [item?.id || `legacy_${idx}`, item])
-              : Object.entries(oldVal);
-
-            oldEntries.forEach(([dbKey, t]) => {
-              if (!t) return;
-              let tTitle = t.title || "";
-              const testId = t.id || dbKey;
-              if (
-                !testId ||
-                !tTitle ||
-                tTitle.trim() === "" ||
-                tTitle.toLowerCase().includes("unnamed")
-              )
-                return;
-
-              if (t.submissions) {
-                const subsArray = Array.isArray(t.submissions)
-                  ? t.submissions
-                  : Object.values(t.submissions);
-                subsArray.filter(Boolean).forEach((s) => {
-                  let isExactMatch =
-                    (s.uid && s.uid === currentUser.uid) ||
-                    (s.email &&
-                      currentUser.email &&
-                      s.email.toLowerCase() ===
-                        currentUser.email.toLowerCase()) ||
-                    (s.roll &&
-                      currentUser.rollNo &&
-                      s.roll.toLowerCase() ===
-                        currentUser.rollNo.toLowerCase());
-                  if (isExactMatch) {
-                    historyTemp.push({
-                      test: {
-                        ...t,
-                        id: testId,
-                        dbKey: dbKey,
-                        title: tTitle,
-                        _studentCanView: true,
-                        released: true,
-                      },
-                      sub: { ...s, isPublished: true },
-                      canView: true,
-                    });
-                  }
-                });
-              }
-            });
-          }
-        } catch (legacyErr) {
-          console.warn("Legacy fallback blocked.");
         }
 
         // DEDUPLICATION & SORTING
@@ -1122,9 +1065,10 @@ export default function StudentResults() {
     let totalSecs = 0;
     sub.details.forEach((d, idx) => {
       // 🛡️ FIX: Section Time mapped correctly from master questions
-      const sec = test.questions?.[d.q?.index !== undefined ? d.q.index : idx]?.section || d?.q?.section || test.sections?.[0] || "General";
+      const qIdx = d.q?.index !== undefined ? d.q.index : idx;
+      const sec = test.questions?.[qIdx]?.section || d?.q?.section || test.sections?.[0] || "General";
       if (sectionFilter === "all_sections" || sec === sectionFilter) {
-        totalSecs += sub.timeSpentPerQuestion[idx] || 0;
+        totalSecs += Number(sub.timeSpentPerQuestion?.[qIdx] ?? sub.timeSpentPerQuestion?.[idx] ?? 0);
       }
     });
     if (totalSecs > 0) displayTimeStr = formatQTime(totalSecs);
@@ -1576,9 +1520,10 @@ export default function StudentResults() {
                 time: 0,
               };
 
+            const qIdx = item.q?.index !== undefined ? item.q.index : idx;
             sectionStats[sec].total += 1;
-            sectionStats[sec].max += Number(item.q.marks || 0);
-            sectionStats[sec].time += sub.timeSpentPerQuestion?.[idx] || 0;
+            sectionStats[sec].max += Number(item.q?.marks || 0);
+            sectionStats[sec].time += Number(sub.timeSpentPerQuestion?.[qIdx] ?? sub.timeSpentPerQuestion?.[idx] ?? 0);
 
             if (item.status === "correct" || item.status === "partial") {
               sectionStats[sec].score += Number(item.earned || 0);
@@ -2712,7 +2657,9 @@ export default function StudentResults() {
                           {q.figureType === "svg" && (
                             <div
                               className="svg-eval-container w-full bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex justify-center overflow-x-auto"
-                              dangerouslySetInnerHTML={{ __html: q.figureData }}
+                              dangerouslySetInnerHTML={{
+                                __html: sanitizeSvg(q.figureData),
+                              }}
                             />
                           )}
                           {q.figureType === "smiles" && (

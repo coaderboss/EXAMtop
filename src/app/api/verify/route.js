@@ -59,24 +59,33 @@ export async function POST(req) {
         { status: 400 },
       );
 
-    const userRef = adminDb.ref(`users/${userId}`);
-    const snapshot = await userRef.once("value");
-    const userData = snapshot.val() || {};
-    const history = userData.billingHistory || [];
-
-    // 3. 🛡️ ANTI-REPLAY CHECK (CWE-294)
-    // Scan billing history to ensure this exact payment ID hasn't been credited already.
-    const isDuplicate = history.some(
-      (tx) => tx.paymentId === razorpay_payment_id,
+    // 3. 🛡️ ATOMIC ANTI-REPLAY CLAIM (CWE-294 / Race Condition Lock)
+    const paymentClaimRef = adminDb.ref(
+      `claimed_payments/${razorpay_payment_id}`,
     );
-    if (isDuplicate) {
-      console.warn("⚠️ REPLAY ATTACK BLOCKED!");
+    const claimTx = await paymentClaimRef.transaction((current) => {
+      if (current) {
+        return; // Already processed! Abort transaction.
+      }
+      return {
+        claimedAt: new Date().toISOString(),
+        userId: userId,
+        plan: reward.name,
+      };
+    });
+
+    if (!claimTx.committed) {
+      console.warn(
+        "⚠️ REPLAY ATTACK BLOCKED via atomic claimed_payments:",
+        razorpay_payment_id,
+      );
       return NextResponse.json(
         { success: false, error: "Payment already processed." },
         { status: 409 },
       );
     }
 
+    // 4. ATOMIC TOKEN REWARD TRANSACTION (PREVENTS BALANCE OVERWRITES)
     const now = new Date().toISOString();
     const newRecord = {
       date: now,
@@ -87,35 +96,41 @@ export async function POST(req) {
       paymentId: razorpay_payment_id,
     };
 
-    let updates = {
-      billingHistory: [newRecord, ...history],
-      last_upgrade_date: now,
-      last_upgrade_plan: reward.name,
-    };
+    const userRef = adminDb.ref(`users/${userId}`);
+    await userRef.transaction((userData) => {
+      if (!userData) {
+        userData = { free_tokens: 3, available_quota: 3, premium_tokens: 0 };
+      }
+      const history = Array.isArray(userData.billingHistory)
+        ? userData.billingHistory
+        : [];
+      userData.billingHistory = [newRecord, ...history];
+      userData.last_upgrade_date = now;
+      userData.last_upgrade_plan = reward.name;
 
-    // 4. Apply Rewards Securely
-    if (reward.isUnlimited) {
-      updates.is_unlimited = true;
-      const expiry = new Date();
-      expiry.setFullYear(expiry.getFullYear() + 1);
-      updates.unlimited_expiry_date = expiry.toISOString();
-    } else {
-      const currentLegacy = userData.available_quota || 0;
-      const currentPremium =
-        userData.premium_tokens !== undefined
-          ? userData.premium_tokens
-          : Math.max(0, currentLegacy - 3);
-      const currentFree =
-        userData.free_tokens !== undefined
-          ? userData.free_tokens
-          : Math.min(3, currentLegacy);
+      if (reward.isUnlimited) {
+        userData.is_unlimited = true;
+        const expiry = new Date();
+        expiry.setFullYear(expiry.getFullYear() + 1);
+        userData.unlimited_expiry_date = expiry.toISOString();
+      } else {
+        const currentLegacy = Number(userData.available_quota || 0);
+        const currentPremium =
+          userData.premium_tokens !== undefined
+            ? Number(userData.premium_tokens)
+            : Math.max(0, currentLegacy - 3);
+        const currentFree =
+          userData.free_tokens !== undefined
+            ? Number(userData.free_tokens)
+            : Math.min(3, currentLegacy);
 
-      updates.premium_tokens = currentPremium + reward.tokens;
-      updates.free_tokens = currentFree;
-      updates.available_quota = currentLegacy + reward.tokens;
-    }
+        userData.premium_tokens = currentPremium + reward.tokens;
+        userData.free_tokens = currentFree;
+        userData.available_quota = currentLegacy + reward.tokens;
+      }
+      return userData;
+    });
 
-    await userRef.update(updates);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Verification Error:", error);

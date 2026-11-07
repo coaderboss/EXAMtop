@@ -1023,10 +1023,16 @@ export default function HomePage() {
                     Student Login
                   </button>
                   <button
-                    onClick={loginAsGuest}
-                    className="w-full sm:w-auto px-10 py-5 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 text-slate-700 rounded-2xl font-black text-[16px] transition-all active:scale-95 shadow-sm"
+                    type="button"
+                    disabled
+                    title="Guest mode is temporarily locked"
+                    className="w-full sm:w-auto px-6 py-5 bg-slate-100 border-2 border-slate-200 text-slate-400 rounded-2xl font-black text-[14px] cursor-not-allowed opacity-75 flex items-center justify-center gap-2 select-none"
                   >
-                    Guest
+                    <i className="ti ti-lock text-slate-400"></i>
+                    <span>Guest Mode</span>
+                    <span className="text-[10px] uppercase font-black bg-slate-200 text-slate-600 px-2 py-0.5 rounded-md">
+                      Coming Soon
+                    </span>
                   </button>
                 </div>
               </div>

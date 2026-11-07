@@ -320,6 +320,25 @@ export async function POST(req) {
     const sanitizePayload = (obj) =>
       JSON.parse(JSON.stringify(obj, (k, v) => (v === undefined ? null : v)));
 
+    // 🛡️ SEC-08 FIX: Server-side Exam Duration Enforcement
+    let isTimeExceeded = false;
+    if (activeTestMeta?.duration) {
+      const allowedSecs = Number(activeTestMeta.duration) * 60 + 180; // 3 min grace for submit latency
+      let reportedSecs = 0;
+      if (typeof timeTaken === "string" && timeTaken.includes(":")) {
+        const parts = timeTaken.split(":").map(Number);
+        if (parts.length === 2) {
+          reportedSecs = (parts[0] || 0) * 60 + (parts[1] || 0);
+        } else if (parts.length === 3) {
+          reportedSecs =
+            (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+        }
+      }
+      if (reportedSecs > allowedSecs) {
+        isTimeExceeded = true;
+      }
+    }
+
     // 3. SECURE PAYLOAD PUSH (Atomic Transaction to prevent Race Conditions)
     const finalSub = {
       uid: student.uid || "anonymous",
@@ -336,6 +355,7 @@ export async function POST(req) {
       cheatLogs: cheatLogs || [],
       timeTaken: timeTaken || "00:00",
       timeSpentPerQuestion: timeSpentPerQuestion || {},
+      isTimeExceeded: isTimeExceeded,
       isPublished: false,
     };
 

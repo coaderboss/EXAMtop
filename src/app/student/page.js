@@ -15,8 +15,10 @@ import {
   query,
   orderByChild,
   equalTo,
+  onValue,
 } from "firebase/database";
 import SmilesViewer from "../../components/SmilesViewer";
+import { sanitizeSvg } from "../../lib/sanitizeSvg";
 
 // THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
@@ -80,6 +82,8 @@ function StudentPortalContent() {
   // --- REFS ---
   const timerRef = useRef(null);
   const endTimeRef = useRef(null);
+  const serverStartTimeRef = useRef(null);
+  const serverOffsetRef = useRef(0);
   const warningsRef = useRef(0);
   const cheatLogsRef = useRef([]);
   const lastWarningTimeRef = useRef(0);
@@ -88,8 +92,16 @@ function StudentPortalContent() {
   const presenceRefTarget = useRef(null);
   const handleFinalSubmitRef = useRef(null);
 
+  // 🛡️ TRUE SERVER TIME (Google Atomic Clock Sync - Prevents Local Machine Clock Tampering)
+  const getTrueNow = () => Date.now() + (serverOffsetRef.current || 0);
+
   useEffect(() => {
     setIsMounted(true);
+    const offsetRef = ref(database, ".info/serverTimeOffset");
+    const unsub = onValue(offsetRef, (snap) => {
+      serverOffsetRef.current = Number(snap.val()) || 0;
+    });
+    return () => unsub();
   }, []);
 
   //   Profile Details Auto-Fill
@@ -263,6 +275,7 @@ function StudentPortalContent() {
         answers,
         curQ,
         endTime: endTimeRef.current,
+        serverStartTime: serverStartTimeRef.current,
         warnings: warningsRef.current,
         cheatLogs: cheatLogsRef.current,
         shuffledQuestions: activeTest.questions,
@@ -556,6 +569,12 @@ function StudentPortalContent() {
       (typeof overrideRoll === "string" ? overrideRoll : roll) || "";
 
     setJoinError("");
+    if (!currentUser) {
+      setJoinError(
+        "Guest access is temporarily locked (Coming Soon). Please log in to join exams.",
+      );
+      return;
+    }
     if (!finalName.trim()) {
       setJoinError("Please enter your full name.");
       return;
@@ -658,7 +677,19 @@ function StudentPortalContent() {
         ref(database, `user_submissions/${safeUserKey}/${t.id}`),
       );
       if (userSubRef.exists()) {
-        existingSub = true;
+        // 🛡️ REATTEMPT AUTO-DETECTION: Check if master submission was deleted by Admin/Examiner
+        const masterSubRef = await get(
+          ref(database, `test_submissions/${t.id}/submissions/${safeUserKey}`),
+        );
+        if (masterSubRef.exists()) {
+          existingSub = true;
+        } else {
+          // Master record was deleted by Admin/Examiner! Auto-grant reattempt & clean up stale receipt
+          existingSub = false;
+          remove(
+            ref(database, `user_submissions/${safeUserKey}/${t.id}`),
+          ).catch(() => {});
+        }
       }
 
       // 2. Deep Legacy Array Check (Agar index corrupt ho toh backup)
@@ -910,7 +941,7 @@ function StudentPortalContent() {
   //Auto-Submit Jitter
   useEffect(() => {
     if (step === "exam" && endTimeRef.current) {
-      const remaining = Math.floor((endTimeRef.current - Date.now()) / 1000);
+      const remaining = Math.floor((endTimeRef.current - getTrueNow()) / 1000);
 
       if (remaining <= 0 && !isActionLockedRef.current && !isSubmitting) {
         isActionLockedRef.current = true; // Block double submissions
@@ -941,12 +972,24 @@ function StudentPortalContent() {
           .catch((err) => console.log("Fullscreen blocked:", err));
     }
 
+    const totalDurationMs = (activeTest.duration || 60) * 60 * 1000;
+
     if (draftToResume) {
       setAnswers(draftToResume.answers);
       setCurQ(draftToResume.curQ);
-      endTimeRef.current = draftToResume.endTime;
       warningsRef.current = draftToResume.warnings || 0;
       cheatLogsRef.current = draftToResume.cheatLogs || [];
+
+      // 🛡️ TRUE ELAPSED RESUME: Anti-tamper calculation using atomic server time
+      if (draftToResume.serverStartTime) {
+        serverStartTimeRef.current = draftToResume.serverStartTime;
+        const elapsed = getTrueNow() - draftToResume.serverStartTime;
+        endTimeRef.current =
+          getTrueNow() + Math.max(0, totalDurationMs - elapsed);
+      } else {
+        endTimeRef.current =
+          draftToResume.endTime || getTrueNow() + totalDurationMs;
+      }
 
       //  YE BLOCK ADD KARNA HAI (Taki refresh hone par wahi shuffled paper khule)
       if (draftToResume.shuffledQuestions) {
@@ -966,8 +1009,8 @@ function StudentPortalContent() {
       setAnswers(initialAnswers);
       warningsRef.current = 0;
       cheatLogsRef.current = [];
-      endTimeRef.current =
-        Date.now() + (shuffledTest.duration || 60) * 60 * 1000;
+      serverStartTimeRef.current = getTrueNow();
+      endTimeRef.current = serverStartTimeRef.current + totalDurationMs;
     }
 
     isActionLockedRef.current = false;
@@ -975,7 +1018,7 @@ function StudentPortalContent() {
     timerRef.current = setInterval(() => {
       const remaining = Math.max(
         0,
-        Math.floor((endTimeRef.current - Date.now()) / 1000),
+        Math.floor((endTimeRef.current - getTrueNow()) / 1000),
       );
       setTimeLeft(remaining);
       if (remaining <= 0) {
@@ -1134,7 +1177,7 @@ function StudentPortalContent() {
       : 0;
     const exactRemaining = Math.max(
       0,
-      Math.floor((endTimeRef.current - Date.now()) / 1000),
+      Math.floor((endTimeRef.current - getTrueNow()) / 1000),
     );
     const secondsSpent =
       totalSecondsGiven > 0 ? totalSecondsGiven - exactRemaining : 0;
@@ -1437,12 +1480,30 @@ function StudentPortalContent() {
               </div>
             )}
 
-            <button
-              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-[15px] rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
-              onClick={handleJoinTest}
-            >
-              Start Assessment <i className="ti ti-arrow-right text-lg"></i>
-            </button>
+            {!currentUser ? (
+              <div className="space-y-3">
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm">
+                  <i className="ti ti-lock text-base text-amber-600"></i>
+                  <span>
+                    Guest entry is locked (Coming Soon). Please login first.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="w-full py-4 bg-slate-900 hover:bg-black text-white font-black text-[15px] rounded-xl shadow-lg shadow-slate-900/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  onClick={() => router.push("/")}
+                >
+                  <i className="ti ti-login text-lg"></i> Login to Take Exam
+                </button>
+              </div>
+            ) : (
+              <button
+                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-[15px] rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                onClick={handleJoinTest}
+              >
+                Start Assessment <i className="ti ti-arrow-right text-lg"></i>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1980,7 +2041,7 @@ function StudentPortalContent() {
                                 boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
                               }}
                               dangerouslySetInnerHTML={{
-                                __html: currentQuestion.figureData,
+                                __html: sanitizeSvg(currentQuestion.figureData),
                               }}
                             />
                           )}

@@ -110,12 +110,16 @@ async function handleRecovery(testId, legacyKey, req) {
     const isOwner = testMeta && (testMeta.creatorUid === callerUid || testMeta.uid === callerUid);
     const hasFullAccess = isAdmin || isOwner;
     
-    // 🛡️ FIX: Check if teacher published result for this individual student
+    // 🛡️ FIX: Check if student has actually submitted and if result was individually published
     let isIndividuallyPublished = false;
+    let hasSubmitted = false;
     if (!hasFullAccess && testMeta && testId && callerUid) {
       try {
-        const userSubSnap = await adminDb.ref(`user_submissions/${callerUid}/${testId}/isPublished`).once("value");
-        isIndividuallyPublished = userSubSnap.val() === true;
+        const userSubSnap = await adminDb.ref(`user_submissions/${callerUid}/${testId}`).once("value");
+        if (userSubSnap.exists()) {
+          hasSubmitted = true;
+          isIndividuallyPublished = userSubSnap.val()?.isPublished === true;
+        }
       } catch (e) {
         /* ignore read errors */
       }
@@ -127,6 +131,9 @@ async function handleRecovery(testId, legacyKey, req) {
       testMeta.released === true ||
       (testMeta.resultVis === "scheduled" && testMeta.resultPublishTime && Date.now() >= new Date(testMeta.resultPublishTime).getTime())
     )) || isIndividuallyPublished;
+
+    // 🛡️ SEC-03 FIX: Student only gets answers if results released AND they have submitted the exam
+    const canViewAnswers = hasFullAccess || (isResultReleased && hasSubmitted);
 
     if (!hasFullAccess && !isResultReleased) {
       return {
@@ -140,11 +147,16 @@ async function handleRecovery(testId, legacyKey, req) {
 
     const splitQSnap = await adminDb.ref(`test_questions/${testId}`).once("value");
     if (splitQSnap.exists()) {
+      const rawQuestions = splitQSnap.val().questions || [];
+      const questions = canViewAnswers
+        ? rawQuestions
+        : rawQuestions.map(({ correct, correctInt, explanation, ...safeQ }) => safeQ);
+
       return {
         success: true,
         message: "Recovered from split architecture.",
         submissions: [],
-        questions: splitQSnap.val().questions || [],
+        questions,
         status: 200,
       };
     }
@@ -207,7 +219,24 @@ async function handleRecovery(testId, legacyKey, req) {
       ? testData.questions.filter(Boolean)
       : Object.values(testData.questions).filter(Boolean);
 
-    // If examiner OR results are published/instant, provide questions with answers and explanations
+    // 🛡️ SEC-03 FIX: Student only gets legacy answers if results published AND student has submitted
+    let hasLegacySubmitted = false;
+    if (!hasFullAccess && callerUid) {
+      try {
+        const subSnap = await adminDb
+          .ref(`user_submissions/${callerUid}/${resolvedKey}`)
+          .once("value");
+        if (subSnap.exists()) {
+          hasLegacySubmitted = true;
+        } else if (testId && testId !== resolvedKey) {
+          const subSnapAlt = await adminDb
+            .ref(`user_submissions/${callerUid}/${testId}`)
+            .once("value");
+          if (subSnapAlt.exists()) hasLegacySubmitted = true;
+        }
+      } catch (e) {}
+    }
+
     const isResultsPublished =
       testData.publishResults === "instant" ||
       testData.publishResults === "published" ||
@@ -215,9 +244,11 @@ async function handleRecovery(testId, legacyKey, req) {
       testData.resultsPublished === true ||
       testData.status === "published";
 
+    const canViewLegacyAnswers = hasFullAccess || (isResultsPublished && hasLegacySubmitted);
+
     parsedQuestions = rawQs.map((q) => {
-      if (!hasFullAccess && !isResultsPublished) {
-        // Strip sensitive data for students while test is active / results unreleased
+      if (!canViewLegacyAnswers) {
+        // Strip sensitive data for students while test is active / results unreleased / unsubmitted
         const { correct, correctInt, explanation, ...safeQ } = q;
         return safeQ;
       }

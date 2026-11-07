@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
+import { database, auth } from "../../lib/firebase";
 import { ref, get, update, set, remove, query, limitToLast } from "firebase/database";
 import { motion, AnimatePresence } from "framer-motion";
 import { getApps, initializeApp } from "firebase/app";
@@ -74,7 +75,7 @@ export default function GodMode() {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkData, setBulkData] = useState([
     {
-      id: Date.now(),
+      id: 1,
       name: "",
       email: "",
       password: "",
@@ -254,7 +255,7 @@ export default function GodMode() {
   // ===============================================
   // CHART RENDERING LOGIC (ADVANCED 4-CHART SYSTEM)
   // ===============================================
-  const renderCharts = () => {
+  function renderCharts() {
     let attempts = 0;
 
     const checkReady = setInterval(() => {
@@ -1032,7 +1033,14 @@ export default function GodMode() {
               Boolean,
             );
             for (const cKey of candidateKeys) {
-              await remove(ref(database, `user_submissions/${cKey}/${t.id}`));
+              await remove(
+                ref(database, `user_submissions/${cKey}/${t.id}`),
+              ).catch(() => {});
+              if (t.dbKey && t.dbKey !== t.id) {
+                await remove(
+                  ref(database, `user_submissions/${cKey}/${t.dbKey}`),
+                ).catch(() => {});
+              }
             }
 
             // Decrement submission count safely
@@ -1043,6 +1051,19 @@ export default function GodMode() {
             await remove(
               ref(database, `tests/${t.dbKey}/submissions/${targetUid}`),
             );
+            const candidateKeys = [s?.uid, s?.studentKey, targetUid].filter(
+              Boolean,
+            );
+            for (const cKey of candidateKeys) {
+              await remove(
+                ref(database, `user_submissions/${cKey}/${t.id}`),
+              ).catch(() => {});
+              if (t.dbKey && t.dbKey !== t.id) {
+                await remove(
+                  ref(database, `user_submissions/${cKey}/${t.dbKey}`),
+                ).catch(() => {});
+              }
+            }
           }
 
           // 🛡️ FIX: Locally remove from the array state WITHOUT sending that array back to Firebase

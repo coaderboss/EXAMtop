@@ -8,6 +8,7 @@ import { database, auth } from "../../lib/firebase";
 import { ref, set, update, remove, get, onValue } from "firebase/database";
 import FigureRenderer from "../../components/FigureRenderer";
 import SmilesViewer from "../../components/SmilesViewer";
+import { sanitizeSvg } from "../../lib/sanitizeSvg";
 
 // THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
@@ -2454,7 +2455,7 @@ export default function ManageTests() {
                                 <div
                                   className="svg-eval-container w-full bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex justify-center overflow-x-auto"
                                   dangerouslySetInnerHTML={{
-                                    __html: q.figureData,
+                                    __html: sanitizeSvg(q.figureData),
                                   }}
                                 />
                               )}
