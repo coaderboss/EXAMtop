@@ -46,6 +46,12 @@ export default function StudentResults() {
   const [openCardId, setOpenCardId] = useState(null);
   const [openingResultId, setOpeningResultId] = useState(null); // Spinner for specific test click
 
+  // Outer Vault Controls
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // 'all', 'evaluated', 'pending'
+  const [selectedSubject, setSelectedSubject] = useState("all");
+  const [sortBy, setSortBy] = useState("newest"); // 'newest', 'score'
+
   const [nowTick, setNowTick] = useState(Date.now());
   const [leaderboardData, setLeaderboardData] = useState({
     rank: null,
@@ -734,302 +740,641 @@ export default function StudentResults() {
   // ==========================================
   // VIEW 1: LIST OF PAST RESULTS (PREMIUM VAULT UI)
   // ==========================================
-  if (!selectedResult) {
-    return (
-      <div className="w-full max-w-[1600px] 2xl:max-w-screen-2xl mx-auto px-4 sm:px-6 md:px-10 py-6 sm:py-10 animate-[fadeIn_0.3s_ease]">
-        <style>{`
-            @keyframes recentPulseBorder {
-                0% { border-color: #60a5fa; box-shadow: 0 0 0 0 rgba(37,99,235,0.2); }
-                50% { border-color: #3b82f6; box-shadow: 0 0 0 10px rgba(37,99,235,0); }
-                100% { border-color: #60a5fa; box-shadow: 0 0 0 0 rgba(37,99,235,0); }
-            }
-        `}</style>
+  const getSubjectBadge = (subject) => {
+    const s = (subject || "").toLowerCase();
+    if (s.includes("phys")) {
+      return {
+        bg: "bg-blue-50 text-blue-700 border-blue-200",
+        icon: "ti ti-atom-2",
+        label: subject || "Physics",
+      };
+    }
+    if (s.includes("chem")) {
+      return {
+        bg: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        icon: "ti ti-flask",
+        label: subject || "Chemistry",
+      };
+    }
+    if (s.includes("math")) {
+      return {
+        bg: "bg-purple-50 text-purple-700 border-purple-200",
+        icon: "ti ti-math-symbols",
+        label: subject || "Mathematics",
+      };
+    }
+    if (s.includes("bio")) {
+      return {
+        bg: "bg-teal-50 text-teal-700 border-teal-200",
+        icon: "ti ti-dna",
+        label: subject || "Biology",
+      };
+    }
+    if (
+      s.includes("java") ||
+      s.includes("network") ||
+      s.includes("code") ||
+      s.includes("test") ||
+      s.includes("comp") ||
+      s.includes("tech")
+    ) {
+      return {
+        bg: "bg-sky-50 text-sky-700 border-sky-200",
+        icon: "ti ti-terminal-2",
+        label: subject,
+      };
+    }
+    return {
+      bg: "bg-slate-50 text-slate-700 border-slate-200",
+      icon: "ti ti-book",
+      label: subject || "General",
+    };
+  };
 
-        {/* 🌟 PREMIUM LIGHT HERO BANNER (Catchy, Soft & Professional) */}
-        <div className="relative rounded-[32px] p-8 sm:p-10 lg:p-14 mb-8 sm:mb-10 overflow-hidden bg-white/70 border border-white shadow-[0_20px_80px_rgba(24,95,165,0.06)] group backdrop-blur-3xl">
-          {/* Soft Pastel Aura Background (Apple Style) */}
-          <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-            <div className="absolute -top-[60%] -left-[10%] w-[60%] h-[150%] bg-blue-400/10 blur-[100px] rounded-full animate-[spin_40s_linear_infinite]"></div>
-            <div className="absolute top-[10%] right-[5%] w-[40%] h-[120%] bg-indigo-400/10 blur-[120px] rounded-full animate-[pulse_10s_ease-in-out_infinite]"></div>
-            <div className="absolute -bottom-[30%] left-[20%] w-[50%] h-[80%] bg-emerald-400/5 blur-[100px] rounded-full"></div>
-            <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent"></div>
+  if (!selectedResult) {
+    const totalExams = myHistory.length;
+    const evaluatedExams = myHistory.filter((h) =>
+      isResultVisible(h.test, h.sub),
+    );
+    const evaluatedCount = evaluatedExams.length;
+    const pendingCount = totalExams - evaluatedCount;
+
+    let totalEarned = 0;
+    let totalPossible = 0;
+    evaluatedExams.forEach((h) => {
+      totalEarned += Number(h.sub.score || 0);
+      totalPossible += Number(h.test.totalMarks || 100);
+    });
+    const avgScorePct =
+      totalPossible > 0 ? Math.round((totalEarned / totalPossible) * 100) : 0;
+
+    const uniqueSubjects = Array.from(
+      new Set(
+        myHistory.map((h) => h.test.subject || "General").filter(Boolean),
+      ),
+    );
+
+    const filteredHistory = myHistory.filter((h) => {
+      const isEval = isResultVisible(h.test, h.sub);
+      if (statusFilter === "evaluated" && !isEval) return false;
+      if (statusFilter === "pending" && isEval) return false;
+
+      const subj = h.test.subject || "General";
+      if (selectedSubject !== "all" && subj !== selectedSubject) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const titleMatch = (h.test.title || "").toLowerCase().includes(q);
+        const codeMatch = (h.test.code || "").toLowerCase().includes(q);
+        const subMatch = subj.toLowerCase().includes(q);
+        if (!titleMatch && !codeMatch && !subMatch) return false;
+      }
+      return true;
+    });
+
+    const sortedHistory = [...filteredHistory].sort((a, b) => {
+      if (sortBy === "score") {
+        const scoreA = Number(a.sub.score || 0);
+        const scoreB = Number(b.sub.score || 0);
+        return scoreB - scoreA;
+      }
+      const timeA = a.sub.timestamp || Date.parse(a.sub.time) || 0;
+      const timeB = b.sub.timestamp || Date.parse(b.sub.time) || 0;
+      return timeB - timeA;
+    });
+
+    return (
+      <div className="w-full max-w-[1550px] mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-7 animate-[fadeIn_0.3s_ease]">
+        {/* 🧭 TOP COMMAND BAR */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6 pb-3 border-b border-slate-200/80">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-sm">
+              <i className="ti ti-file-analytics text-xl"></i>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-xl font-black text-slate-900 tracking-tight leading-none">
+                  Results & Solutions Vault
+                </h1>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                  Performance Ledger
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Official answer keys, derivations, and question performance breakdowns
+              </p>
+            </div>
           </div>
 
-          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8 lg:gap-12">
-            {/* Text Content */}
-            <div className="flex-1 text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50/80 border border-blue-100/80 text-blue-600 text-[10px] font-black uppercase tracking-widest mb-5 shadow-sm backdrop-blur-md">
-                <i className="ti ti-chart-arcs text-blue-500 text-sm"></i>
-                Performance Analytics
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <button
+              onClick={() => router.push("/student-dashboard")}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all active:scale-95 cursor-pointer shadow-sm"
+            >
+              <i className="ti ti-layout-dashboard text-sm"></i>
+              <span>Dashboard</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 🌟 1. PREMIUM WHITE HERO CARD (High-End SaaS Style) */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-[0_1px_3px_rgba(0,0,0,0.03)] mb-4 sm:mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-2.5">
+                <i className="ti ti-chart-dots text-xs"></i>
+                In-Depth Assessment Analytics
               </div>
-              <h2 className="text-3xl sm:text-4xl lg:text-[48px] font-black text-slate-800 mb-4 tracking-tight leading-[1.1]">
-                Your Academic <br className="hidden lg:block" />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
-                  Trajectory.
-                </span>
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight leading-tight mb-2">
+                Your Academic Results & Solutions
               </h2>
-              <p className="text-slate-500 text-[15px] sm:text-[16px] font-semibold max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                Dive into your performance metrics. Review evaluated
-                assessments, uncover your strengths, and track your growth over
-                time.
+              <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed max-w-2xl">
+                Review complete question papers with official answer keys, step-by-step LaTeX formula explanations, molecular chemistry figures, time spent per problem, and cohort leaderboards.
               </p>
             </div>
 
-            {/* Soft Glass Stats Module */}
-            <div className="flex items-center gap-6 sm:gap-12 bg-white/60 p-6 sm:p-8 lg:px-10 rounded-[28px] border border-white/80 backdrop-blur-2xl shrink-0 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-              <div className="text-center px-2">
-                <div className="text-3xl sm:text-[42px] font-black text-slate-800 leading-none mb-2">
-                  {myHistory.length}
+            {/* 4 Live Metric Pillars inside Hero */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 pt-4 lg:pt-0 lg:pl-6">
+              {/* Exams Taken */}
+              <div className="bg-slate-50/70 p-3 sm:p-3.5 rounded-xl border border-slate-200/70 text-center">
+                <div className="text-xl sm:text-2xl font-black text-slate-900 leading-none mb-1">
+                  {totalExams}
                 </div>
-                <div className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                  Exams Taken
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Total Tests
                 </div>
               </div>
-              <div className="w-px h-16 bg-slate-200"></div>
-              <div className="text-center px-2">
-                <div className="text-3xl sm:text-[42px] font-black text-emerald-500 leading-none mb-2">
-                  {
-                    myHistory.filter((h) => isResultVisible(h.test, h.sub))
-                      .length
-                  }
+
+              {/* Evaluated */}
+              <div className="bg-emerald-50/60 p-3 sm:p-3.5 rounded-xl border border-emerald-200/70 text-center">
+                <div className="text-xl sm:text-2xl font-black text-emerald-700 leading-none mb-1 flex items-center justify-center gap-1">
+                  <span>{evaluatedCount}</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 </div>
-                <div className="text-[10px] sm:text-[11px] font-black text-emerald-600/60 uppercase tracking-widest">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
                   Evaluated
+                </div>
+              </div>
+
+              {/* Under Review */}
+              <div className="bg-amber-50/60 p-3 sm:p-3.5 rounded-xl border border-amber-200/70 text-center">
+                <div className="text-xl sm:text-2xl font-black text-amber-700 leading-none mb-1">
+                  {pendingCount}
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                  In Review
+                </div>
+              </div>
+
+              {/* Avg Score */}
+              <div className="bg-blue-50/60 p-3 sm:p-3.5 rounded-xl border border-blue-200/70 text-center">
+                <div className="text-xl sm:text-2xl font-black text-blue-700 leading-none mb-1">
+                  {avgScorePct}%
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                  Avg Accuracy
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {myHistory.length === 0 ? (
-          /* EMPTY STATE */
-          <div className="bg-white rounded-3xl p-10 sm:p-16 text-center border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[300px]">
-            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100">
-              <i className="ti ti-ghost text-4xl text-slate-300"></i>
+        {/* 🔍 2. INTERACTIVE COMMAND & FILTER TOOLBAR */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] mb-4 sm:mb-6 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Search Box */}
+          <div className="relative flex-1">
+            <i className="ti ti-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+            <input
+              type="text"
+              placeholder="Search by test title, subject, or code..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-blue-400 focus:bg-white transition-all shadow-inner"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <i className="ti ti-x text-xs"></i>
+              </button>
+            )}
+          </div>
+
+          {/* Filter Tabs & Dropdowns */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Status Tabs */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-[11px] font-bold">
+              <button
+                onClick={() => setStatusFilter("all")}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  statusFilter === "all"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                All ({totalExams})
+              </button>
+              <button
+                onClick={() => setStatusFilter("evaluated")}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                  statusFilter === "evaluated"
+                    ? "bg-white text-emerald-700 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Evaluated ({evaluatedCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter("pending")}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                  statusFilter === "pending"
+                    ? "bg-white text-amber-700 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                In Review ({pendingCount})
+              </button>
             </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2 tracking-tight">
-              Vault is Empty
-            </h3>
-            <p className="text-slate-500 max-w-sm mx-auto mb-6 text-[13px] sm:text-[14px] font-medium leading-relaxed">
-              You haven't completed any assessments yet, or your results are
-              still processing.
-            </p>
-            <button
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center gap-2 text-sm"
-              onClick={() => router.push("/student")}
+
+            {/* Subject Dropdown */}
+            {uniqueSubjects.length > 1 && (
+              <select
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="text-xs font-bold bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-2.5 py-1.5 outline-none cursor-pointer focus:border-blue-400 shadow-xs"
+              >
+                <option value="all">All Subjects</option>
+                {uniqueSubjects.map((sub, i) => (
+                  <option key={i} value={sub}>
+                    {sub}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Sort Dropdown */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="text-xs font-bold bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-2.5 py-1.5 outline-none cursor-pointer focus:border-blue-400 shadow-xs"
             >
-              <i className="ti ti-rocket text-lg"></i> Go to Active Exams
-            </button>
+              <option value="newest">Newest First</option>
+              <option value="score">Highest Score</option>
+            </select>
+          </div>
+        </div>
+
+        {/* 🗂️ 3. RESULTS CARDS GRID */}
+        {sortedHistory.length === 0 ? (
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-10 sm:p-14 text-center border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[300px]">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-4 text-3xl text-slate-400">
+              <i className="ti ti-file-search"></i>
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-slate-800 mb-1 tracking-tight">
+              {searchQuery || statusFilter !== "all" || selectedSubject !== "all"
+                ? "No Matching Assessments Found"
+                : "Results Vault is Empty"}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto mb-5 leading-relaxed font-medium">
+              {searchQuery || statusFilter !== "all" || selectedSubject !== "all"
+                ? "Try clearing your search query or switching your filters."
+                : "You haven't completed any assessments yet, or your test results are currently processing."}
+            </p>
+            {searchQuery || statusFilter !== "all" || selectedSubject !== "all" ? (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setStatusFilter("all");
+                  setSelectedSubject("all");
+                }}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+            ) : (
+              <button
+                onClick={() => router.push("/student")}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer active:scale-95 flex items-center gap-2"
+              >
+                <i className="ti ti-rocket"></i> Go to Active Arena
+              </button>
+            )}
           </div>
         ) : (
-          <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6 items-start">
-              {myHistory.map((h, idx) => {
-                const subTimeMs =
-                  h.sub.timestamp || Date.parse(h.sub.time) || 0;
-                const timeDiff = Date.now() - subTimeMs;
-                const isRecent = timeDiff >= 0 && timeDiff < 120000;
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
+            {sortedHistory.map((h, idx) => {
+              const subTimeMs = h.sub.timestamp || Date.parse(h.sub.time) || 0;
+              const timeDiff = Date.now() - subTimeMs;
+              const isRecent = timeDiff >= 0 && timeDiff < 180000;
 
-                const pct =
-                  h.test.totalMarks > 0
-                    ? Math.round((h.sub.score / h.test.totalMarks) * 100)
-                    : 0;
-                const canViewNow = isResultVisible(h.test, h.sub);
+              const validScore = Number(h.sub.score || 0);
+              const validTotal = Number(h.test.totalMarks || 100);
+              const pct =
+                validTotal > 0
+                  ? Math.round((validScore / validTotal) * 100)
+                  : 0;
+              const canViewNow = isResultVisible(h.test, h.sub);
+              const isScheduled =
+                h.test.resultVis === "scheduled" && h.test.resultPublishTime;
 
-                // Track if this specific card is open
-                const isOpen = openCardId === idx;
+              const isOpen = openCardId === idx;
+              const badge = getSubjectBadge(h.test.subject);
 
-                return (
-                  <div
-                    key={idx}
-                    /* 🔥 PREMIUM CARD HOVER EFFECT */
-                    className={`group relative bg-white rounded-[24px] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden border ${
-                      isRecent
-                        ? "border-blue-400 shadow-[0_8px_20px_rgba(37,99,235,0.15)]"
-                        : isOpen
-                          ? "border-blue-300 shadow-[0_20px_40px_-15px_rgba(37,99,235,0.15)] ring-1 ring-blue-300"
-                          : "border-slate-200/80 shadow-sm hover:shadow-[0_15px_35px_-10px_rgba(0,0,0,0.08)] hover:border-blue-200 hover:-translate-y-1.5"
-                    }`}
-                    style={{
-                      opacity: 0,
-                      animationName: isRecent
-                        ? "staggerSlide, recentPulseBorder"
-                        : "staggerSlide",
-                      animationDuration: isRecent ? "0.4s, 2s" : "0.4s",
-                      animationTimingFunction: isRecent
-                        ? "cubic-bezier(0.16, 1, 0.3, 1), ease"
-                        : "cubic-bezier(0.16, 1, 0.3, 1)",
-                      animationFillMode: "forwards, none",
-                      animationIterationCount: isRecent ? "1, infinite" : "1",
-                      animationDelay: `${idx * 0.05}s, 0s`,
-                    }}
-                  >
-                    {/* Top Accent Line */}
-                    <div
-                      className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r transition-colors ${
-                        canViewNow
-                          ? "from-emerald-400 to-teal-500"
-                          : "from-amber-400 to-orange-500"
-                      }`}
-                    ></div>
+              // Distinct Status Themes
+              const statusTheme = canViewNow
+                ? {
+                    border: "border-slate-200/90 hover:border-emerald-300",
+                    accent: "bg-emerald-500",
+                    pillBg: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                    pillText: "Evaluated & Available",
+                    icon: "ti-circle-check",
+                    dropdownBg: "bg-emerald-50/20 border-emerald-100/70",
+                    chevronActive:
+                      "bg-emerald-600 text-white shadow-emerald-500/30",
+                  }
+                : isScheduled
+                  ? {
+                      border:
+                        "border-blue-200/90 bg-blue-50/15 hover:border-blue-300",
+                      accent: "bg-blue-500",
+                      pillBg: "bg-blue-50 text-blue-700 border-blue-200",
+                      pillText: "Scheduled Release",
+                      icon: "ti-clock-play",
+                      dropdownBg: "bg-blue-50/30 border-blue-200/60",
+                      chevronActive:
+                        "bg-blue-600 text-white shadow-blue-500/30",
+                    }
+                  : {
+                      border:
+                        "border-amber-200/90 bg-amber-50/15 hover:border-amber-300",
+                      accent: "bg-amber-400",
+                      pillBg: "bg-amber-50 text-amber-800 border-amber-200",
+                      pillText: "Under Examiner Review",
+                      icon: "ti-lock",
+                      dropdownBg: "bg-amber-50/30 border-amber-200/60",
+                      chevronActive:
+                        "bg-amber-600 text-white shadow-amber-500/30",
+                    };
 
-                    {/* 🔥 VISIBLE HEADER (Always visible, clean and click-to-expand) */}
-                    <div
-                      className="px-5 py-6 cursor-pointer flex items-center justify-between gap-4 select-none bg-white relative z-10"
-                      onClick={() => setOpenCardId(isOpen ? null : idx)}
-                    >
-                      <div className="flex-1 min-w-0 pr-2">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="text-[10px] font-extrabold uppercase tracking-widest bg-slate-50 text-slate-500 px-2 py-0.5 rounded border border-slate-200/60 shadow-sm">
-                            {h.test.subject || "General"}
+              return (
+                <div
+                  key={idx}
+                  className={`bg-white rounded-2xl border ${statusTheme.border} shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition-all overflow-hidden flex flex-col group ${
+                    isRecent ? "ring-2 ring-blue-400 shadow-blue-500/10" : ""
+                  }`}
+                >
+                  {/* Status Color Top Accent Stripe */}
+                  <div className={`h-1.5 w-full ${statusTheme.accent}`}></div>
+
+                  {/* VISIBLE CARD BODY */}
+                  <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
+                    <div>
+                      {/* Top Badges Row */}
+                      <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${badge.bg}`}
+                          >
+                            <i className={badge.icon}></i> {badge.label}
                           </span>
                           {isRecent && (
-                            <span className="text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-200 animate-pulse flex items-center gap-1 shadow-sm">
-                              <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>{" "}
+                            <span className="text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200 flex items-center gap-1 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>{" "}
                               JUST NOW
                             </span>
                           )}
                         </div>
-                        {/* 🔥 TEXT SQUISH FIX: line-clamp-2 instead of truncate */}
-                        <h3 className="text-[17px] sm:text-[18px] font-black text-slate-800 leading-snug line-clamp-2 transition-colors group-hover:text-blue-600">
-                          {h.test.title}
-                        </h3>
+
+                        {/* Status Pill with distinct icon */}
+                        <span
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusTheme.pillBg}`}
+                        >
+                          <i className={`ti ${statusTheme.icon} text-xs`}></i>
+                          <span>{statusTheme.pillText}</span>
+                        </span>
                       </div>
 
-                      {/* Soft Interactive Chevron */}
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isOpen ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30" : "bg-slate-50 text-slate-400 border border-slate-200 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200 group-hover:scale-105"}`}
+                      {/* Test Title */}
+                      <h3
+                        onClick={() =>
+                          canViewNow &&
+                          handleOpenReport(h, idx, {
+                            stopPropagation: () => {},
+                          })
+                        }
+                        className={`text-sm sm:text-base font-black text-slate-800 leading-snug line-clamp-2 mb-2 transition-colors ${
+                          canViewNow
+                            ? "cursor-pointer group-hover:text-blue-600"
+                            : ""
+                        }`}
                       >
-                        <i
-                          className={`ti ti-chevron-down text-[20px] transform transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${isOpen ? "rotate-180" : ""}`}
-                        ></i>
+                        {h.test.title}
+                      </h3>
+
+                      {/* Meta Information Row */}
+                      <div className="flex items-center gap-2.5 text-[11px] font-medium text-slate-500 mb-3 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <i className="ti ti-calendar text-slate-400"></i>{" "}
+                          {h.sub.time?.split(",")[0] || h.sub.time}
+                        </span>
+                        <span>•</span>
+                        <span className="font-mono text-[10px] bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600">
+                          #{h.test.code || "EXAM"}
+                        </span>
                       </div>
                     </div>
 
-                    {/* 🔥 HIDDEN DROPDOWN CONTENT (Jerk Fixed with min-h-0) */}
-                    <div
-                      className={`grid transition-all duration-500 ease-in-out bg-slate-50/50 ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
-                    >
-                      {/* Add min-h-0 here to stop CSS Grid jerking */}
-                      <div className="overflow-hidden min-h-0">
-                        <div className="px-5 pb-6 pt-4 border-t border-slate-100/80">
-                          {/* Meta Information */}
-                          <div className="flex flex-col gap-3 mb-6">
-                            <div className="flex items-center gap-2 text-[12px] font-bold text-slate-500 bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm">
-                              <i className="ti ti-calendar-time text-slate-400 text-[16px]"></i>{" "}
-                              {h.sub.time}
-                            </div>
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="bg-white text-slate-600 border border-slate-200/60 text-[11px] px-3 py-1.5 rounded-lg font-mono font-bold flex items-center gap-1.5 shadow-sm">
-                                <i className="ti ti-hash opacity-60 text-sm"></i>{" "}
-                                {h.test.code}
-                              </div>
-
-                              {/* Small Score Pill */}
-                              {canViewNow && (
-                                <div
-                                  className={`text-[11px] font-black px-2.5 py-1.5 rounded-lg border shadow-sm tracking-wide ${
-                                    pct >= 75
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                      : pct >= 40
-                                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                                        : "bg-rose-50 text-rose-700 border-rose-200"
-                                  }`}
-                                >
-                                  {pct}% SCORE
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Bottom Action Area */}
+                    {/* Summary Row & Primary Action */}
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                      {canViewNow ? (
+                        <>
                           <div>
-                            {canViewNow ? (
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex flex-col">
-                                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">
-                                    Total Score
-                                  </span>
-                                  <span className="text-[22px] font-black text-slate-800 leading-none">
-                                    {h.sub.score}{" "}
-                                    <span className="text-[14px] text-slate-400 font-bold">
-                                      / {h.test.totalMarks}
-                                    </span>
-                                  </span>
-                                </div>
-                                <button
-                                  className="px-6 py-2.5 bg-[#185FA5] hover:bg-[#0C447C] text-white font-bold rounded-xl text-[13px] shadow-md shadow-[#185FA5]/20 transition-all duration-300 active:scale-95 flex items-center gap-1.5 hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-70"
-                                  onClick={(e) => handleOpenReport(h, idx, e)}
-                                  disabled={openingResultId === idx}
-                                >
-                                  {openingResultId === idx ? (
-                                    <>
-                                      <i className="ti ti-loader animate-spin"></i>{" "}
-                                      Loading...
-                                    </>
-                                  ) : (
-                                    <>
-                                      Report{" "}
-                                      <i className="ti ti-arrow-right"></i>
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between gap-3">
-                                {h.test.resultVis === "scheduled" &&
-                                h.test.resultPublishTime ? (
-                                  <>
-                                    <div className="flex flex-col min-w-0">
-                                      <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-1">
-                                        Publishing At
-                                      </span>
-                                      <span className="text-[13px] font-black text-slate-700 leading-none truncate">
-                                        {new Date(
-                                          h.test.resultPublishTime,
-                                        ).toLocaleString("en-IN", {
-                                          dateStyle: "short",
-                                          timeStyle: "short",
-                                        })}
-                                      </span>
-                                    </div>
-                                    <button
-                                      disabled
-                                      className="px-5 py-2.5 bg-blue-50 text-blue-600 font-bold rounded-xl text-[12px] border border-blue-200 flex items-center gap-1.5 cursor-wait opacity-80 shrink-0"
-                                    >
-                                      <i className="ti ti-clock-play text-lg"></i>{" "}
-                                      Waiting
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <div className="flex flex-col">
-                                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">
-                                        Status
-                                      </span>
-                                      <span className="text-[13px] font-black text-slate-700 leading-none">
-                                        In Review
-                                      </span>
-                                    </div>
-                                    <button
-                                      disabled
-                                      className="px-5 py-2.5 bg-amber-50 text-amber-600 font-bold rounded-xl text-[12px] border border-amber-200 flex items-center gap-1.5 cursor-not-allowed opacity-80 shrink-0"
-                                    >
-                                      <i className="ti ti-lock text-lg"></i>{" "}
-                                      Locked
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            )}
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              Score
+                            </div>
+                            <div className="text-base sm:text-lg font-black text-slate-900 leading-none mt-0.5">
+                              {validScore}{" "}
+                              <span className="text-xs font-semibold text-slate-400">
+                                / {validTotal}
+                              </span>
+                              <span
+                                className={`ml-1.5 text-[10px] font-black px-1.5 py-0.5 rounded ${
+                                  pct >= 75
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : pct >= 40
+                                      ? "bg-amber-50 text-amber-700"
+                                      : "bg-rose-50 text-rose-700"
+                                }`}
+                              >
+                                {pct}%
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={(e) => handleOpenReport(h, idx, e)}
+                              disabled={openingResultId === idx}
+                              className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-sm shadow-blue-600/20 disabled:opacity-70"
+                              title="Open Detailed Solutions & Analysis"
+                            >
+                              {openingResultId === idx ? (
+                                <>
+                                  <i className="ti ti-loader animate-spin text-xs"></i>
+                                  <span>Loading...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>Solutions</span>
+                                  <i className="ti ti-arrow-right text-xs"></i>
+                                </>
+                              )}
+                            </button>
+
+                            {/* Dropdown Chevron Toggle */}
+                            <button
+                              onClick={() => setOpenCardId(isOpen ? null : idx)}
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border ${
+                                isOpen
+                                  ? statusTheme.chevronActive
+                                  : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600"
+                              }`}
+                              title={
+                                isOpen ? "Collapse Details" : "Expand Details"
+                              }
+                            >
+                              <i
+                                className={`ti ti-chevron-down text-sm transition-transform duration-300 ${
+                                  isOpen ? "rotate-180" : ""
+                                }`}
+                              ></i>
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                              Status
+                            </div>
+                            <div className="text-xs sm:text-sm font-bold text-slate-700 mt-0.5 flex items-center gap-1">
+                              <i className="ti ti-lock text-xs text-amber-500"></i>
+                              <span>
+                                {isScheduled ? "Scheduled" : "Held in Review"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => setOpenCardId(isOpen ? null : idx)}
+                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                              isOpen
+                                ? statusTheme.chevronActive
+                                : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                            }`}
+                          >
+                            <span>Details</span>
+                            <i
+                              className={`ti ti-chevron-down text-xs transition-transform duration-300 ${
+                                isOpen ? "rotate-180" : ""
+                              }`}
+                            ></i>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* 🔽 EXPANDABLE DROPDOWN AREA (Color-coded by Status) */}
+                  {isOpen && (
+                    <div
+                      className={`p-4 border-t text-xs animate-[fadeIn_0.2s_ease] ${statusTheme.dropdownBg}`}
+                    >
+                      {canViewNow ? (
+                        <div className="flex flex-col gap-2.5">
+                          <div className="grid grid-cols-2 gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80">
+                            <div>
+                              <div className="text-[10px] font-bold uppercase text-slate-400">
+                                Date & Time
+                              </div>
+                              <div className="text-xs font-bold text-slate-800">
+                                {h.sub.time}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-bold uppercase text-slate-400">
+                                Accuracy & Score
+                              </div>
+                              <div className="text-xs font-bold text-slate-800">
+                                {validScore} of {validTotal} Marks ({pct}%)
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={(e) => handleOpenReport(h, idx, e)}
+                            disabled={openingResultId === idx}
+                            className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            {openingResultId === idx ? (
+                              <>
+                                <i className="ti ti-loader animate-spin"></i>
+                                <span>Loading Solution Paper...</span>
+                              </>
+                            ) : (
+                              <>
+                                <i className="ti ti-file-text"></i>
+                                <span>Open Full Solution Paper & Keys</span>
+                                <i className="ti ti-arrow-right text-xs"></i>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      ) : isScheduled ? (
+                        <div className="flex flex-col gap-2">
+                          <div className="p-3 bg-white rounded-xl border border-blue-200 text-blue-900">
+                            <div className="font-bold flex items-center gap-1.5 mb-1">
+                              <i className="ti ti-calendar-time text-blue-600"></i>{" "}
+                              Scheduled Release
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-relaxed m-0">
+                              Official results and answers will publish
+                              automatically on:{" "}
+                              <strong className="text-blue-700">
+                                {new Date(
+                                  h.test.resultPublishTime,
+                                ).toLocaleString("en-IN", {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })}
+                              </strong>
+                              . Please check back then.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          <div className="p-3 bg-white rounded-xl border border-amber-200 text-amber-900">
+                            <div className="font-bold flex items-center gap-1.5 mb-1">
+                              <i className="ti ti-info-circle text-amber-600"></i>{" "}
+                              Results Under Review
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-relaxed m-0">
+                              Your answers have been securely recorded. The test
+                              examiner has placed results on hold until manual
+                              evaluation is completed.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

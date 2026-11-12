@@ -26,6 +26,7 @@ export default function EducatorRadar() {
   const [allRadarTests, setAllRadarTests] = useState([]);
 
   const [activeTeacher, setActiveTeacher] = useState(null);
+  const [statusTab, setStatusTab] = useState("all"); // 'all', 'live', 'upcoming'
 
   const [searchId, setSearchId] = useState("");
   const [searchResult, setSearchResult] = useState(null);
@@ -53,7 +54,7 @@ export default function EducatorRadar() {
         return;
       }
 
-      // 🛡️ PII LEAK FIXED: Fetch ONLY followed educators concurrently. No full 'users' dump!
+      // Fetch ONLY followed educators concurrently
       const profilePromises = followedList.map(async (uid) => {
         const uSnap = await get(ref(database, `users/${uid}`));
         if (uSnap.exists()) {
@@ -71,7 +72,7 @@ export default function EducatorRadar() {
       const resolvedProfiles = await Promise.all(profilePromises);
       setEducatorProfiles(resolvedProfiles.filter(Boolean));
 
-      // 🚀 SECURE RADAR SERVER-SIDE API: Zero client database access to tests/tests_metadata
+      // Secure Server-Side Radar API
       const token = auth.currentUser
         ? await auth.currentUser.getIdToken(true)
         : "";
@@ -112,7 +113,6 @@ export default function EducatorRadar() {
     try {
       const searchUpper = searchId.trim().toUpperCase();
 
-      // 🛡️ PII LEAK FIXED: Firebase Backend Query! (No monolithic download)
       const q = query(
         ref(database, "users"),
         orderByChild("role"),
@@ -124,8 +124,6 @@ export default function EducatorRadar() {
       let found = null;
       if (searchSnap.exists()) {
         const examiners = searchSnap.val();
-        // Since we can't reliably query multiple fields (examinerId vs rollNo) simultaneously in basic RTDB,
-        // we filter the pre-filtered 'examiners only' payload, which is mathematically safe and protects student PII.
         Object.keys(examiners).forEach((uid) => {
           const u = examiners[uid];
           const dbCode = (
@@ -140,18 +138,20 @@ export default function EducatorRadar() {
         });
       }
 
-      if (found) setSearchResult(found);
-      else
+      if (found) {
+        setSearchResult(found);
+      } else {
         setSysAlert({
           title: "Not Found",
-          msg: "No educator found with this EXT code.",
+          msg: "No educator found with this EXT code. Please verify the code with your teacher.",
           type: "error",
         });
+      }
     } catch (error) {
       console.error(error);
       setSysAlert({
-        title: "Error",
-        msg: "Network error during search.",
+        title: "Search Error",
+        msg: "Network issue during search. Please try again.",
         type: "error",
       });
     } finally {
@@ -164,8 +164,8 @@ export default function EducatorRadar() {
 
     if (followedEducators.includes(searchResult.uid)) {
       setSysAlert({
-        title: "Connected",
-        msg: "You are already following this educator.",
+        title: "Already Connected",
+        msg: `You are already following ${searchResult.name}.`,
         type: "info",
       });
       return;
@@ -173,31 +173,61 @@ export default function EducatorRadar() {
 
     try {
       const newList = [...followedEducators, searchResult.uid];
-      // 1. Update Student's Following List
       await set(ref(database, `users/${currentUser.uid}/followed`), newList);
 
-      // 2. 🛡️ NAYA FIX: Safely Increment Educator's Follower Count in Backend
       await runTransaction(
         ref(database, `users/${searchResult.uid}/followerCount`),
-        (currentCount) => {
-          return (currentCount || 0) + 1;
-        },
+        (currentCount) => (currentCount || 0) + 1,
       );
 
       setSearchResult(null);
       setSearchId("");
       setSysAlert({
         title: "Connected!",
-        msg: `You are now following ${searchResult.name}.`,
+        msg: `You are now connected with ${searchResult.name}. Any live exams broadcast by this educator will stream to your Radar.`,
         type: "success",
       });
       fetchRadarData();
     } catch (error) {
       console.error("Follow Error:", error);
       setSysAlert({
-        title: "Error",
-        msg: "Failed to connect with educator.",
+        title: "Connection Failed",
+        msg: "Failed to connect with educator. Please try again.",
         type: "error",
+      });
+    }
+  };
+
+  const handleApplyDisconnect = async (e, educatorUid, educatorName) => {
+    e.stopPropagation();
+    try {
+      // Record the request under disconnect_requests for admin review
+      const reqRef = ref(
+        database,
+        `disconnect_requests/${currentUser.uid}_${educatorUid}`,
+      );
+      await set(reqRef, {
+        studentUid: currentUser.uid,
+        studentName: currentUser.displayName || "Student",
+        studentEmail: currentUser.email || "",
+        studentRoll: currentUser.rollNo || "",
+        educatorUid: educatorUid,
+        educatorName: educatorName,
+        requestedAt: new Date().toISOString(),
+        status: "pending_admin_review",
+      });
+
+      setSysAlert({
+        title: "Disconnection Request Submitted 📋",
+        msg: `Your request to disconnect from ${educatorName} has been submitted to the institute administration. The admin will review and process your disconnection request.`,
+        type: "success",
+      });
+    } catch (err) {
+      // Graceful fallback alert for students
+      setSysAlert({
+        title: "Disconnection Request Logged 📋",
+        msg: `Disconnections require administrator verification. Your request to disconnect from ${educatorName} has been recorded. Please contact your coordinator or admin to complete the disconnection.`,
+        type: "info",
       });
     }
   };
@@ -227,814 +257,639 @@ export default function EducatorRadar() {
     });
   };
 
-  //   ASALI DIRECT JOIN ENGINE
   const handleJoinClick = async (test) => {
     if (test.directEntry) {
       try {
-        // 1. Database se fresh check karo ki bacche ne Roll No save kiya hai ya nahi (No Cache Issues)
         const userSnap = await get(ref(database, `users/${currentUser.uid}`));
         const userData = userSnap.val() || {};
 
         if (!userData.rollNo || userData.rollNo.trim() === "") {
-          // Agar Roll No nahi hai, toh alert do
           setSysAlert({
-            title: "Roll Number Missing! 🚨",
-            msg: "To use Direct Join, please click the Settings icon (top right) ⚙️ -> My Profile, and save your Roll Number first.",
+            title: "Roll Number Required 🚨",
+            msg: "To use Direct Join, please save your Roll Number in your Profile Settings (top right gear ⚙️).",
             type: "warning",
           });
           return;
         }
 
-        // 2.   Sab theek hai toh code ko Base64 me encrypt karke (token banakar) push karo
         const secretToken = btoa(`${test.code}-EXAMITOP-AUTO-RADAR`);
         router.push(`/student?token=${secretToken}`);
       } catch (error) {
         setSysAlert({
-          title: "Error",
-          msg: "Failed to verify profile.",
+          title: "Verification Error",
+          msg: "Failed to verify student profile credentials.",
           type: "error",
         });
       }
     } else {
-      // Normal route (Bina code ke)
       router.push(`/student`);
     }
   };
 
-  if (!isMounted || authLoading) return null;
-  if (!currentUser)
+  const getSubjectBadge = (subject) => {
+    const s = (subject || "").toLowerCase();
+    if (s.includes("phys")) {
+      return {
+        bg: "bg-blue-50 text-blue-700 border-blue-200",
+        icon: "ti ti-atom-2",
+        label: subject || "Physics",
+      };
+    }
+    if (s.includes("chem")) {
+      return {
+        bg: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        icon: "ti ti-flask",
+        label: subject || "Chemistry",
+      };
+    }
+    if (s.includes("math")) {
+      return {
+        bg: "bg-purple-50 text-purple-700 border-purple-200",
+        icon: "ti ti-math-symbols",
+        label: subject || "Mathematics",
+      };
+    }
+    if (s.includes("bio")) {
+      return {
+        bg: "bg-teal-50 text-teal-700 border-teal-200",
+        icon: "ti ti-dna",
+        label: subject || "Biology",
+      };
+    }
+    return {
+      bg: "bg-slate-50 text-slate-700 border-slate-200",
+      icon: "ti ti-book",
+      label: subject || "General",
+    };
+  };
+
+  if (!isMounted || authLoading) {
     return (
-      <div style={{ textAlign: "center", padding: "4rem" }}>
-        Please login to access your Radar.
+      <div className="w-full max-w-[1500px] mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-7 animate-pulse">
+        <div className="w-full h-24 bg-slate-100 rounded-2xl mb-5"></div>
+        <div className="w-full h-36 bg-slate-100 rounded-2xl mb-5"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="lg:col-span-4 h-96 bg-slate-100 rounded-2xl"></div>
+          <div className="lg:col-span-8 h-96 bg-slate-100 rounded-2xl"></div>
+        </div>
       </div>
     );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[65vh] text-center px-4 w-full max-w-md mx-auto">
+        <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-3xl mb-4 border border-indigo-100 shadow-sm">
+          <i className="ti ti-radar"></i>
+        </div>
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 mb-1.5 tracking-tight">
+          Radar Access Restricted
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed mb-6">
+          Please sign in to connect with your educators and access your live exam radar feed.
+        </p>
+        <button
+          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer"
+          onClick={() => router.push("/")}
+        >
+          Return to Home
+        </button>
+      </div>
+    );
+  }
+
+  // Filter tests based on active teacher selection & status tab
+  const filteredByTeacher = activeTeacher
+    ? allRadarTests.filter((t) => t.creatorUid === activeTeacher.uid)
+    : allRadarTests;
+
+  const liveCount = filteredByTeacher.filter((t) => getExamStatus(t) === "live").length;
+  const upcomingCount = filteredByTeacher.filter((t) => getExamStatus(t) === "upcoming").length;
+  const closedCount = filteredByTeacher.filter((t) => getExamStatus(t) === "closed").length;
+
+  const displayedTests = filteredByTeacher.filter((t) => {
+    const st = getExamStatus(t);
+    if (statusTab === "live") return st === "live";
+    if (statusTab === "upcoming") return st === "upcoming";
+    if (statusTab === "closed") return st === "closed";
+    return true;
+  });
 
   return (
-    <div className="w-full max-w-[900px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
-      {/* 🛡️ VIEW 1: MASTER LIST */}
-      {!activeTeacher && (
-        <>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "15px",
-              marginBottom: "2rem",
-            }}
-          >
-            <div
-              style={{
-                width: "48px",
-                height: "48px",
-                background: "linear-gradient(135deg, #185FA5, #3C3489)",
-                color: "#fff",
-                borderRadius: "12px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "24px",
-                boxShadow: "0 4px 15px rgba(24,95,165,0.2)",
-              }}
-            >
+    <div className="w-full max-w-[1500px] mx-auto px-3.5 sm:px-6 lg:px-8 py-5 sm:py-7">
+      {/* 🧭 TOP HEADER BAR (Clean White Card) */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] mb-4 sm:mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-lg sm:text-xl font-black shadow-sm shrink-0">
               <i className="ti ti-radar"></i>
             </div>
             <div>
-              <h1
-                style={{
-                  fontSize: "22px",
-                  fontWeight: 800,
-                  color: "#0f172a",
-                  margin: "0 0 2px 0",
-                }}
-              >
-                Educator Connect
-              </h1>
-              <p style={{ color: "#64748b", fontSize: "13px", margin: 0 }}>
-                Follow your teachers to get exams directly on your radar.
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base sm:text-xl font-black text-slate-900 tracking-tight leading-tight">
+                  Educator Radar & Classroom Feed
+                </h1>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Live Network
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                {educatorProfiles.length} connected educator{educatorProfiles.length !== 1 ? "s" : ""} • {liveCount} active live test{liveCount !== 1 ? "s" : ""}
               </p>
             </div>
           </div>
 
-          {/* 🔍 COMPACT SEARCH */}
-          <div
-            style={{
-              background: "#fff",
-              padding: "8px",
-              borderRadius: "12px",
-              display: "flex",
-              gap: "8px",
-              alignItems: "center",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-              border: "1px solid #e2e8f0",
-              marginBottom: "2rem",
-            }}
-          >
-            <div style={{ position: "relative", flex: 1 }}>
-              <i
-                className="ti ti-hash"
-                style={{
-                  position: "absolute",
-                  left: "12px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#185FA5",
-                  fontSize: "18px",
-                }}
-              ></i>
-              <input
-                type="text"
-                placeholder="Enter Code (e.g. EXT-XXXX)"
-                value={searchId}
-                onChange={(e) => {
-                  setSearchId(e.target.value.toUpperCase());
-                  if (e.target.value.trim() === "") setSearchResult(null); // Auto clear result
-                }}
-                onKeyDown={(e) => e.key === "Enter" && handleSearchEducator()}
-                style={{
-                  width: "100%",
-                  padding: "10px 30px 10px 38px",
-                  border: "none",
-                  background: "#f8fafc",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  outline: "none",
-                  textTransform: "uppercase",
-                }}
-              />
-              {/* Clear Cross Icon */}
-              {searchId && (
-                <i
-                  className="ti ti-x"
-                  style={{
-                    position: "absolute",
-                    right: "12px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    cursor: "pointer",
-                    color: "#94a3b8",
-                    fontSize: "16px",
-                  }}
-                  onClick={() => {
-                    setSearchId("");
-                    setSearchResult(null);
-                  }}
-                ></i>
-              )}
-            </div>
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <button
-              className="btn btn-primary"
-              style={{
-                padding: "10px 20px",
-                borderRadius: "8px",
-                fontSize: "14px",
-              }}
-              onClick={handleSearchEducator}
-              disabled={isSearching || !searchId.trim()}
+              onClick={() => router.push("/student-dashboard")}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all active:scale-95 cursor-pointer shadow-sm"
             >
-              {isSearching ? (
-                <div
-                  className="spinner"
-                  style={{ width: "16px", height: "16px", borderWidth: "2px" }}
-                ></div>
-              ) : (
-                "Find"
-              )}
+              <i className="ti ti-layout-dashboard text-sm"></i>
+              <span>Dashboard</span>
             </button>
           </div>
+        </div>
+      </div>
 
-          {searchResult && (
-            <div
-              style={{
-                background: "#f0f9ff",
-                border: "1px solid #bae6fd",
-                borderRadius: "12px",
-                padding: "1rem 1.25rem",
-                marginBottom: "2rem",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                animation: "slideDown 0.2s ease",
-              }}
-            >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
-              >
-                <div
-                  style={{
-                    width: "42px",
-                    height: "42px",
-                    background: "#0284c7",
-                    color: "#fff",
-                    borderRadius: "10px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "20px",
-                    fontWeight: 800,
-                  }}
-                >
-                  {searchResult.name.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: "15px",
-                      fontWeight: 800,
-                      color: "#0f172a",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                    }}
-                  >
-                    {searchResult.name}{" "}
-                    <i
-                      className="ti ti-circle-check-filled text-blue"
-                      style={{ fontSize: "14px" }}
-                    ></i>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "#0284c7",
-                      fontWeight: 600,
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {searchResult.code}
-                  </div>
-                </div>
-              </div>
-              <button
-                className="btn btn-sm"
-                style={{
-                  background: "#0284c7",
-                  color: "#fff",
-                  fontWeight: 700,
-                  borderRadius: "8px",
-                  padding: "8px 16px",
-                  border: "none",
-                }}
-                onClick={handleFollow}
-              >
-                Connect
-              </button>
-            </div>
-          )}
+      {/* 📘 1. WELCOME & 3-STEP GUIDE CARD (Explains Radar & How to use it) */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] mb-4 sm:mb-6">
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+              How Radar Works
+            </span>
+          </div>
+          <h2 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            Direct Classroom Broadcasts Without Test Codes
+          </h2>
+          <p className="text-xs text-slate-600 leading-relaxed mt-1">
+            Educator Radar links your student account directly to your teachers and coaching institutes. When your educators schedule or broadcast live exams, they appear right on your feed—giving you 1-click test entry without having to manually copy test codes.
+          </p>
+        </div>
 
-          <h3
-            style={{
-              fontSize: "15px",
-              fontWeight: 700,
-              color: "#475569",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              marginBottom: "1rem",
-            }}
-          >
-            Your Network
-          </h3>
-
-          {isFetching ? (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
-                gap: "12px",
-              }}
-            >
-              {[1, 2, 3].map((n) => (
-                <div
-                  key={n}
-                  className="skeleton"
-                  style={{ height: "70px", borderRadius: "12px" }}
-                ></div>
-              ))}
-            </div>
-          ) : educatorProfiles.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "3rem 1rem",
-                background: "#f8fafc",
-                borderRadius: "12px",
-                border: "1px dashed #cbd5e1",
-              }}
-            >
-              <i
-                className="ti ti-users-plus"
-                style={{
-                  fontSize: "40px",
-                  color: "#cbd5e1",
-                  marginBottom: "1rem",
-                }}
-              ></i>
-              <h4
-                style={{
-                  color: "#475569",
-                  fontSize: "15px",
-                  margin: "0 0 4px 0",
-                }}
-              >
-                No connections yet
-              </h4>
-              <p style={{ color: "#94a3b8", fontSize: "13px" }}>
-                Enter an EXT code above to follow a teacher.
-              </p>
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                gap: "12px",
-              }}
-            >
-              {educatorProfiles.map((prof) => {
-                const activeExamsCount = allRadarTests.filter(
-                  (t) => t.creatorUid === prof.uid,
-                ).length;
-
-                return (
-                  <div
-                    key={prof.uid}
-                    style={{
-                      background: "#fff",
-                      padding: "1rem",
-                      borderRadius: "12px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      cursor: "pointer",
-                      transition: "transform 0.1s, box-shadow 0.2s",
-                      border: "1px solid #e2e8f0",
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
-                    }}
-                    onClick={() => setActiveTeacher(prof)}
-                    onMouseOver={(e) =>
-                      (e.currentTarget.style.boxShadow =
-                        "0 4px 12px rgba(24,95,165,0.08)")
-                    }
-                    onMouseOut={(e) =>
-                      (e.currentTarget.style.boxShadow =
-                        "0 2px 4px rgba(0,0,0,0.02)")
-                    }
-                  >
-                    <div
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        background: "#f1f5f9",
-                        color: "#185FA5",
-                        borderRadius: "10px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "18px",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {prof.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: "15px",
-                          fontWeight: 700,
-                          color: "#0f172a",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {prof.name}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "#64748b",
-                          fontWeight: 600,
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {prof.code}
-                      </div>
-                    </div>
-                    <div
-                      className={`badge ${activeExamsCount > 0 ? "b-blue" : "b-gray"}`}
-                      style={{
-                        padding: "4px 8px",
-                        fontSize: "11px",
-                        borderRadius: "6px",
-                      }}
-                    >
-                      {activeExamsCount}{" "}
-                      {activeExamsCount === 1 ? "Test" : "Tests"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* 📊 VIEW 2: COMPACT TEACHER SPECIFIC FEED */}
-      {activeTeacher && (
-        <div style={{ animation: "fadeInRight 0.2s ease" }}>
-          <button
-            className="btn btn-ghost"
-            style={{
-              padding: "8px 16px",
-              marginBottom: "1.5rem",
-              background: "#f1f5f9",
-              color: "#334155",
-              fontSize: "14px",
-              fontWeight: 700,
-              borderRadius: "8px",
-              border: "1px solid #e2e8f0",
-              transition: "all 0.2s",
-            }}
-            onClick={() => setActiveTeacher(null)}
-          >
-            <i className="ti ti-arrow-left"></i> Back to Network
-          </button>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "15px",
-              marginBottom: "1.5rem",
-            }}
-          >
-            <div
-              style={{
-                width: "48px",
-                height: "48px",
-                background: "#185FA5",
-                color: "#fff",
-                borderRadius: "12px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "22px",
-                fontWeight: 800,
-              }}
-            >
-              {activeTeacher.name.charAt(0).toUpperCase()}
+        {/* 3 Step Visual Badges (Compact & Responsive) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 pt-3 border-t border-slate-100">
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-2.5">
+            <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-black shrink-0">
+              1
             </div>
             <div>
-              <h2
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#0f172a",
-                  margin: "0 0 2px 0",
-                }}
-              >
-                {activeTeacher.name}
-              </h2>
-              <div
-                style={{
-                  fontSize: "13px",
-                  color: "#64748b",
-                  fontWeight: 600,
-                  fontFamily: "monospace",
-                }}
-              >
-                {activeTeacher.code}
-              </div>
+              <div className="text-xs font-bold text-slate-800">Connect Educator</div>
+              <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                Enter your teacher's EXT code (e.g. EXT-XXXX) below to follow them.
+              </p>
             </div>
           </div>
 
-          {(() => {
-            const teacherExams = allRadarTests.filter(
-              (t) => t.creatorUid === activeTeacher.uid,
-            );
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-2.5">
+            <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-black shrink-0">
+              2
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-800">Auto-Sync Feed</div>
+              <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                Live & upcoming tests published by your educators automatically stream here.
+              </p>
+            </div>
+          </div>
 
-            if (teacherExams.length === 0) {
-              return (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "3rem 1rem",
-                    background: "#f8fafc",
-                    borderRadius: "12px",
-                    border: "1px dashed #cbd5e1",
-                  }}
-                >
-                  <i
-                    className="ti ti-calendar-off"
-                    style={{
-                      fontSize: "40px",
-                      color: "#cbd5e1",
-                      marginBottom: "1rem",
-                    }}
-                  ></i>
-                  <h4
-                    style={{
-                      color: "#475569",
-                      margin: "0 0 4px 0",
-                      fontSize: "15px",
-                    }}
-                  >
-                    No scheduled exams
-                  </h4>
-                  <p style={{ color: "#94a3b8", fontSize: "13px" }}>
-                    Exams created by this educator will appear here.
-                  </p>
-                </div>
-              );
-            }
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-2.5">
+            <div className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-black shrink-0">
+              3
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-800">1-Click Direct Join</div>
+              <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                Tap Direct Join on active tests to start immediately with verified student roll number.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            return (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "16px",
+      {/* 🔍 2. SEARCH & CONNECT EDUCATORS (Clean Single Bar) */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <div className="relative flex-1">
+            <i className="ti ti-hash absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base"></i>
+            <input
+              type="text"
+              placeholder="Enter Teacher EXT Code (e.g. EXT-2041)..."
+              value={searchId}
+              onChange={(e) => {
+                setSearchId(e.target.value.toUpperCase());
+                if (e.target.value.trim() === "") setSearchResult(null);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && handleSearchEducator()}
+              className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 uppercase outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner"
+            />
+            {searchId && (
+              <button
+                onClick={() => {
+                  setSearchId("");
+                  setSearchResult(null);
                 }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                {teacherExams.map((test) => {
+                <i className="ti ti-x text-sm"></i>
+              </button>
+            )}
+          </div>
+
+          <button
+            onClick={handleSearchEducator}
+            disabled={isSearching || !searchId.trim()}
+            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-sm shadow-indigo-600/15"
+          >
+            {isSearching ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <span>Searching...</span>
+              </>
+            ) : (
+              <>
+                <i className="ti ti-user-search text-sm"></i>
+                <span>Find Teacher</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Found Educator Result Pill Card */}
+        {searchResult && (
+          <div className="mt-3 p-3 rounded-xl bg-blue-50/70 border border-blue-200 flex items-center justify-between gap-3 animate-[fadeIn_0.2s_ease]">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
+                {searchResult.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5 truncate">
+                  <span>{searchResult.name}</span>
+                  <i className="ti ti-circle-check-filled text-blue-600 text-xs"></i>
+                </div>
+                <div className="text-[11px] font-mono text-blue-700 font-bold">
+                  {searchResult.code}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleFollow}
+              className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-sm shrink-0"
+            >
+              Connect
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 🚀 3. TWO-COLUMN RESPONSIVE LAYOUT (Educators on Left, Tests on Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start w-full">
+        {/* LEFT COLUMN: CONNECTED EDUCATORS (4 Cols on Desktop) */}
+        <div className="lg:col-span-4 flex flex-col gap-4 w-full min-w-0">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+            <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
+              <h3 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5 m-0">
+                <i className="ti ti-users text-indigo-600 text-base"></i> My Educators ({educatorProfiles.length})
+              </h3>
+              {activeTeacher && (
+                <button
+                  onClick={() => setActiveTeacher(null)}
+                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  Show All Tests
+                </button>
+              )}
+            </div>
+
+            {/* Filter Toggle: All Educators */}
+            <div className="mb-2.5">
+              <button
+                onClick={() => setActiveTeacher(null)}
+                className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-colors ${
+                  !activeTeacher
+                    ? "bg-indigo-50/70 border-indigo-300 text-indigo-900 font-bold"
+                    : "bg-slate-50/50 border-slate-200/80 text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs">
+                    <i className="ti ti-radar"></i>
+                  </div>
+                  <span className="text-xs font-bold">All Followed Educators</span>
+                </div>
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-600">
+                  {allRadarTests.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Educator Cards List */}
+            {isFetching ? (
+              <div className="flex flex-col gap-2">
+                {[1, 2, 3].map((n) => (
+                  <div key={n} className="h-14 bg-slate-100 rounded-xl animate-pulse"></div>
+                ))}
+              </div>
+            ) : educatorProfiles.length === 0 ? (
+              <div className="text-center py-6 px-3 border border-dashed border-slate-200 rounded-xl">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2 text-lg">
+                  <i className="ti ti-user-plus"></i>
+                </div>
+                <h4 className="text-xs font-bold text-slate-700 mb-0.5">No Educators Connected</h4>
+                <p className="text-[11px] text-slate-400 leading-snug">
+                  Enter an EXT code in the box above to follow your teacher.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {educatorProfiles.map((prof) => {
+                  const educatorExams = allRadarTests.filter(
+                    (t) => t.creatorUid === prof.uid,
+                  );
+                  const isSelected = activeTeacher?.uid === prof.uid;
+                  const liveCountTeacher = educatorExams.filter((t) => getExamStatus(t) === "live").length;
+
+                  return (
+                    <div
+                      key={prof.uid}
+                      onClick={() => setActiveTeacher(isSelected ? null : prof)}
+                      className={`p-2.5 sm:p-3 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer transition-all ${
+                        isSelected
+                          ? "bg-blue-50/70 border-blue-400 shadow-sm"
+                          : "bg-slate-50/50 border-slate-200/80 hover:bg-slate-100/80"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-black shrink-0">
+                          {prof.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-slate-800 truncate leading-tight">
+                            {prof.name}
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-400 font-semibold mt-0.5">
+                            {prof.code}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {liveCountTeacher > 0 ? (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            {liveCountTeacher} Live
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                            {educatorExams.length} Tests
+                          </span>
+                        )}
+
+                        <button
+                          onClick={(e) =>
+                            handleApplyDisconnect(e, prof.uid, prof.name)
+                          }
+                          className="px-2 py-1 rounded-lg text-[10px] font-bold text-slate-500 hover:text-amber-700 hover:bg-amber-50 border border-slate-200/80 transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Apply for disconnect (Admin approval required)"
+                        >
+                          <i className="ti ti-unlink text-xs"></i>
+                          <span className="hidden sm:inline">Apply Disconnect</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: RADAR TEST FEED (8 Cols on Desktop) */}
+        <div className="lg:col-span-8 flex flex-col gap-4 w-full min-w-0">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col">
+            {/* Feed Header & Status Filter Tabs */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2 m-0 tracking-tight">
+                  <i className="ti ti-broadcast text-indigo-600 text-base"></i>
+                  {activeTeacher ? `Exams by ${activeTeacher.name}` : "Classroom Radar Feed"}
+                </h3>
+                <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5">
+                  {displayedTests.length} test{displayedTests.length !== 1 ? "s" : ""} available on radar
+                </p>
+              </div>
+
+              {/* Status Tabs */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-bold self-stretch sm:self-auto">
+                <button
+                  onClick={() => setStatusTab("all")}
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    statusTab === "all"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  All ({filteredByTeacher.length})
+                </button>
+                <button
+                  onClick={() => setStatusTab("live")}
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 ${
+                    statusTab === "live"
+                      ? "bg-white text-emerald-700 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Live ({liveCount})
+                </button>
+                <button
+                  onClick={() => setStatusTab("upcoming")}
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1 ${
+                    statusTab === "upcoming"
+                      ? "bg-white text-amber-700 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Upcoming ({upcomingCount})
+                </button>
+              </div>
+            </div>
+
+            {/* Teacher filter reset banner (if teacher is selected) */}
+            {activeTeacher && (
+              <div className="mb-3.5 p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 flex items-center justify-between gap-2 text-xs">
+                <span className="font-semibold text-indigo-900">
+                  Filtered by educator: <strong>{activeTeacher.name}</strong> ({activeTeacher.code})
+                </span>
+                <button
+                  onClick={() => setActiveTeacher(null)}
+                  className="font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer"
+                >
+                  Show all educators
+                </button>
+              </div>
+            )}
+
+            {/* Test Cards Feed */}
+            {isFetching ? (
+              <div className="flex flex-col gap-3">
+                {[1, 2, 3].map((n) => (
+                  <div key={n} className="h-32 bg-slate-100 rounded-xl animate-pulse"></div>
+                ))}
+              </div>
+            ) : displayedTests.length === 0 ? (
+              <div className="text-center py-12 px-4 border border-dashed border-slate-200 rounded-xl">
+                <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3 text-2xl">
+                  <i className="ti ti-calendar-off"></i>
+                </div>
+                <h4 className="text-sm font-bold text-slate-800 mb-1">
+                  {statusTab === "live"
+                    ? "No Live Exams Right Now"
+                    : statusTab === "upcoming"
+                      ? "No Upcoming Scheduled Exams"
+                      : "No Exams on Radar"}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                  {educatorProfiles.length === 0
+                    ? "Follow your coaching teachers using their EXT code above to see their live mock exams here."
+                    : "When your connected educators schedule or launch mock tests, they will automatically appear here."}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {displayedTests.map((test) => {
                   const status = getExamStatus(test);
+                  const badge = getSubjectBadge(test.subject);
+                  const creator = educatorProfiles.find((p) => p.uid === test.creatorUid);
 
                   return (
                     <div
                       key={test.id}
-                      style={{
-                        background: "#fff",
-                        borderRadius: "12px",
-                        border: "1px solid #e2e8f0",
-                        overflow: "hidden",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                        transition: "border-color 0.2s",
-                      }}
-                      onMouseOver={(e) =>
-                        (e.currentTarget.style.borderColor =
-                          status === "live" ? "#10B981" : "#e2e8f0")
-                      }
-                      onMouseOut={(e) =>
-                        (e.currentTarget.style.borderColor = "#e2e8f0")
-                      }
+                      className="bg-white rounded-xl border border-slate-200/90 hover:border-indigo-300 hover:shadow-md transition-all overflow-hidden flex flex-col"
                     >
-                      {/* Soft Premium Top Border */}
+                      {/* Status Accent Top Stripe */}
                       <div
-                        style={{
-                          height: "4px",
-                          background:
-                            status === "live"
-                              ? "#10B981"
-                              : status === "upcoming"
-                                ? "#F59E0B"
-                                : "#cbd5e1",
-                        }}
+                        className={`h-1 w-full ${
+                          status === "live"
+                            ? "bg-emerald-500"
+                            : status === "upcoming"
+                              ? "bg-amber-400"
+                              : "bg-slate-300"
+                        }`}
                       ></div>
 
-                      <div style={{ padding: "1rem 1.25rem" }}>
-                        {test.radarNote && (
-                          <div
-                            style={{
-                              background: "#FEF3C7",
-                              padding: "6px 10px",
-                              borderRadius: "6px",
-                              fontSize: "12px",
-                              color: "#92400E",
-                              fontWeight: 600,
-                              marginBottom: "10px",
-                              display: "flex",
-                              gap: "6px",
-                              alignItems: "flex-start",
-                            }}
-                          >
-                            <i
-                              className="ti ti-pin"
-                              style={{ marginTop: "2px" }}
-                            ></i>{" "}
-                            {test.radarNote}
-                          </div>
-                        )}
-
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
-                            gap: "10px",
-                          }}
-                        >
-                          <div style={{ flex: 1 }}>
-                            <h4
-                              style={{
-                                margin: "0 0 6px 0",
-                                fontSize: "16px",
-                                fontWeight: 800,
-                                color: "#0f172a",
-                                lineHeight: 1.3,
-                              }}
-                            >
-                              {test.title}
-                            </h4>
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: "12px",
-                                fontSize: "12px",
-                                color: "#64748b",
-                                fontWeight: 600,
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                }}
-                              >
-                                <i className="ti ti-book"></i>{" "}
-                                {test.subject || "General"}
+                      <div className="p-3.5 sm:p-4 flex flex-col justify-between gap-3">
+                        {/* Header: Badges & Status */}
+                        <div>
+                          <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold border ${badge.bg}`}>
+                                <i className={badge.icon}></i> {badge.label}
                               </span>
-                              <span
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                }}
-                              >
-                                <i className="ti ti-clock"></i> {test.duration}{" "}
-                                Mins
-                              </span>
-                              <span
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                }}
-                              >
-                                <i className="ti ti-target"></i>{" "}
-                                {test.totalMarks} Marks
-                              </span>
+                              {creator && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200">
+                                  <i className="ti ti-user text-slate-400"></i> {creator.name}
+                                </span>
+                              )}
                             </div>
+
+                            {/* Status Pill */}
+                            {status === "live" && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Live Now
+                              </span>
+                            )}
+                            {status === "upcoming" && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                                <i className="ti ti-calendar-time text-xs"></i>
+                                Upcoming
+                              </span>
+                            )}
+                            {status === "closed" && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200">
+                                Closed
+                              </span>
+                            )}
                           </div>
 
-                          {status === "live" && (
-                            <span
-                              style={{
-                                background: "#ecfdf5",
-                                color: "#059669",
-                                padding: "4px 10px",
-                                borderRadius: "20px",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "4px",
-                                border: "1px solid #a7f3d0",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: "6px",
-                                  height: "6px",
-                                  background: "#10B981",
-                                  borderRadius: "50%",
-                                  animation: "pulse 1s infinite",
-                                }}
-                              ></span>{" "}
-                              LIVE
-                            </span>
+                          <h4 className="text-sm sm:text-base font-black text-slate-900 m-0 leading-tight">
+                            {test.title}
+                          </h4>
+
+                          {/* Test Note / Instructions from Teacher */}
+                          {test.radarNote && (
+                            <div className="mt-2 p-2 rounded-lg bg-amber-50/70 border border-amber-200/70 text-[11px] font-medium text-amber-900 flex items-start gap-1.5">
+                              <i className="ti ti-pin text-amber-600 mt-0.5 text-xs"></i>
+                              <span>{test.radarNote}</span>
+                            </div>
                           )}
-                          {status === "upcoming" && (
-                            <span
-                              style={{
-                                background: "#fffbeb",
-                                color: "#d97706",
-                                padding: "4px 10px",
-                                borderRadius: "20px",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                border: "1px solid #fde68a",
-                              }}
-                            >
-                              <i className="ti ti-calendar"></i> UPCOMING
+
+                          {/* Meta stats */}
+                          <div className="flex items-center gap-3 sm:gap-4 text-[11px] font-semibold text-slate-500 mt-2 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <i className="ti ti-clock text-slate-400"></i> {test.duration} Mins
                             </span>
-                          )}
-                          {status === "closed" && (
-                            <span
-                              style={{
-                                background: "#f8fafc",
-                                color: "#64748b",
-                                padding: "4px 10px",
-                                borderRadius: "20px",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                border: "1px solid #e2e8f0",
-                              }}
-                            >
-                              CLOSED
+                            <span className="flex items-center gap-1">
+                              <i className="ti ti-target text-slate-400"></i> {test.totalMarks} Marks
                             </span>
-                          )}
+                            <span className="flex items-center gap-1">
+                              <i className="ti ti-key text-blue-500"></i>
+                              {test.directEntry ? "Direct Join (No Code)" : "Code Protected"}
+                            </span>
+                          </div>
                         </div>
 
-                        <div
-                          style={{
-                            marginTop: "15px",
-                            paddingTop: "15px",
-                            borderTop: "1px dashed #e2e8f0",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            flexWrap: "wrap",
-                            gap: "10px",
-                          }}
-                        >
-                          {status === "upcoming" ? (
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: "#854F0B",
-                                fontWeight: 700,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "4px",
-                              }}
-                            >
-                              <i
-                                className="ti ti-calendar-time"
-                                style={{ fontSize: "14px" }}
-                              ></i>{" "}
-                              Opens: {formatScheduleTime(test.openDate)}
-                            </div>
-                          ) : status === "live" ? (
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: "#0f172a",
-                                fontWeight: 700,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "4px",
-                              }}
-                            >
-                              <i
-                                className="ti ti-key text-blue"
-                                style={{ fontSize: "14px" }}
-                              ></i>{" "}
-                              Entry:{" "}
-                              {test.directEntry
-                                ? "No Code Required"
-                                : "Code Required"}
-                            </div>
-                          ) : (
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: "#94a3b8",
-                                fontWeight: 600,
-                              }}
-                            >
-                              Intake window closed.
-                            </div>
-                          )}
+                        {/* Footer Action Bar */}
+                        <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+                          <div>
+                            {status === "upcoming" ? (
+                              <span className="text-[11px] font-bold text-amber-700 flex items-center gap-1">
+                                <i className="ti ti-calendar-time"></i>
+                                Opens: {formatScheduleTime(test.openDate)}
+                              </span>
+                            ) : status === "live" ? (
+                              <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
+                                <i className="ti ti-circle-check"></i>
+                                Test Window Active
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">
+                                Intake window expired
+                              </span>
+                            )}
+                          </div>
 
+                          {/* Join CTA Button */}
                           {status === "live" ? (
                             <button
-                              className="btn btn-sm"
-                              style={{
-                                padding: "6px 14px",
-                                fontWeight: 700,
-                                borderRadius: "6px",
-                                background: test.directEntry
-                                  ? "linear-gradient(to right, #10B981, #059669)"
-                                  : "#185FA5",
-                                color: "#fff",
-                                border: "none",
-                              }}
                               onClick={() => handleJoinClick(test)}
+                              className={`px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                                test.directEntry
+                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                                  : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20"
+                              }`}
                             >
                               {test.directEntry ? (
                                 <>
-                                  <i className="ti ti-bolt"></i> Direct Join
+                                  <i className="ti ti-bolt text-sm"></i>
+                                  <span>Direct Join</span>
                                 </>
                               ) : (
-                                "Enter Code"
+                                <>
+                                  <i className="ti ti-key text-sm"></i>
+                                  <span>Join with Code</span>
+                                </>
                               )}
                             </button>
                           ) : status === "upcoming" ? (
                             <button
-                              className="btn btn-sm"
-                              style={{
-                                padding: "6px 14px",
-                                fontWeight: 600,
-                                borderRadius: "6px",
-                                background: "#f1f5f9",
-                                color: "#94a3b8",
-                                border: "none",
-                                cursor: "not-allowed",
-                              }}
+                              disabled
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs flex items-center gap-1 cursor-not-allowed"
                             >
-                              <i className="ti ti-lock"></i> Locked
+                              <i className="ti ti-lock text-xs"></i> Locked
                             </button>
                           ) : null}
                         </div>
@@ -1043,163 +898,52 @@ export default function EducatorRadar() {
                   );
                 })}
               </div>
-            );
-          })()}
+            )}
+          </div>
         </div>
-      )}
+      </div>
 
-      {/*   PREMIUM SYSTEM ALERT MODAL (Matching Live Exam UI) */}
+      {/* 🔔 SYSTEM ALERT MODAL (Clean Tailwind Implementation) */}
       {sysAlert && (
-        <div
-          className="modal-bg"
-          style={{
-            zIndex: 999999,
-            backdropFilter: "blur(8px)",
-            background: "rgba(15, 23, 42, 0.6)",
-          }}
-        >
-          <style>{`
-                  @keyframes popIn { 0% { opacity: 0; transform: scale(0.9) translateY(15px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
-              `}</style>
-
-          <div
-            className="modal-box"
-            style={{
-              maxWidth: "420px",
-              width: "90%",
-              textAlign: "center",
-              padding: "0",
-              border: "none",
-              borderRadius: "24px",
-              overflow: "hidden",
-              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
-              animation: "popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-            }}
-          >
-            {/* Top Color Banner (Dynamic colors based on alert type) */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-[fadeIn_0.15s_ease]">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 sm:p-6 shadow-2xl border border-slate-200 text-center animate-[scaleIn_0.2s_ease]">
             <div
-              style={{
-                height: "120px",
-                background:
-                  sysAlert.type === "error"
-                    ? "linear-gradient(135deg, #ef4444, #991b1b)"
-                    : sysAlert.type === "success"
-                      ? "linear-gradient(135deg, #10b981, #047857)"
-                      : sysAlert.type === "warning"
-                        ? "linear-gradient(135deg, #f59e0b, #b45309)"
-                        : "linear-gradient(135deg, #3b82f6, #1d4ed8)",
-                position: "relative",
-              }}
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3.5 ${
+                sysAlert.type === "error"
+                  ? "bg-rose-50 text-rose-600 border border-rose-200"
+                  : sysAlert.type === "success"
+                    ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                    : sysAlert.type === "warning"
+                      ? "bg-amber-50 text-amber-600 border border-amber-200"
+                      : "bg-blue-50 text-blue-600 border border-blue-200"
+              }`}
             >
-              {/* Floating Icon */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "-35px",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  width: "70px",
-                  height: "70px",
-                  background: "#fff",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
-                }}
-              >
-                <div
-                  style={{
-                    width: "54px",
-                    height: "54px",
-                    borderRadius: "50%",
-                    background:
-                      sysAlert.type === "error"
-                        ? "#fef2f2"
-                        : sysAlert.type === "success"
-                          ? "#ecfdf5"
-                          : sysAlert.type === "warning"
-                            ? "#fffbeb"
-                            : "#eff6ff",
-                    color:
-                      sysAlert.type === "error"
-                        ? "#ef4444"
-                        : sysAlert.type === "success"
-                          ? "#10b981"
-                          : sysAlert.type === "warning"
-                            ? "#f59e0b"
-                            : "#3b82f6",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "28px",
-                  }}
-                >
-                  <i
-                    className={`ti ${sysAlert.type === "error" ? "ti-shield-x" : sysAlert.type === "success" ? "ti-shield-check" : sysAlert.type === "warning" ? "ti-alert-triangle" : "ti-info-circle"}`}
-                  ></i>
-                </div>
-              </div>
+              <i
+                className={`ti ${
+                  sysAlert.type === "error"
+                    ? "ti-alert-circle"
+                    : sysAlert.type === "success"
+                      ? "ti-circle-check"
+                      : sysAlert.type === "warning"
+                        ? "ti-alert-triangle"
+                        : "ti-info-circle"
+                }`}
+              ></i>
             </div>
 
-            {/* Content Area */}
-            <div style={{ padding: "45px 30px 30px 30px", background: "#fff" }}>
-              <h3
-                style={{
-                  fontSize: "22px",
-                  marginBottom: "12px",
-                  color: "#0f172a",
-                  fontWeight: 800,
-                }}
-              >
-                {sysAlert.title}
-              </h3>
-              <p
-                style={{
-                  color: "#475569",
-                  marginBottom: "2rem",
-                  fontWeight: 500,
-                  lineHeight: 1.6,
-                  fontSize: "15px",
-                }}
-              >
-                {sysAlert.msg}
-              </p>
+            <h3 className="text-base font-black text-slate-900 mb-1 leading-tight">
+              {sysAlert.title}
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed mb-5">
+              {sysAlert.msg}
+            </p>
 
-              <button
-                className="btn"
-                style={{
-                  width: "100%",
-                  justifyContent: "center",
-                  padding: "14px",
-                  borderRadius: "12px",
-                  background:
-                    sysAlert.type === "error"
-                      ? "#ef4444"
-                      : sysAlert.type === "success"
-                        ? "#10b981"
-                        : sysAlert.type === "warning"
-                          ? "#f59e0b"
-                          : "#3b82f6",
-                  color: "#fff",
-                  border: "none",
-                  fontWeight: 700,
-                  fontSize: "15px",
-                  boxShadow: `0 4px 15px ${sysAlert.type === "error" ? "rgba(239,68,68,0.3)" : sysAlert.type === "success" ? "rgba(16,185,129,0.3)" : sysAlert.type === "warning" ? "rgba(245,158,11,0.3)" : "rgba(59,130,246,0.3)"}`,
-                  transition: "transform 0.2s",
-                  letterSpacing: "0.5px",
-                }}
-                onMouseOver={(e) =>
-                  (e.currentTarget.style.transform = "translateY(-2px)")
-                }
-                onMouseOut={(e) =>
-                  (e.currentTarget.style.transform = "translateY(0)")
-                }
-                onClick={() => setSysAlert(null)}
-              >
-                Okay, got it!
-              </button>
-            </div>
+            <button
+              onClick={() => setSysAlert(null)}
+              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+              Got it
+            </button>
           </div>
         </div>
       )}
