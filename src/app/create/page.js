@@ -1,6 +1,6 @@
 // src/app/create/page.js
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { database, auth } from "../../lib/firebase";
@@ -63,6 +63,50 @@ export default function CreateTest() {
   const [qList, setQList] = useState([]);
 
   const [toastMsg, setToastMsg] = useState("");
+
+  // 🧮 DSA Section Parsing & Algorithmic Marks Calculation (O(N) with Section Optional Rules)
+  const parsedSectionsArray = useMemo(() => {
+    return sections
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s);
+  }, [sections]);
+
+  const calculatedExpectedMarks = useMemo(() => {
+    const hasSectionRules =
+      sectionRules &&
+      Object.keys(sectionRules).some((sec) => Number(sectionRules[sec]) > 0);
+
+    if (hasSectionRules && parsedSectionsArray.length > 0) {
+      const sectionBuckets = {};
+      const fallbackSec = parsedSectionsArray[0];
+
+      for (let i = 0; i < qList.length; i++) {
+        const q = qList[i];
+        const sec =
+          q.section && parsedSectionsArray.includes(q.section)
+            ? q.section
+            : fallbackSec;
+        if (!sectionBuckets[sec]) sectionBuckets[sec] = [];
+        sectionBuckets[sec].push(Number(q.marks || 0));
+      }
+
+      let sum = 0;
+      for (const sec of Object.keys(sectionBuckets)) {
+        const marks = sectionBuckets[sec];
+        const attemptLimit = Number(sectionRules[sec]);
+        if (attemptLimit > 0 && attemptLimit < marks.length) {
+          // Sort descending so highest scoring questions count towards max obtainable marks
+          marks.sort((a, b) => b - a);
+          sum += marks.slice(0, attemptLimit).reduce((s, m) => s + m, 0);
+        } else {
+          sum += marks.reduce((s, m) => s + m, 0);
+        }
+      }
+      return sum;
+    }
+    return qList.reduce((sum, q) => sum + Number(q.marks || 0), 0);
+  }, [qList, parsedSectionsArray, sectionRules]);
 
   //  DRAFT CHECK ON MOUNT
   useEffect(() => {
@@ -708,11 +752,9 @@ export default function CreateTest() {
       }
     }
 
-    const calculatedSum = qList.reduce((sum, q) => sum + Number(q.marks), 0);
-
-    // Yahan Custom Modal Trigger Hoga agar marks match nahi kiye
-    if (calculatedSum !== totalMarks) {
-      setMismatchModal({ entered: totalMarks, actual: calculatedSum });
+    // 🧮 Smart Algorithmic Marks Validation (O(N) with Section Optional Rules)
+    if (calculatedExpectedMarks !== totalMarks) {
+      setMismatchModal({ entered: totalMarks, actual: calculatedExpectedMarks });
       return;
     }
 
@@ -859,10 +901,6 @@ export default function CreateTest() {
     );
   }
 
-  const parsedSectionsArray = sections
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s);
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease] pb-[30vh]">
@@ -1049,9 +1087,21 @@ export default function CreateTest() {
               </div>
             </div>
             <div>
-              <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
-                Total Marks
-              </label>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="text-[12px] font-bold text-slate-600 block">
+                  Total Marks
+                </label>
+                {calculatedExpectedMarks > 0 && calculatedExpectedMarks !== totalMarks && (
+                  <button
+                    type="button"
+                    onClick={() => setTotalMarks(calculatedExpectedMarks)}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 cursor-pointer bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md"
+                    title="Click to sync total marks to calculated value"
+                  >
+                    <i className="ti ti-refresh text-[10px]"></i> Auto-calc: {calculatedExpectedMarks}
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <i className="ti ti-target absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
                 <input

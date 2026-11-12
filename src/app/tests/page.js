@@ -1,6 +1,6 @@
 // src/app/tests/page.js
 "use client";
-import { useState, useEffect, useRef, memo } from "react"; //   FIX: memo import kiya
+import { useState, useEffect, useRef, useMemo, memo } from "react"; //   FIX: memo and useMemo import kiya
 import { useAuth } from "../../context/AuthContext";
 import { useData } from "../../context/DataContext";
 import { useRouter } from "next/navigation";
@@ -49,6 +49,8 @@ export default function ManageTests() {
   const [vaultSearchQuery, setVaultSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [visibleCount, setVisibleCount] = useState(5);
+  const [isSubsLoading, setIsSubsLoading] = useState(false);
+  const [subsVisibleCount, setSubsVisibleCount] = useState(25);
   const searchRef = useRef(null);
 
   // --- MODALS & SUB-VIEWS ---
@@ -71,88 +73,20 @@ export default function ManageTests() {
   const [sysAlert, setSysAlert] = useState(null); // { title, msg, type }
   const [sysConfirm, setSysConfirm] = useState(null); // { title, msg, action }
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const baseTests = isOffline ? localTests : [...(tests || []), ...localTests];
+  const baseTests = useMemo(() => {
+    return isOffline ? localTests : [...(tests || []), ...localTests];
+  }, [isOffline, localTests, tests]);
 
-  // EVALUATION NAV SHUTTER STATES ---
-  const [isEvalNavVisible, setIsEvalNavVisible] = useState(true);
-  const evalLastScrollY = useRef(0);
-  const isEvalAnimating = useRef(false);
-  const evalNavState = useRef(true);
-
-  // EVALUATION SCROLL SHUTTER ENGINE
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleScroll = () => {
-      if (!evaluateSub) return;
-
-      // Seedha Navbar ka HTML element uthaya
-      const navEl = document.getElementById("eval-shutter-nav");
-      if (!navEl) return;
-
-      const currentScrollY = window.scrollY;
-
-      // Top bounce protection
-      if (currentScrollY <= 70) {
-        if (!evalNavState.current) {
-          evalNavState.current = true;
-          navEl.style.top = "60px";
-          navEl.style.opacity = "1";
-          navEl.style.boxShadow = "0 4px 25px rgba(0,0,0,0.06)";
-        }
-        evalLastScrollY.current = currentScrollY;
-        return;
-      }
-
-      if (isEvalAnimating.current) {
-        evalLastScrollY.current = currentScrollY;
-        return;
-      }
-
-      const distance = currentScrollY - evalLastScrollY.current;
-
-      if (distance > 20 && evalNavState.current) {
-        // Scroll Down -> Hide (Direct DOM Style Update)
-        isEvalAnimating.current = true;
-        evalNavState.current = false;
-        navEl.style.top = "-100px";
-        navEl.style.opacity = "0";
-        navEl.style.boxShadow = "none";
-        setTimeout(() => {
-          isEvalAnimating.current = false;
-        }, 400);
-      } else if (distance < -20 && !evalNavState.current) {
-        // Scroll Up -> Show (Direct DOM Style Update)
-        isEvalAnimating.current = true;
-        evalNavState.current = true;
-        navEl.style.top = "60px";
-        navEl.style.opacity = "1";
-        navEl.style.boxShadow = "0 4px 25px rgba(0,0,0,0.06)";
-        setTimeout(() => {
-          isEvalAnimating.current = false;
-        }, 400);
-      }
-      evalLastScrollY.current = currentScrollY;
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [evaluateSub]);
-
-  // Smart Wrappers: Parda girao (hide), thoda wait karo, fir state change karo
   const changeEvalStatus = (newFilter) => {
-    if (newFilter === evalFilter) return;
-    setIsEvalMathReady(false); // 1. Drop Shutter
-    setTimeout(() => setEvalFilter(newFilter), 50); // 2. Change data behind the scenes
+    if (newFilter !== evalFilter) setEvalFilter(newFilter);
   };
 
   const changeEvalSection = (newSec) => {
-    if (newSec === evalSectionFilter) return;
-    setIsEvalMathReady(false); // 1. Drop Shutter
-    setTimeout(() => setEvalSectionFilter(newSec), 50); // 2. Change data behind the scenes
+    if (newSec !== evalSectionFilter) setEvalSectionFilter(newSec);
   };
 
   //  FIX: Press '/' to focus Search Bar automatically
-  typeof require("react").useEffect(() => {
+  useEffect(() => {
     const handleSlashKey = (e) => {
       // FIX: Agar koi popup khula hai toh search bar focus mat karo
       if (modalType || sysAlert || sysConfirm) return;
@@ -169,15 +103,21 @@ export default function ManageTests() {
     return () => window.removeEventListener("keydown", handleSlashKey);
   }, [searchRef, modalType, sysAlert, sysConfirm]);
 
-  //  FIX 1: THE AMNESIA CURE (Stop Infinite Dance)
+  const hasRestoredSession = useRef(false);
+
+  // 1. RESTORE SESSION ONCE ON INITIAL MOUNT / WHEN TESTS ARRIVE
   useEffect(() => {
-    if (!isMounted || baseTests.length === 0) return;
+    if (!isMounted || hasRestoredSession.current || baseTests.length === 0) return;
 
     const savedTestId = sessionStorage.getItem("examitop_activeTestId");
-    if (!savedTestId || selectedTest?.id === savedTestId) return; // 🔥 PREVENTS LOOP
+    if (!savedTestId) {
+      hasRestoredSession.current = true;
+      return;
+    }
 
     const t = baseTests.find((x) => x.id === savedTestId);
     if (t) {
+      hasRestoredSession.current = true;
       setSelectedTest(t);
       const savedTab = sessionStorage.getItem("examitop_activeTab");
       if (savedTab) setActiveTab(savedTab);
@@ -191,20 +131,41 @@ export default function ManageTests() {
         });
       }
     }
-  }, [isMounted, localTests]);
+  }, [isMounted, baseTests]);
 
+  // 2. SYNC ACTIVE SESSION STATE
   useEffect(() => {
-    // 2. Jaise hi kuch change ho, memory me save kar do
-    if (selectedTest)
+    if (selectedTest) {
       sessionStorage.setItem("examitop_activeTestId", selectedTest.id);
-    else sessionStorage.removeItem("examitop_activeTestId");
+    } else {
+      sessionStorage.removeItem("examitop_activeTestId");
+    }
 
     sessionStorage.setItem("examitop_activeTab", activeTab);
 
-    if (evaluateSub)
+    if (evaluateSub) {
       sessionStorage.setItem("examitop_evalSubIdx", evaluateSub.sIdx);
-    else sessionStorage.removeItem("examitop_evalSubIdx");
+    } else {
+      sessionStorage.removeItem("examitop_evalSubIdx");
+    }
   }, [selectedTest, activeTab, evaluateSub]);
+
+  // SAFE BACK HANDLER (Zero Bounce & Instant Return to Tests List)
+  const handleBackToVault = () => {
+    try {
+      sessionStorage.removeItem("examitop_activeTestId");
+      sessionStorage.removeItem("examitop_activeTab");
+      sessionStorage.removeItem("examitop_evalSubIdx");
+    } catch (e) {
+      /* silent */
+    }
+    setSelectedTest(null);
+    setActiveTab("overview");
+    setEvaluateSub(null);
+    if (typeof window !== "undefined") {
+      window.scrollTo(0, 0);
+    }
+  };
 
   // 1. Fetch Local Tests and Offline Status on Mount
   useEffect(() => {
@@ -216,7 +177,7 @@ export default function ManageTests() {
       );
       setIsMounted(true);
     }
-  }, [selectedTest]);
+  }, []);
 
   //  THE FIX 1: Sirf apne tests fetch karo (With Anti-Flicker Logic)
   useEffect(() => {
@@ -246,134 +207,208 @@ export default function ManageTests() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  //   NAYA FIX: AUTO-SCROLL TO TOP ON TEST OPEN/CLOSE
+  // AUTO-SCROLL ON TEST SWITCH (Instant, No Jerk)
+  const prevTestIdRef = useRef(null);
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      // Jab bhi 'selectedTest' change hoga (kisi test ko kholne ya band karne par), page smoothly top par jayega
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [selectedTest]);
-
-  //ON-DEMAND HEAVY DATA FETCHER (Phase 3)
-  useEffect(() => {
-    if (selectedTest && !selectedTest.isLocal && !selectedTest.isHeavyLoaded) {
-      const fetchHeavyData = async () => {
-        try {
-          // 1. Fetch Questions Safely
-          let questions = [];
-          if (selectedTest.questions && selectedTest.questions.length > 0) {
-            questions = selectedTest.questions;
-          } else {
-            try {
-              const qSnap = await get(
-                ref(database, `test_questions/${selectedTest.id}`),
-              );
-              questions = qSnap.exists() ? qSnap.val().questions || [] : [];
-            } catch (e) {
-              console.warn("Could not read test_questions, fallback applied.");
-            }
-          }
-
-          // 2. Fetch Submissions with "Try/Catch" Shield (THE FIX)
-          let fetchedSubs = [];
-
-          try {
-            // Pehle Naye architecture me try karo
-            const sSnap = await get(
-              ref(database, `test_submissions/${selectedTest.id}`),
-            );
-            if (sSnap.exists() && sSnap.val().submissions) {
-              const subData = sSnap.val().submissions;
-              fetchedSubs = Object.keys(subData)
-                .map((k) => ({ ...subData[k], fbKey: k }))
-                .filter(Boolean);
-            }
-          } catch (err) {
-            // Firebase ne block kar diya? Koi baat nahi, app crash nahi hoga!
-            console.warn(
-              "Permission denied for test_submissions. Expected for legacy tests.",
-            );
-          }
-
-          // 3. GOD-MODE DATA RECOVERY: If new architecture submissions are empty, recover trapped legacy data!
-          const isLegacyCandidate =
-            !selectedTest.creatorUid || Boolean(selectedTest.dbKey);
-
-          if (fetchedSubs.length === 0 && isLegacyCandidate) {
-            try {
-              // 🔥 Get secure token before fetching
-              const token = auth.currentUser
-                ? await auth.currentUser.getIdToken(true)
-                : "";
-
-              const recRes = await fetch("/api/exam/legacy/recover", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`, // Send token to prove Examiner identity
-                },
-                body: JSON.stringify({
-                  testId: selectedTest.id,
-                  legacyKey: selectedTest.dbKey || selectedTest.id,
-                }),
-              });
-
-              if (recRes.ok) {
-                const recData = await recRes.json();
-                if (recData.success) {
-                  if (
-                    Array.isArray(recData.submissions) &&
-                    recData.submissions.length > 0
-                  ) {
-                    fetchedSubs = recData.submissions;
-                  }
-                  if (
-                    (!questions || questions.length === 0) &&
-                    Array.isArray(recData.questions) &&
-                    recData.questions.length > 0
-                  ) {
-                    questions = recData.questions;
-                  }
-                }
-              }
-            } catch (recErr) {
-              console.warn("Legacy recovery fetch error:", recErr);
-            }
-          }
-
-          // 4. Fallback to local selectedTest.submissions if still empty
-          if (fetchedSubs.length === 0 && selectedTest.submissions) {
-            if (Array.isArray(selectedTest.submissions)) {
-              fetchedSubs = selectedTest.submissions
-                .map((sub, idx) =>
-                  sub
-                    ? {
-                        ...sub,
-                        fbKey: sub.fbKey || sub.studentKey || idx.toString(),
-                      }
-                    : null,
-                )
-                .filter(Boolean);
-            } else {
-              fetchedSubs = Object.entries(selectedTest.submissions)
-                .map(([k, v]) => (v ? { ...v, fbKey: k } : null))
-                .filter(Boolean);
-            }
-          }
-
-          setSelectedTest((prev) => ({
-            ...prev,
-            questions: questions,
-            submissions: fetchedSubs,
-            isHeavyLoaded: true,
-          }));
-        } catch (e) {
-          console.error("Critical heavy data fetch error:", e);
-        }
-      };
-      fetchHeavyData();
+    if (typeof window === "undefined") return;
+    if (selectedTest?.id !== prevTestIdRef.current) {
+      prevTestIdRef.current = selectedTest?.id || null;
+      window.scrollTo(0, 0);
     }
   }, [selectedTest?.id]);
+
+  // RESET SUBS PAGINATION & LOADING ON TEST SWITCH
+  useEffect(() => {
+    setSubsVisibleCount(25);
+    setIsSubsLoading(false);
+  }, [selectedTest?.id]);
+
+  // 1. SAFE QUESTIONS FETCHER (Lightweight & On Test Selection)
+  useEffect(() => {
+    if (
+      !selectedTest ||
+      selectedTest.isLocal ||
+      selectedTest.isQuestionsLoaded ||
+      (selectedTest.questions && selectedTest.questions.length > 0)
+    ) {
+      return;
+    }
+
+    let isCancelled = false;
+    const fetchQuestions = async () => {
+      try {
+        let questions = [];
+        try {
+          const qSnap = await get(
+            ref(database, `test_questions/${selectedTest.id}`),
+          );
+          if (qSnap.exists()) {
+            questions = qSnap.val().questions || [];
+          }
+        } catch (e) {
+          console.warn("Could not read test_questions, fallback applied.");
+        }
+
+        if (isCancelled) return;
+        setSelectedTest((prev) => {
+          if (!prev || prev.id !== selectedTest.id) return prev;
+          return {
+            ...prev,
+            questions: questions.length > 0 ? questions : prev.questions || [],
+            isQuestionsLoaded: true,
+          };
+        });
+      } catch (err) {
+        console.error("Critical questions fetch error:", err);
+      }
+    };
+
+    fetchQuestions();
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedTest?.id]);
+
+  // 2. ON-DEMAND SUBMISSIONS FETCHER (Deferred until Subs Tab / Analytics / EditKey / Evaluation)
+  useEffect(() => {
+    if (!selectedTest || selectedTest.isLocal || selectedTest.isSubsLoaded) {
+      return;
+    }
+
+    const needSubmissions =
+      activeTab === "subs" ||
+      modalType === "analytics" ||
+      modalType === "editKey" ||
+      Boolean(evaluateSub);
+
+    if (!needSubmissions) return;
+
+    let isCancelled = false;
+    const fetchSubmissions = async () => {
+      setIsSubsLoading(true);
+      try {
+        let fetchedSubs = [];
+
+        // 1. Fetch Submissions with "Try/Catch" Shield
+        try {
+          const sSnap = await get(
+            ref(database, `test_submissions/${selectedTest.id}`),
+          );
+          if (sSnap.exists() && sSnap.val().submissions) {
+            const subData = sSnap.val().submissions;
+            fetchedSubs = Object.keys(subData)
+              .map((k) => ({ ...subData[k], fbKey: k }))
+              .filter(Boolean);
+          }
+        } catch (err) {
+          console.warn(
+            "Permission denied for test_submissions. Expected for legacy tests.",
+          );
+        }
+
+        // 2. GOD-MODE DATA RECOVERY: If new architecture submissions are empty, recover trapped legacy data!
+        const isLegacyCandidate =
+          !selectedTest.creatorUid || Boolean(selectedTest.dbKey);
+
+        let recoveredQuestions = null;
+        if (fetchedSubs.length === 0 && isLegacyCandidate) {
+          try {
+            const token = auth.currentUser
+              ? await auth.currentUser.getIdToken(true)
+              : "";
+
+            const recRes = await fetch("/api/exam/legacy/recover", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                testId: selectedTest.id,
+                legacyKey: selectedTest.dbKey || selectedTest.id,
+              }),
+            });
+
+            if (recRes.ok) {
+              const recData = await recRes.json();
+              if (recData.success) {
+                if (
+                  Array.isArray(recData.submissions) &&
+                  recData.submissions.length > 0
+                ) {
+                  fetchedSubs = recData.submissions;
+                }
+                if (
+                  Array.isArray(recData.questions) &&
+                  recData.questions.length > 0
+                ) {
+                  recoveredQuestions = recData.questions;
+                }
+              }
+            }
+          } catch (recErr) {
+            console.warn("Legacy recovery fetch error:", recErr);
+          }
+        }
+
+        // 3. Fallback to local selectedTest.submissions if still empty
+        if (fetchedSubs.length === 0 && selectedTest.submissions) {
+          if (Array.isArray(selectedTest.submissions)) {
+            fetchedSubs = selectedTest.submissions
+              .map((sub, idx) =>
+                sub
+                  ? {
+                      ...sub,
+                      fbKey: sub.fbKey || sub.studentKey || idx.toString(),
+                    }
+                  : null,
+              )
+              .filter(Boolean);
+          } else {
+            fetchedSubs = Object.entries(selectedTest.submissions)
+              .map(([k, v]) => (v ? { ...v, fbKey: k } : null))
+              .filter(Boolean);
+          }
+        }
+
+        if (isCancelled) return;
+        setSelectedTest((prev) => {
+          if (!prev || prev.id !== selectedTest.id) return prev;
+          const updated = {
+            ...prev,
+            submissions: fetchedSubs,
+            isSubsLoaded: true,
+            isHeavyLoaded: true,
+          };
+          if (
+            recoveredQuestions &&
+            (!prev.questions || prev.questions.length === 0)
+          ) {
+            updated.questions = recoveredQuestions;
+            updated.isQuestionsLoaded = true;
+          }
+          return updated;
+        });
+      } catch (e) {
+        console.error("Critical heavy data fetch error:", e);
+      } finally {
+        if (!isCancelled) {
+          setIsSubsLoading(false);
+        }
+      }
+    };
+
+    fetchSubmissions();
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    selectedTest?.id,
+    selectedTest?.isSubsLoaded,
+    activeTab,
+    modalType,
+    Boolean(evaluateSub),
+  ]);
 
   // 2. MathJax Auto-Renderer (ULTIMATE BULLETPROOF FIX WITH FADE-IN)
   useEffect(() => {
@@ -682,6 +717,8 @@ export default function ManageTests() {
         delete metaPayload.questions;
         delete metaPayload.submissions;
         delete metaPayload.isHeavyLoaded;
+        delete metaPayload.isSubsLoaded;
+        delete metaPayload.isQuestionsLoaded;
 
         // 🔥 FIX 1: Inject questionCount directly into the main object to avoid Firebase ancestor clash
         if (updatedTest.questions) {
@@ -842,7 +879,7 @@ export default function ManageTests() {
       title: "Move to Trash?",
       msg: `Are you sure you want to remove "${t.title}"? This will hide it from your dashboard, but student results will remain safe.`,
       action: () => {
-        setSelectedTest(null);
+        handleBackToVault();
         const timeoutId = setTimeout(async () => {
           try {
             if (t.isLocal) {
@@ -950,6 +987,14 @@ export default function ManageTests() {
   };
 
   const autoJoinLocalTest = (code) => {
+    if (!code) {
+      setSysAlert({
+        title: "Test Code Missing",
+        msg: "Cannot start demo test without a valid test code.",
+        type: "warning",
+      });
+      return;
+    }
     router.push(`/student?code=${code}`);
   };
 
@@ -1016,96 +1061,450 @@ export default function ManageTests() {
     }
   };
 
-  const printTestPaper = (t) => {
-    let printHtml = `
-      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; color: #000;">
-          <div style="text-align:center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px;">
-              <h1 style="margin:0 0 10px 0; font-size:24px; text-transform:uppercase;">${t.title}</h1>
-              <div style="display:flex; justify-content:space-between; font-size:14px; font-weight:bold;">
-                  <span>Subject: ${t.subject || "General"}</span><span>Time: ${t.duration} Mins</span><span>Max Marks: ${t.totalMarks}</span>
-              </div>
-          </div>
-          <div style="margin-bottom: 25px; display:flex; justify-content:space-between; font-size:15px;">
-              <div><strong>Student Name:</strong> ______________________________</div><div><strong>Roll No:</strong> ______________________</div>
+  const ensureSmilesDrawerLoaded = () => {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") return resolve(null);
+      if (window.SmilesDrawer) return resolve(window.SmilesDrawer);
+
+      // Fast-poll in case a script tag is already in progress
+      let attempts = 0;
+      const poll = setInterval(() => {
+        attempts++;
+        if (window.SmilesDrawer) {
+          clearInterval(poll);
+          return resolve(window.SmilesDrawer);
+        }
+        if (attempts > 50) {
+          clearInterval(poll);
+          resolve(null);
+        }
+      }, 50);
+
+      const existing = document.querySelector('script[src*="smiles-drawer"]');
+      if (existing) {
+        existing.addEventListener("load", () => {
+          clearInterval(poll);
+          resolve(window.SmilesDrawer || null);
+        });
+        existing.addEventListener("error", () => {
+          clearInterval(poll);
+          loadFromCdn();
+        });
+        return;
+      }
+
+      loadFromCdn();
+
+      function loadFromCdn() {
+        const script = document.createElement("script");
+        script.src =
+          "https://cdn.jsdelivr.net/npm/smiles-drawer@1.0.10/dist/smiles-drawer.min.js";
+        script.async = true;
+        script.onload = () => {
+          clearInterval(poll);
+          resolve(window.SmilesDrawer || null);
+        };
+        script.onerror = () => {
+          // Backup fallback to unpkg
+          const script2 = document.createElement("script");
+          script2.src =
+            "https://unpkg.com/smiles-drawer@1.0.10/dist/smiles-drawer.min.js";
+          script2.async = true;
+          script2.onload = () => {
+            clearInterval(poll);
+            resolve(window.SmilesDrawer || null);
+          };
+          script2.onerror = () => {
+            clearInterval(poll);
+            resolve(null);
+          };
+          document.body.appendChild(script2);
+        };
+        document.body.appendChild(script);
+      }
+    });
+  };
+
+  const smilesToDataUrl = (smilesCode, width = 360, height = 240) => {
+    return new Promise((resolve) => {
+      if (!window.SmilesDrawer || !smilesCode) return resolve(null);
+      try {
+        const cleanSmiles = String(smilesCode)
+          .trim()
+          .replace(/^["']|["']$/g, "");
+        if (!cleanSmiles) return resolve(null);
+
+        // Canvas MUST be attached to document.body with fixed offscreen layout,
+        // otherwise clientWidth/clientHeight are 0 and SmilesDrawer calculates NaN scale!
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.style.position = "fixed";
+        canvas.style.left = "-9999px";
+        canvas.style.top = "0";
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        canvas.style.visibility = "hidden";
+        canvas.style.pointerEvents = "none";
+        document.body.appendChild(canvas);
+
+        const cleanup = () => {
+          if (document.body.contains(canvas)) {
+            document.body.removeChild(canvas);
+          }
+        };
+
+        const timer = setTimeout(() => {
+          cleanup();
+          resolve(null);
+        }, 2000);
+
+        const drawer = new window.SmilesDrawer.Drawer({
+          width,
+          height,
+          bondThickness: 1.5,
+          compactDrawing: false,
+        });
+
+        window.SmilesDrawer.parse(
+          cleanSmiles,
+          (tree) => {
+            clearTimeout(timer);
+            try {
+              const ctx = canvas.getContext("2d");
+              if (ctx) {
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, width, height);
+              }
+              drawer.draw(tree, canvas, "light", false);
+              const dataUrl = canvas.toDataURL("image/png");
+              cleanup();
+              if (dataUrl && dataUrl.length > 100) {
+                resolve(dataUrl);
+              } else {
+                resolve(null);
+              }
+            } catch (drawErr) {
+              console.warn("SMILES draw error:", drawErr);
+              cleanup();
+              resolve(null);
+            }
+          },
+          (err) => {
+            clearTimeout(timer);
+            console.warn("SMILES parse error:", err);
+            cleanup();
+            resolve(null);
+          },
+        );
+      } catch (e) {
+        console.warn("SMILES initialization error:", e);
+        resolve(null);
+      }
+    });
+  };
+
+  const printTestPaper = async (t) => {
+    setIsActionLoading(true);
+    let questions = t.questions || [];
+    try {
+      if (questions.length === 0 && !t.isLocal) {
+        try {
+          const qSnap = await get(ref(database, `test_questions/${t.id}`));
+          if (qSnap.exists()) {
+            questions = qSnap.val().questions || [];
+            setSelectedTest((prev) =>
+              prev && prev.id === t.id ? { ...prev, questions } : prev,
+            );
+          }
+        } catch (e) {
+          console.warn("Could not fetch questions for printing:", e);
+        }
+      }
+
+      if (questions.length === 0) {
+        setSysAlert({
+          title: "No Questions",
+          msg: "No questions found to generate test paper.",
+          type: "warning",
+        });
+        return;
+      }
+
+      const isSmilesOpt = (opt) => /^\s*\[smiles\]/i.test(String(opt || ""));
+      const getSmilesOptCode = (opt) =>
+        String(opt || "")
+          .replace(/^\s*\[smiles\]\s*/i, "")
+          .trim()
+          .replace(/^["']|["']$/g, "");
+
+      // 🔬 PRE-RENDER SMILES STRUCTURES TO 100% SYNCHRONOUS DATA-URL IMAGES
+      const hasSmiles = questions.some(
+        (q) =>
+          String(q.figureType || "").trim().toLowerCase() === "smiles" ||
+          (q.options && q.options.some((o) => isSmilesOpt(o))),
+      );
+
+      const smilesMap = new Map();
+      if (hasSmiles) {
+        await ensureSmilesDrawerLoaded();
+        for (const q of questions) {
+          if (
+            String(q.figureType || "").trim().toLowerCase() === "smiles" &&
+            q.figureData
+          ) {
+            const key = String(q.figureData)
+              .trim()
+              .replace(/^["']|["']$/g, "");
+            if (key && !smilesMap.has(key)) {
+              const dataUrl = await smilesToDataUrl(key, 360, 240);
+              if (dataUrl) smilesMap.set(key, dataUrl);
+            }
+          }
+          if (q.options) {
+            for (const opt of q.options) {
+              if (isSmilesOpt(opt)) {
+                const code = getSmilesOptCode(opt);
+                if (code && !smilesMap.has(code)) {
+                  const dataUrl = await smilesToDataUrl(code, 220, 160);
+                  if (dataUrl) smilesMap.set(code, dataUrl);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const secRules = t.sectionRules || {};
+      let printHtml = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 25px; max-width: 820px; margin: 0 auto; color: #1e293b; line-height: 1.5;">
+            <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 20px;">
+                <h1 style="margin: 0 0 8px 0; font-size: 24px; text-transform: uppercase; font-weight: 800; color: #0f172a; letter-spacing: 0.5px;">${t.title}</h1>
+                <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #475569; margin-top: 10px;">
+                    <span><strong>Subject:</strong> ${t.subject || "General"}</span>
+                    <span><strong>Duration:</strong> ${t.duration} Mins</span>
+                    <span><strong>Max Marks:</strong> ${t.totalMarks}</span>
+                </div>
+            </div>
+            <div style="margin-bottom: 24px; display: flex; justify-content: space-between; font-size: 14px; background: #f8fafc; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                <div><strong>Candidate Name:</strong> ____________________________________</div>
+                <div><strong>Roll Number:</strong> ____________________</div>
+            </div>`;
+
+      let currentSection = null;
+
+      questions.forEach((q, i) => {
+        const qSec = q.section || (t.sections && t.sections[0]) || null;
+        if (
+          qSec &&
+          qSec !== currentSection &&
+          t.sections &&
+          t.sections.length > 1
+        ) {
+          currentSection = qSec;
+          const limit = Number(secRules[qSec] || 0);
+          printHtml += `
+            <div style="background: #f1f5f9; padding: 8px 14px; margin: 24px 0 16px 0; border-left: 4px solid #2563eb; font-weight: 800; font-size: 13px; text-transform: uppercase; color: #1e293b; display: flex; justify-content: space-between; align-items: center;">
+              <span>Section: ${qSec}</span>
+              ${limit > 0 ? `<span style="font-size: 11px; font-weight: 600; color: #475569; text-transform: none;">(Attempt any ${limit} questions)</span>` : ""}
+            </div>`;
+        }
+
+        printHtml += `<div style="margin-bottom: 24px; page-break-inside: avoid; border-bottom: 1px dashed #e2e8f0; padding-bottom: 16px;">
+          <div style="font-weight: 700; margin-bottom: 10px; font-size: 14.5px; color: #0f172a; line-height: 1.6;">
+            <span style="display: inline-block; width: 30px;">Q${i + 1}.</span> 
+            <span>${q.text}</span>
+            <span style="float: right; font-weight: 600; font-size: 12px; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 4px;">[${q.marks || 1} Marks]</span>
           </div>`;
 
-    t.questions.forEach((q, i) => {
-      printHtml += `<div style="margin-bottom: 25px; page-break-inside: avoid;">
-        <div style="font-weight:bold; margin-bottom:8px; font-size:15px;">Q${i + 1}. ${q.text} <span style="float:right; font-weight:normal; font-size:13px;">[${q.marks} Marks]</span></div>`;
-      if (q.imgUrl)
-        printHtml += `<img src="${q.imgUrl}" style="max-height:200px; display:block; margin:10px 0; border:1px solid #ccc;">`;
+        // 🖼️ 1. Figures / Images / SVGs / SMILES / TikZ
+        if (q.imgUrl) {
+          printHtml += `<img src="${q.imgUrl}" style="max-height: 200px; max-width: 100%; display: block; margin: 10px auto; border: 1px solid #cbd5e1; border-radius: 4px;">`;
+        } else if (
+          (q.figureType === "image" || q.figureType === "url") &&
+          q.figureData
+        ) {
+          printHtml += `<img src="${q.figureData}" style="max-height: 200px; max-width: 100%; display: block; margin: 10px auto; border: 1px solid #cbd5e1; border-radius: 4px;">`;
+        } else if (q.figureType === "svg" && q.figureData) {
+          printHtml += `<div style="display: flex; justify-content: center; margin: 12px 0; max-width: 100%; overflow: hidden;">${sanitizeSvg(q.figureData)}</div>`;
+        } else if (q.figureType === "tikz" && q.figureData) {
+          const tikzCode = q.figureData.includes("\\begin{tikzpicture}")
+            ? q.figureData
+            : `\\begin{tikzpicture}\n${q.figureData}\n\\end{tikzpicture}`;
+          printHtml += `<img src="https://i.upmath.me/svg/${encodeURIComponent(tikzCode)}" style="max-height: 200px; max-width: 100%; display: block; margin: 10px auto;">`;
+        } else if (
+          String(q.figureType || "").trim().toLowerCase() === "smiles" &&
+          q.figureData
+        ) {
+          const cleanSmiles = String(q.figureData)
+            .trim()
+            .replace(/^["']|["']$/g, "");
+          const preRendered = smilesMap.get(cleanSmiles);
+          if (preRendered) {
+            printHtml += `<div style="text-align: center; margin: 12px 0;"><img src="${preRendered}" alt="Chemical Structure" style="max-height: 200px; max-width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px; background: #fff;"></div>`;
+          } else {
+            printHtml += `<div style="text-align: center; margin: 12px 0;"><canvas data-smiles="${cleanSmiles.replace(/"/g, "&quot;")}" width="260" height="200" style="max-width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;"></canvas></div>`;
+          }
+        }
 
-      if (q.type === "mcq" || q.type === "msq") {
-        q.options.forEach((opt, j) => {
-          printHtml += `<div style="margin-bottom: 6px; margin-left: 25px; font-size:14px;">${String.fromCharCode(65 + j)}) ${opt}</div>`;
-        });
-      } else if (q.type === "integer") {
-        printHtml += `<div style="margin-left:25px; margin-top:10px; font-size:14px;">Answer: ______________________</div>`;
-      } else {
-        printHtml += `<div style="margin-top:10px; height: 120px; border: 1px dotted #999; margin-left:25px;"></div>`;
-      }
-      printHtml += `</div>`;
-    });
-    printHtml += `<div style="text-align:center; margin-top:40px; font-size:12px; color:#666;">Generated by ExamiTop Platform &bull; Secure Proctoring Engine</div></div>`;
+        // 📝 2. Question Options / Input Space
+        if (q.type === "mcq" || q.type === "msq") {
+          printHtml += `<div style="display: grid; grid-template-columns: 1fr; gap: 8px; margin-left: 28px; margin-top: 10px;">`;
+          (q.options || []).forEach((opt, j) => {
+            if (isSmilesOpt(opt)) {
+              const smilesCode = getSmilesOptCode(opt);
+              const preRendered = smilesMap.get(smilesCode);
+              if (preRendered) {
+                printHtml += `
+                  <div style="display: flex; align-items: center; gap: 10px; font-size: 13.5px; margin-bottom: 6px;">
+                    <span style="font-weight: 700; color: #475569; width: 22px;">(${String.fromCharCode(65 + j)})</span>
+                    <img src="${preRendered}" alt="Structure" style="max-height: 120px; max-width: 180px; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px; background: #fff;">
+                  </div>`;
+              } else {
+                printHtml += `
+                  <div style="display: flex; align-items: center; gap: 10px; font-size: 13.5px; margin-bottom: 6px;">
+                    <span style="font-weight: 700; color: #475569; width: 22px;">(${String.fromCharCode(65 + j)})</span>
+                    <canvas data-smiles="${smilesCode.replace(/"/g, "&quot;")}" width="160" height="120" style="border: 1px solid #e2e8f0; border-radius: 4px; background: #fff;"></canvas>
+                  </div>`;
+              }
+            } else {
+              printHtml += `
+                <div style="font-size: 13.5px; color: #334155; line-height: 1.5;">
+                  <span style="font-weight: 700; color: #475569; width: 22px; display: inline-block;">(${String.fromCharCode(65 + j)})</span>
+                  <span>${opt}</span>
+                </div>`;
+            }
+          });
+          printHtml += `</div>`;
+        } else if (q.type === "integer") {
+          printHtml += `<div style="margin-left: 28px; margin-top: 12px; font-size: 13.5px; font-weight: 700; color: #334155;">Answer (Integer): [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ]</div>`;
+        } else {
+          printHtml += `
+            <div style="margin-top: 12px; margin-left: 28px; height: 130px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #fdfdfd; padding: 10px; font-size: 11px; color: #94a3b8;">
+              Answer / Working Space
+            </div>`;
+        }
+        printHtml += `</div>`;
+      });
 
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow.document;
-    doc.open();
+      printHtml += `
+        <div style="text-align: center; margin-top: 35px; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+          Generated by ExamiTop Platform &bull; High Integrity Evaluation Infrastructure
+        </div>
+      </div>`;
 
-    //  FIX 2: BULLETPROOF MATHJAX & IMAGE SYNC ENGINE
-    const mathJaxScript = `
-        <script>
-            window.MathJax = {
-                tex: { 
-                    inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], 
-                    displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] 
-                },
-                startup: {
-                    pageReady: () => {
-                        return MathJax.startup.defaultPageReady().then(() => {
-                            // Math render hone ke baad check karo saari images aayi ya nahi
-                            const images = Array.from(document.images);
-                            Promise.all(images.map(img => {
-                                if (img.complete) return Promise.resolve();
-                                return new Promise(resolve => { img.onload = img.onerror = resolve; });
-                            })).then(() => {
-                                // Ek dum solid render hone ke baad hi print ka popup do
-                                setTimeout(() => { window.print(); }, 500);
-                            });
-                        });
-                    }
-                }
-            };
-        </script>
-        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
-    `;
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.left = "-9999px";
+      iframe.style.top = "0";
+      iframe.style.width = "850px";
+      iframe.style.height = "1100px";
+      iframe.style.border = "0";
+      iframe.style.visibility = "hidden";
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow.document;
+      doc.open();
 
-    doc.write(
-      "<html><head><title>Print: " +
-        t.title +
-        "</title>" +
-        mathJaxScript +
-        "</head><body>" +
-        printHtml +
-        "</body></html>",
-    );
-    doc.close();
+      const mathJaxScript = `
+          <script>
+              window.MathJax = {
+                  tex: { 
+                      inlineMath: [['$', '$'], ['\\\\(', '\\\\)']], 
+                      displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']] 
+                  },
+                  startup: {
+                      pageReady: () => {
+                          return MathJax.startup.defaultPageReady().then(() => {
+                              const renderCanvases = () => {
+                                  const canvases = Array.from(document.querySelectorAll('canvas[data-smiles]'));
+                                  if (canvases.length === 0) return Promise.resolve();
+                                  
+                                  const waitForSmiles = () => {
+                                      return new Promise(res => {
+                                          if (window.SmilesDrawer) return res();
+                                          let tries = 0;
+                                          const interval = setInterval(() => {
+                                              tries++;
+                                              if (window.SmilesDrawer || tries > 40) {
+                                                  clearInterval(interval);
+                                                  res();
+                                              }
+                                          }, 50);
+                                      });
+                                  };
 
-    iframe.contentWindow.onafterprint = () => {
+                                  return waitForSmiles().then(() => {
+                                      if (!window.SmilesDrawer) return Promise.resolve();
+                                      return Promise.all(canvases.map(canvas => {
+                                          return new Promise(res => {
+                                              try {
+                                                  const smiles = canvas.getAttribute('data-smiles');
+                                                  if (!smiles) return res();
+                                                  const w = Number(canvas.getAttribute('width')) || 260;
+                                                  const h = Number(canvas.getAttribute('height')) || 200;
+                                                  const ctx = canvas.getContext('2d');
+                                                  if (ctx) {
+                                                      ctx.fillStyle = '#ffffff';
+                                                      ctx.fillRect(0, 0, w, h);
+                                                  }
+                                                  const drawer = new window.SmilesDrawer.Drawer({ width: w, height: h, bondThickness: 1.5 });
+                                                  window.SmilesDrawer.parse(smiles.trim(), function(tree) {
+                                                      drawer.draw(tree, canvas, 'light', false);
+                                                      res();
+                                                  }, function() { res(); });
+                                              } catch(e) { res(); }
+                                          });
+                                      }));
+                                  });
+                              };
+
+                              return renderCanvases().then(() => {
+                                  const images = Array.from(document.images);
+                                  return Promise.all(images.map(img => {
+                                      if (img.complete) return Promise.resolve();
+                                      return new Promise(resolve => { img.onload = img.onerror = resolve; });
+                                  }));
+                              }).then(() => {
+                                  setTimeout(() => { window.print(); }, 500);
+                              });
+                          });
+                      }
+                  }
+              };
+          </script>
+          <script src="https://cdn.jsdelivr.net/npm/smiles-drawer@1.0.10/dist/smiles-drawer.min.js"></script>
+          <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+      `;
+
+      doc.write(
+        "<html><head><title>Print: " +
+          (t.title || "Exam Paper") +
+          "</title>" +
+          mathJaxScript +
+          "</head><body>" +
+          printHtml +
+          "</body></html>",
+      );
+      doc.close();
+
+      iframe.contentWindow.onafterprint = () => {
+        setTimeout(() => {
+          if (document.body.contains(iframe)) document.body.removeChild(iframe);
+        }, 1000);
+      };
       setTimeout(() => {
         if (document.body.contains(iframe)) document.body.removeChild(iframe);
-      }, 1000);
-    };
-    setTimeout(() => {
-      if (document.body.contains(iframe)) document.body.removeChild(iframe);
-    }, 120000);
+      }, 120000);
+    } catch (err) {
+      console.error("Print paper error:", err);
+      setSysAlert({
+        title: "Print Error",
+        msg: "Failed to generate print document: " + (err.message || err),
+        type: "error",
+      });
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   const openEditKey = () => {
@@ -1199,6 +1598,7 @@ export default function ManageTests() {
 
     if (updatedTest.submissions && updatedTest.submissions.length > 0) {
       const neg = Math.abs(Number(updatedTest.negMarking || 0));
+      const secRules = updatedTest.sectionRules || {};
 
       // 🔥 FIX: Deep Copy to prevent Phantom UI Bug
       let safeSubmissions = Array.isArray(updatedTest.submissions)
@@ -1206,105 +1606,144 @@ export default function ManageTests() {
         : Object.values(updatedTest.submissions);
 
       safeSubmissions = safeSubmissions.map((originalSub) => {
-        let sub = {
-          ...originalSub,
-          details: originalSub.details.map((d) => ({
-            ...d,
-            q: tempQuestions[originalSub.details.indexOf(d)],
-          })),
-        };
-        let newScore = 0,
-          newCorrect = 0,
-          newWrong = 0,
-          newSkipped = 0;
+        const secAttemptCounts = {};
+        let newScore = 0;
+        let newCorrect = 0;
+        let newWrong = 0;
+        let newSkipped = 0;
 
-        sub.details.forEach((d, i) => {
-          let q = tempQuestions[i];
-          let ans = d.ans;
-          let hasVal =
-            ans.val !== null && (!Array.isArray(ans.val) || ans.val.length > 0);
+        const updatedDetails = (originalSub.details || []).map((d, i) => {
+          const qIdx = d.q?.index !== undefined ? d.q.index : i;
+          const q = tempQuestions[qIdx] || tempQuestions[i] || d.q;
+          const ans = d.ans || {};
+          const hasVal =
+            ans.val !== null &&
+            ans.val !== undefined &&
+            (!Array.isArray(ans.val) || ans.val.length > 0);
 
+          const qSec =
+            q.section ||
+            (updatedTest.sections && updatedTest.sections[0]) ||
+            "General";
+          const secLimit = Number(secRules[qSec] || 0);
+
+          // 1. If not attempted / skipped
           if (!hasVal) {
-            if (d.status === "evaluated") {
-              newScore += d.earned || 0;
-              newSkipped++;
-            } else {
-              d.status = "skipped";
-              d.earned = 0;
-              newSkipped++;
-            }
-          } else if (q.type === "mcq") {
-            // 🔥 STRICT STRING COMPARISON FIX
-            if (String(ans.val) === String(q.correct[0])) {
-              newCorrect++;
-              d.earned = q.marks;
-              newScore += q.marks;
-              d.status = "correct";
-            } else {
-              newWrong++;
-              d.earned = -neg;
-              newScore -= neg;
-              d.status = "wrong";
-            }
-          } else if (q.type === "msq") {
-            let userSel = Array.isArray(ans.val) ? ans.val : [];
-            let corrSel = q.correct || [];
-            let hasWrongOption = userSel.some((x) => !corrSel.includes(x));
-            let correctlySelected = userSel.filter((x) =>
-              corrSel.includes(x),
-            ).length;
-            if (hasWrongOption) {
-              newWrong++;
-              d.earned = -neg;
-              newScore -= neg;
-              d.status = "wrong";
-            } else if (correctlySelected === corrSel.length) {
-              newCorrect++;
-              d.earned = q.marks;
-              newScore += q.marks;
-              d.status = "correct";
-            } else if (correctlySelected > 0) {
-              let partialMarks = (q.marks / corrSel.length) * correctlySelected;
-              let earned = Math.round(partialMarks * 100) / 100;
-              newScore += earned;
-              newCorrect++;
-              d.status = "partial";
-            } else {
-              newWrong++;
-              d.earned = -neg;
-              newScore -= neg;
-              d.status = "wrong";
-            }
-          } else if (q.type === "integer") {
-            if (String(ans.val) === String(q.correctInt)) {
-              newCorrect++;
-              d.earned = q.marks;
-              newScore += q.marks;
-              d.status = "correct";
-            } else {
-              newWrong++;
-              d.earned = -neg;
-              newScore -= neg;
-              d.status = "wrong";
-            }
-          } else {
-            if (d.status === "evaluated") {
-              newScore += d.earned || 0;
-              if (d.earned > 0) newCorrect++;
+            if (d.status === "evaluated" || d.isManual) {
+              newScore += Number(d.earned || 0);
+              if (Number(d.earned || 0) > 0) newCorrect++;
               else newSkipped++;
-            } else {
-              d.status = "submitted";
-              d.earned = 0;
+              return { ...d, q };
+            }
+            newSkipped++;
+            return { ...d, q, status: "skipped", earned: 0 };
+          }
+
+          // 2. Optional question limit enforcement (Step 3 Core Fix)
+          if (secLimit > 0) {
+            secAttemptCounts[qSec] = (secAttemptCounts[qSec] || 0) + 1;
+            if (secAttemptCounts[qSec] > secLimit) {
               newSkipped++;
+              return { ...d, q, status: "extra_optional_ignored", earned: 0 };
             }
           }
+
+          // 3. Preserve subjective manual evaluation
+          if (
+            q.type === "subjective" &&
+            (d.isManual || d.status === "evaluated")
+          ) {
+            newScore += Number(d.earned || 0);
+            if (Number(d.earned || 0) > 0) newCorrect++;
+            else newSkipped++;
+            return { ...d, q };
+          }
+
+          // 4. Objective Re-grading
+          let status = "wrong";
+          let earned = -neg;
+
+          if (q.type === "mcq") {
+            const correctChoice = Array.isArray(q.correct)
+              ? q.correct[0]
+              : q.correct;
+            if (String(ans.val).trim() === String(correctChoice).trim()) {
+              status = "correct";
+              earned = Number(q.marks || 0);
+              newCorrect++;
+            } else {
+              status = "wrong";
+              earned = -neg;
+              newWrong++;
+            }
+          } else if (q.type === "msq") {
+            const userSel = Array.isArray(ans.val)
+              ? ans.val.map(String)
+              : [String(ans.val)];
+            const corrSel = Array.isArray(q.correct)
+              ? q.correct.map(String)
+              : [];
+            const hasWrong = userSel.some((x) => !corrSel.includes(x));
+            const correctlySelected = userSel.filter((x) =>
+              corrSel.includes(x),
+            ).length;
+
+            if (hasWrong) {
+              status = "wrong";
+              earned = -neg;
+              newWrong++;
+            } else if (
+              correctlySelected === corrSel.length &&
+              corrSel.length > 0
+            ) {
+              status = "correct";
+              earned = Number(q.marks || 0);
+              newCorrect++;
+            } else if (correctlySelected > 0 && corrSel.length > 0) {
+              const partial =
+                (Number(q.marks || 0) / corrSel.length) * correctlySelected;
+              earned = Math.round(partial * 100) / 100;
+              status = "partial";
+              newCorrect++;
+            } else {
+              status = "wrong";
+              earned = -neg;
+              newWrong++;
+            }
+          } else if (q.type === "integer") {
+            const userInt = String(ans.val).trim();
+            const correctInt = String(q.correctInt ?? q.correct ?? "").trim();
+            if (userInt !== "" && userInt === correctInt) {
+              status = "correct";
+              earned = Number(q.marks || 0);
+              newCorrect++;
+            } else {
+              status = "wrong";
+              earned = -neg;
+              newWrong++;
+            }
+          } else {
+            status = "submitted";
+            earned = 0;
+            newSkipped++;
+          }
+
+          newScore += earned;
+          return { ...d, q, status, earned };
         });
-        sub.score = Number(newScore.toFixed(2));
-        sub.correct = newCorrect;
-        sub.wrong = newWrong;
-        sub.skipped = newSkipped;
-        return sub;
+
+        const finalScore = Number(newScore.toFixed(2));
+        return {
+          ...originalSub,
+          details: updatedDetails,
+          score: finalScore,
+          correct: newCorrect,
+          wrong: newWrong,
+          skipped: newSkipped,
+          evaluated: true,
+        };
       });
+
       updatedTest.submissions = safeSubmissions;
     }
 
@@ -1350,6 +1789,18 @@ export default function ManageTests() {
       }
 
       await updateTestGlobal(updatedTest);
+
+      // 🔥 Real-time sync for active evaluation view
+      if (evaluateSub && updatedTest.submissions) {
+        setEvaluateSub((prev) => {
+          if (!prev) return null;
+          const targetSub = updatedTest.submissions[prev.sIdx];
+          return targetSub
+            ? { ...prev, test: updatedTest, sub: targetSub }
+            : prev;
+        });
+      }
+
       setModalType(null);
       setSysAlert({
         title: "Answer Key Updated",
@@ -1792,9 +2243,13 @@ export default function ManageTests() {
             <button
               className="flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors active:scale-95"
               onClick={() => {
+                try {
+                  sessionStorage.removeItem("examitop_evalSubIdx");
+                } catch (e) {}
                 setEvaluateSub(null);
                 setEvalOverrides({});
                 setEvalSectionFilter("all_sections");
+                if (typeof window !== "undefined") window.scrollTo(0, 0);
               }}
             >
               <i className="ti ti-arrow-left text-lg"></i>{" "}
@@ -1949,13 +2404,19 @@ export default function ManageTests() {
                         (s) => (secStats[s] = { earned: 0, total: 0 }),
                       );
 
-                    evaluateSub.sub.details.forEach((d) => {
+                    evaluateSub.sub.details.forEach((d, idx) => {
+                      const qIdx = d.q?.index !== undefined ? d.q.index : idx;
+                      const masterQ = evaluateSub.test.questions?.[qIdx];
                       const sec =
-                        d.q.section || sectionsList[0] || "General Paper";
+                        masterQ?.section ||
+                        d.q?.section ||
+                        sectionsList[0] ||
+                        "General Paper";
                       if (!secStats[sec])
                         secStats[sec] = { earned: 0, total: 0 };
-                      secStats[sec].total += d.q.marks;
-                      secStats[sec].earned += d.earned || 0;
+                      const qMarks = Number(masterQ?.marks || d.q?.marks || 0);
+                      secStats[sec].total += qMarks;
+                      secStats[sec].earned += Number(d.earned || 0);
                     });
 
                     return Object.keys(secStats).map((sec, idx) => {
@@ -2058,17 +2519,29 @@ export default function ManageTests() {
                           if (evaluateSub.sub.timeSpentPerQuestion) {
                             let totalSecs = 0;
                             evaluateSub.sub.details.forEach((dt, idx) => {
-                              const sec = dt.q.section || "General";
+                              const qIdx =
+                                dt.q?.index !== undefined ? dt.q.index : idx;
+                              const masterQ =
+                                evaluateSub.test.questions?.[qIdx];
+                              const sec =
+                                masterQ?.section ||
+                                dt.q?.section ||
+                                evaluateSub.test.sections?.[0] ||
+                                "General";
                               if (
                                 evalSectionFilter === "all_sections" ||
-                                sec === evalSectionFilter ||
-                                (!dt.q.section &&
-                                  evalSectionFilter ===
-                                    evaluateSub.test.sections?.[0])
+                                sec === evalSectionFilter
                               ) {
                                 totalSecs +=
-                                  evaluateSub.sub.timeSpentPerQuestion[idx] ||
-                                  0;
+                                  evaluateSub.sub.timeSpentPerQuestion[
+                                    qIdx
+                                  ] !== undefined
+                                    ? evaluateSub.sub.timeSpentPerQuestion[
+                                        qIdx
+                                      ]
+                                    : evaluateSub.sub.timeSpentPerQuestion[
+                                        idx
+                                      ] || 0;
                               }
                             });
                             if (totalSecs > 0)
@@ -2175,11 +2648,19 @@ export default function ManageTests() {
 
                 {(() => {
                   const secDetails = evaluateSub.sub.details.filter(
-                    (d) =>
-                      evalSectionFilter === "all_sections" ||
-                      d.q.section === evalSectionFilter ||
-                      (!d.q.section &&
-                        evalSectionFilter === evaluateSub.test.sections?.[0]),
+                    (d, idx) => {
+                      const qIdx = d.q?.index !== undefined ? d.q.index : idx;
+                      const masterQ = evaluateSub.test.questions?.[qIdx];
+                      const sec =
+                        masterQ?.section ||
+                        d.q?.section ||
+                        evaluateSub.test.sections?.[0] ||
+                        "General";
+                      return (
+                        evalSectionFilter === "all_sections" ||
+                        sec === evalSectionFilter
+                      );
+                    },
                   );
                   const countAll = secDetails.length;
                   const countCorrect = secDetails.filter(
@@ -2192,17 +2673,15 @@ export default function ManageTests() {
                     (d) =>
                       d.status === "skipped" ||
                       d.status === "submitted" ||
-                      d.status === "evaluated",
+                      d.status === "evaluated" ||
+                      d.status === "extra_optional_ignored",
                   ).length;
 
                   return (
                     <div className="inline-flex bg-slate-100/80 p-1.5 rounded-xl overflow-x-auto scrollbar-hide -webkit-overflow-scrolling-touch border border-slate-200/60 w-full md:w-auto">
                       <button
                         className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${evalFilter === "all" ? "bg-white text-blue-700 shadow-sm ring-1 ring-black/5" : "text-slate-500 hover:text-slate-800"}`}
-                        onClick={() => {
-                          changeEvalStatus("all");
-                          setTimeout(() => setIsEvalMathReady(true), 500);
-                        }}
+                        onClick={() => changeEvalStatus("all")}
                       >
                         All{" "}
                         <span
@@ -2214,10 +2693,7 @@ export default function ManageTests() {
 
                       <button
                         className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${evalFilter === "correct" ? "bg-white text-emerald-700 shadow-sm ring-1 ring-black/5" : "text-slate-500 hover:text-slate-800"}`}
-                        onClick={() => {
-                          changeEvalStatus("correct");
-                          setTimeout(() => setIsEvalMathReady(true), 500);
-                        }}
+                        onClick={() => changeEvalStatus("correct")}
                       >
                         Correct{" "}
                         <span
@@ -2229,10 +2705,7 @@ export default function ManageTests() {
 
                       <button
                         className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${evalFilter === "wrong" ? "bg-white text-rose-700 shadow-sm ring-1 ring-black/5" : "text-slate-500 hover:text-slate-800"}`}
-                        onClick={() => {
-                          changeEvalStatus("wrong");
-                          setTimeout(() => setIsEvalMathReady(true), 500);
-                        }}
+                        onClick={() => changeEvalStatus("wrong")}
                       >
                         Wrong{" "}
                         <span
@@ -2244,10 +2717,7 @@ export default function ManageTests() {
 
                       <button
                         className={`flex-shrink-0 flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${evalFilter === "skipped" ? "bg-white text-slate-800 shadow-sm ring-1 ring-black/5" : "text-slate-500 hover:text-slate-800"}`}
-                        onClick={() => {
-                          changeEvalStatus("skipped");
-                          setTimeout(() => setIsEvalMathReady(true), 500);
-                        }}
+                        onClick={() => changeEvalStatus("skipped")}
                       >
                         Pending{" "}
                         <span
@@ -2267,10 +2737,7 @@ export default function ManageTests() {
                   <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -webkit-overflow-scrolling-touch">
                     <button
                       className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-all duration-200 border ${evalSectionFilter === "all_sections" ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"}`}
-                      onClick={() => {
-                        changeEvalSection("all_sections");
-                        setTimeout(() => setIsEvalMathReady(true), 500);
-                      }}
+                      onClick={() => changeEvalSection("all_sections")}
                     >
                       All Sections
                     </button>
@@ -2278,10 +2745,7 @@ export default function ManageTests() {
                       <button
                         key={idx}
                         className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-bold transition-all duration-200 border ${evalSectionFilter === sec ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"}`}
-                        onClick={() => {
-                          changeEvalSection(sec);
-                          setTimeout(() => setIsEvalMathReady(true), 500);
-                        }}
+                        onClick={() => changeEvalSection(sec)}
                       >
                         {sec}
                       </button>
@@ -2294,9 +2758,9 @@ export default function ManageTests() {
           {/*   PREMIUM QUESTION REVIEW CARDS (Examiner Mode - Split Grid)   */}
           <div
             style={{
-              opacity: isEvalMathReady ? 1 : 0.05,
-              transition: "opacity 0.2s ease-in",
               minHeight: "50vh",
+              opacity: isEvalMathReady ? 1 : 0.85,
+              transition: "opacity 0.15s ease-out",
             }}
             className="flex flex-col gap-6"
           >
@@ -2304,26 +2768,41 @@ export default function ManageTests() {
             <style>{`.svg-eval-container svg { max-width: 100%; height: auto; max-height: 280px; min-height: 100px; }`}</style>
 
             {evaluateSub.sub.details
-              .filter((d) => {
+              .filter((d, index) => {
+                const qIdx = d.q?.index !== undefined ? d.q.index : index;
+                const masterQ = evaluateSub.test.questions?.[qIdx];
+                const sec =
+                  masterQ?.section ||
+                  d.q?.section ||
+                  evaluateSub.test.sections?.[0] ||
+                  "General";
+                let secMatch =
+                  evalSectionFilter === "all_sections" ||
+                  sec === evalSectionFilter;
                 let sMatch =
                   evalFilter === "all" ||
                   d.status === evalFilter ||
                   (evalFilter === "skipped" &&
-                    (d.status === "submitted" || d.status === "evaluated"));
-                let secMatch =
-                  evalSectionFilter === "all_sections" ||
-                  d.q.section === evalSectionFilter ||
-                  (!d.q.section &&
-                    evalSectionFilter === evaluateSub.test.sections?.[0]);
+                    (d.status === "submitted" ||
+                      d.status === "evaluated" ||
+                      d.status === "extra_optional_ignored"));
                 return sMatch && secMatch;
               })
               .map((d, index) => {
-                const originalQIdx = evaluateSub.sub.details.indexOf(d);
+                const originalQIdx =
+                  d.q?.index !== undefined
+                    ? d.q.index
+                    : evaluateSub.sub.details.indexOf(d);
 
                 // 🛡️ ARCHITECTURE FIX: Fetch full question with options from the master test array!
                 const masterQ =
-                  evaluateSub.test.questions?.[d.q?.index ?? originalQIdx];
+                  evaluateSub.test.questions?.[originalQIdx];
                 const q = masterQ || d.q;
+                const qSec =
+                  masterQ?.section ||
+                  d.q?.section ||
+                  evaluateSub.test.sections?.[0] ||
+                  null;
 
                 const ans = d.ans;
 
@@ -2362,6 +2841,13 @@ export default function ManageTests() {
                     text: "text-indigo-800",
                     icon: "ti-file-search",
                     header: "bg-indigo-100/50",
+                  },
+                  extra_optional_ignored: {
+                    bg: "bg-slate-50",
+                    border: "border-slate-300",
+                    text: "text-slate-600",
+                    icon: "ti-ban",
+                    header: "bg-slate-100/60",
                   },
                   skipped: {
                     bg: "bg-slate-50",
@@ -2402,6 +2888,25 @@ export default function ManageTests() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                        {qSec && (
+                          <span
+                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-sm flex items-center gap-1.5"
+                            title={`Section: ${qSec}`}
+                          >
+                            <i className="ti ti-folder text-purple-500 text-xs"></i>{" "}
+                            {qSec}
+                          </span>
+                        )}
+                        {d.status === "extra_optional_ignored" && (
+                          <span
+                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 shadow-sm flex items-center gap-1.5"
+                            title="Question was skipped/ignored because section attempt limit was reached"
+                          >
+                            <i className="ti ti-info-circle text-amber-600 text-xs"></i>{" "}
+                            Optional (Ignored)
+                          </span>
+                        )}
+
                         {/*  NAYA: INDIVIDUAL QUESTION TIME BADGE  */}
                         <span
                           className="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-white border border-slate-200 text-slate-600 shadow-sm flex items-center gap-1.5"
@@ -2849,7 +3354,7 @@ export default function ManageTests() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
             <button
               className="flex w-fit items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors active:scale-95 text-sm"
-              onClick={() => setSelectedTest(null)}
+              onClick={handleBackToVault}
             >
               <i className="ti ti-arrow-left text-lg"></i> Back
             </button>
@@ -2869,9 +3374,11 @@ export default function ManageTests() {
                 <span
                   className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${activeTab === "subs" ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-500"}`}
                 >
-                  {selectedTest.submissions
-                    ? selectedTest.submissions.length
-                    : 0}
+                  {selectedTest.submissionCount !== undefined
+                    ? selectedTest.submissionCount
+                    : selectedTest.submissions
+                      ? selectedTest.submissions.length
+                      : 0}
                 </span>
               </button>
             </div>
@@ -3344,6 +3851,20 @@ export default function ManageTests() {
                 : Object.values(rawSubs || {}).filter(Boolean);
 
               // Prevent SSR mismatched arrays
+              if (isSubsLoading && safeSubmissions.length === 0) {
+                return (
+                  <div className="text-center py-16 px-4 bg-white rounded-2xl border border-slate-200 shadow-sm mt-6">
+                    <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+                    <h4 className="text-[17px] font-black text-slate-800 mb-1">
+                      Loading Submissions Ledger...
+                    </h4>
+                    <p className="text-xs text-slate-500 font-semibold max-w-sm mx-auto">
+                      Fetching student responses and evaluation records securely.
+                    </p>
+                  </div>
+                );
+              }
+
               if (safeSubmissions.length === 0)
                 return (
                   <div className="text-center py-12 px-4 bg-white rounded-xl border border-slate-100 shadow-sm mt-8">
@@ -3380,7 +3901,9 @@ export default function ManageTests() {
                         <i className="ti ti-users-group text-blue-600 text-xl"></i>
                         Submissions Ledger
                         <span className="bg-blue-100 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-bold ml-1 border border-blue-200">
-                          {safeSubmissions.length}
+                          {selectedTest.submissionCount !== undefined
+                            ? selectedTest.submissionCount
+                            : safeSubmissions.length}
                         </span>
                       </h3>
                     </div>
@@ -3393,7 +3916,10 @@ export default function ManageTests() {
                           type="text"
                           placeholder="Search by Name or Roll No..."
                           value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
+                          onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            setSubsVisibleCount(25);
+                          }}
                           className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm"
                         />
                       </div>
@@ -3440,7 +3966,7 @@ export default function ManageTests() {
                     ) : (
                       /* Scrollable Submissions List */
                       <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1 sm:pr-2">
-                        {filteredSubs.map((s, mapIdx) => {
+                        {filteredSubs.slice(0, subsVisibleCount).map((s, mapIdx) => {
                           const trueIdx = safeSubmissions.indexOf(s);
                           const targetIdx = trueIdx !== -1 ? trueIdx : mapIdx;
 
@@ -3550,6 +4076,7 @@ export default function ManageTests() {
                                   <button
                                     className="px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white font-bold text-[13px] sm:text-sm rounded-xl shadow-md shadow-blue-600/20 hover:bg-blue-700 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center gap-1.5"
                                     onClick={() => {
+                                      if (typeof window !== "undefined") window.scrollTo(0, 0);
                                       setEvaluateSub({
                                         sub: s,
                                         test: selectedTest,
@@ -3607,6 +4134,23 @@ export default function ManageTests() {
                             </div>
                           );
                         })}
+
+                        {filteredSubs.length > subsVisibleCount && (
+                          <div className="pt-2 pb-1 text-center">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSubsVisibleCount((prev) => prev + 25)
+                              }
+                              className="px-6 py-2.5 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 hover:border-blue-400 inline-flex items-center gap-2"
+                            >
+                              <i className="ti ti-chevron-down text-sm"></i>
+                              Load More Submissions (Showing{" "}
+                              {Math.min(subsVisibleCount, filteredSubs.length)}{" "}
+                              of {filteredSubs.length})
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -4173,6 +4717,17 @@ export default function ManageTests() {
                     : Object.values(selectedTest.submissions || {}).filter(
                         Boolean,
                       );
+
+                  if (isSubsLoading && safeSubmissions.length === 0) {
+                    return (
+                      <div className="text-center py-12">
+                        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3"></div>
+                        <p className="text-sm font-bold text-slate-600">
+                          Loading student analytics...
+                        </p>
+                      </div>
+                    );
+                  }
 
                   if (safeSubmissions.length === 0)
                     return (

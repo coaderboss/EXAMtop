@@ -1,6 +1,6 @@
 // src/app/student/page.js
 "use client";
-import { useState, useEffect, useRef, memo, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, memo, Suspense } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useData } from "../../context/DataContext";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -95,6 +95,34 @@ function StudentPortalContent() {
   // 🛡️ TRUE SERVER TIME (Google Atomic Clock Sync - Prevents Local Machine Clock Tampering)
   const getTrueNow = () => Date.now() + (serverOffsetRef.current || 0);
 
+  // Maximum allowed questions based on section rules (Defined at component top to follow Rules of Hooks)
+  const maxAllowedQuestions = useMemo(() => {
+    if (!activeTest?.questions) return 0;
+    if (
+      !activeTest?.sectionRules ||
+      Object.keys(activeTest.sectionRules).length === 0
+    ) {
+      return activeTest.questions.length;
+    }
+    const secs =
+      activeTest.sections && activeTest.sections.length > 0
+        ? activeTest.sections
+        : [activeTest.questions[0]?.section || "General"];
+    let total = 0;
+    secs.forEach((sec) => {
+      const secQs = activeTest.questions.filter(
+        (q) => (q.section || secs[0]) === sec,
+      ).length;
+      const limit = Number(activeTest.sectionRules[sec]);
+      if (limit > 0 && limit < secQs) {
+        total += limit;
+      } else {
+        total += secQs;
+      }
+    });
+    return total;
+  }, [activeTest]);
+
   useEffect(() => {
     setIsMounted(true);
     const offsetRef = ref(database, ".info/serverTimeOffset");
@@ -114,10 +142,11 @@ function StudentPortalContent() {
     }
   }, [currentUser]);
 
-  //   THE AUTO-JOIN SENSOR (SMART TOKEN DECODER)
+  //   THE AUTO-JOIN SENSOR (SMART TOKEN DECODER & URL CODE LISTENER)
   useEffect(() => {
     if (isMounted && !authLoading && searchParams) {
       const secretToken = searchParams.get("token");
+      const urlCode = searchParams.get("code");
 
       if (secretToken && !autoJoinTriggered.current) {
         try {
@@ -125,7 +154,7 @@ function StudentPortalContent() {
           const decoded = atob(secretToken);
 
           if (decoded.includes("-EXAMITOP-AUTO")) {
-            const urlCode = decoded.split("-")[0]; // Asli code bahar nikalo
+            const rawCode = decoded.split("-")[0]; // Asli code bahar nikalo
             autoJoinTriggered.current = true;
             setIsDirectJoin(true); // ENGINE KO BATA DIYA KI YE DIRECT AAYA HAI
 
@@ -133,16 +162,32 @@ function StudentPortalContent() {
             const immediateRoll =
               currentUser?.rollNo || currentUser?.examinerId || roll;
 
-            setCode(urlCode);
+            setCode(rawCode);
 
             // URL se token hata do taaki refresh pe trigger na ho
             window.history.replaceState({}, document.title, "/student");
 
             // Trigger Main Join Function (with isAutoJoin = true)
-            handleJoinTest(urlCode, immediateName, immediateRoll, true);
+            handleJoinTest(rawCode, immediateName, immediateRoll, true);
           }
         } catch (e) {
           console.error("Invalid Security Token");
+        }
+      } else if (urlCode && !autoJoinTriggered.current) {
+        const cleanCode = urlCode.trim().toUpperCase();
+        setCode(cleanCode);
+        if (currentUser) {
+          autoJoinTriggered.current = true;
+          setIsDirectJoin(true);
+          const immediateName =
+            currentUser?.displayName ||
+            currentUser?.email?.split("@")[0] ||
+            name ||
+            "Demo Examiner";
+          const immediateRoll =
+            currentUser?.rollNo || currentUser?.examinerId || roll || "DEMO";
+          window.history.replaceState({}, document.title, "/student");
+          handleJoinTest(cleanCode, immediateName, immediateRoll, true);
         }
       }
     }
@@ -711,7 +756,11 @@ function StudentPortalContent() {
         });
       }
 
-      if (existingSub) {
+      const isCreator = Boolean(
+        currentUser?.uid && t.creatorUid === currentUser.uid,
+      );
+
+      if (existingSub && !isCreator) {
         const msg =
           "You have already submitted this exam. Multiple attempts are not allowed.";
         if (isAutoJoin) setSysModal({ type: "error", msg });
@@ -745,7 +794,7 @@ function StudentPortalContent() {
         );
 
         // Agar student LIVE hai, aur uske paas local draft nahi hai (yani wo naye device ya incognito tab se aaya hai)
-        if (isAlreadyLive && !draftStr) {
+        if (isAlreadyLive && !draftStr && !isCreator) {
           const msg =
             "Multiple Device Detected: You are already active in this exam on another device or tab.";
           if (isAutoJoin) setSysModal({ type: "error", msg });
@@ -757,7 +806,7 @@ function StudentPortalContent() {
 
       // 🛡️ THE BULLETPROOF TIER BOUNCER LOGIC
       const creatorUid = t.creatorUid;
-      if (creatorUid) {
+      if (creatorUid && !isCreator) {
         try {
           const creatorSnap = await get(ref(database, `users/${creatorUid}`));
           if (creatorSnap.exists()) {
@@ -1043,7 +1092,53 @@ function StudentPortalContent() {
   };
 
   // --- QUESTION SELECTION ---
+  const canAttemptQuestion = (qIndex) => {
+    if (!activeTest?.sectionRules || !activeTest?.questions) return true;
+    const q = activeTest.questions[qIndex];
+    if (!q) return true;
+    const sec = q.section || (activeTest.sections && activeTest.sections[0]);
+    if (!sec) return true;
+    const limit = Number(activeTest.sectionRules[sec]);
+    if (!limit || limit <= 0) return true;
+
+    // Check if current question is already answered (modifications/re-selection allowed)
+    const curVal = answers[qIndex]?.val;
+    const isAnsweredAlready =
+      curVal !== null &&
+      curVal !== undefined &&
+      curVal !== "" &&
+      (!Array.isArray(curVal) || curVal.length > 0);
+    if (isAnsweredAlready) return true;
+
+    // Count answered questions in this section
+    let answeredCount = 0;
+    activeTest.questions.forEach((qq, idx) => {
+      const qSec = qq.section || (activeTest.sections && activeTest.sections[0]);
+      if (qSec === sec) {
+        const val = answers[idx]?.val;
+        if (
+          val !== null &&
+          val !== undefined &&
+          val !== "" &&
+          (!Array.isArray(val) || val.length > 0)
+        ) {
+          answeredCount++;
+        }
+      }
+    });
+
+    if (answeredCount >= limit) {
+      setSysModal({
+        type: "warning",
+        msg: `Section Limit Reached: You have already attempted ${limit} out of ${limit} allowed questions in "${sec}". Please clear an existing response in this section before attempting this question.`,
+      });
+      return false;
+    }
+    return true;
+  };
+
   const pickMCQ = (qIndex, optIndex) => {
+    if (!canAttemptQuestion(qIndex)) return;
     let newAns = [...answers];
     newAns[qIndex].val = optIndex;
     setAnswers(newAns);
@@ -1055,18 +1150,23 @@ function StudentPortalContent() {
       : [];
     if (currentVal.includes(optIndex)) {
       currentVal = currentVal.filter((v) => v !== optIndex);
+      newAns[qIndex].val = currentVal.length > 0 ? currentVal : null;
+      setAnswers(newAns);
     } else {
+      if (!canAttemptQuestion(qIndex)) return;
       currentVal.push(optIndex);
+      newAns[qIndex].val = currentVal;
+      setAnswers(newAns);
     }
-    newAns[qIndex].val = currentVal;
-    setAnswers(newAns);
   };
   const pickInt = (qIndex, val) => {
+    if (val !== "" && val !== null && !canAttemptQuestion(qIndex)) return;
     let newAns = [...answers];
     newAns[qIndex].val = val === "" ? null : Number(val);
     setAnswers(newAns);
   };
   const pickSubj = (qIndex, val) => {
+    if (val.trim() !== "" && !canAttemptQuestion(qIndex)) return;
     let newAns = [...answers];
     newAns[qIndex].val = val.trim() === "" ? null : val;
     setAnswers(newAns);
@@ -1410,9 +1510,8 @@ function StudentPortalContent() {
     (a) => a?.val !== null && (!Array.isArray(a?.val) || a?.val.length > 0),
   ).length;
   const markedQs = answers.filter((a) => a?.marked).length;
-  const remainingQs = activeTest?.questions
-    ? activeTest.questions.length - answeredQs
-    : 0;
+
+  const remainingQs = Math.max(0, maxAllowedQuestions - answeredQs);
   const currentQuestion = activeTest?.questions?.[curQ];
 
   return (
@@ -1576,6 +1675,32 @@ function StudentPortalContent() {
               </div>
             </div>
           </div>
+
+          {/* Section Attempt Rules Guideline */}
+          {activeTest?.sectionRules &&
+            Object.keys(activeTest.sectionRules).some(
+              (s) => Number(activeTest.sectionRules[s]) > 0,
+            ) && (
+              <div className="bg-indigo-50/70 border border-indigo-100 p-3.5 rounded-xl mb-6">
+                <div className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                  <i className="ti ti-adjustments-alt"></i> Section Guidelines (Optional Questions)
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-bold text-indigo-900">
+                  {Object.entries(activeTest.sectionRules).map(([sec, limit]) => {
+                    const lim = Number(limit);
+                    if (!lim || lim <= 0) return null;
+                    return (
+                      <span
+                        key={sec}
+                        className="bg-white border border-indigo-200/80 px-2.5 py-1 rounded-lg shadow-sm"
+                      >
+                        {sec}: Attempt max <strong>{lim}</strong> questions
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
           {/* Security Rules */}
           {(activeTest?.antiCheat || activeTest?.fullScreenMode) && (
@@ -1928,6 +2053,33 @@ function StudentPortalContent() {
                           {currentQuestion.section}
                         </span>
                       )}
+                      {(() => {
+                        const curSec =
+                          currentQuestion?.section ||
+                          (activeTest?.sections && activeTest.sections[0]);
+                        const secRule =
+                          activeTest?.sectionRules && curSec
+                            ? Number(activeTest.sectionRules[curSec])
+                            : 0;
+                        if (secRule > 0) {
+                          return (
+                            <span
+                              className="badge"
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                background: "#FEF3C7",
+                                color: "#92400E",
+                                border: "1px solid #FDE68A",
+                              }}
+                            >
+                              <i className="ti ti-target"></i> Max {secRule} to
+                              Attempt
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
 
@@ -2479,25 +2631,36 @@ function StudentPortalContent() {
                             >
                               <i className="ti ti-folder"></i> {sec}
                             </div>
-                            <div
-                              style={{
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                background:
-                                  secAttempted === secTotal
-                                    ? "#EAF3DE"
-                                    : "#E6F1FB",
-                                color:
-                                  secAttempted === secTotal
-                                    ? "#27500A"
-                                    : "#185FA5",
-                                padding: "4px 10px",
-                                borderRadius: "12px",
-                                border: `1px solid ${secAttempted === secTotal ? "#C0DD97" : "#CECBF6"}`,
-                              }}
-                            >
-                              Attempted: {secAttempted}/{secTotal}
-                            </div>
+                            {(() => {
+                              const secRule = activeTest?.sectionRules
+                                ? Number(activeTest.sectionRules[sec])
+                                : 0;
+                              const hasLimit =
+                                secRule > 0 && secRule < secTotal;
+                              const targetLimit = hasLimit ? secRule : secTotal;
+                              const isSecComplete =
+                                secAttempted >= targetLimit;
+                              return (
+                                <div
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    background: isSecComplete
+                                      ? "#EAF3DE"
+                                      : "#E6F1FB",
+                                    color: isSecComplete
+                                      ? "#27500A"
+                                      : "#185FA5",
+                                    padding: "4px 10px",
+                                    borderRadius: "12px",
+                                    border: `1px solid ${isSecComplete ? "#C0DD97" : "#CECBF6"}`,
+                                  }}
+                                >
+                                  Attempted: {secAttempted}/{targetLimit}
+                                  {hasLimit ? ` (Max ${targetLimit})` : ""}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="palette-grid">{secHTML}</div>
                         </div>
@@ -2670,11 +2833,24 @@ function StudentPortalContent() {
                               <i className="ti ti-folder text-blue-500 text-sm"></i>{" "}
                               {sec}
                             </div>
-                            <div
-                              className={`text-[10px] font-bold px-3 py-1 rounded-full border ${secAttempted === secTotal ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}
-                            >
-                              {secAttempted}/{secTotal}
-                            </div>
+                            {(() => {
+                              const secRule = activeTest?.sectionRules
+                                ? Number(activeTest.sectionRules[sec])
+                                : 0;
+                              const hasLimit =
+                                secRule > 0 && secRule < secTotal;
+                              const targetLimit = hasLimit ? secRule : secTotal;
+                              const isSecComplete =
+                                secAttempted >= targetLimit;
+                              return (
+                                <div
+                                  className={`text-[10px] font-bold px-3 py-1 rounded-full border ${isSecComplete ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}
+                                >
+                                  {secAttempted}/{targetLimit}
+                                  {hasLimit ? " (Max)" : ""}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="palette-grid">{secHTML}</div>
                         </div>
@@ -2860,8 +3036,10 @@ function StudentPortalContent() {
                   >
                     You have attempted{" "}
                     <strong style={{ color: "#185FA5" }}>{answeredQs}</strong>{" "}
-                    out of {activeTest?.questions?.length} questions. Once
-                    submitted, you cannot change your answers.
+                    out of {maxAllowedQuestions} allowed questions
+                    {maxAllowedQuestions < (activeTest?.questions?.length || 0)
+                      ? ` (${activeTest?.questions?.length} total)`
+                      : ""}. Once submitted, you cannot change your answers.
                   </p>
                   <div style={{ display: "flex", gap: "12px" }}>
                     <button

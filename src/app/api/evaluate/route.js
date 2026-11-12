@@ -207,6 +207,10 @@ export async function POST(req) {
       skipped = 0;
     const neg = Math.abs(Number(activeTestMeta.negMarking || 0));
 
+    // 🛡️ SECTION RULES & OPTIONAL QUESTIONS ENFORCEMENT
+    const secRules = activeTestMeta.sectionRules || {};
+    const secAttemptCounts = {};
+
     const details = testQuestions.map((q, i) => {
       // 🔥 FIX: Strict String Mapping to prevent shuffle index mismatches
       let studentAns = answers.find((a) => String(a.qIndex) === String(i));
@@ -221,9 +225,27 @@ export async function POST(req) {
         val === -1 ||
         (Array.isArray(val) && val.length === 0);
 
+      const qSec =
+        q.section ||
+        (activeTestMeta.sections && activeTestMeta.sections[0]) ||
+        "General";
+      const secLimit = Number(secRules[qSec] || 0);
+
+      let isExtraOptional = false;
+      if (!isSkipped && secLimit > 0) {
+        secAttemptCounts[qSec] = (secAttemptCounts[qSec] || 0) + 1;
+        if (secAttemptCounts[qSec] > secLimit) {
+          isExtraOptional = true;
+        }
+      }
+
       if (isSkipped) {
         skipped++;
         status = "skipped";
+      } else if (isExtraOptional) {
+        skipped++;
+        status = "extra_optional_ignored";
+        earned = 0;
       } else if (q.type === "mcq") {
         if (!q.correct || q.correct.length === 0) {
           status = "submitted";

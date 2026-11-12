@@ -2562,7 +2562,9 @@ export default function StudentResults() {
                       ? "Evaluated"
                       : d.status === "submitted"
                         ? "Pending"
-                        : "Skipped";
+                        : d.status === "extra_optional_ignored"
+                          ? "Optional (Ignored)"
+                          : "Skipped";
             const earnedStr =
               d.earned > 0
                 ? "+" + d.earned
