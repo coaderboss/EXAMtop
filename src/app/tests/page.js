@@ -9,6 +9,7 @@ import { ref, set, update, remove, get, onValue } from "firebase/database";
 import FigureRenderer from "../../components/FigureRenderer";
 import SmilesViewer from "../../components/SmilesViewer";
 import { sanitizeSvg } from "../../lib/sanitizeSvg";
+import { motion, AnimatePresence } from "framer-motion";
 
 // THE MASTER FIX: MathJax React Re-render Protector
 const StaticMath = memo(({ html, isBlock, style, className }) => {
@@ -48,10 +49,33 @@ export default function ManageTests() {
   const [undoData, setUndoData] = useState(null); // For Delete Undo timer
   const [vaultSearchQuery, setVaultSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
-  const [visibleCount, setVisibleCount] = useState(5);
+  const [vaultStatusTab, setVaultStatusTab] = useState("all"); // 'all' | 'live' | 'radar' | 'scheduled' | 'closed'
+  const [copiedCodeId, setCopiedCodeId] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(8);
   const [isSubsLoading, setIsSubsLoading] = useState(false);
   const [subsVisibleCount, setSubsVisibleCount] = useState(25);
   const searchRef = useRef(null);
+
+  // Subject Badge Helper for Vault
+  const getVaultSubjectBadge = (subject) => {
+    const s = (subject || "").toLowerCase();
+    if (s.includes("phys")) return { bg: "bg-blue-50 text-blue-700 border-blue-200/80", icon: "ti ti-atom-2" };
+    if (s.includes("chem")) return { bg: "bg-emerald-50 text-emerald-700 border-emerald-200/80", icon: "ti ti-flask" };
+    if (s.includes("math")) return { bg: "bg-purple-50 text-purple-700 border-purple-200/80", icon: "ti ti-math-symbols" };
+    if (s.includes("bio")) return { bg: "bg-teal-50 text-teal-700 border-teal-200/80", icon: "ti ti-dna" };
+    if (s.includes("java") || s.includes("network") || s.includes("code") || s.includes("comp") || s.includes("tech")) {
+      return { bg: "bg-sky-50 text-sky-700 border-sky-200/80", icon: "ti ti-terminal-2" };
+    }
+    return { bg: "bg-slate-50 text-slate-700 border-slate-200/80", icon: "ti ti-book" };
+  };
+
+  const handleCopyTestCode = (e, code, testId) => {
+    e.stopPropagation();
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    setCopiedCodeId(testId);
+    setTimeout(() => setCopiedCodeId(null), 1800);
+  };
 
   // --- MODALS & SUB-VIEWS ---
   const [modalType, setModalType] = useState(null); // 'analytics' | 'editKey' | 'audit'
@@ -698,6 +722,51 @@ export default function ManageTests() {
 
   // Kyunki ab 'tests' me pehle se hi sirf is examiner ke tests hain, humein filter lagane ki zaroorat nahi
   const myTests = baseTests.filter((t) => t.id !== undoData?.test?.id);
+
+  // Vault Micro Telemetry (Plain immediate calculation - Zero hook overhead & strictly obeys Rules of Hooks)
+  let vaultLiveCount = 0;
+  let vaultScheduledCount = 0;
+  let vaultClosedCount = 0;
+  let vaultRadarCount = 0;
+  let vaultTotalSubsCount = 0;
+  const nowVault = Date.now();
+
+  myTests.forEach((t) => {
+    if (t.isDeletedByExaminer) return;
+    const openTime = t.openDate ? new Date(t.openDate).getTime() : null;
+    const closeTime = t.closeDate
+      ? new Date(t.closeDate).getTime()
+      : t.expiryDate
+      ? new Date(t.expiryDate).getTime()
+      : null;
+
+    if (t.radarVisible) vaultRadarCount++;
+
+    if (openTime && nowVault < openTime) {
+      vaultScheduledCount++;
+    } else if (t.isActive === false || (closeTime && nowVault > closeTime)) {
+      vaultClosedCount++;
+    } else {
+      vaultLiveCount++;
+    }
+
+    const sCount =
+      t.submissionCount ||
+      (t.submissions
+        ? Array.isArray(t.submissions)
+          ? t.submissions.filter(Boolean).length
+          : Object.keys(t.submissions).length
+        : 0);
+    vaultTotalSubsCount += sCount;
+  });
+
+  const vaultStats = {
+    live: vaultLiveCount,
+    scheduled: vaultScheduledCount,
+    closed: vaultClosedCount,
+    radar: vaultRadarCount,
+    totalSubs: vaultTotalSubsCount,
+  };
 
   // SAFE UPDATER
   const updateTestGlobal = async (updatedTest) => {
@@ -5022,113 +5091,202 @@ export default function ManageTests() {
         // ==========================================
         // VIEW 1: MASTER VAULT (List of Tests)
         // ==========================================
-        <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 pb-[30vh] animate-[fadeIn_0.3s_ease]">
-          {/*   PREMIUM HEADER (Clean Mobile Layout without Badge)   */}
-          <div className="flex flex-col gap-4 mb-6 sm:mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
-              {/* Icon, Title & Followers */}
-              <div className="flex items-center gap-3 sm:gap-4 min-w-0 w-full">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-[0_8px_20px_rgb(37,99,235,0.25)] shrink-0">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-6 h-6 sm:w-7 sm:h-7"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                    />
-                  </svg>
+        <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-3 sm:py-6 pb-24 animate-[fadeIn_0.3s_ease]">
+          {/* 🧭 1. COMPACT COMMAND HEADER (Space-Saving & High-Density) */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] mb-4 sm:mb-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+              {/* Left: Icon, Title & Follower Chip */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-lg sm:text-xl shadow-sm shadow-blue-500/25 shrink-0">
+                  <i className="ti ti-folders"></i>
                 </div>
-                <div className="flex flex-col min-w-0 justify-center flex-1">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-xl sm:text-[28px] font-black text-slate-800 tracking-tight leading-none m-0 truncate">
-                      My Tests Vault
+                    <h2 className="text-base sm:text-xl lg:text-2xl font-black text-slate-900 tracking-tight leading-none m-0 truncate">
+                      Tests Vault
                     </h2>
-                    <div className="bg-slate-100 text-slate-600 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold border border-slate-200 flex items-center gap-1 shadow-sm shrink-0">
-                      <i className="ti ti-users text-sm"></i> {followerCount}{" "}
-                      Followers
-                    </div>
+                    <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold border border-indigo-200/80 shadow-2xs">
+                      <i className="ti ti-users text-xs"></i>
+                      <span>{followerCount} Followers</span>
+                    </span>
                   </div>
-                  <p className="text-[12px] sm:text-[13px] font-medium text-slate-500 mt-1.5 sm:mt-2 truncate">
-                    Manage assessments, control intakes, and review results.
+                  <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1 truncate">
+                    Central assessment repository • Control intake windows & monitor grading
                   </p>
                 </div>
+              </div>
+
+              {/* Right: Quick Micro-Telemetry Badges & Create Action (Space-Saving) */}
+              <div className="flex items-center gap-2 justify-between sm:justify-end flex-wrap sm:flex-nowrap pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                <div className="hidden lg:flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200/80 text-[11px] font-bold text-slate-600">
+                  <span className="px-2 py-1 rounded-lg bg-white shadow-2xs text-slate-800">
+                    {myTests.length} Total
+                  </span>
+                  <span className="px-2 py-1 rounded-lg text-emerald-700 bg-emerald-50 border border-emerald-200/60 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    {vaultStats.live} Live
+                  </span>
+                  <span className="px-2 py-1 rounded-lg text-indigo-700 bg-indigo-50 border border-indigo-200/60 flex items-center gap-1">
+                    <i className="ti ti-radar text-xs"></i>
+                    {vaultStats.radar} Radar
+                  </span>
+                  <span className="px-2 py-1 rounded-lg text-slate-700">
+                    👥 {vaultStats.totalSubs} Subs
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => router.push("/create")}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs rounded-xl shadow-sm shadow-blue-500/25 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <i className="ti ti-plus text-sm"></i>
+                  <span>Create Assessment</span>
+                </button>
               </div>
             </div>
           </div>
 
           {myTests.length === 0 ? (
             /* Empty State UI */
-            <div className="bg-white rounded-3xl p-10 sm:p-16 text-center border-2 border-dashed border-slate-200 shadow-sm flex flex-col items-center justify-center mt-4">
-              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100">
-                <i className="ti ti-folder-off text-4xl text-slate-300"></i>
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-8 sm:p-14 text-center border-2 border-dashed border-slate-200 shadow-sm flex flex-col items-center justify-center mt-3">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 border border-slate-100 text-slate-300 text-3xl sm:text-4xl">
+                <i className="ti ti-folders-off"></i>
               </div>
-              <h3 className="text-xl font-black text-slate-700 mb-2 tracking-tight">
+              <h3 className="text-base sm:text-xl font-black text-slate-800 mb-1.5 tracking-tight">
                 Your Vault is Empty
               </h3>
-              <p className="text-slate-500 max-w-sm mx-auto mb-8 text-[13px] sm:text-sm font-medium leading-relaxed">
-                You haven't created any assessments yet. Click the button below
-                to start building your first secure test.
+              <p className="text-slate-500 max-w-sm mx-auto mb-6 text-xs sm:text-sm font-medium leading-relaxed">
+                You haven't created any assessments yet. Click below to craft your first test with AI generation or manual authoring.
               </p>
               <button
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95"
+                className="flex items-center gap-2 px-5 py-2.5 sm:px-6 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
                 onClick={() => router.push("/create")}
               >
-                <i className="ti ti-plus text-lg"></i> Create New Test
+                <i className="ti ti-plus text-base"></i> Create New Test
               </button>
             </div>
           ) : (
             <>
-              {/*   SMART SEARCH & FILTER BAR (Side-by-side on all screens)   */}
-              <div className="flex flex-row gap-2 sm:gap-3 mb-6 relative z-20">
+              {/* 🎛️ 2. SMART SEARCH & QUICK SEGMENT TABS BAR (Ultra-Compact & High-Density) */}
+              <div className="flex flex-col md:flex-row gap-2 sm:gap-3 mb-4 relative z-20">
                 {/* Instant Search Bar */}
                 <div className="relative flex-1 group min-w-0">
-                  <i className="ti ti-search absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-slate-400 text-base sm:text-lg group-focus-within:text-blue-500 transition-colors pointer-events-none"></i>
+                  <i className="ti ti-search absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base group-focus-within:text-blue-600 transition-colors pointer-events-none"></i>
                   <input
                     ref={searchRef}
                     type="text"
-                    placeholder="Search tests..."
+                    placeholder="Search by title, subject or #code... (Press /)"
                     value={vaultSearchQuery}
                     onChange={(e) => {
                       setVaultSearchQuery(e.target.value);
-                      setVisibleCount(5);
+                      setVisibleCount(8);
                     }}
-                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm"
+                    className="w-full pl-9 sm:pl-10 pr-10 py-2 sm:py-2.5 bg-white border border-slate-200/90 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-blue-400 focus:ring-3 focus:ring-blue-100 transition-all shadow-2xs placeholder:text-slate-400"
                   />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-1 rounded">
-                    <span>Press</span>{" "}
-                    <kbd className="font-mono text-slate-500">/</kbd>
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:flex items-center text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 pointer-events-none">
+                    /
                   </div>
                 </div>
 
-                {/* Premium Dropdown */}
-                <div className="relative shrink-0 w-[110px] sm:w-[150px]">
+                {/* Quick Status Filter Tabs (Horizontal scroll on mobile) */}
+                <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl text-[11px] sm:text-xs font-bold overflow-x-auto custom-scrollbar shrink-0">
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setVaultStatusTab("all");
+                      setVisibleCount(8);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                      vaultStatusTab === "all"
+                        ? "bg-white text-slate-900 shadow-2xs font-extrabold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    All ({myTests.length})
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setVaultStatusTab("live");
+                      setVisibleCount(8);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                      vaultStatusTab === "live"
+                        ? "bg-white text-emerald-700 shadow-2xs font-extrabold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Live ({vaultStats.live})
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setVaultStatusTab("radar");
+                      setVisibleCount(8);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                      vaultStatusTab === "radar"
+                        ? "bg-white text-indigo-700 shadow-2xs font-extrabold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    <i className="ti ti-radar text-xs"></i>
+                    Radar ({vaultStats.radar})
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setVaultStatusTab("scheduled");
+                      setVisibleCount(8);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                      vaultStatusTab === "scheduled"
+                        ? "bg-white text-amber-700 shadow-2xs font-extrabold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    <i className="ti ti-clock text-xs"></i>
+                    Scheduled ({vaultStats.scheduled})
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setVaultStatusTab("closed");
+                      setVisibleCount(8);
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                      vaultStatusTab === "closed"
+                        ? "bg-white text-slate-700 shadow-2xs font-extrabold"
+                        : "text-slate-500 hover:text-slate-900"
+                    }`}
+                  >
+                    Closed ({vaultStats.closed})
+                  </motion.button>
+                </div>
+
+                {/* Sort Dropdown (Compact) */}
+                <div className="relative shrink-0 w-full sm:w-[130px]">
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full pl-3 sm:pl-4 pr-7 sm:pr-10 py-2.5 sm:py-3.5 bg-white border border-slate-200 rounded-xl text-[12px] sm:text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm appearance-none cursor-pointer"
+                    className="w-full pl-3 pr-7 py-2 sm:py-2.5 bg-white border border-slate-200/90 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-blue-400 focus:ring-3 focus:ring-blue-100 transition-all shadow-2xs appearance-none cursor-pointer"
                   >
-                    <option value="newest">Newest</option>
-                    <option value="oldest">Oldest</option>
-                    <option value="alphabetical">A - Z</option>
-                    <option value="live">🟢 Live</option>
-                    <option value="closed">⚪ Closed</option>
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="alphabetical">A to Z</option>
+                    <option value="most_subs">Most Subs</option>
                   </select>
-                  <i className="ti ti-chevron-down absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                  <i className="ti ti-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
                 </div>
               </div>
 
-              {/*   THE NATIVE PREMIUM LIST ENGINE   */}
-              <div className="flex flex-col gap-3 sm:gap-4">
+              {/* 💳 3. THE HIGH-DENSITY VAULT LIST ENGINE */}
+              <div className="flex flex-col gap-2.5 sm:gap-3">
                 {(() => {
                   // Filter Logic
                   let filtered = myTests.filter((t) => {
-                    if (t.isDeletedByExaminer) return false; // Deleted exams ko list me mat dikhao
+                    if (t.isDeletedByExaminer) return false;
 
                     const sq = vaultSearchQuery.toLowerCase();
                     const matchesSearch =
@@ -5136,59 +5294,112 @@ export default function ManageTests() {
                       t.title?.toLowerCase().includes(sq) ||
                       t.code?.toLowerCase().includes(sq) ||
                       t.subject?.toLowerCase().includes(sq);
-                    const isLive = t.isActive !== false;
-                    let matchesStatus = true;
-                    if (sortBy === "live") matchesStatus = isLive;
-                    if (sortBy === "closed") matchesStatus = !isLive;
-                    return matchesSearch && matchesStatus;
+
+                    const now = Date.now();
+                    const openTime = t.openDate
+                      ? new Date(t.openDate).getTime()
+                      : null;
+                    const closeTime = t.closeDate
+                      ? new Date(t.closeDate).getTime()
+                      : t.expiryDate
+                      ? new Date(t.expiryDate).getTime()
+                      : null;
+
+                    let status = "live";
+                    if (openTime && now < openTime) status = "upcoming";
+                    else if (
+                      t.isActive === false ||
+                      (closeTime && now > closeTime)
+                    )
+                      status = "closed";
+
+                    let matchesTab = true;
+                    if (vaultStatusTab === "live") matchesTab = status === "live";
+                    else if (vaultStatusTab === "radar")
+                      matchesTab = Boolean(t.radarVisible);
+                    else if (vaultStatusTab === "scheduled")
+                      matchesTab = status === "upcoming";
+                    else if (vaultStatusTab === "closed")
+                      matchesTab = status === "closed";
+
+                    let matchesSortStatus = true;
+                    if (sortBy === "live") matchesSortStatus = status === "live";
+                    if (sortBy === "closed")
+                      matchesSortStatus = status === "closed";
+
+                    return matchesSearch && matchesTab && matchesSortStatus;
                   });
 
                   // Sort Logic
                   filtered.sort((a, b) => {
+                    if (sortBy === "most_subs") {
+                      const subA =
+                        a.submissionCount ||
+                        (a.submissions
+                          ? Array.isArray(a.submissions)
+                            ? a.submissions.filter(Boolean).length
+                            : Object.keys(a.submissions).length
+                          : 0);
+                      const subB =
+                        b.submissionCount ||
+                        (b.submissions
+                          ? Array.isArray(b.submissions)
+                            ? b.submissions.filter(Boolean).length
+                            : Object.keys(b.submissions).length
+                          : 0);
+                      return subB - subA;
+                    }
                     const idA = String(a.id || "");
                     const idB = String(b.id || "");
                     if (
                       sortBy === "newest" ||
                       sortBy === "live" ||
                       sortBy === "closed"
-                    )
+                    ) {
                       return idB.localeCompare(idA);
+                    }
                     if (sortBy === "oldest") return idA.localeCompare(idB);
-                    if (sortBy === "alphabetical")
+                    if (sortBy === "alphabetical") {
                       return String(a.title || "")
                         .toLowerCase()
                         .localeCompare(String(b.title || "").toLowerCase());
+                    }
                     return 0;
                   });
 
                   // No Results UI
                   if (filtered.length === 0) {
                     return (
-                      <div className="bg-white rounded-2xl p-10 text-center border border-slate-200 shadow-sm flex flex-col items-center mt-2">
-                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-                          <i className="ti ti-search-off text-3xl text-slate-400"></i>
+                      <div className="bg-white rounded-2xl p-8 sm:p-10 text-center border border-slate-200/90 shadow-2xs flex flex-col items-center mt-2">
+                        <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center mb-3 border border-slate-100 text-slate-400 text-2xl">
+                          <i className="ti ti-search-off"></i>
                         </div>
-                        <h4 className="text-[16px] font-black text-slate-700 mb-1">
-                          No tests found
+                        <h4 className="text-sm sm:text-base font-black text-slate-800 mb-1">
+                          No matching assessments found
                         </h4>
-                        <p className="text-[13px] font-semibold text-slate-500 mb-5">
-                          We couldn't find any tests matching "
-                          {vaultSearchQuery}".
+                        <p className="text-xs text-slate-500 mb-4 max-w-sm">
+                          {vaultSearchQuery
+                            ? `No tests found matching "${vaultSearchQuery}".`
+                            : "No tests matching the selected filter tab."}
                         </p>
                         <button
-                          className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm rounded-xl transition-colors active:scale-95"
-                          onClick={() => setVaultSearchQuery("")}
+                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                          onClick={() => {
+                            setVaultSearchQuery("");
+                            setVaultStatusTab("all");
+                          }}
                         >
-                          Clear Search
+                          Reset Filters
                         </button>
                       </div>
                     );
                   }
 
-                  // Render Premium Cards (Sliced for Performance)
+                  // Render Clean, Framer-Motion Animated Cards
                   return (
                     <>
-                      {filtered.slice(0, visibleCount).map((t, i) => {
+                      <AnimatePresence mode="popLayout">
+                        {filtered.slice(0, visibleCount).map((t, i) => {
                         const now = Date.now();
                         const closeTime = t.closeDate
                           ? new Date(t.closeDate).getTime()
@@ -5208,130 +5419,194 @@ export default function ManageTests() {
 
                         const subCount =
                           t.submissionCount ||
-                          (t.submissions ? t.submissions.length : 0);
+                          (t.submissions
+                            ? Array.isArray(t.submissions)
+                              ? t.submissions.filter(Boolean).length
+                              : Object.keys(t.submissions).length
+                            : 0);
 
-                        // Dynamic Accent Line Color
-                        let statusColorLine = "bg-slate-200";
-                        if (t.isLocal) statusColorLine = "bg-amber-400";
-                        else if (status === "live")
-                          statusColorLine = "bg-emerald-500";
-                        else if (status === "upcoming")
-                          statusColorLine = "bg-blue-400";
+                        const badge = getVaultSubjectBadge(t.subject);
+                        const isLive = status === "live";
+                        const isOnRadar = Boolean(t.radarVisible);
+
+                        // Strict Rule: ONLY Live & Radar get sleek accents. Normal cards stay pure clean white!
+                        let cardBorder = "border-slate-200/90 hover:border-slate-300";
+                        let leftAccent = "";
+
+                        if (isLive && isOnRadar) {
+                          cardBorder = "border-indigo-300 hover:border-indigo-400";
+                          leftAccent = "bg-gradient-to-b from-emerald-500 to-indigo-500";
+                        } else if (isLive) {
+                          cardBorder = "border-emerald-300 hover:border-emerald-400";
+                          leftAccent = "bg-emerald-500";
+                        } else if (isOnRadar) {
+                          cardBorder = "border-indigo-300 hover:border-indigo-400";
+                          leftAccent = "bg-indigo-500";
+                        }
 
                         return (
-                          <div
+                          <motion.div
                             key={t.id || i}
-                            className="group bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:border-blue-300 transition-all duration-300 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer relative overflow-hidden animate-[slideUp_0.4s_ease_forwards] opacity-0"
-                            style={{
-                              animationDelay: `${(i > 10 ? 10 : i) * 0.05}s`,
+                            layout
+                            initial={{ opacity: 0, y: 14 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.97 }}
+                            transition={{
+                              duration: 0.22,
+                              delay: (i > 8 ? 8 : i) * 0.03,
                             }}
+                            whileHover={{
+                              y: -2,
+                              transition: { duration: 0.15 },
+                            }}
+                            whileTap={{ scale: 0.995 }}
                             onClick={() => setSelectedTest(t)}
+                            className={`group relative bg-white rounded-2xl border ${cardBorder} shadow-2xs hover:shadow-md transition-all duration-200 p-3.5 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 cursor-pointer overflow-hidden`}
                           >
-                            {/* Status Accent Line */}
-                            <div
-                              className={`absolute left-0 top-0 bottom-0 w-[5px] ${statusColorLine}`}
-                            ></div>
+                            {/* Sleek 3.5px Left State Accent (ONLY for Live or Radar) */}
+                            {leftAccent && (
+                              <div
+                                className={`absolute left-0 top-3 bottom-3 w-[3.5px] rounded-r-full ${leftAccent}`}
+                              ></div>
+                            )}
 
-                            <div className="flex flex-col min-w-0 pl-1.5 sm:pl-2">
-                              {/* Title & Status Badge Row */}
-                              <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                <h3 className="text-[16px] sm:text-[18px] font-black text-slate-800 truncate group-hover:text-blue-700 transition-colors leading-tight m-0">
-                                  {t.title}
-                                </h3>
+                            {/* Left Block: Subject Icon + Title + Metadata */}
+                            <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1 pl-0.5">
+                              {/* Subject Badge Icon */}
+                              <div
+                                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center text-lg sm:text-xl border shrink-0 ${badge.bg} shadow-2xs group-hover:scale-105 transition-transform`}
+                              >
+                                <i className={badge.icon}></i>
+                              </div>
 
-                                <div className="flex items-center gap-2">
-                                  {t.isLocal && (
-                                    <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-amber-200">
-                                      <i className="ti ti-device-floppy"></i>{" "}
-                                      Local
-                                    </span>
-                                  )}
+                              <div className="min-w-0 flex-1">
+                                {/* Title & Status Pills */}
+                                <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                                  <h3 className="text-sm sm:text-base font-black text-slate-800 truncate group-hover:text-blue-600 transition-colors leading-tight m-0">
+                                    {t.title}
+                                  </h3>
 
-                                  {!t.isLocal && status === "live" && (
-                                    <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 border border-emerald-200">
-                                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>{" "}
+                                  {isLive && (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                       Live
                                     </span>
                                   )}
-                                  {!t.isLocal && status === "upcoming" && (
-                                    <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-blue-200">
-                                      <i className="ti ti-clock"></i> Scheduled
+                                  {isOnRadar && (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                      <i className="ti ti-radar text-xs"></i>
+                                      Radar
                                     </span>
                                   )}
-                                  {!t.isLocal && status === "closed" && (
-                                    <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest flex items-center gap-1 border border-slate-200">
-                                      <i className="ti ti-lock"></i> Closed
+                                  {status === "upcoming" && (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                                      <i className="ti ti-clock text-xs"></i>
+                                      Scheduled
+                                    </span>
+                                  )}
+                                  {status === "closed" && (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">
+                                      <i className="ti ti-lock text-xs"></i>
+                                      Closed
                                     </span>
                                   )}
                                 </div>
-                              </div>
 
-                              {/* Meta Info Row */}
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] sm:text-[13px] font-semibold text-slate-500 mb-3">
-                                <span className="flex items-center gap-1.5">
-                                  <i className="ti ti-book text-slate-400 text-base"></i>{" "}
-                                  {t.subject || "General"}
-                                </span>
-                                <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
-                                <span className="flex items-center gap-1.5">
-                                  <i className="ti ti-list-numbers text-slate-400 text-base"></i>{" "}
-                                  {t.questionCount || 0} Qs
-                                </span>
-                                <span className="w-1 h-1 rounded-full bg-slate-300 hidden sm:block"></span>
-                                <span className="flex items-center gap-1.5">
-                                  <i className="ti ti-clock text-slate-400 text-base"></i>{" "}
-                                  {t.duration} Mins
-                                </span>
-                              </div>
-
-                              {/* Data Tags & Radar Badge (Mobile-First Layout) */}
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="bg-slate-50 text-slate-600 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold font-mono tracking-widest border border-slate-200 shadow-sm flex items-center gap-1">
-                                  <i className="ti ti-hash opacity-60"></i>{" "}
-                                  {t.code}
-                                </span>
-
-                                <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1.5 sm:py-1 rounded-lg text-[11px] font-bold border border-indigo-200 shadow-sm flex items-center gap-1.5">
-                                  <i className="ti ti-users"></i> {subCount}{" "}
-                                  Subs
-                                </span>
-
-                                {/*   THUNDER ICON FIXED   */}
-                                {t.radarVisible && (
-                                  <span
-                                    className="bg-amber-50 text-amber-600 px-2.5 py-1.5 sm:py-1 rounded-lg border border-amber-200 shadow-sm flex items-center gap-1"
-                                    title="Visible on Student Radar"
+                                {/* Clean, Readable Metadata Strip */}
+                                <div className="flex items-center gap-2 sm:gap-3 text-xs font-semibold text-slate-500 flex-wrap">
+                                  <button
+                                    onClick={(e) =>
+                                      handleCopyTestCode(e, t.code, t.id)
+                                    }
+                                    className="inline-flex items-center gap-1 font-mono text-[10px] sm:text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-bold transition-all cursor-pointer active:scale-95"
+                                    title="Click to copy test code"
                                   >
-                                    <i className="ti ti-bolt text-[14px] animate-[pulse_2s_infinite]"></i>
-                                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">
-                                      On Radar
-                                    </span>
+                                    <span className="text-slate-400">#</span>
+                                    <span>{t.code}</span>
+                                    <i
+                                      className={`ti ${
+                                        copiedCodeId === t.id
+                                          ? "ti-check text-emerald-600"
+                                          : "ti-copy text-slate-400"
+                                      } text-[10px]`}
+                                    ></i>
+                                  </button>
+                                  <span className="text-slate-300">•</span>
+                                  <span className="text-slate-600 font-medium truncate max-w-[140px]">
+                                    {t.subject || "General"}
                                   </span>
-                                )}
+                                  <span className="text-slate-300">•</span>
+                                  <span className="flex items-center gap-1 text-slate-500 font-medium">
+                                    <i className="ti ti-clock text-slate-400"></i>
+                                    {t.duration || 60}m
+                                  </span>
+                                  <span className="text-slate-300 hidden sm:inline">
+                                    •
+                                  </span>
+                                  <span className="hidden sm:inline-flex items-center gap-1 text-slate-500 font-medium">
+                                    <i className="ti ti-list-numbers text-slate-400"></i>
+                                    {t.questionCount ||
+                                      t.questions?.length ||
+                                      0}{" "}
+                                    Qs
+                                  </span>
+                                  <span className="text-slate-300 hidden sm:inline">
+                                    •
+                                  </span>
+                                  <span className="hidden sm:inline-flex items-center gap-1 text-slate-500 font-medium">
+                                    <i className="ti ti-target text-slate-400"></i>
+                                    {t.totalMarks || 100} Marks
+                                  </span>
+                                  <span className="text-slate-300">•</span>
+                                  <span
+                                    className={`inline-flex items-center gap-1 font-bold ${
+                                      subCount > 0
+                                        ? "text-emerald-600 font-extrabold"
+                                        : "text-slate-400"
+                                    }`}
+                                  >
+                                    <i className="ti ti-users"></i>
+                                    {subCount} Subs
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
-                            {/* Hover Arrow (Desktop only) */}
-                            <div className="hidden sm:flex shrink-0 ml-4">
-                              <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all shadow-sm">
-                                <i className="ti ti-chevron-right text-lg transform group-hover:translate-x-0.5 transition-transform"></i>
-                              </div>
+                            {/* Right Block: Open Action Button */}
+                            <div className="flex items-center justify-end border-t md:border-t-0 pt-2.5 md:pt-0 border-slate-100 shrink-0">
+                              <motion.button
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTest(t);
+                                }}
+                                className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs group/btn"
+                              >
+                                <span>Open Studio</span>
+                                <i className="ti ti-arrow-right text-xs group-hover/btn:translate-x-1 transition-transform"></i>
+                              </motion.button>
                             </div>
-                          </div>
+                          </motion.div>
                         );
                       })}
+                    </AnimatePresence>
 
-                      {/* 🔥 THE LOAD MORE BUTTON 🔥 */}
+                    {/* 🔄 COMPACT PAGINATION LOAD MORE */}
                       {filtered.length > visibleCount && (
-                        <div className="flex justify-center mt-4 mb-2">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-2 border-t border-slate-100 text-xs">
+                          <span className="text-slate-400 font-medium">
+                            Displaying {Math.min(visibleCount, filtered.length)} of{" "}
+                            {filtered.length} assessments
+                          </span>
                           <button
-                            className="px-6 py-3 bg-white border border-slate-300 text-slate-700 font-bold text-[14px] rounded-xl shadow-sm hover:text-blue-600 hover:border-blue-400 hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2"
+                            className="w-full sm:w-auto px-5 py-2 bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-600 text-slate-700 font-bold rounded-xl shadow-2xs transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                             onClick={(e) => {
-                              e.stopPropagation(); // Card click event ko roko
-                              setVisibleCount((prev) => prev + 5);
+                              e.stopPropagation();
+                              setVisibleCount((prev) => prev + 8);
                             }}
                           >
-                            <i className="ti ti-reload"></i> Load 5 More Exams
+                            <i className="ti ti-reload"></i> Load 8 More Tests
                           </button>
                         </div>
                       )}

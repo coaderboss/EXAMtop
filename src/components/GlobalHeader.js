@@ -62,7 +62,7 @@ export default function GlobalHeader() {
       try {
           await loginWithGoogle(role);
           // Login hone ke baad direct dashboard pe phenko
-          if (role === 'examiner' || role === 'admin') router.push('/tests');
+          if (role === 'examiner' || role === 'admin') router.push('/dashboard');
           else router.push('/student-dashboard');
       } catch (error) {
           console.error("Login Failed", error);

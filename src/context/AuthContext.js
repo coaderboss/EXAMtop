@@ -145,7 +145,7 @@ export const AuthProvider = ({ children }) => {
             router.push('/onboarding');
         } else {
             if (finalRole === 'admin') router.push('/admin');
-            else if (finalRole === 'examiner') router.push('/tests');
+            else if (finalRole === 'examiner') router.push('/dashboard');
             else router.push('/student-dashboard');
         }
       }, 500);
