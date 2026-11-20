@@ -65,6 +65,14 @@ function StudentPortalContent() {
   const [paletteFilter, setPaletteFilter] = useState("all"); // "all" | "answered" | "marked" | "pending"
   const [visitedQs, setVisitedQs] = useState({ 0: true });
 
+  // --- RESCUE / AUTO-HEAL STATE ---
+  const [rescueState, setRescueState] = useState({
+    active: false,
+    status: "idle", // "idle" | "rescuing" | "success" | "error" | "not_found"
+    message: "",
+  });
+  const rescueAttemptedRef = useRef(false);
+
   // --- FORM STATES ---
   const [name, setName] = useState("");
   const [roll, setRoll] = useState("");
@@ -176,6 +184,87 @@ function StudentPortalContent() {
       }
     }
   }, [currentUser]);
+
+  // 🛡️ UNIVERSAL DRAFT RESCUE & AUTO-HEAL SENSOR
+  useEffect(() => {
+    if (!isMounted || step === "exam") return;
+
+    const isRescueRequested = searchParams?.get("rescue") === "true";
+    const urlCode = searchParams?.get("code");
+
+    const scanForRescuableDraft = () => {
+      let foundKey = null;
+      let foundDraft = null;
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("exam_draft_")) {
+          try {
+            const raw = localStorage.getItem(k);
+            if (!raw) continue;
+            const decoded = decodeURIComponent(atob(raw));
+            const parsed = JSON.parse(decoded);
+
+            const hasAnswers =
+              Array.isArray(parsed.answers) &&
+              parsed.answers.some(
+                (ans) =>
+                  ans?.val !== null &&
+                  ans?.val !== undefined &&
+                  ans?.val !== "",
+              );
+
+            if (hasAnswers) {
+              foundKey = k;
+              foundDraft = parsed;
+              break;
+            }
+          } catch (e) {
+            console.warn("Skipping corrupt draft key:", k);
+          }
+        }
+      }
+
+      if (foundKey && foundDraft) {
+        const isExpired =
+          !foundDraft.endTime || foundDraft.endTime <= Date.now();
+
+        // Trigger if explicit rescue link was clicked OR unsubmitted exam has already expired
+        if (isRescueRequested || isExpired) {
+          const rawParts = foundKey.replace(/^exam_draft_/, "").split("_");
+          const parsedUid =
+            rawParts.length >= 4
+              ? rawParts[rawParts.length - 1]
+              : "anonymous";
+          const parsedRoll =
+            rawParts.length >= 4 ? rawParts[rawParts.length - 2] : "";
+          const parsedName =
+            rawParts.length >= 4 ? rawParts[rawParts.length - 3] : "Student";
+          const parsedTestId =
+            rawParts.length >= 4
+              ? rawParts.slice(0, rawParts.length - 3).join("_")
+              : rawParts[0];
+
+          performDraftRecovery(
+            foundDraft,
+            foundKey,
+            urlCode || parsedTestId,
+            parsedName,
+            parsedRoll,
+            parsedUid,
+          );
+        }
+      } else if (isRescueRequested) {
+        setRescueState({
+          active: true,
+          status: "not_found",
+          message: "Is browser me koi unsubmitted exam draft nahi mila.",
+        });
+      }
+    };
+
+    scanForRescuableDraft();
+  }, [isMounted, step, searchParams]);
 
   //   THE AUTO-JOIN SENSOR (SMART TOKEN DECODER & URL CODE LISTENER)
   useEffect(() => {
@@ -654,6 +743,162 @@ function StudentPortalContent() {
     }
   };
 
+  // 🛡️ DRAFT AUTO-RESCUE ENGINE (Recovers stuck & unsubmitted exams on client device)
+  const performDraftRecovery = async (
+    draft,
+    draftKey,
+    explicitTestId,
+    explicitName,
+    explicitRoll,
+    explicitUid,
+  ) => {
+    if (rescueAttemptedRef.current) return;
+    rescueAttemptedRef.current = true;
+
+    setRescueState({
+      active: true,
+      status: "rescuing",
+      message: "Syncing your answers with the evaluation vault...",
+    });
+
+    try {
+      const targetTestId =
+        explicitTestId || searchParams?.get("code") || activeTest?.id;
+      if (!targetTestId) {
+        throw new Error("Unable to identify Test ID for recovery.");
+      }
+
+      const questionsList =
+        draft.shuffledQuestions || activeTest?.questions || [];
+
+      // Map raw answers back to master indices
+      const rawAnswers = (draft.answers || []).map((ans, idx) => {
+        let actualQ = questionsList[idx];
+        let origQIdx =
+          actualQ?.originalQIdx !== undefined ? actualQ.originalQIdx : idx;
+        let origVal = ans?.val ?? null;
+
+        if (
+          origVal !== null &&
+          (actualQ?.type === "mcq" || actualQ?.type === "msq") &&
+          actualQ?.optionMap
+        ) {
+          if (Array.isArray(origVal)) {
+            origVal = origVal
+              .map((v) => actualQ.optionMap[v])
+              .filter((v) => v !== undefined);
+          } else {
+            origVal =
+              actualQ.optionMap[origVal] !== undefined
+                ? actualQ.optionMap[origVal]
+                : null;
+          }
+        }
+
+        if (typeof origVal === "string") {
+          let trimmed = origVal.trim();
+          if (
+            trimmed === "" ||
+            trimmed === "-" ||
+            trimmed === "." ||
+            trimmed === "-." ||
+            trimmed === "-0."
+          ) {
+            origVal = null;
+          }
+        }
+
+        return {
+          qIndex: origQIdx,
+          val: origVal,
+        };
+      });
+
+      const studentName =
+        currentUser?.displayName ||
+        explicitName ||
+        name ||
+        "Student";
+      const studentRoll =
+        currentUser?.rollNo ||
+        explicitRoll ||
+        roll ||
+        "";
+      const studentUid =
+        currentUser?.uid ||
+        (explicitUid && explicitUid !== "nouid" ? explicitUid : "anonymous");
+
+      const apiPayload = {
+        testId: targetTestId,
+        student: {
+          uid: studentUid,
+          name: studentName,
+          roll: studentRoll,
+        },
+        answers: rawAnswers,
+        timeTaken: "2:00:00 (Auto-Rescued)",
+        timeSpentPerQuestion: {},
+        cheatLogs: draft.cheatLogs || [],
+        isRecovery: true,
+      };
+
+      const token = auth.currentUser
+        ? await auth.currentUser.getIdToken(true)
+        : "";
+
+      const response = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(apiPayload),
+      });
+
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error("Evaluation engine returned invalid response.");
+      }
+
+      if (
+        result.success ||
+        (result.message && result.message.includes("Duplicate"))
+      ) {
+        if (draftKey) {
+          localStorage.removeItem(draftKey);
+        }
+        sessionStorage.removeItem("examitop_active_exam");
+
+        setRescueState({
+          active: true,
+          status: "success",
+          message:
+            "Aapka 2 ghante ka exam successfully submit aur evaluate ho chuka hai! Result page par redirect ho rahe hain...",
+        });
+
+        setTimeout(() => {
+          router.replace("/student-results");
+        }, 2200);
+      } else {
+        setRescueState({
+          active: true,
+          status: "error",
+          message: result.message || "Failed to submit exam.",
+        });
+      }
+    } catch (err) {
+      console.error("Recovery execution failed:", err);
+      setRescueState({
+        active: true,
+        status: "error",
+        message: err.message || "Network error. Please tap Retry.",
+      });
+    }
+  };
+
   /// --- JOIN LOGIC ---
   //   NAYA: isAutoJoin flag add kiya gaya hai
   const handleJoinTest = async (
@@ -918,9 +1163,27 @@ function StudentPortalContent() {
           if (draft.endTime > Date.now()) {
             setDraftToResume(draft);
           } else {
-            localStorage.removeItem(
-              `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}_${uidSafe}`,
-            );
+            // Check if draft has answers — NEVER wipe completed exams!
+            const hasAnswers =
+              Array.isArray(draft.answers) &&
+              draft.answers.some(
+                (a) => a?.val !== null && a?.val !== undefined && a?.val !== "",
+              );
+            if (hasAnswers) {
+              performDraftRecovery(
+                draft,
+                `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}_${uidSafe}`,
+                t.id,
+                safeName,
+                safeRoll,
+                uidSafe,
+              );
+              return;
+            } else {
+              localStorage.removeItem(
+                `exam_draft_${t.id}_${safeName}_${safeRoll || "noroll"}_${uidSafe}`,
+              );
+            }
           }
         } catch (e) {
           console.error(
@@ -1044,27 +1307,27 @@ function StudentPortalContent() {
     handleFinalSubmitRef.current = handleFinalSubmit;
   });
 
-  //Auto-Submit Jitter
+  // Auto-Submit Jitter (Fixed: passes { isAuto: true } to prevent deadlock)
   useEffect(() => {
     if (step === "exam" && endTimeRef.current) {
       const remaining = Math.floor((endTimeRef.current - getTrueNow()) / 1000);
 
-      if (remaining <= 0 && !isActionLockedRef.current && !isSubmitting) {
+      if (remaining <= 0 && !isActionLockedRef.current) {
         isActionLockedRef.current = true; // Block double submissions
         setIsSubmitting(true); // Spinner turant screen par aa jayega
 
-        // 0 se 3000 milliseconds ka random delay (Firebase Write Load Balancer)
-        const randomDelay = Math.floor(Math.random() * 3000);
+        // 0 se 2500 milliseconds ka random delay (Firebase Write Load Balancer)
+        const randomDelay = Math.floor(Math.random() * 2500);
 
         setTimeout(() => {
-          // Ref ke through call karne se GUARANTEE hai ki answers ekdum latest submit honge
+          // Guaranteed auto-submit bypasses isSubmitting deadlock
           if (handleFinalSubmitRef.current) {
-            handleFinalSubmitRef.current();
+            handleFinalSubmitRef.current({ isAuto: true });
           }
         }, randomDelay);
       }
     }
-  }, [timeLeft, step, isSubmitting]);
+  }, [timeLeft, step]);
 
   // --- START EXAM LOGIC ---
   const startExam = () => {
@@ -1359,9 +1622,10 @@ function StudentPortalContent() {
   };
 
   // --- SECURE SUBMISSION LOGIC (Dumb Client Version) ---
-  const handleFinalSubmit = async () => {
+  const handleFinalSubmit = async (options = {}) => {
+    const isAuto = options?.isAuto === true;
     if (!activeTest || step !== "exam") return;
-    if (isSubmitting) return;
+    if (isSubmitting && !isAuto) return;
 
     clearInterval(timerRef.current);
     isActionLockedRef.current = true; // STRICT LOCK (Prevents double clicks)
@@ -1870,6 +2134,119 @@ function StudentPortalContent() {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
+      {/* 🚀 AUTO-RESCUE / RECOVERY OVERLAY VIEW */}
+      {rescueState.active && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 text-center text-white shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            {rescueState.status === "rescuing" && (
+              <>
+                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 text-3xl">
+                  <i className="ti ti-loader-2 animate-spin"></i>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black mb-2 text-white">
+                  Rescuing Exam Submission
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-400 mb-6 font-medium">
+                  {rescueState.message ||
+                    "Aapke 2 ghante ke answers cloud me sync aur evaluate ho rahe hain..."}
+                </p>
+                <div className="space-y-2 text-left bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 text-xs">
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                    <i className="ti ti-check"></i> Encrypted answers restored from device
+                  </div>
+                  <div className="flex items-center gap-2 text-blue-400 font-bold animate-pulse">
+                    <i className="ti ti-refresh animate-spin"></i> Submitting to Cloud Evaluation Engine...
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500">
+                    <i className="ti ti-circle"></i> Preparing Scorecard & Leaderboard
+                  </div>
+                </div>
+              </>
+            )}
+
+            {rescueState.status === "success" && (
+              <>
+                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-3xl">
+                  <i className="ti ti-circle-check"></i>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black mb-2 text-emerald-400">
+                  Exam Successfully Submitted!
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 mb-6 font-medium">
+                  {rescueState.message ||
+                    "Aapke answers evaluate ho chuke hain. Result portal par redirect ho rahe hain..."}
+                </p>
+                <button
+                  onClick={() => router.replace("/student-results")}
+                  className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm transition-all shadow-lg shadow-emerald-600/30 cursor-pointer"
+                >
+                  View My Result / Scorecard
+                </button>
+              </>
+            )}
+
+            {rescueState.status === "error" && (
+              <>
+                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 text-3xl">
+                  <i className="ti ti-alert-triangle"></i>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black mb-2 text-rose-400">
+                  Submission Notice
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 mb-6 font-medium">
+                  {rescueState.message}
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() =>
+                      setRescueState({
+                        active: false,
+                        status: "idle",
+                        message: "",
+                      })
+                    }
+                    className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer border border-slate-700"
+                  >
+                    Go to Portal
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (typeof window !== "undefined")
+                        window.location.reload();
+                    }}
+                    className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer shadow-md shadow-blue-600/30"
+                  >
+                    Retry Now
+                  </button>
+                </div>
+              </>
+            )}
+
+            {rescueState.status === "not_found" && (
+              <>
+                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-3xl">
+                  <i className="ti ti-info-circle"></i>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black mb-2 text-amber-400">
+                  No Pending Draft Found
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-400 mb-6 font-medium">
+                  Is browser me koi unsubmitted exam ka draft nahi mila. Ho sakta hai aapka paper pehle hi submit ho chuka ho.
+                </p>
+                <button
+                  onClick={() => router.replace("/student-results")}
+                  className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm transition-all shadow-lg shadow-blue-600/30 cursor-pointer"
+                >
+                  Check Student Results
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* STEP 1: PREMIUM JOIN FORM */}
       {step === "join" && (
         <div className="relative max-w-[460px] mx-auto mt-6 sm:mt-14 animate-[fadeIn_0.4s_ease]">

@@ -80,6 +80,20 @@ export default function ManageTests() {
     setTimeout(() => setCopiedCodeId(null), 1800);
   };
 
+  const [copiedRescueId, setCopiedRescueId] = useState(null);
+  const handleCopyRescueLink = (e, code, testId) => {
+    if (e) e.stopPropagation();
+    const link =
+      typeof window !== "undefined"
+        ? code
+          ? `${window.location.origin}/student?code=${code}&rescue=true`
+          : `${window.location.origin}/student?rescue=true`
+        : `https://examitop.com/student?rescue=true`;
+    navigator.clipboard.writeText(link);
+    setCopiedRescueId(testId || code || "universal");
+    setTimeout(() => setCopiedRescueId(null), 2000);
+  };
+
   const handleCopyJoinLink = (e, code, testId) => {
     if (e) e.stopPropagation();
     if (!code) return;
@@ -3600,6 +3614,32 @@ export default function ManageTests() {
                             {copiedLinkId === selectedTest.id
                               ? "Link Copied! ✓"
                               : "Copy Join Link"}
+                          </span>
+                        </button>
+
+                        {/* 1-Click Auto-Rescue URL Copy */}
+                        <button
+                          onClick={(e) =>
+                            handleCopyRescueLink(
+                              e,
+                              selectedTest.code,
+                              selectedTest.id,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-md border border-amber-200/80 font-bold transition-all cursor-pointer active:scale-95 shadow-2xs"
+                          title="Copy Emergency Auto-Rescue link for stuck exams"
+                        >
+                          <i
+                            className={`ti ${
+                              copiedRescueId === selectedTest.id
+                                ? "ti-check text-emerald-600"
+                                : "ti-lifebuoy text-amber-600"
+                            } text-xs`}
+                          ></i>
+                          <span>
+                            {copiedRescueId === selectedTest.id
+                              ? "Rescue Copied! ✓"
+                              : "Auto-Rescue Link"}
                           </span>
                         </button>
 

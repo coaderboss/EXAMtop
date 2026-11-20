@@ -44,6 +44,8 @@ export default function ExaminerDashboard() {
   const [isFetching, setIsFetching] = useState(true);
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedJoinLink, setCopiedJoinLink] = useState(null);
+  const [copiedRescueLink, setCopiedRescueLink] = useState(null);
   const [filterTab, setFilterTab] = useState("all"); // 'all', 'live', 'scheduled'
 
   // Calendar States
@@ -111,6 +113,31 @@ export default function ExaminerDashboard() {
     navigator.clipboard.writeText(examinerCode);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleCopyJoinLink = (e, testCode, testId) => {
+    if (e) e.stopPropagation();
+    if (!testCode) return;
+    const link =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/student?code=${testCode}`
+        : `https://examitop.com/student?code=${testCode}`;
+    navigator.clipboard.writeText(link);
+    setCopiedJoinLink(testId || testCode);
+    setTimeout(() => setCopiedJoinLink(null), 2000);
+  };
+
+  const handleCopyRescueLink = (e, testCode, testId) => {
+    if (e) e.stopPropagation();
+    const link =
+      typeof window !== "undefined"
+        ? testCode
+          ? `${window.location.origin}/student?code=${testCode}&rescue=true`
+          : `${window.location.origin}/student?rescue=true`
+        : `https://examitop.com/student?rescue=true`;
+    navigator.clipboard.writeText(link);
+    setCopiedRescueLink(testId || testCode || "universal");
+    setTimeout(() => setCopiedRescueLink(null), 2500);
   };
 
   // Dynamic Greeting based on time of day
@@ -431,6 +458,25 @@ export default function ExaminerDashboard() {
               <span>Vault</span>
               <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-slate-200 text-slate-700">
                 {validTests.length}
+              </span>
+            </button>
+
+            <button
+              onClick={(e) => handleCopyRescueLink(e, null, "universal")}
+              className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 transition-all active:scale-95 cursor-pointer shadow-2xs"
+              title="Copy Emergency Auto-Rescue link for any student with stuck or unsubmitted exam"
+            >
+              <i
+                className={`ti ${
+                  copiedRescueLink === "universal"
+                    ? "ti-check text-emerald-600 font-black"
+                    : "ti-lifebuoy text-amber-600"
+                } text-sm sm:text-base`}
+              ></i>
+              <span>
+                {copiedRescueLink === "universal"
+                  ? "Rescue Link Copied!"
+                  : "Auto-Rescue Link"}
               </span>
             </button>
 
@@ -825,7 +871,47 @@ export default function ExaminerDashboard() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyJoinLink(e, t.code, t.id)}
+                            className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 shadow-2xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                            title="Copy direct join link for students"
+                          >
+                            <i
+                              className={`ti ${
+                                copiedJoinLink === (t.id || t.code)
+                                  ? "ti-check text-emerald-600 font-black"
+                                  : "ti-link text-blue-600"
+                              } text-xs`}
+                            ></i>
+                            <span>
+                              {copiedJoinLink === (t.id || t.code)
+                                ? "Copied!"
+                                : "Copy Link"}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyRescueLink(e, t.code, t.id)}
+                            className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs border border-amber-200/80 shadow-2xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                            title="Copy Emergency Auto-Submit / Rescue link for stuck submissions"
+                          >
+                            <i
+                              className={`ti ${
+                                copiedRescueLink === (t.id || t.code)
+                                  ? "ti-check text-emerald-600 font-black"
+                                  : "ti-lifebuoy text-amber-600"
+                              } text-xs`}
+                            ></i>
+                            <span>
+                              {copiedRescueLink === (t.id || t.code)
+                                ? "Rescue Copied!"
+                                : "Rescue Link"}
+                            </span>
+                          </button>
+
                           <button
                             onClick={() => jumpToTestVault(t.id)}
                             className="w-full sm:w-auto px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black text-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-indigo-500/25 group/btn"
@@ -1050,8 +1136,48 @@ export default function ExaminerDashboard() {
                         </div>
                       </div>
 
-                      {/* Right Side: Quick Action Button */}
-                      <div className="flex items-center justify-end border-t md:border-t-0 pt-2.5 md:pt-0 border-slate-100 shrink-0">
+                      {/* Right Side: Quick Action Buttons */}
+                      <div className="flex items-center gap-2 justify-end border-t md:border-t-0 pt-2.5 md:pt-0 border-slate-100 shrink-0 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={(e) => handleCopyJoinLink(e, t.code, t.id)}
+                          className="px-3 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold text-xs border border-slate-200 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          title="Copy direct join link for students"
+                        >
+                          <i
+                            className={`ti ${
+                              copiedJoinLink === (t.id || t.code)
+                                ? "ti-check text-emerald-600 font-black"
+                                : "ti-link text-slate-400 group-hover:text-blue-600"
+                            } text-xs`}
+                          ></i>
+                          <span>
+                            {copiedJoinLink === (t.id || t.code)
+                              ? "Copied!"
+                              : "Copy Link"}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => handleCopyRescueLink(e, t.code, t.id)}
+                          className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs border border-amber-200/80 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          title="Copy Emergency Auto-Submit / Rescue Link for stuck exams"
+                        >
+                          <i
+                            className={`ti ${
+                              copiedRescueLink === (t.id || t.code)
+                                ? "ti-check text-emerald-600 font-black"
+                                : "ti-lifebuoy text-amber-600"
+                            } text-xs`}
+                          ></i>
+                          <span>
+                            {copiedRescueLink === (t.id || t.code)
+                              ? "Rescue Copied!"
+                              : "Rescue Link"}
+                          </span>
+                        </button>
+
                         <motion.button
                           whileHover={{ scale: 1.03 }}
                           whileTap={{ scale: 0.95 }}
@@ -1061,7 +1187,7 @@ export default function ExaminerDashboard() {
                           }}
                           className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-2xs group/btn"
                         >
-                          <span>Manage Test</span>
+                          <span>Manage</span>
                           <i className="ti ti-arrow-right text-xs group-hover/btn:translate-x-1 transition-transform"></i>
                         </motion.button>
                       </div>

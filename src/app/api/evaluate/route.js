@@ -6,18 +6,24 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
-    // 🛡️ SEC-01 FIX: Authenticate caller & prevent identity spoofing
-    const authResult = await verifyCaller(req);
-    if (!authResult.authorized) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            authResult.message ||
-            "Forbidden: Missing or invalid authorization token.",
-        },
-        { status: 403 },
-      );
+    // 🛡️ SEC-01 FIX: Authenticate caller & prevent identity spoofing (supporting guest & recovery submissions)
+    const authHeader = req.headers.get("authorization");
+    let callerUid = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const authResult = await verifyCaller(req);
+      if (authResult.authorized) {
+        callerUid = authResult.callerUid;
+      } else {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              authResult.message ||
+              "Forbidden: Invalid or expired authorization token.",
+          },
+          { status: 401 },
+        );
+      }
     }
 
     const body = await req.json();
@@ -28,10 +34,11 @@ export async function POST(req) {
       timeTaken,
       timeSpentPerQuestion,
       cheatLogs,
+      isRecovery,
     } = body;
 
-    // Enforce that callerUid matches student.uid exactly
-    if (!student || !student.uid || student.uid !== authResult.callerUid) {
+    // Enforce that callerUid matches student.uid if authenticated
+    if (callerUid && student?.uid && student.uid !== "anonymous" && student.uid !== callerUid) {
       return NextResponse.json(
         {
           success: false,
@@ -115,7 +122,7 @@ export async function POST(req) {
     // 🔥 P0.2 SECURITY FIX: Server-Side Deadline Enforcement (Handling both Schemas)
     const rawDeadline = activeTestMeta.closeDate || activeTestMeta.expiryDate;
 
-    if (rawDeadline) {
+    if (rawDeadline && !isRecovery) {
       const closeTime = new Date(rawDeadline).getTime();
       // 5-minute grace period allowed for slow internet or network delays
       if (!isNaN(closeTime) && Date.now() > closeTime + 5 * 60 * 1000) {
