@@ -40,7 +40,7 @@ const StaticMath = memo(({ html, isBlock, style, className }) => {
 });
 
 function StudentPortalContent() {
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, userRole, loading: authLoading } = useAuth();
   const { fetchSingleTest } = useData();
   const router = useRouter();
   const searchParams = useSearchParams(); //   NAYA: URL Params Reader
@@ -49,11 +49,21 @@ function StudentPortalContent() {
   const [isFetchingTest, setIsFetchingTest] = useState(false);
   const autoJoinTriggered = useRef(false); //   Prevent infinite loop
 
+  //  Examiner Demo Detection: checks userRole, URL query param, and sessionStorage
+  const isExaminerDemo =
+    userRole === "examiner" ||
+    userRole === "admin" ||
+    searchParams.get("demo") === "true" ||
+    (typeof window !== "undefined" &&
+      sessionStorage.getItem("examitop_demo_examiner") === "true");
+
   // --- SCREEN STATES ---
   const [step, setStep] = useState("join");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [draftToResume, setDraftToResume] = useState(null);
+  const [paletteFilter, setPaletteFilter] = useState("all"); // "all" | "answered" | "marked" | "pending"
+  const [visitedQs, setVisitedQs] = useState({ 0: true });
 
   // --- FORM STATES ---
   const [name, setName] = useState("");
@@ -72,12 +82,15 @@ function StudentPortalContent() {
 
   //   NAYA: Figure Loading State (For TikZ & Images)
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [zoomFigure, setZoomFigure] = useState(null);
 
   // --- CUSTOM POPUPS & ALERTS ---
   const [joinError, setJoinError] = useState("");
   const [cheatWarning, setCheatWarning] = useState(null);
   const [sysModal, setSysModal] = useState(null);
   const [qTime, setQTime] = useState({});
+  const [isDeviceOnline, setIsDeviceOnline] = useState(true);
+  const [rulesAgreed, setRulesAgreed] = useState(true);
 
   // --- REFS ---
   const timerRef = useRef(null);
@@ -123,13 +136,35 @@ function StudentPortalContent() {
     return total;
   }, [activeTest]);
 
+  const currentQuestion = activeTest?.questions?.[curQ] || null;
+
+  // Track visited questions across session
+  useEffect(() => {
+    if (step === "exam" && curQ !== undefined) {
+      setVisitedQs((prev) => (prev[curQ] ? prev : { ...prev, [curQ]: true }));
+    }
+  }, [step, curQ]);
+
   useEffect(() => {
     setIsMounted(true);
+    const handleOnline = () => setIsDeviceOnline(true);
+    const handleOffline = () => setIsDeviceOnline(false);
+    if (typeof window !== "undefined") {
+      setIsDeviceOnline(navigator.onLine);
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
     const offsetRef = ref(database, ".info/serverTimeOffset");
     const unsub = onValue(offsetRef, (snap) => {
       serverOffsetRef.current = Number(snap.val()) || 0;
     });
-    return () => unsub();
+    return () => {
+      unsub();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      }
+    };
   }, []);
 
   //   Profile Details Auto-Fill
@@ -242,7 +277,7 @@ function StudentPortalContent() {
           if (!isCancelled) {
             let targetAreas = document.querySelectorAll(".q-area-content");
             targetAreas.forEach((el) => {
-              el.style.transition = "opacity 0.25s ease-in";
+              el.style.transition = "opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1)";
               el.style.opacity = "1";
             });
           }
@@ -250,7 +285,7 @@ function StudentPortalContent() {
       }
     };
     // Ab React pehle aaram se raw text daalega, fir MathJax aakar usko perfectly format karega!
-    const timer = setTimeout(renderMath, 150);
+    const timer = setTimeout(renderMath, 40);
     return () => {
       isCancelled = true;
       clearTimeout(timer);
@@ -559,10 +594,23 @@ function StudentPortalContent() {
     window.history.pushState(null, "", window.location.href);
     const handlePopState = (e) => {
       window.history.pushState(null, "", window.location.href);
-      setSysModal({
-        type: "error",
-        msg: "SECURITY LOCK: You cannot go back during an active exam. You must submit the test to exit.",
-      });
+      if (isExaminerDemo) {
+        setSysModal({
+          type: "confirm",
+          msg: "Exit Examiner Demo and return to Tests Vault?",
+          action: () => {
+            if (typeof window !== "undefined") {
+              sessionStorage.removeItem("examitop_demo_examiner");
+            }
+            router.push("/tests");
+          },
+        });
+      } else {
+        setSysModal({
+          type: "error",
+          msg: "SECURITY LOCK: You cannot go back during an active exam. You must submit the test to exit.",
+        });
+      }
     };
     window.addEventListener("popstate", handlePopState);
 
@@ -596,6 +644,15 @@ function StudentPortalContent() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [step]);
+
+  const handleKeyDownJoin = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (name.trim() && code.trim() && !isFetchingTest) {
+        handleJoinTest();
+      }
+    }
+  };
 
   /// --- JOIN LOGIC ---
   //   NAYA: isAutoJoin flag add kiya gaya hai
@@ -1137,6 +1194,41 @@ function StudentPortalContent() {
     return true;
   };
 
+  const handleVirtualKey = (key) => {
+    let cur = answers[curQ]?.val !== null && answers[curQ]?.val !== undefined ? String(answers[curQ].val) : "";
+    if (cur === "NaN" || cur === "undefined" || cur === "null") cur = "";
+
+    if (key === "backspace") {
+      cur = cur.slice(0, -1);
+      if (cur === "-" || cur === "") {
+        pickInt(curQ, "");
+      } else {
+        pickInt(curQ, cur);
+      }
+    } else if (key === "clear") {
+      clearAns(curQ);
+    } else if (key === "-") {
+      if (cur.startsWith("-")) {
+        cur = cur.slice(1);
+      } else {
+        cur = "-" + cur;
+      }
+      pickInt(curQ, cur);
+    } else if (key === ".") {
+      if (!cur.includes(".")) {
+        if (cur === "" || cur === "-") cur = cur + "0.";
+        else cur = cur + ".";
+        pickInt(curQ, cur);
+      }
+    } else {
+      // Numerical Digits 0-9
+      if (cur === "0") cur = key;
+      else if (cur === "-0") cur = "-" + key;
+      else if (cur.length < 16) cur += key;
+      pickInt(curQ, cur);
+    }
+  };
+
   const pickMCQ = (qIndex, optIndex) => {
     if (!canAttemptQuestion(qIndex)) return;
     let newAns = [...answers];
@@ -1160,9 +1252,13 @@ function StudentPortalContent() {
     }
   };
   const pickInt = (qIndex, val) => {
-    if (val !== "" && val !== null && !canAttemptQuestion(qIndex)) return;
+    if (val !== "" && val !== null && val !== undefined) {
+      if (!canAttemptQuestion(qIndex)) return;
+    }
     let newAns = [...answers];
-    newAns[qIndex].val = val === "" ? null : Number(val);
+    let clean = (val === "" || val === null || val === undefined) ? null : String(val).trim();
+    if (clean === "NaN" || clean === "null" || clean === "undefined") clean = null;
+    newAns[qIndex].val = clean;
     setAnswers(newAns);
   };
   const pickSubj = (qIndex, val) => {
@@ -1207,6 +1303,48 @@ function StudentPortalContent() {
       integer: "b-amber",
       subjective: "b-purple",
     })[type] || "b-gray";
+
+  useEffect(() => {
+    if (step !== "exam") return;
+    const handleExamShortcuts = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === "textarea" || (tag === "input" && document.activeElement?.type === "text")) {
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        if (curQ > 0) changeQuestion(curQ - 1);
+      } else if (e.key === "ArrowRight") {
+        if (curQ < (activeTest?.questions?.length || 1) - 1) changeQuestion(curQ + 1);
+      } else if (e.key === "m" || e.key === "M") {
+        toggleMark(curQ);
+      } else if (e.key === "c" || e.key === "C") {
+        clearAns(curQ);
+      } else if (currentQuestion?.type === "integer") {
+        if (["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "-", "."].includes(e.key)) {
+          e.preventDefault();
+          handleVirtualKey(e.key);
+        } else if (e.key === "Backspace") {
+          e.preventDefault();
+          handleVirtualKey("backspace");
+        } else if (e.key === "Delete") {
+          e.preventDefault();
+          handleVirtualKey("clear");
+        }
+      } else if (["1", "2", "3", "4", "a", "b", "c", "d", "A", "B", "C", "D"].includes(e.key)) {
+        const map = { "1": 0, "a": 0, "A": 0, "2": 1, "b": 1, "B": 1, "3": 2, "c": 2, "C": 2, "4": 3, "d": 3, "D": 3 };
+        const optIdx = map[e.key];
+        if (optIdx !== undefined) {
+          if (currentQuestion?.type === "mcq" && currentQuestion.options?.[optIdx] !== undefined) {
+            pickMCQ(curQ, optIdx);
+          } else if (currentQuestion?.type === "msq" && currentQuestion.options?.[optIdx] !== undefined) {
+            pickMSQ(curQ, optIdx);
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleExamShortcuts);
+    return () => window.removeEventListener("keydown", handleExamShortcuts);
+  }, [step, curQ, activeTest, currentQuestion, answers]);
 
   // --- SUBMIT CONFIRMATION UI ---
   const confirmAndSubmit = () => {
@@ -1256,6 +1394,13 @@ function StudentPortalContent() {
         }
       }
 
+      // Sanitize integer / partial inputs before submission
+      if (typeof origVal === "string") {
+        let trimmed = origVal.trim();
+        if (trimmed === "" || trimmed === "-" || trimmed === "." || trimmed === "-." || trimmed === "-0.") {
+          origVal = null;
+        }
+      }
       return {
         qIndex: origQIdx,
         val: origVal,
@@ -1387,6 +1532,13 @@ function StudentPortalContent() {
 
       // SUCCESS REDIRECT (No Popup, direct to results)
       // Spinner screen chalti rahegi tab tak jab tak route push na ho jaye
+      if (isExaminerDemo) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("examitop_demo_examiner");
+        }
+        router.replace("/tests");
+        return;
+      }
       router.replace("/student-results");
       return;
     } catch (error) {
@@ -1417,29 +1569,184 @@ function StudentPortalContent() {
 
   if (!isMounted || authLoading || isSubmitting || isFetchingTest) {
     return (
-      <div className="fixed inset-0 bg-slate-50 flex flex-col items-center justify-center z-[99999]">
+      <div className={`fixed inset-0 flex flex-col items-center justify-center z-[99999] overflow-hidden select-none transition-colors duration-500 ${
+        isSubmitting ? "bg-[#070b14] text-white" : "bg-slate-50"
+      }`}>
         <style>{`
             @keyframes spinDash { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
             @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(37,99,235,0.4); } 70% { box-shadow: 0 0 0 20px rgba(37,99,235,0); } 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); } }
-            @keyframes lockPulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 50% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+            @keyframes shimmerMove { 0% { transform: translateX(-150%); } 100% { transform: translateX(250%); } }
             @keyframes floatUp { 0% { transform: translateY(10px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+
+            /* 3D GYRO-VAULT PRECIPITATION ANIMATIONS (FAUX-3D HIGH-TECH) */
+            @keyframes gyroX {
+              0% { transform: rotateX(68deg) rotateY(15deg) rotateZ(0deg); }
+              100% { transform: rotateX(68deg) rotateY(15deg) rotateZ(360deg); }
+            }
+            @keyframes gyroY {
+              0% { transform: rotateY(70deg) rotateX(25deg) rotateZ(0deg); }
+              100% { transform: rotateY(70deg) rotateX(25deg) rotateZ(360deg); }
+            }
+            @keyframes gyroZ {
+              0% { transform: rotateX(30deg) rotateY(60deg) rotateZ(0deg); }
+              100% { transform: rotateX(30deg) rotateY(60deg) rotateZ(360deg); }
+            }
+            @keyframes vaultSpherePulse {
+              0%, 100% {
+                transform: translate(-50%, -50%) scale(1);
+                box-shadow: 0 0 35px rgba(16, 185, 129, 0.7), 0 10px 30px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.5), inset 0 -6px 12px rgba(0, 0, 0, 0.6);
+              }
+              50% {
+                transform: translate(-50%, -50%) scale(1.08);
+                box-shadow: 0 0 55px rgba(16, 185, 129, 0.9), 0 14px 40px rgba(0, 0, 0, 0.8), inset 0 3px 6px rgba(255, 255, 255, 0.7), inset 0 -8px 16px rgba(0, 0, 0, 0.6);
+              }
+            }
+            @keyframes radarPing {
+              0% { transform: scale(0.6); opacity: 0.9; }
+              50% { opacity: 0.5; }
+              100% { transform: scale(1.6); opacity: 0; }
+            }
+            @keyframes photonOrbit {
+              0% { transform: rotate(0deg) translateX(85px) rotate(0deg); }
+              100% { transform: rotate(360deg) translateX(85px) rotate(-360deg); }
+            }
         `}</style>
 
-        {isSubmitting ? (
-          <div className="text-center animate-[fadeIn_0.4s_ease] flex flex-col items-center">
-            <div className="relative w-[120px] h-[120px] mb-8">
-              <div className="absolute inset-0 rounded-full border-[3px] border-dashed border-emerald-500/40 animate-[spinDash_6s_linear_infinite]"></div>
-              <div className="absolute inset-[10px] rounded-full border-4 border-transparent border-t-emerald-500 border-b-emerald-500 animate-[spinDash_2s_ease-in-out_infinite_reverse]"></div>
-              <div className="absolute inset-[20px] bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center shadow-inner animate-[lockPulse_2s_infinite]">
-                <i className="ti ti-lock-check text-4xl text-white"></i>
+        {isFetchingTest ? (
+          <div className="text-center animate-[fadeIn_0.3s_ease] flex flex-col items-center max-w-sm px-6">
+            <div className="relative w-24 h-24 mb-6">
+              <div className="absolute -inset-2 bg-blue-600/20 rounded-full blur-xl animate-pulse"></div>
+              <div className="absolute inset-0 rounded-full border-2 border-dashed border-blue-400/40 animate-[spinDash_8s_linear_infinite]"></div>
+              <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-blue-600 border-r-indigo-600 animate-[spinDash_1.2s_cubic-bezier(0.4,0,0.2,1)_infinite]"></div>
+              <div className="absolute inset-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-full flex items-center justify-center shadow-lg shadow-blue-600/30">
+                <i className="ti ti-lock-open text-2xl text-white"></i>
               </div>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-800 mb-3 tracking-tight flex items-center gap-3">
-              Encrypting Vault{" "}
-              <span className="w-5 h-5 border-4 border-slate-800 border-t-transparent rounded-full animate-spin"></span>
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-[11px] font-extrabold uppercase tracking-widest mb-3 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping"></span>
+              Synchronizing Vault
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-800 mb-2 tracking-tight">
+              Decrypting Exam Session
             </h2>
-            <div className="bg-emerald-50 text-emerald-600 px-5 py-2 rounded-full text-xs font-extrabold uppercase tracking-widest border border-emerald-200 shadow-sm animate-[floatUp_0.5s_ease_forwards]">
-              Establishing Secure Transfer...
+            <p className="text-xs font-semibold text-slate-500 mb-5 leading-relaxed">
+              Verifying security tokens and retrieving encrypted question papers...
+            </p>
+            {/* Shimmer Progress Track */}
+            <div className="w-52 h-1.5 bg-slate-200/80 rounded-full overflow-hidden relative">
+              <div className="absolute inset-y-0 w-2/5 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full animate-[shimmerMove_1.5s_infinite]"></div>
+            </div>
+          </div>
+        ) : isSubmitting ? (
+          <div className="text-center animate-[fadeIn_0.4s_ease] flex flex-col items-center max-w-md px-6 z-10 relative">
+            {/* Ambient Radial Spotlight */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+
+            {/* Top Security Seal Badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-black uppercase tracking-widest mb-8 shadow-[0_0_25px_rgba(16,185,129,0.2)] animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              Cryptographic Vault Seal
+            </div>
+
+            {/* FAUX-3D GYRO-VAULT SPHERE STAGE */}
+            <div className="relative w-[210px] h-[210px] sm:w-[230px] sm:h-[230px] mb-8 flex items-center justify-center [perspective:800px]">
+              {/* Sonar Expanding Waves */}
+              <div
+                className="absolute inset-0 rounded-full border border-emerald-400/30 pointer-events-none"
+                style={{ animation: "radarPing 2.8s cubic-bezier(0, 0.2, 0.8, 1) infinite" }}
+              ></div>
+              <div
+                className="absolute inset-0 rounded-full border border-teal-400/20 pointer-events-none"
+                style={{ animation: "radarPing 2.8s cubic-bezier(0, 0.2, 0.8, 1) infinite 1.4s" }}
+              ></div>
+
+              {/* 3D Gyro Ring 1 (X-Axis Equator Precession) */}
+              <div
+                className="absolute inset-[6px] rounded-full border-[2.5px] border-emerald-500/40 pointer-events-none"
+                style={{
+                  borderTopColor: "#10b981",
+                  borderRightColor: "#34d399",
+                  boxShadow: "0 0 18px rgba(16, 185, 129, 0.35), inset 0 0 15px rgba(16, 185, 129, 0.2)",
+                  animation: "gyroX 4.5s linear infinite",
+                }}
+              ></div>
+
+              {/* 3D Gyro Ring 2 (Y-Axis Polar Precession with dashes) */}
+              <div
+                className="absolute inset-[18px] rounded-full border-[2.5px] border-dashed border-cyan-400/40 pointer-events-none"
+                style={{
+                  borderTopColor: "#06b6d4",
+                  borderBottomColor: "#38bdf8",
+                  boxShadow: "0 0 22px rgba(6, 182, 212, 0.3)",
+                  animation: "gyroY 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite",
+                }}
+              ></div>
+
+              {/* 3D Gyro Ring 3 (Z-Axis Diagonal Precession) */}
+              <div
+                className="absolute inset-[30px] rounded-full border-[2px] border-indigo-400/30 pointer-events-none"
+                style={{
+                  borderLeftColor: "#818cf8",
+                  borderRightColor: "#a855f7",
+                  animation: "gyroZ 5.5s linear infinite reverse",
+                }}
+              ></div>
+
+              {/* Orbiting Photon Bead */}
+              <div
+                className="absolute top-1/2 left-1/2 -mt-1 -ml-1 w-2 h-2 rounded-full bg-emerald-300 shadow-[0_0_12px_#34d399] pointer-events-none"
+                style={{ animation: "photonOrbit 3s linear infinite" }}
+              ></div>
+
+              {/* Levitating 3D Isometric Core Sphere */}
+              <div
+                className="absolute top-1/2 left-1/2 w-20 h-20 sm:w-[88px] sm:h-[88px] rounded-full flex items-center justify-center pointer-events-none"
+                style={{
+                  background: "radial-gradient(circle at 35% 32%, #6ee7b7 0%, #10b981 40%, #064e3b 85%, #022c22 100%)",
+                  animation: "vaultSpherePulse 2.2s ease-in-out infinite",
+                }}
+              >
+                {/* Core Lock Symbol with 3D Specular Relief */}
+                <div className="relative text-white flex items-center justify-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+                  <i className="ti ti-lock-check text-3xl sm:text-4xl text-white"></i>
+                </div>
+              </div>
+            </div>
+
+            {/* Primary Headline */}
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2">
+              Encrypting & Locking Vault
+            </h2>
+
+            <p className="text-xs sm:text-[13px] font-semibold text-slate-400 leading-relaxed max-w-xs sm:max-w-sm mb-6">
+              Signing session cryptographic keys, packaging proctoring telemetry, and securing paper responses...
+            </p>
+
+            {/* 3-Step Milestone Progression Bar */}
+            <div className="w-full max-w-xs mb-5">
+              <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2 px-1">
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <i className="ti ti-check text-xs font-black"></i> Packaged
+                </span>
+                <span className="text-cyan-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span> Encrypting
+                </span>
+                <span className="text-slate-500">Transferred</span>
+              </div>
+
+              {/* Shimmer Progress Track */}
+              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden relative shadow-inner">
+                <div
+                  className="absolute inset-y-0 w-2/5 bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 rounded-full"
+                  style={{ animation: "shimmerMove 1.4s ease-in-out infinite" }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Trust & Compliance Badge */}
+            <div className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-400 bg-slate-900/80 px-3.5 py-1.5 rounded-xl border border-slate-800 shadow-sm">
+              <i className="ti ti-shield-check text-emerald-400 text-sm"></i>
+              <span>256-Bit SHA Encrypted Transmission</span>
             </div>
           </div>
         ) : (
@@ -1452,9 +1759,7 @@ function StudentPortalContent() {
               </div>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-800 mb-2 tracking-tight">
-              {isFetchingTest
-                ? "Decrypting Exam Vault..."
-                : "Initializing Secure Portal..."}
+              Initializing Secure Portal...
             </h2>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
               Please wait
@@ -1507,35 +1812,116 @@ function StudentPortalContent() {
   }
 
   const answeredQs = answers.filter(
-    (a) => a?.val !== null && (!Array.isArray(a?.val) || a?.val.length > 0),
+    (a) => a?.val !== null && a?.val !== undefined && a?.val !== "" && (!Array.isArray(a?.val) || a.val.length > 0),
   ).length;
   const markedQs = answers.filter((a) => a?.marked).length;
-
   const remainingQs = Math.max(0, maxAllowedQuestions - answeredQs);
-  const currentQuestion = activeTest?.questions?.[curQ];
+
+  // Phase 4: Ergonomic Question Palette Button Renderer
+  const renderPalButton = (i, displayNum, isMobile = false) => {
+    const a = answers[i];
+    const isDone = a?.val !== null && a?.val !== undefined && a?.val !== "" && (!Array.isArray(a?.val) || a.val.length > 0);
+    const isMarked = !!a?.marked;
+    const isVisited = !!visitedQs[i];
+    const isCurrent = i === curQ;
+
+    // Filter matching
+    let matches = true;
+    if (paletteFilter === "answered") matches = isDone;
+    else if (paletteFilter === "marked") matches = isMarked;
+    else if (paletteFilter === "pending") matches = !isDone;
+
+    // High-tech status badges
+    let btnStyle = "bg-white text-slate-700 border border-slate-200 hover:border-slate-400";
+    if (isDone && isMarked) {
+      btnStyle = "bg-purple-600 text-white font-black shadow-xs hover:bg-purple-700 border border-purple-500";
+    } else if (isMarked) {
+      btnStyle = "bg-purple-100 text-purple-900 font-extrabold border-2 border-purple-400 hover:bg-purple-200";
+    } else if (isDone) {
+      btnStyle = "bg-emerald-600 text-white font-black shadow-xs hover:bg-emerald-700 border border-emerald-500";
+    } else if (isVisited) {
+      btnStyle = "bg-rose-50 text-rose-700 font-bold border border-rose-300 hover:bg-rose-100";
+    }
+
+    const currentIndicator = isCurrent
+      ? "ring-2 ring-blue-600 ring-offset-2 scale-105 z-10 shadow-md font-black"
+      : "";
+
+    const filterDim = matches ? "opacity-100" : "opacity-20 hover:opacity-70 scale-95";
+
+    return (
+      <button
+        key={i}
+        type="button"
+        className={`relative ${isMobile ? "h-11 text-sm font-black" : "h-9 text-xs font-bold"} w-full rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-90 ${btnStyle} ${currentIndicator} ${filterDim}`}
+        onClick={() => {
+          changeQuestion(i);
+          if (isMobile) setIsMobilePaletteOpen(false);
+        }}
+        title={`Question ${displayNum || i + 1}: ${isDone ? "Answered" : isVisited ? "Visited (Unanswered)" : "Not Visited"}${isMarked ? " (Marked)" : ""}`}
+      >
+        {displayNum || i + 1}
+        {isDone && isMarked && (
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-1 ring-white"></span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
       {/* STEP 1: PREMIUM JOIN FORM */}
       {step === "join" && (
-        <div className="max-w-[420px] mx-auto mt-10 sm:mt-16 animate-[fadeIn_0.4s_ease]">
-          <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden p-6 sm:p-8">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl flex items-center justify-center text-3xl font-black shadow-lg shadow-blue-600/20 mx-auto mb-4">
-                E
+        <div className="relative max-w-[460px] mx-auto mt-6 sm:mt-14 animate-[fadeIn_0.4s_ease]">
+          {/* Subtle Ambient Glow */}
+          <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/20 via-indigo-600/15 to-sky-500/20 rounded-[36px] blur-2xl opacity-70 -z-10"></div>
+
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-[0_20px_60px_-15px_rgba(15,23,42,0.08)] border border-slate-200/80 overflow-hidden p-6 sm:p-9 transition-all">
+            {/* Header Badge & Title */}
+            <div className="text-center mb-7">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100/80 text-blue-700 text-[11px] font-extrabold uppercase tracking-widest mb-4 shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+                Secure CBT Gateway
               </div>
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight mb-1.5">
-                Join a Test
+
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 text-white rounded-2xl flex items-center justify-center text-3xl font-black shadow-lg shadow-blue-600/25 mx-auto mb-4 ring-4 ring-blue-50">
+                <i className="ti ti-shield-check"></i>
+              </div>
+              <h1 className="text-2xl sm:text-[26px] font-black text-slate-900 tracking-tight mb-1.5">
+                Join Examination
               </h1>
-              <p className="text-sm font-medium text-slate-500">
-                Enter your details and the 6-digit secure code.
+              <p className="text-xs sm:text-[13px] font-medium text-slate-500 leading-relaxed">
+                Enter your roll number and the 6-digit test code to access the assessment hall.
               </p>
             </div>
 
+            {/* Authenticated Candidate Identity Card */}
+            {currentUser && (
+              <div className="mb-5 bg-gradient-to-r from-slate-50 to-blue-50/40 border border-slate-200/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-black text-base flex items-center justify-center shadow-md shadow-blue-600/20 shrink-0">
+                    {currentUser.displayName ? currentUser.displayName.charAt(0).toUpperCase() : "S"}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-slate-800 truncate">
+                      {currentUser.displayName || "Authenticated Student"}
+                    </div>
+                    <div className="text-[11px] font-medium text-slate-500 truncate">
+                      {currentUser.email || "Verified Candidate"}
+                    </div>
+                  </div>
+                </div>
+                <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                  <i className="ti ti-circle-check-filled text-emerald-500 text-xs"></i> Verified
+                </span>
+              </div>
+            )}
+
             <div className="space-y-4 mb-6">
+              {/* Candidate Full Name */}
               <div>
-                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 block">
-                  Full Name
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <i className="ti ti-user text-slate-400 text-sm"></i> Full Name
                 </label>
                 <input
                   type="text"
@@ -1543,53 +1929,75 @@ function StudentPortalContent() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Rahul Kumar"
                   disabled={!!currentUser}
-                  className={`w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all ${currentUser ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "bg-white"}`}
+                  onKeyDown={handleKeyDownJoin}
+                  className={`w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all ${currentUser ? "bg-slate-100/70 text-slate-500 cursor-not-allowed" : "bg-white"}`}
                 />
               </div>
+
+              {/* Roll Number */}
               <div>
-                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 block">
-                  Roll Number / ID
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <i className="ti ti-id text-slate-400 text-sm"></i> Roll Number / Candidate ID
                 </label>
                 <input
                   type="text"
                   value={roll}
                   onChange={(e) => setRoll(e.target.value)}
                   placeholder="e.g. 2024CS001"
+                  onKeyDown={handleKeyDownJoin}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all bg-white"
                 />
               </div>
+
+              {/* 6-Digit Secure Code */}
               <div>
-                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5 block">
-                  Secure Test Code
-                </label>
-                <input
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="XXXXXX"
-                  maxLength="6"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xl font-black text-center text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all bg-slate-50 uppercase tracking-[0.3em] placeholder:tracking-normal"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <i className="ti ti-key text-slate-400 text-sm"></i> 6-Digit Test Code
+                  </label>
+                  <span className={`text-[10px] font-black uppercase tracking-wider ${code.length === 6 ? "text-emerald-600" : "text-slate-400"}`}>
+                    {code.length === 6 ? "✓ Ready" : `${code.length}/6 Digits`}
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                    placeholder="• • • • • •"
+                    maxLength="6"
+                    onKeyDown={handleKeyDownJoin}
+                    className={`w-full px-4 py-3.5 rounded-2xl border-2 text-2xl font-black text-center text-slate-900 tracking-[0.35em] uppercase outline-none transition-all placeholder:tracking-widest placeholder:text-slate-300 ${
+                      code.length === 6
+                        ? "border-emerald-500 bg-emerald-50/20 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/10"
+                        : "border-slate-200 bg-slate-50/60 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                    }`}
+                  />
+                  {code.length === 6 && (
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-emerald-500 text-lg pointer-events-none">
+                      <i className="ti ti-check"></i>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {joinError && (
-              <div className="bg-rose-50 text-rose-600 px-4 py-3 rounded-xl text-[13px] font-bold mb-6 border border-rose-100 flex items-center gap-2 shadow-sm animate-[fadeIn_0.2s_ease]">
-                <i className="ti ti-alert-triangle text-lg"></i> {joinError}
+              <div className="bg-rose-50 text-rose-700 px-4 py-3 rounded-2xl text-[12.5px] font-bold mb-6 border border-rose-200/80 flex items-center gap-2.5 shadow-xs animate-[fadeIn_0.2s_ease]">
+                <i className="ti ti-alert-triangle text-rose-500 text-lg shrink-0"></i>
+                <span className="leading-snug">{joinError}</span>
               </div>
             )}
 
             {!currentUser ? (
               <div className="space-y-3">
-                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm">
-                  <i className="ti ti-lock text-base text-amber-600"></i>
-                  <span>
-                    Guest entry is locked (Coming Soon). Please login first.
-                  </span>
+                <div className="bg-amber-50/80 border border-amber-200 text-amber-800 p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2.5 shadow-xs">
+                  <i className="ti ti-lock text-base text-amber-600 shrink-0"></i>
+                  <span>Guest entry is locked. Please login with your student account.</span>
                 </div>
                 <button
                   type="button"
-                  className="w-full py-4 bg-slate-900 hover:bg-black text-white font-black text-[15px] rounded-xl shadow-lg shadow-slate-900/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-slate-900 hover:bg-black text-white font-black text-[15px] rounded-2xl shadow-lg shadow-slate-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                   onClick={() => router.push("/")}
                 >
                   <i className="ti ti-login text-lg"></i> Login to Take Exam
@@ -1597,190 +2005,337 @@ function StudentPortalContent() {
               </div>
             ) : (
               <button
-                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-[15px] rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                type="button"
+                className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-[15px] rounded-2xl shadow-lg shadow-blue-600/25 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 onClick={handleJoinTest}
+                disabled={!name.trim() || !code.trim() || isFetchingTest}
               >
-                Start Assessment <i className="ti ti-arrow-right text-lg"></i>
+                <span>Enter Assessment Hall</span>
+                <i className="ti ti-arrow-right text-lg"></i>
               </button>
             )}
+
+            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-[11px] font-bold text-slate-400">
+              <i className="ti ti-shield-lock text-emerald-600 text-sm"></i>
+              <span>256-Bit Encrypted &bull; Automated Proctoring</span>
+            </div>
           </div>
         </div>
       )}
 
-      {/* STEP 2: PROFESSIONAL INSTRUCTIONS */}
+      {/* STEP 2: PROFESSIONAL PRE-EXAM INSTRUCTIONS & READINESS */}
       {step === "instructions" && activeTest && (
-        <div className="max-w-2xl mx-auto mt-6 sm:mt-10 bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-6 sm:p-8 animate-[fadeIn_0.4s_ease]">
-          <div className="flex items-center gap-3 pb-5 border-b border-slate-100 mb-6">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-2xl shadow-inner shrink-0">
-              <i className="ti ti-file-info"></i>
-            </div>
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight leading-none mb-1">
-                Pre-Exam Instructions
-              </h2>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Please read carefully before starting
-              </p>
-            </div>
-          </div>
+        <div className="max-w-4xl mx-auto mt-4 sm:mt-8 bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(15,23,42,0.06)] border border-slate-200/80 overflow-hidden animate-[fadeIn_0.4s_ease]">
+          {/* Top Ambient Header Banner */}
+          <div className="relative bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-6 sm:p-8 overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-          {draftToResume && (
-            <div className="bg-amber-50 text-amber-800 border border-amber-200 px-5 py-4 rounded-xl mb-6 shadow-sm flex items-start gap-3">
-              <i className="ti ti-history text-xl text-amber-600 shrink-0 mt-0.5"></i>
-              <p className="text-[13px] font-medium leading-relaxed">
-                <strong>Session Restored:</strong> We found your previously
-                incomplete exam session. You will resume exactly from where you
-                left off.
-              </p>
-            </div>
-          )}
+            <div className="relative z-10">
+              <div className="flex flex-wrap items-center gap-2.5 mb-3">
+                <span className="inline-flex items-center gap-1.5 bg-blue-500/20 border border-blue-400/30 text-blue-300 text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                  <i className="ti ti-books"></i> {activeTest?.subject || "General"}
+                </span>
+                <span className="inline-flex items-center gap-1 bg-white/10 text-white/90 text-[11px] font-mono font-bold px-2.5 py-1 rounded-full border border-white/15">
+                  #{activeTest?.code || code}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-emerald-400 text-[11px] font-bold ml-auto">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Pre-Flight Verified
+                </span>
+              </div>
 
-          {/* Test Details Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl">
-              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">
-                Subject
-              </div>
-              <div className="text-[13px] font-black text-slate-700 truncate">
-                {activeTest?.subject || "General"}
-              </div>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl col-span-1 sm:col-span-3">
-              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">
-                Test Title
-              </div>
-              <div className="text-[13px] font-black text-slate-700 truncate">
+              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight mb-2">
                 {activeTest?.title}
-              </div>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl col-span-2">
-              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">
-                Duration
-              </div>
-              <div className="text-[14px] font-black text-blue-600 flex items-center gap-1.5">
-                <i className="ti ti-clock"></i> {activeTest?.duration} Minutes
-              </div>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 p-3.5 rounded-xl col-span-2">
-              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">
-                Marking Scheme
-              </div>
-              <div className="text-[14px] font-black text-emerald-600 flex items-center gap-1.5">
-                <i className="ti ti-target"></i> {activeTest?.totalMarks} Max{" "}
-                <span className="text-rose-500 text-xs ml-1 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200">
-                  {activeTest?.negMarking
-                    ? `-${Math.abs(activeTest?.negMarking)} Neg`
-                    : "No Neg"}
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-300 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <i className="ti ti-user-check text-blue-400"></i>
+                  Candidate: <strong className="text-white">{name}</strong>
+                </span>
+                {roll && (
+                  <span className="flex items-center gap-1.5">
+                    <i className="ti ti-id text-indigo-400"></i>
+                    Roll: <strong className="text-white">{roll}</strong>
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5 text-slate-400">
+                  <i className="ti ti-cpu text-slate-400"></i> ExamiTop CBT Engine
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Section Attempt Rules Guideline */}
-          {activeTest?.sectionRules &&
-            Object.keys(activeTest.sectionRules).some(
-              (s) => Number(activeTest.sectionRules[s]) > 0,
-            ) && (
-              <div className="bg-indigo-50/70 border border-indigo-100 p-3.5 rounded-xl mb-6">
-                <div className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                  <i className="ti ti-adjustments-alt"></i> Section Guidelines (Optional Questions)
+          <div className="p-6 sm:p-8">
+            {/* Session Restored Alert Banner */}
+            {draftToResume && (
+              <div className="bg-amber-50/90 text-amber-900 border border-amber-200/90 px-5 py-4 rounded-2xl mb-6 shadow-xs flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                  <i className="ti ti-history text-xl"></i>
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs font-bold text-indigo-900">
-                  {Object.entries(activeTest.sectionRules).map(([sec, limit]) => {
-                    const lim = Number(limit);
-                    if (!lim || lim <= 0) return null;
-                    return (
-                      <span
-                        key={sec}
-                        className="bg-white border border-indigo-200/80 px-2.5 py-1 rounded-lg shadow-sm"
-                      >
-                        {sec}: Attempt max <strong>{lim}</strong> questions
-                      </span>
-                    );
-                  })}
+                <div>
+                  <h4 className="text-sm font-black text-amber-900 mb-0.5">
+                    Active Session Restored
+                  </h4>
+                  <p className="text-xs sm:text-[13px] font-medium text-amber-800/90 leading-relaxed">
+                    We detected an incomplete exam session. Your previously chosen answers have been loaded securely, and your timer will resume from where you left off.
+                  </p>
                 </div>
               </div>
             )}
 
-          {/* Security Rules */}
-          {(activeTest?.antiCheat || activeTest?.fullScreenMode) && (
-            <div className="mb-8">
-              <h3 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">
-                Security Protocols Active
-              </h3>
-              <div className="flex flex-col gap-2.5">
-                {activeTest?.antiCheat && (
-                  <div className="flex items-start gap-3 bg-rose-50/50 border border-rose-100 p-3.5 rounded-xl">
-                    <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                      <i className="ti ti-shield-lock text-lg"></i>
-                    </div>
-                    <div>
-                      <h4 className="text-[13px] font-bold text-rose-800 mb-0.5">
-                        Proctoring Enabled
-                      </h4>
-                      <p className="text-[12px] font-medium text-rose-700/80 leading-snug">
-                        Tab-switching, minimizing the window, or using
-                        split-screen will automatically trigger warnings and
-                        submit your exam.
-                      </p>
-                    </div>
+            {/* Test Details Metric Bento Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-7">
+              {/* Tile 1: Duration */}
+              <div className="bg-slate-50/80 border border-slate-200/80 p-4 rounded-2xl flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                    Time Allotted
+                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm">
+                    <i className="ti ti-clock"></i>
                   </div>
-                )}
-                {activeTest?.fullScreenMode && (
-                  <div className="flex items-start gap-3 bg-amber-50/50 border border-amber-100 p-3.5 rounded-xl">
-                    <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                      <i className="ti ti-maximize text-lg"></i>
-                    </div>
-                    <div>
-                      <h4 className="text-[13px] font-bold text-amber-800 mb-0.5">
-                        Full-Screen Lock
-                      </h4>
-                      <p className="text-[12px] font-medium text-amber-700/80 leading-snug">
-                        The exam will launch in full-screen mode. Exiting
-                        full-screen will be recorded as a strict violation.
-                      </p>
-                    </div>
+                </div>
+                <div>
+                  <div className="text-lg sm:text-xl font-black text-slate-900">
+                    {activeTest?.duration} <span className="text-xs font-bold text-slate-500">Mins</span>
                   </div>
-                )}
+                  <div className="text-[11px] font-medium text-slate-500 mt-0.5">
+                    {Number(activeTest?.duration) >= 60
+                      ? `${(Number(activeTest?.duration) / 60).toFixed(1)} Hours Total`
+                      : "Strict Countdown"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tile 2: Questions & Sections */}
+              <div className="bg-slate-50/80 border border-slate-200/80 p-4 rounded-2xl flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                    Questions
+                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">
+                    <i className="ti ti-file-text"></i>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-lg sm:text-xl font-black text-slate-900">
+                    {activeTest?.questions?.length || 0} <span className="text-xs font-bold text-slate-500">Items</span>
+                  </div>
+                  <div className="text-[11px] font-medium text-slate-500 mt-0.5">
+                    {activeTest?.sections?.length || 1} Section(s)
+                  </div>
+                </div>
+              </div>
+
+              {/* Tile 3: Total Score */}
+              <div className="bg-slate-50/80 border border-slate-200/80 p-4 rounded-2xl flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                    Total Marks
+                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">
+                    <i className="ti ti-award"></i>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-lg sm:text-xl font-black text-emerald-700">
+                    {activeTest?.totalMarks} <span className="text-xs font-bold text-emerald-600">Marks</span>
+                  </div>
+                  <div className="text-[11px] font-medium text-slate-500 mt-0.5">
+                    Max Scaled Score
+                  </div>
+                </div>
+              </div>
+
+              {/* Tile 4: Marking Scheme */}
+              <div className="bg-slate-50/80 border border-slate-200/80 p-4 rounded-2xl flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                    Marking Scheme
+                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-sm">
+                    <i className="ti ti-target"></i>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-1.5">
+                    <span className="text-emerald-600">Correct: +{activeTest?.questions?.length ? (Number(activeTest.totalMarks) / activeTest.questions.length).toFixed(0) : 4}</span>
+                  </div>
+                  <div className="text-[11px] font-bold mt-0.5">
+                    {activeTest?.negMarking ? (
+                      <span className="text-rose-600">Neg: -{Math.abs(activeTest.negMarking)} per wrong</span>
+                    ) : (
+                      <span className="text-emerald-600">No Negative Marking</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          )}
 
-          {/* Critical Note */}
-          <div className="bg-slate-800 text-slate-300 p-4 rounded-xl text-[12px] font-medium leading-relaxed mb-6 border border-slate-700 shadow-inner">
-            <strong className="text-white flex items-center gap-1.5 mb-1">
-              <i className="ti ti-info-square-rounded text-blue-400"></i>{" "}
-              Critical Note:
-            </strong>
-            Once the exam starts, do not use the browser's back or refresh
-            buttons. In case of an internet drop, your answers will be securely
-            cached offline and synced automatically when the connection returns.
-          </div>
+            {/* Section Attempt Rules Guideline (If optional questions exist) */}
+            {activeTest?.sectionRules &&
+              Object.keys(activeTest.sectionRules).some(
+                (s) => Number(activeTest.sectionRules[s]) > 0,
+              ) && (
+                <div className="bg-indigo-50/60 border border-indigo-100 p-4 rounded-2xl mb-7 shadow-xs">
+                  <div className="text-[11px] font-extrabold text-indigo-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <i className="ti ti-adjustments-alt text-indigo-600 text-sm"></i>
+                    Section Rules (Evaluation Limits)
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    {Object.entries(activeTest.sectionRules).map(([sec, limit]) => {
+                      const lim = Number(limit);
+                      if (!lim || lim <= 0) return null;
+                      return (
+                        <div
+                          key={sec}
+                          className="bg-white border border-indigo-200/80 px-3.5 py-2.5 rounded-xl shadow-xs flex items-center justify-between"
+                        >
+                          <span className="text-xs font-bold text-slate-800 truncate mr-2">
+                            {sec}
+                          </span>
+                          <span className="text-[11px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-200 shrink-0">
+                            Max {lim} Qs
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-          <div className="flex flex-col sm:flex-row gap-3 mt-4">
-            {/*Agar draft/resume mode nahi hai, tabhi 'Go Back' dikhao */}
-            {!draftToResume && (
+            {/* PRE-FLIGHT SYSTEM & DEVICE READINESS DOCK */}
+            <div className="mb-7">
+              <div className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <i className="ti ti-checklist text-blue-600 text-sm"></i> System & Device Readiness Check
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Fullscreen Engine */}
+                <div className="bg-slate-50/90 border border-slate-200/80 p-3.5 rounded-2xl flex items-start gap-3">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 ${activeTest?.fullScreenMode ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                    <i className="ti ti-maximize"></i>
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-slate-800">
+                      {activeTest?.fullScreenMode ? "Fullscreen Required" : "Standard Display"}
+                    </div>
+                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                      {activeTest?.fullScreenMode
+                        ? "Browser will auto-lock into full screen."
+                        : "Works in normal browser window."}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Real-time Network / Offline Vault */}
+                <div className="bg-slate-50/90 border border-slate-200/80 p-3.5 rounded-2xl flex items-start gap-3">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 ${isDeviceOnline ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                    <i className={`ti ${isDeviceOnline ? "ti-wifi" : "ti-wifi-off"}`}></i>
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      <span>Offline Sync Vault</span>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isDeviceOnline ? "bg-emerald-500" : "bg-amber-500"}`}></span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                      Answers auto-save locally in real-time. Zero data loss.
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Anti-Cheat / Tab Monitoring */}
+                <div className="bg-slate-50/90 border border-slate-200/80 p-3.5 rounded-2xl flex items-start gap-3">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 ${activeTest?.antiCheat ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                    <i className="ti ti-shield-lock"></i>
+                  </div>
+                  <div>
+                    <div className="text-xs font-black text-slate-800">
+                      {activeTest?.antiCheat ? "Proctoring Armed" : "Standard Rules"}
+                    </div>
+                    <div className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                      {activeTest?.antiCheat
+                        ? "Tab-switch, minimizing & splits trigger strikes."
+                        : "Honor code monitoring active."}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Critical Exam Guidelines */}
+            <div className="bg-slate-900 text-slate-300 p-4 sm:p-5 rounded-2xl text-[12.5px] leading-relaxed mb-6 border border-slate-800 shadow-inner">
+              <div className="text-white font-extrabold flex items-center gap-2 mb-2 text-sm">
+                <i className="ti ti-alert-circle text-amber-400 text-base"></i>
+                <span>Important Candidate Notice</span>
+              </div>
+              <ul className="space-y-1.5 text-slate-300 text-xs sm:text-[12.5px]">
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-400 font-bold shrink-0">&bull;</span>
+                  <span><strong>Do not refresh or click the browser's Back button</strong> during the live exam.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-400 font-bold shrink-0">&bull;</span>
+                  <span>Use the <strong>Question Palette</strong> to jump across questions. You may mark questions for review and return anytime.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-400 font-bold shrink-0">&bull;</span>
+                  <span>When time expires, the assessment will <strong>automatically seal and submit</strong> all saved answers.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Candidate Declaration Checkbox */}
+            <label className="flex items-start gap-3 p-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer transition-colors mb-6 select-none">
+              <input
+                type="checkbox"
+                checked={rulesAgreed}
+                onChange={(e) => setRulesAgreed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+              />
+              <span className="text-xs font-bold text-slate-700 leading-relaxed">
+                I have read and agree to all exam instructions. I confirm that I will not switch tabs or use unauthorized resources during this assessment.
+              </span>
+            </label>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {!draftToResume && (
+                <button
+                  type="button"
+                  className="w-full sm:w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[14px] rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                  onClick={() => {
+                    if (isExaminerDemo) {
+                      if (typeof window !== "undefined") {
+                        sessionStorage.removeItem("examitop_demo_examiner");
+                      }
+                      router.push("/tests");
+                    } else if (isDirectJoin) {
+                      router.push("/student/radar");
+                    } else {
+                      setStep("join");
+                    }
+                  }}
+                >
+                  <i className="ti ti-arrow-left"></i>
+                  <span>{isExaminerDemo ? "Exit Demo to Vault" : "Go Back"}</span>
+                </button>
+              )}
+
               <button
-                className="w-full sm:w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[14px] rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 shrink-0"
-                onClick={() => {
-                  if (isDirectJoin) router.push("/student/radar");
-                  else setStep("join");
-                }}
+                type="button"
+                className={`w-full ${draftToResume ? "" : "sm:w-2/3"} py-3.5 text-white font-black text-[15px] rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer ${
+                  rulesAgreed
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-600/25"
+                    : "bg-slate-400 cursor-not-allowed opacity-60 shadow-none"
+                }`}
+                onClick={startExam}
+                disabled={!rulesAgreed}
               >
-                <i className="ti ti-arrow-left"></i> Go Back
+                <i className="ti ti-player-play text-lg"></i>
+                <span>{draftToResume ? "Resume Assessment Now" : "Start Assessment Now"}</span>
               </button>
-            )}
-
-            {/* Agar resume mode hai, toh is button ko full width kar do */}
-            <button
-              className={`w-full ${draftToResume ? "" : "sm:w-2/3"} py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[15px] rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2`}
-              onClick={startExam}
-            >
-              <i className="ti ti-player-play"></i>{" "}
-              {draftToResume
-                ? "Resume Assessment Now"
-                : "I Agree, Start Assessment"}
-            </button>
+            </div>
           </div>
         </div>
       )}
@@ -1791,940 +2346,788 @@ function StudentPortalContent() {
         currentQuestion &&
         answers.length > 0 && (
           <>
-            <div className="test-topbar">
-              <div>
-                <div
-                  style={{
-                    fontSize: "18px",
-                    fontWeight: 600,
-                    marginBottom: "2px",
-                  }}
-                >
-                  {activeTest?.title}
+            {/* UNIFIED ZERO-WASTE GLASS EXAM TOPBAR */}
+            <div className="sticky top-0 z-[100] bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl shadow-sm mb-3 px-3 sm:px-5 py-2.5 sm:py-3 transition-all">
+              <div className="flex items-center justify-between gap-2.5 sm:gap-4">
+                {/* Left Column: Brand Emblem + Title + Q Breadcrumb + Counters */}
+                <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 text-white flex items-center justify-center font-black text-sm sm:text-base shadow-sm shadow-blue-600/20 shrink-0 ring-2 ring-blue-50">
+                    <i className="ti ti-file-text"></i>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h2
+                        className="text-xs sm:text-sm font-black text-slate-800 truncate max-w-[130px] sm:max-w-[260px] md:max-w-[360px]"
+                        title={activeTest?.title}
+                      >
+                        {activeTest?.title}
+                      </h2>
+                      {isExaminerDemo && (
+                        <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-extrabold uppercase bg-amber-50 text-amber-700 border border-amber-200/80 px-2 py-0.5 rounded-full shrink-0">
+                          Demo Mode
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 mt-0.5">
+                      <span className="hidden sm:inline truncate max-w-[120px]">
+                        {name} {roll ? `(${roll})` : ""}
+                      </span>
+                      <span className="hidden sm:inline text-slate-300">&bull;</span>
+                      <span className="text-blue-700 font-extrabold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 shrink-0">
+                        Q {curQ + 1} of {activeTest?.questions?.length}
+                      </span>
+                      <span className="hidden md:inline text-slate-300">&bull;</span>
+                      {/* Inline Live Metric Counters (Saves 45px vertical strip!) */}
+                      <div className="hidden md:flex items-center gap-3 text-[11px] font-bold">
+                        <span className="flex items-center gap-1.5 text-blue-700" title="Attempted Questions">
+                          <span className="w-2 h-2 rounded-full bg-blue-600"></span> {answeredQs} Attempted
+                        </span>
+                        <span className="flex items-center gap-1.5 text-amber-700" title="Marked for Review">
+                          <span className="w-2 h-2 rounded-full bg-amber-400"></span> {markedQs} Marked
+                        </span>
+                        <span className="flex items-center gap-1.5 text-slate-500" title="Pending Questions">
+                          <span className="w-2 h-2 rounded-full bg-slate-200 border border-slate-400"></span> {remainingQs} Pending
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: "13px", opacity: 0.85 }}>
-                  {name} {roll ? "· " + roll : ""} &bull; Q {curQ + 1} /{" "}
-                  {activeTest?.questions?.length}
-                </div>
-              </div>
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
-              >
-                <div
-                  className={`timer-pill ${timeLeft <= 300 ? "timer-warn" : ""}`}
-                >
-                  <i className="ti ti-clock" style={{ fontSize: "18px" }}></i>
-                  <span>{formatTime(timeLeft)}</span>
-                </div>
-                <button
-                  className="btn btn-sm hide-mobile"
-                  style={{
-                    background: "rgba(255,255,255,0.2)",
-                    border: "none",
-                    color: "#fff",
-                    fontWeight: 600,
-                  }}
-                  onClick={confirmAndSubmit}
-                >
-                  <i className="ti ti-send"></i> Finish
-                </button>
-              </div>
-            </div>
 
-            <div
-              id="live-stats-bar"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: "8px",
-                background: "#f8fafc",
-                padding: "10px 16px",
-                borderBottom: "1px solid #e2e8f0",
-                fontSize: "13px",
-                fontWeight: 600,
-              }}
-            >
-              <span
-                style={{
-                  color: "#185FA5",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                <span
-                  style={{
-                    width: "10px",
-                    height: "10px",
-                    background: "#185FA5",
-                    borderRadius: "50%",
-                  }}
-                ></span>{" "}
-                Attempted: {answeredQs}
-              </span>
-              <span
-                style={{
-                  color: "#854F0B",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                <span
-                  style={{
-                    width: "10px",
-                    height: "10px",
-                    background: "#FAC775",
-                    borderRadius: "50%",
-                  }}
-                ></span>{" "}
-                Marked: {markedQs}
-              </span>
-              <span
-                style={{
-                  color: "#A32D2D",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                <span
-                  style={{
-                    width: "10px",
-                    height: "10px",
-                    background: "#f8fafc",
-                    border: "1px solid #A32D2D",
-                    borderRadius: "50%",
-                  }}
-                ></span>{" "}
-                Pending: {remainingQs}
-              </span>
-            </div>
+                {/* Center Column: Section Switcher Chips (Integrated directly, Desktop & Tablet) */}
+                {activeTest?.sections && activeTest.sections.length > 1 && (
+                  <div className="hidden lg:flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-2xl border border-slate-200/80 max-w-[440px] overflow-x-auto hide-scroll">
+                    {activeTest.sections.map((sec, idx) => {
+                      const firstQIdx = activeTest.questions.findIndex(
+                        (qq) => String(qq.section) === String(sec) || (!qq.section && idx === 0)
+                      );
+                      const isCurrentSec =
+                        String(currentQuestion?.section) === String(sec) ||
+                        (!currentQuestion?.section && idx === 0);
 
-            {/* SECTION TABS */}
-            {activeTest?.sections && activeTest.sections.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  gap: "8px",
-                  background: "var(--color-background-secondary)",
-                  padding: "8px 16px",
-                  borderBottom: "1px solid var(--color-border-secondary)",
-                  overflowX: "auto",
-                  scrollbarWidth: "none",
-                  marginBottom: "1rem",
-                  marginTop: "1rem",
-                }}
-              >
-                {activeTest.sections.map((sec, idx) => {
-                  // FIX: Ensure strict string comparison to avoid 1 vs '1' issues
-                  var firstQIdx = activeTest.questions.findIndex(
-                    (qq) =>
-                      String(qq.section) === String(sec) ||
-                      (!qq.section && idx === 0),
-                  );
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
+                            isCurrentSec
+                              ? "bg-white text-blue-700 shadow-xs border border-slate-200"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                          }`}
+                          onClick={() => {
+                            if (firstQIdx > -1) changeQuestion(firstQIdx);
+                          }}
+                        >
+                          {sec}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
-                  var isCurrentSec =
-                    String(currentQuestion?.section) === String(sec) ||
-                    (!currentQuestion?.section && idx === 0);
+                {/* Right Column: Autosaved pill + Exit Demo + Timer + Finish button */}
+                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+                  {/* Autosaved Live Indicator */}
+                  <div className="hidden xl:flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Encrypted & Saved</span>
+                  </div>
 
-                  return (
+                  {/* Exit Demo button (for examiner demo) */}
+                  {isExaminerDemo && (
                     <button
-                      key={idx}
-                      className="btn btn-sm"
-                      style={
-                        isCurrentSec
-                          ? {
-                              background: "#185FA5",
-                              color: "#fff",
-                              borderColor: "#185FA5",
-                              fontWeight: 600,
-                              whiteSpace: "nowrap",
-                            }
-                          : {
-                              background: "#fff",
-                              color: "var(--color-text-secondary)",
-                              borderColor: "#cbd5e1",
-                              fontWeight: 600,
-                              whiteSpace: "nowrap",
-                            }
-                      }
+                      type="button"
+                      className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs"
                       onClick={() => {
-                        // Agar section me questions hain, toh directly wahan jump karo
-                        if (firstQIdx > -1) {
-                          changeQuestion(firstQIdx);
+                        if (typeof window !== "undefined") {
+                          sessionStorage.removeItem("examitop_demo_examiner");
                         }
+                        router.push("/tests");
                       }}
+                      title="Exit Demo to Tests Vault"
                     >
-                      {sec}
+                      <i className="ti ti-arrow-left"></i>
+                      <span className="hidden sm:inline">Exit Demo</span>
                     </button>
-                  );
-                })}
-              </div>
-            )}
+                  )}
 
-            {/*   DESKTOP & MOBILE PERFECT SPLIT LAYOUT + STICKY NAV   */}
-            <style>{`
-            
-          `}</style>
+                  {/* Glowing Countdown Timer */}
+                  <div
+                    className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-black font-mono tracking-tight transition-all shadow-xs ${
+                      timeLeft <= 300
+                        ? "bg-rose-50 text-rose-700 border-2 border-rose-400 animate-pulse"
+                        : "bg-slate-900 text-white border border-slate-800"
+                    }`}
+                  >
+                    <i className={`ti ti-clock text-sm sm:text-base ${timeLeft <= 300 ? "text-rose-600 animate-spin" : "text-blue-400"}`}></i>
+                    <span className="tabular-nums">{formatTime(timeLeft)}</span>
+                  </div>
+
+                  {/* Finish Assessment Button */}
+                  <button
+                    type="button"
+                    className="px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
+                    onClick={confirmAndSubmit}
+                    title="Review & Submit Exam"
+                  >
+                    <i className="ti ti-send text-xs sm:text-sm"></i>
+                    <span className="hidden sm:inline">Finish</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Mobile / Tablet Section Ribbon (Only if multiple sections exist) */}
+              {activeTest?.sections && activeTest.sections.length > 1 && (
+                <div className="lg:hidden flex items-center gap-1.5 pt-2 mt-2 border-t border-slate-100 overflow-x-auto hide-scroll">
+                  {activeTest.sections.map((sec, idx) => {
+                    const firstQIdx = activeTest.questions.findIndex(
+                      (qq) => String(qq.section) === String(sec) || (!qq.section && idx === 0)
+                    );
+                    const isCurrentSec =
+                      String(currentQuestion?.section) === String(sec) ||
+                      (!currentQuestion?.section && idx === 0);
+
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={`px-3 py-1 rounded-lg text-[11px] font-black whitespace-nowrap transition-all cursor-pointer ${
+                          isCurrentSec
+                            ? "bg-blue-600 text-white shadow-xs"
+                            : "bg-slate-100 text-slate-600 border border-slate-200"
+                        }`}
+                        onClick={() => {
+                          if (firstQIdx > -1) changeQuestion(firstQIdx);
+                        }}
+                      >
+                        {sec}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <div className="split-exam-layout">
               {/* LEFT PANE: INDEPENDENT QUESTION SECTION */}
               <div className="q-area-wrapper">
                 <div className="q-area-scroll custom-scrollbar">
-                  {/* HEADER */}
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: "1rem",
-                      borderBottom: "1px solid var(--color-border-secondary)",
-                      paddingBottom: "0.75rem",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                        }}
-                      >
-                        <div
-                          className="q-num-badge"
-                          style={{
-                            width: "36px",
-                            height: "36px",
-                            fontSize: "16px",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {curQ + 1}
-                        </div>
-                        <span
-                          className={`badge ${getBadge(currentQuestion?.type)}`}
-                        >
+                  {/* EXECUTIVE QUESTION CANVAS CARD */}
+                  <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_10px_35px_-10px_rgba(15,23,42,0.05)] p-4 sm:p-7 mb-4 transition-all">
+                    {/* 1. CLEAN EXECUTIVE META HEADER (Focused, Uncluttered) */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3.5 border-b border-slate-100">
+                      {/* Left: Question Tag + Type + Section + Mark */}
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="inline-flex items-center justify-center px-3 py-1 rounded-lg bg-slate-900 text-white font-mono font-bold text-xs sm:text-sm tracking-wide shadow-xs">
+                          Q.{curQ + 1}
+                        </span>
+
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
+                          <span className={`w-2 h-2 rounded-full ${
+                            currentQuestion?.type === "mcq" ? "bg-blue-600" :
+                            currentQuestion?.type === "msq" ? "bg-emerald-600" :
+                            currentQuestion?.type === "integer" ? "bg-amber-500" : "bg-purple-600"
+                          }`}></span>
                           {getLabel(currentQuestion?.type)}
                         </span>
+
+                        {currentQuestion?.section && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/70">
+                            <i className="ti ti-folder text-purple-500 text-[11px]"></i> {currentQuestion.section}
+                          </span>
+                        )}
+
+                        {answers[curQ]?.marked && (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-lg shadow-2xs">
+                            <i className="ti ti-bookmark-filled text-amber-600 text-xs"></i>
+                            <span>Marked</span>
+                          </span>
+                        )}
                       </div>
-                      {answers[curQ]?.marked && (
-                        <span
-                          className="badge b-amber"
-                          style={{ alignSelf: "flex-start" }}
-                        >
-                          <i
-                            className="ti ti-bookmark"
-                            style={{ fontSize: "12px" }}
-                          ></i>{" "}
-                          Marked
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "flex-end",
-                        gap: "6px",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span
-                        className="badge b-blue"
-                        style={{ fontSize: "13px", fontWeight: 600 }}
-                      >
-                        {currentQuestion?.marks} Marks
-                      </span>
-                      {currentQuestion?.section && (
-                        <span
-                          className="badge b-purple"
-                          style={{ fontSize: "11px", fontWeight: 600 }}
-                        >
-                          <i className="ti ti-layout-grid-add"></i>{" "}
-                          {currentQuestion.section}
-                        </span>
-                      )}
-                      {(() => {
-                        const curSec =
-                          currentQuestion?.section ||
-                          (activeTest?.sections && activeTest.sections[0]);
-                        const secRule =
-                          activeTest?.sectionRules && curSec
-                            ? Number(activeTest.sectionRules[curSec])
-                            : 0;
-                        if (secRule > 0) {
-                          return (
-                            <span
-                              className="badge"
-                              style={{
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                background: "#FEF3C7",
-                                color: "#92400E",
-                                border: "1px solid #FDE68A",
-                              }}
-                            >
-                              <i className="ti ti-target"></i> Max {secRule} to
-                              Attempt
-                            </span>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </div>
-                  </div>
 
-                  <div
-                    className="q-area-content"
-                    style={{ opacity: 0, flex: 1 }}
-                  >
-                    <StaticMath
-                      isBlock={true}
-                      html={currentQuestion?.text}
-                      style={{
-                        fontSize: "16px",
-                        lineHeight: 1.7,
-                        marginBottom: "2rem",
-                        color: "var(--color-text-primary)",
-                        fontWeight: 500,
-                      }}
-                    />
+                      {/* Right: Consolidated Marking Tag + Section Attempt Limit */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="inline-flex items-center text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 shadow-2xs">
+                          <span className="text-emerald-700 font-extrabold flex items-center gap-0.5">
+                            +{currentQuestion?.marks || 4}
+                          </span>
+                          {activeTest?.negMarking ? (
+                            <>
+                              <span className="text-slate-300 mx-1.5">|</span>
+                              <span className="text-rose-600 font-extrabold flex items-center gap-0.5">
+                                -{Math.abs(activeTest.negMarking)}
+                              </span>
+                            </>
+                          ) : null}
+                          <span className="text-slate-400 font-normal ml-1">marks</span>
+                        </div>
 
-                    {/* UNIVERSAL FIGURE ENGINE */}
-                    {currentQuestion?.figureType &&
-                      currentQuestion.figureType !== "none" &&
-                      currentQuestion.figureData && (
-                        <div
+                        {(() => {
+                          const curSec =
+                            currentQuestion?.section ||
+                            (activeTest?.sections && activeTest.sections[0]);
+                          const secRule =
+                            activeTest?.sectionRules && curSec
+                              ? Number(activeTest.sectionRules[curSec])
+                              : 0;
+                          if (secRule > 0) {
+                            return (
+                              <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 px-2.5 py-1 rounded-lg shadow-2xs">
+                                <i className="ti ti-target text-amber-600 text-xs"></i> Max {secRule} Attempt
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* 2. QUESTION CONTENT AREA (With Zero Raw-LaTeX Flicker Protection) */}
+                    <div className="q-area-content transition-opacity duration-200" style={{ flex: 1, opacity: 0 }}>
+                      {/* Question Text Box - Commanding High-Contrast Hero Reading Stage */}
+                      <div className="relative pl-4 sm:pl-6 py-2.5 my-1 border-l-[3.5px] border-l-blue-600 bg-gradient-to-r from-blue-50/25 via-slate-50/15 to-transparent rounded-r-2xl mb-6">
+                        <StaticMath
+                          isBlock={true}
+                          html={currentQuestion?.text}
                           style={{
-                            marginBottom: "1.5rem",
-                            display: "flex",
-                            justifyContent: "center",
-                            width: "100%",
+                            fontSize: "18px",
+                            lineHeight: 1.9,
+                            color: "#090d16",
+                            fontWeight: 600,
+                            letterSpacing: "-0.01em",
                           }}
-                        >
-                          <style>{` .svg-figure-container svg { max-width: 100%; height: auto; min-height: 80px; max-height: 250px; } `}</style>
+                        />
+                      </div>
 
-                          {(currentQuestion.figureType === "image" ||
-                            currentQuestion.figureType === "url") && (
+                      {/* 3. UNIVERSAL FIGURE ENGINE (Graphs, SVGs, SMILES, TikZ) */}
+                      {currentQuestion?.figureType &&
+                        currentQuestion.figureType !== "none" &&
+                        currentQuestion.figureData && (
+                          <div className="bg-white border-2 border-slate-200/90 rounded-2xl overflow-hidden shadow-xs mb-6 max-w-full">
+                            {/* Figure Header Ribbon */}
+                            <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50/80 border-b border-slate-200/80">
+                              <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+                                <i className="ti ti-chart-dots text-blue-600 text-sm"></i>
+                                Reference Diagram / Graph
+                              </span>
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 text-[11px] font-black text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg transition-all active:scale-95 cursor-pointer shadow-2xs"
+                                onClick={() => setZoomFigure({ type: currentQuestion.figureType, data: currentQuestion.figureData })}
+                              >
+                                <i className="ti ti-zoom-in text-xs"></i> Fullscreen Zoom
+                              </button>
+                            </div>
+
+                            {/* Figure Visual Display */}
                             <div
-                              style={{
-                                position: "relative",
-                                width: "fit-content",
-                                display: "flex",
-                                justifyContent: "center",
-                                background: "#fff",
-                                padding: "10px",
-                                borderRadius: "8px",
-                                border: "1px solid #cbd5e1",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                                minHeight: !imgLoaded ? "100px" : "auto",
-                                minWidth: !imgLoaded ? "150px" : "auto",
-                              }}
+                              className="p-4 sm:p-6 flex items-center justify-center bg-gradient-to-b from-slate-50/30 to-white min-h-[140px] cursor-zoom-in"
+                              onClick={() => setZoomFigure({ type: currentQuestion.figureType, data: currentQuestion.figureData })}
+                              title="Click to zoom in fullscreen"
                             >
-                              {!imgLoaded && (
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    top: "50%",
-                                    left: "50%",
-                                    transform: "translate(-50%, -50%)",
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    gap: "8px",
-                                    color: "#94a3b8",
-                                  }}
-                                >
-                                  <div
-                                    className="spinner"
-                                    style={{
-                                      width: "20px",
-                                      height: "20px",
-                                      borderWidth: "3px",
+                              {(currentQuestion.figureType === "image" ||
+                                currentQuestion.figureType === "url") && (
+                                <div className="relative flex justify-center">
+                                  {!imgLoaded && (
+                                    <div className="h-32 flex items-center justify-center text-slate-400">
+                                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                  )}
+                                  <img
+                                    key={`img-${curQ}`}
+                                    src={currentQuestion.figureData}
+                                    alt="Question Diagram"
+                                    className="max-w-full max-h-[280px] object-contain rounded-xl transition-opacity duration-300"
+                                    style={{ opacity: imgLoaded ? 1 : 0 }}
+                                    onLoad={() => setImgLoaded(true)}
+                                    onError={(e) => {
+                                      setImgLoaded(true);
+                                      e.target.onerror = null;
+                                      e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='150'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ef4444' font-family='sans-serif' font-weight='bold'%3EImage Load Failed (Offline)%3C/text%3E%3C/svg%3E";
                                     }}
-                                  ></div>
+                                  />
                                 </div>
                               )}
-                              <img
-                                key={`img-${curQ}`}
-                                src={currentQuestion.figureData}
-                                alt="Question Figure"
-                                style={{
-                                  maxWidth: "100%",
-                                  maxHeight: "250px",
-                                  objectFit: "contain",
-                                  opacity: imgLoaded ? 1 : 0,
-                                  transition: "opacity 0.3s ease",
-                                }}
-                                onLoad={() => setImgLoaded(true)}
-                                onError={(e) => {
-                                  setImgLoaded(true);
-                                  e.target.onerror = null;
-                                  // 100% Offline SVG code (No internet required)
-                                  e.target.src =
-                                    "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='150'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ef4444' font-family='sans-serif' font-weight='bold'%3EImage Load Failed (Offline)%3C/text%3E%3C/svg%3E";
-                                }}
-                              />
-                            </div>
-                          )}
 
-                          {currentQuestion.figureType === "svg" && (
-                            <div
-                              className="svg-figure-container"
-                              style={{
-                                background: "#fff",
-                                padding: "12px",
-                                borderRadius: "8px",
-                                border: "1px solid #cbd5e1",
-                                display: "flex",
-                                justifyContent: "center",
-                                alignItems: "center",
-                                width: "100%",
-                                overflowX: "auto",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                              }}
-                              dangerouslySetInnerHTML={{
-                                __html: sanitizeSvg(currentQuestion.figureData),
-                              }}
-                            />
-                          )}
+                              {currentQuestion.figureType === "svg" && (
+                                <div
+                                  className="w-full flex justify-center items-center overflow-x-auto"
+                                  dangerouslySetInnerHTML={{
+                                    __html: sanitizeSvg(currentQuestion.figureData),
+                                  }}
+                                />
+                              )}
 
-                          {currentQuestion.figureType === "smiles" && (
-                            <div
-                              style={{
-                                background: "#fff",
-                                padding: "10px",
-                                borderRadius: "8px",
-                                border: "1px solid #cbd5e1",
-                                display: "flex",
-                                justifyContent: "center",
-                                alignItems: "center",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                              }}
-                            >
-                              <SmilesViewer
-                                smilesCode={currentQuestion.figureData}
-                                width={250}
-                                height={200}
-                              />
-                            </div>
-                          )}
+                              {currentQuestion.figureType === "smiles" && (
+                                <div className="flex justify-center items-center">
+                                  <SmilesViewer
+                                    smilesCode={currentQuestion.figureData}
+                                    width={280}
+                                    height={220}
+                                  />
+                                </div>
+                              )}
 
-                          {currentQuestion.figureType === "tikz" && (
-                            <div
-                              className="hide-scroll"
-                              style={{
-                                background: "#fff",
-                                padding: "10px",
-                                borderRadius: "8px",
-                                border: "1px solid #cbd5e1",
-                                display: "flex",
-                                justifyContent: "center",
-                                alignItems: "center",
-                                width: "100%",
-                                overflowX: "auto",
-                                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-                              }}
-                            >
-                              <img
-                                key={`tikz-${curQ}`}
-                                src={`https://i.upmath.me/svg/${encodeURIComponent(currentQuestion.figureData.includes("\\begin{tikzpicture}") ? currentQuestion.figureData : "\\begin{tikzpicture}\n" + currentQuestion.figureData + "\n\\end{tikzpicture}")}`}
-                                alt="TikZ Graphic"
-                                style={{
-                                  maxWidth: "100%",
-                                  maxHeight: "250px",
-                                  objectFit: "contain",
-                                }}
-                                onError={(e) => {
-                                  e.target.onerror = null;
-                                  // 100% Offline SVG code (No internet required)
-                                  e.target.src =
-                                    "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ef4444' font-family='sans-serif' font-weight='bold'%3ETikZ Compilation Failed (Offline)%3C/text%3E%3C/svg%3E";
-                                }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                    {/*   PREMIUM TAILWIND OPTIONS AREA   */}
-                    <div className="flex flex-col gap-3 mt-2 mb-6">
-                      {/* MCQ Options */}
-                      {currentQuestion?.type === "mcq" &&
-                        currentQuestion.options.map((opt, j) => {
-                          const isSelected = answers[curQ]?.val === j;
-                          return (
-                            <button
-                              key={j}
-                              className={`group relative flex items-start w-full text-left p-3.5 rounded-2xl border-2 transition-all duration-200 ease-in-out active:scale-[0.99] ${isSelected ? "bg-blue-50/50 border-blue-500 shadow-[0_4px_20px_rgba(59,130,246,0.12)]" : "bg-white border-slate-200 hover:border-blue-300 hover:bg-slate-50 hover:shadow-sm"}`}
-                              onClick={() => pickMCQ(curQ, j)}
-                            >
-                              <div
-                                className={`shrink-0 w-7 h-7 mt-0.5 rounded-full flex items-center justify-center font-black text-sm transition-colors duration-200 ${isSelected ? "bg-blue-600 text-white shadow-md shadow-blue-600/30" : "bg-slate-100 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600"}`}
-                              >
-                                {isSelected ? (
-                                  <i className="ti ti-check text-lg"></i>
-                                ) : (
-                                  String.fromCharCode(65 + j)
-                                )}
-                              </div>
-                              <div className="ml-3.5 flex-1 overflow-x-auto hide-scroll pt-0.5">
-                                {opt.startsWith("[smiles]") ? (
-                                  <div style={{ pointerEvents: "none" }}>
-                                    <SmilesViewer
-                                      smilesCode={opt
-                                        .replace("[smiles]", "")
-                                        .trim()}
-                                      width={150}
-                                      height={150}
-                                    />
-                                  </div>
-                                ) : (
-                                  <StaticMath
-                                    isBlock={false}
-                                    html={opt}
-                                    style={{
-                                      fontSize: "15.5px",
-                                      whiteSpace: "normal",
-                                      wordBreak: "break-word",
-                                      color: isSelected ? "#1e293b" : "#334155",
-                                      fontWeight: isSelected ? "600" : "500",
+                              {currentQuestion.figureType === "tikz" && (
+                                <div className="w-full flex justify-center items-center overflow-x-auto">
+                                  <img
+                                    key={`tikz-${curQ}`}
+                                    src={`https://i.upmath.me/svg/${encodeURIComponent(currentQuestion.figureData.includes("\\begin{tikzpicture}") ? currentQuestion.figureData : "\\begin{tikzpicture}\n" + currentQuestion.figureData + "\n\\end{tikzpicture}")}`}
+                                    alt="TikZ Graph"
+                                    className="max-w-full max-h-[280px] object-contain"
+                                    onError={(e) => {
+                                      e.target.onerror = null;
+                                      e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f8fafc'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ef4444' font-family='sans-serif' font-weight='bold'%3ETikZ Compilation Failed (Offline)%3C/text%3E%3C/svg%3E";
                                     }}
                                   />
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
-                      {/* MSQ Options */}
-                      {currentQuestion?.type === "msq" &&
-                        currentQuestion.options.map((opt, j) => {
-                          const isSelected =
-                            Array.isArray(answers[curQ]?.val) &&
-                            answers[curQ].val.includes(j);
-                          return (
-                            <button
-                              key={j}
-                              className={`group relative flex items-start w-full text-left p-3.5 rounded-2xl border-2 transition-all duration-200 ease-in-out active:scale-[0.99] ${isSelected ? "bg-emerald-50/50 border-emerald-500 shadow-[0_4px_20px_rgba(16,185,129,0.12)]" : "bg-white border-slate-200 hover:border-emerald-300 hover:bg-slate-50 hover:shadow-sm"}`}
-                              onClick={() => pickMSQ(curQ, j)}
-                            >
-                              <div
-                                className={`shrink-0 w-7 h-7 mt-0.5 rounded-lg flex items-center justify-center font-black text-sm transition-colors duration-200 ${isSelected ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30" : "bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600"}`}
+                      {/* 4. OPTIONS & INPUTS ARENA */}
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mt-4 mb-2.5 px-1">
+                        <span className="flex items-center gap-1.5">
+                          <i className="ti ti-list-check text-slate-500"></i>
+                          {currentQuestion?.type === "msq"
+                            ? "Select one or more correct options:"
+                            : currentQuestion?.type === "mcq"
+                            ? "Select the correct option:"
+                            : currentQuestion?.type === "integer"
+                            ? "Enter numerical answer:"
+                            : "Type your answer:"}
+                        </span>
+                        {currentQuestion?.type === "msq" && (
+                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md normal-case tracking-normal">
+                            Multiple options can be correct
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-3 mt-1 mb-8">
+                        {/* MCQ Options (Single Correct) */}
+                        {currentQuestion?.type === "mcq" &&
+                          currentQuestion.options.map((opt, j) => {
+                            const isSelected = answers[curQ]?.val === j;
+                            return (
+                              <button
+                                key={j}
+                                type="button"
+                                className={`group relative flex items-start w-full text-left p-4 sm:p-4.5 rounded-2xl border-2 transition-all duration-200 ease-in-out cursor-pointer active:scale-[0.99] ${
+                                  isSelected
+                                    ? "bg-gradient-to-r from-blue-50/90 to-indigo-50/50 border-blue-600 shadow-[0_4px_25px_rgba(37,99,235,0.14)] ring-4 ring-blue-500/10"
+                                    : "bg-white border-slate-200/90 hover:border-blue-300 hover:bg-slate-50/90 shadow-2xs"
+                                }`}
+                                onClick={() => pickMCQ(curQ, j)}
                               >
-                                {isSelected ? (
-                                  <i className="ti ti-check text-lg"></i>
-                                ) : (
-                                  String.fromCharCode(65 + j)
-                                )}
-                              </div>
-                              <div className="ml-3.5 flex-1 overflow-x-auto hide-scroll pt-0.5">
-                                {opt.startsWith("[smiles]") ? (
-                                  <div style={{ pointerEvents: "none" }}>
-                                    <SmilesViewer
-                                      smilesCode={opt
-                                        .replace("[smiles]", "")
-                                        .trim()}
-                                      width={150}
-                                      height={150}
+                                <div
+                                  className={`shrink-0 w-8 h-8 mt-0.5 rounded-full flex items-center justify-center font-black text-sm transition-all duration-200 ${
+                                    isSelected
+                                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 scale-105"
+                                      : "bg-slate-100 text-slate-600 border border-slate-200 group-hover:bg-blue-100 group-hover:text-blue-700"
+                                  }`}
+                                >
+                                  {isSelected ? (
+                                    <i className="ti ti-check text-base font-black"></i>
+                                  ) : (
+                                    String.fromCharCode(65 + j)
+                                  )}
+                                </div>
+                                <div className="ml-3.5 flex-1 overflow-x-auto hide-scroll pt-0.5">
+                                  {opt.startsWith("[smiles]") ? (
+                                    <div style={{ pointerEvents: "none" }}>
+                                      <SmilesViewer
+                                        smilesCode={opt.replace("[smiles]", "").trim()}
+                                        width={160}
+                                        height={160}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <StaticMath
+                                      isBlock={false}
+                                      html={opt}
+                                      style={{
+                                        fontSize: "16px",
+                                        whiteSpace: "normal",
+                                        wordBreak: "break-word",
+                                        color: isSelected ? "#0f172a" : "#334155",
+                                        fontWeight: isSelected ? "700" : "500",
+                                      }}
                                     />
+                                  )}
+                                </div>
+                                <div className="ml-2 shrink-0 self-center hidden sm:block">
+                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                                    isSelected ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 group-hover:border-blue-400"
+                                  }`}>
+                                    {isSelected && <i className="ti ti-check text-xs"></i>}
                                   </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+
+                        {/* MSQ Options (Multi-Correct) */}
+                        {currentQuestion?.type === "msq" &&
+                          currentQuestion.options.map((opt, j) => {
+                            const isSelected =
+                              Array.isArray(answers[curQ]?.val) &&
+                              answers[curQ].val.includes(j);
+                            return (
+                              <button
+                                key={j}
+                                type="button"
+                                className={`group relative flex items-start w-full text-left p-4 sm:p-4.5 rounded-2xl border-2 transition-all duration-200 ease-in-out cursor-pointer active:scale-[0.99] ${
+                                  isSelected
+                                    ? "bg-gradient-to-r from-emerald-50/90 to-teal-50/50 border-emerald-600 shadow-[0_4px_25px_rgba(16,185,129,0.14)] ring-4 ring-emerald-500/10"
+                                    : "bg-white border-slate-200/90 hover:border-emerald-300 hover:bg-slate-50/90 shadow-2xs"
+                                }`}
+                                onClick={() => pickMSQ(curQ, j)}
+                              >
+                                <div
+                                  className={`shrink-0 w-8 h-8 mt-0.5 rounded-xl flex items-center justify-center font-black text-sm transition-all duration-200 ${
+                                    isSelected
+                                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30 scale-105"
+                                      : "bg-slate-100 text-slate-600 border border-slate-200 group-hover:bg-emerald-100 group-hover:text-emerald-700"
+                                  }`}
+                                >
+                                  {isSelected ? (
+                                    <i className="ti ti-check text-base font-black"></i>
+                                  ) : (
+                                    String.fromCharCode(65 + j)
+                                  )}
+                                </div>
+                                <div className="ml-3.5 flex-1 overflow-x-auto hide-scroll pt-0.5">
+                                  {opt.startsWith("[smiles]") ? (
+                                    <div style={{ pointerEvents: "none" }}>
+                                      <SmilesViewer
+                                        smilesCode={opt.replace("[smiles]", "").trim()}
+                                        width={160}
+                                        height={160}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <StaticMath
+                                      isBlock={false}
+                                      html={opt}
+                                      style={{
+                                        fontSize: "16px",
+                                        whiteSpace: "normal",
+                                        wordBreak: "break-word",
+                                        color: isSelected ? "#0f172a" : "#334155",
+                                        fontWeight: isSelected ? "700" : "500",
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                <div className="ml-2 shrink-0 self-center hidden sm:block">
+                                  <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-colors ${
+                                    isSelected ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300 group-hover:border-emerald-400"
+                                  }`}>
+                                    {isSelected && <i className="ti ti-check text-xs"></i>}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+
+                        {/* Numerical / Integer Type with VIRTUAL NTA KEYPAD */}
+                        {currentQuestion?.type === "integer" && (
+                          <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-xl max-w-md mx-auto w-full text-white">
+                            <div className="flex items-center justify-between mb-4">
+                              <span className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <i className="ti ti-calculator text-amber-400 text-sm"></i> Numerical Input
+                              </span>
+                              <span className="text-[10px] font-extrabold uppercase bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
+                                NTA Keypad
+                              </span>
+                            </div>
+
+                            {/* Numerical Display Screen */}
+                            <div className="bg-slate-950 border-2 border-slate-700/80 rounded-2xl p-4 mb-5 shadow-inner text-center">
+                              <div className="text-3xl sm:text-4xl font-black font-mono tracking-widest text-emerald-400 min-h-[44px] flex items-center justify-center">
+                                {answers[curQ]?.val !== null && answers[curQ]?.val !== undefined && String(answers[curQ].val).trim() !== "" ? (
+                                  <span>{String(answers[curQ].val)}</span>
                                 ) : (
-                                  <StaticMath
-                                    isBlock={false}
-                                    html={opt}
-                                    style={{
-                                      fontSize: "15.5px",
-                                      whiteSpace: "normal",
-                                      wordBreak: "break-word",
-                                      color: isSelected ? "#1e293b" : "#334155",
-                                      fontWeight: isSelected ? "600" : "500",
-                                    }}
-                                  />
+                                  <span className="text-slate-500 font-sans text-base sm:text-lg font-semibold">Use keypad or numpad below</span>
                                 )}
                               </div>
-                            </button>
-                          );
-                        })}
+                            </div>
 
-                      {/* Integer Input */}
-                      {currentQuestion?.type === "integer" && (
-                        <div className="bg-amber-50/30 border border-amber-200 p-5 rounded-2xl">
-                          <label className="text-[13px] font-bold text-amber-800 uppercase tracking-widest mb-3 block">
-                            Enter Integer Answer
-                          </label>
-                          <input
-                            type="number"
-                            value={
-                              answers[curQ]?.val !== null
-                                ? answers[curQ].val
-                                : ""
-                            }
-                            onChange={(e) => pickInt(curQ, e.target.value)}
-                            placeholder="0"
-                            className="w-full max-w-[200px] bg-white border-2 border-amber-300 text-2xl font-black text-slate-800 rounded-xl px-4 py-3 outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all text-center shadow-inner"
-                          />
-                        </div>
-                      )}
+                            {/* Virtual Keypad Grid */}
+                            <div className="grid grid-cols-3 gap-2 sm:gap-2.5 max-w-[300px] mx-auto">
+                              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "-", "0", "."].map((k) => (
+                                <button
+                                  key={k}
+                                  type="button"
+                                  className="py-3 sm:py-3.5 bg-slate-800 hover:bg-slate-700 active:bg-blue-600 text-white font-black text-xl rounded-xl border border-slate-700 shadow-xs transition-all active:scale-95 cursor-pointer"
+                                  onClick={() => handleVirtualKey(k)}
+                                >
+                                  {k}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                className="col-span-1 py-3 bg-rose-500/20 hover:bg-rose-500/30 active:bg-rose-500/40 text-rose-300 font-black text-xs rounded-xl border border-rose-500/40 shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                                onClick={() => handleVirtualKey("clear")}
+                              >
+                                <i className="ti ti-trash text-sm"></i> Clear
+                              </button>
+                              <button
+                                type="button"
+                                className="col-span-2 py-3 bg-amber-500/20 hover:bg-amber-500/30 active:bg-amber-500/40 text-amber-300 font-black text-xs rounded-xl border border-amber-500/40 shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                                onClick={() => handleVirtualKey("backspace")}
+                              >
+                                <i className="ti ti-backspace text-base"></i> Backspace
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
-                      {/* Subjective Input */}
-                      {currentQuestion?.type === "subjective" && (
-                        <div className="bg-purple-50/30 border border-purple-200 p-5 rounded-2xl flex flex-col h-full">
-                          <label className="text-[13px] font-bold text-purple-800 uppercase tracking-widest mb-3 block">
-                            Descriptive Answer
-                          </label>
-                          <textarea
-                            value={answers[curQ]?.val || ""}
-                            onChange={(e) => pickSubj(curQ, e.target.value)}
-                            placeholder="Type your detailed answer here..."
-                            className="w-full flex-1 min-h-[200px] bg-white border-2 border-purple-200 text-[15px] font-medium text-slate-700 rounded-xl px-5 py-4 outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all resize-none shadow-inner leading-relaxed custom-scrollbar"
-                          ></textarea>
-                        </div>
-                      )}
+                        {/* Subjective / Descriptive Answer Box */}
+                        {currentQuestion?.type === "subjective" && (
+                          <div className="bg-purple-50/40 border-2 border-purple-200/90 rounded-3xl p-5 sm:p-6 flex flex-col">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-xs font-black text-purple-900 uppercase tracking-widest flex items-center gap-1.5">
+                                <i className="ti ti-writing text-purple-600 text-sm"></i> Descriptive Response
+                              </span>
+                              <span className="text-[11px] font-bold text-purple-700 bg-purple-100 px-3 py-1 rounded-full border border-purple-200">
+                                {(answers[curQ]?.val || "").trim().split(/\s+/).filter(Boolean).length} Words &bull; {(answers[curQ]?.val || "").length} Chars
+                              </span>
+                            </div>
+                            <textarea
+                              value={answers[curQ]?.val || ""}
+                              onChange={(e) => pickSubj(curQ, e.target.value)}
+                              placeholder="Type your structured, step-by-step descriptive answer here..."
+                              className="w-full flex-1 min-h-[220px] bg-white border-2 border-purple-200 text-[16px] font-medium text-slate-800 rounded-2xl p-4 sm:p-5 outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/10 transition-all resize-none shadow-inner leading-relaxed custom-scrollbar"
+                            ></textarea>
+                            <div className="mt-2.5 text-right text-[11px] font-bold text-slate-400">
+                              Auto-saved to local secure vault in real-time
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
+                  </div>
+                </div>
 
-                    {/* MARK / CLEAR BUTTONS */}
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "10px",
-                        marginTop: "1.5rem",
-                        flexWrap: "wrap",
-                        paddingBottom: "1rem",
-                      }}
-                    >
+                {/* BOTTOM NAVIGATION ACTIONS DOCK (Fixed & Ergonomic) */}
+                <div className="q-area-footer bg-white/95 backdrop-blur-md border-t border-slate-200/90 p-3 sm:p-4 z-40 shadow-[0_-4px_25px_rgba(0,0,0,0.06)]">
+                  <div className="flex items-center justify-between gap-2 sm:gap-4 max-w-full">
+                    {/* Left: Clear & Mark for Review */}
+                    <div className="flex items-center gap-2">
                       <button
-                        className="btn btn-sm"
+                        type="button"
                         onClick={() => toggleMark(curQ)}
-                        style={
+                        className={`px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 sm:gap-2 transition-all active:scale-95 cursor-pointer border ${
                           answers[curQ]?.marked
-                            ? {
-                                color: "#633806",
-                                borderColor: "#FAC775",
-                                background: "#FAEEDA",
-                                fontWeight: 600,
-                              }
-                            : {}
-                        }
+                            ? "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/25"
+                            : "bg-amber-50/90 hover:bg-amber-100 text-amber-900 border-amber-200/90"
+                        }`}
+                        title="Mark question for review (Shortcut: M)"
                       >
-                        <i className="ti ti-bookmark"></i>{" "}
-                        {answers[curQ]?.marked ? "Unmark" : "Mark for Review"}
+                        <i className={`ti ${answers[curQ]?.marked ? "ti-bookmark-filled" : "ti-bookmark"} text-sm sm:text-base`}></i>
+                        <span>{answers[curQ]?.marked ? "Marked" : "Mark for Review"}</span>
                       </button>
+
                       {answers[curQ]?.val !== null &&
-                        (!Array.isArray(answers[curQ].val) ||
-                          answers[curQ].val.length > 0) && (
+                        answers[curQ]?.val !== undefined &&
+                        (!Array.isArray(answers[curQ].val) || answers[curQ].val.length > 0) && (
                           <button
-                            className="btn btn-sm btn-danger"
+                            type="button"
                             onClick={() => clearAns(curQ)}
+                            className="px-2.5 sm:px-3.5 py-2.5 sm:py-3 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 hover:border-rose-200 text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                            title="Clear Selection (Shortcut: C)"
                           >
-                            <i className="ti ti-eraser"></i> Clear Selection
+                            <i className="ti ti-eraser text-sm sm:text-base"></i>
+                            <span className="hidden sm:inline">Clear</span>
                           </button>
                         )}
                     </div>
-                  </div>
-                </div>
 
-                {/* BOTTOM NAVIGATION ACTIONS (Always sticky at bottom) */}
-                <div className="q-area-footer">
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "12px",
-                    }}
-                  >
+                    {/* Center on Mobile: Palette Toggle Icon */}
                     <button
-                      className="btn"
-                      style={{
-                        flex: 1,
-                        padding: "14px",
-                        justifyContent: "center",
-                        minWidth: "0",
-                      }}
-                      onClick={() => changeQuestion(curQ - 1)}
-                      disabled={curQ === 0}
+                      type="button"
+                      className="lg:hidden w-11 h-11 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 border border-slate-200 flex items-center justify-center shrink-0 active:scale-95 transition-all cursor-pointer shadow-xs"
+                      onClick={() => setIsMobilePaletteOpen(!isMobilePaletteOpen)}
+                      title="Open Question Palette"
                     >
-                      <i className="ti ti-arrow-left"></i>{" "}
-                      <span className="hide-mobile">Prev</span>
+                      <i className="ti ti-layout-grid text-xl"></i>
                     </button>
 
-                    {/* Mobile Grid Button */}
-                    <button
-                      className="btn hide-desktop"
-                      style={{
-                        width: "60px",
-                        padding: "14px",
-                        background: "#f8fafc",
-                        justifyContent: "center",
-                        border: "1px solid #cbd5e1",
-                        flexShrink: 0,
-                      }}
-                      onClick={() =>
-                        setIsMobilePaletteOpen(!isMobilePaletteOpen)
-                      }
-                    >
-                      <i
-                        className="ti ti-layout-grid"
-                        style={{ fontSize: "24px", color: "#185FA5" }}
-                      ></i>
-                    </button>
+                    {/* Right: Prev & Next/Submit */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={curQ === 0}
+                        onClick={() => changeQuestion(curQ - 1)}
+                        className="px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs"
+                      >
+                        <i className="ti ti-arrow-left text-sm"></i>
+                        <span className="hidden sm:inline">Prev</span>
+                      </button>
 
-                    {curQ < (activeTest?.questions?.length || 1) - 1 ? (
-                      <button
-                        className="btn btn-primary"
-                        style={{
-                          flex: 1,
-                          padding: "14px",
-                          justifyContent: "center",
-                          minWidth: "0",
-                        }}
-                        onClick={() => changeQuestion(curQ + 1)}
-                      >
-                        <span className="hide-mobile">Next</span>{" "}
-                        <i className="ti ti-arrow-right"></i>
-                      </button>
-                    ) : (
-                      <button
-                        className="btn btn-success"
-                        style={{
-                          flex: 1,
-                          padding: "14px",
-                          justifyContent: "center",
-                          minWidth: "0",
-                          fontWeight: 600,
-                        }}
-                        onClick={confirmAndSubmit}
-                      >
-                        <i className="ti ti-check"></i> Submit
-                      </button>
-                    )}
+                      {curQ < (activeTest?.questions?.length || 1) - 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => changeQuestion(curQ + 1)}
+                          className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-blue-600/25 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <span>Save & Next</span>
+                          <i className="ti ti-arrow-right text-sm"></i>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={confirmAndSubmit}
+                          className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <i className="ti ti-check text-sm"></i>
+                          <span>Submit Test</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* ======================================= */}
-              {/* RIGHT PANE: DESKTOP ONLY FIXED PALETTE  */}
+              {/* RIGHT PANE: DESKTOP EXECUTIVE QUESTION PALETTE */}
               {/* ======================================= */}
               <div className="desktop-palette">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    margin: "0 0 1.25rem 0",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "16px",
-                      fontWeight: 700,
-                      color: "var(--color-text-primary)",
-                    }}
-                  >
-                    Question Palette
-                  </div>
-                </div>
-
-                <div
-                  className="legend-row"
-                  style={{
-                    padding: "0 4px",
-                    marginBottom: "1.25rem",
-                    flexWrap: "wrap",
-                    gap: "8px",
-                  }}
-                >
-                  <div className="leg">
-                    <div
-                      className="leg-dot"
-                      style={{
-                        background: "var(--color-background-primary)",
-                        border: "1px solid var(--color-border-primary)",
-                      }}
-                    ></div>
-                    Unvisited
-                  </div>
-                  <div className="leg">
-                    <div
-                      className="leg-dot"
-                      style={{ background: "#185FA5" }}
-                    ></div>
-                    Answered
-                  </div>
-                  <div className="leg">
-                    <div
-                      className="leg-dot"
-                      style={{ background: "#FAC775" }}
-                    ></div>
-                    Marked
-                  </div>
-                </div>
-
-                <div className="desktop-palette-scroll custom-scrollbar">
-                  {activeTest?.sections && activeTest.sections.length > 0 ? (
-                    activeTest.sections.map((sec) => {
-                      let secAttempted = 0;
-                      let secTotal = 0;
-                      let secHTML = [];
-
-                      activeTest.questions.forEach((qq, i) => {
-                        if (
-                          qq.section === sec ||
-                          (!qq.section && sec === activeTest.sections[0])
-                        ) {
-                          secTotal++;
-                          let a = answers[i];
-                          let isDone =
-                            a?.val !== null &&
-                            (!Array.isArray(a?.val) || a.val.length > 0);
-                          if (isDone) secAttempted++;
-                          let cls =
-                            a?.marked && isDone
-                              ? "p-both"
-                              : a?.marked
-                                ? "p-marked"
-                                : isDone
-                                  ? "p-answered"
-                                  : "p-unanswered";
-                          secHTML.push(
-                            <button
-                              key={i}
-                              className={`pal-btn ${cls} ${i === curQ ? "p-current" : ""}`}
-                              onClick={() => changeQuestion(i)}
-                            >
-                              {secTotal}
-                            </button>,
-                          );
-                        }
-                      });
-
-                      if (secTotal === 0) return null;
-
-                      return (
-                        <div key={sec} style={{ marginBottom: "1.5rem" }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              margin: "0 0 12px 0",
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: "13px",
-                                fontWeight: 800,
-                                color: "var(--color-text-secondary)",
-                                textTransform: "uppercase",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              <i className="ti ti-folder"></i> {sec}
-                            </div>
-                            {(() => {
-                              const secRule = activeTest?.sectionRules
-                                ? Number(activeTest.sectionRules[sec])
-                                : 0;
-                              const hasLimit =
-                                secRule > 0 && secRule < secTotal;
-                              const targetLimit = hasLimit ? secRule : secTotal;
-                              const isSecComplete =
-                                secAttempted >= targetLimit;
-                              return (
-                                <div
-                                  style={{
-                                    fontSize: "11px",
-                                    fontWeight: 700,
-                                    background: isSecComplete
-                                      ? "#EAF3DE"
-                                      : "#E6F1FB",
-                                    color: isSecComplete
-                                      ? "#27500A"
-                                      : "#185FA5",
-                                    padding: "4px 10px",
-                                    borderRadius: "12px",
-                                    border: `1px solid ${isSecComplete ? "#C0DD97" : "#CECBF6"}`,
-                                  }}
-                                >
-                                  Attempted: {secAttempted}/{targetLimit}
-                                  {hasLimit ? ` (Max ${targetLimit})` : ""}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          <div className="palette-grid">{secHTML}</div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="palette-grid">
-                      {activeTest?.questions?.map((_, i) => {
-                        let a = answers[i];
-                        let isDone =
-                          a?.val !== null &&
-                          (!Array.isArray(a?.val) || a.val.length > 0);
-                        let cls =
-                          a?.marked && isDone
-                            ? "p-both"
-                            : a?.marked
-                              ? "p-marked"
-                              : isDone
-                                ? "p-answered"
-                                : "p-unanswered";
-                        return (
-                          <button
-                            key={i}
-                            className={`pal-btn ${cls} ${i === curQ ? "p-current" : ""}`}
-                            onClick={() => changeQuestion(i)}
-                          >
-                            {i + 1}
-                          </button>
-                        );
-                      })}
+                <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_10px_30px_-10px_rgba(15,23,42,0.05)] p-4 sm:p-5 flex flex-col h-full overflow-hidden">
+                  {/* 1. Header with Stats & Progress */}
+                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 shrink-0">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <i className="ti ti-layout-grid text-blue-600 text-base"></i>
+                        Question Palette
+                      </h3>
+                      <p className="text-[11px] font-bold text-slate-400 mt-0.5">
+                        {answeredQs} of {maxAllowedQuestions} Attempted ({Math.round((answeredQs / Math.max(1, maxAllowedQuestions)) * 100)}%)
+                      </p>
                     </div>
-                  )}
-                </div>
+                    {/* Progress Pill */}
+                    <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200/80 flex items-center justify-center text-blue-700 font-mono font-black text-xs shadow-2xs">
+                      {Math.round((answeredQs / Math.max(1, maxAllowedQuestions)) * 100)}%
+                    </div>
+                  </div>
 
-                {/* Submit button at the very bottom of Desktop Palette */}
-                <div
-                  style={{
-                    flexShrink: 0,
-                    paddingTop: "1rem",
-                    marginTop: "1rem",
-                    borderTop: "1px solid var(--color-border-secondary)",
-                  }}
-                >
-                  <button
-                    className="btn btn-primary"
-                    style={{
-                      width: "100%",
-                      justifyContent: "center",
-                      fontWeight: 700,
-                      padding: "14px",
-                      fontSize: "15px",
-                    }}
-                    onClick={confirmAndSubmit}
-                  >
-                    <i className="ti ti-send"></i> Submit Final Test
-                  </button>
+                  {/* 2. Interactive Quick Filter Chips */}
+                  <div className="grid grid-cols-4 gap-1.5 py-3 shrink-0">
+                    {[
+                      { id: "all", label: "All", count: activeTest?.questions?.length || 0 },
+                      { id: "answered", label: "Done", count: answeredQs },
+                      { id: "marked", label: "Review", count: markedQs },
+                      { id: "pending", label: "Left", count: Math.max(0, (activeTest?.questions?.length || 0) - answeredQs) },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setPaletteFilter(tab.id)}
+                        className={`px-1.5 py-1.5 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center transition-all cursor-pointer ${
+                          paletteFilter === tab.id
+                            ? "bg-slate-900 text-white shadow-xs"
+                            : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/70"
+                        }`}
+                      >
+                        <span className="leading-tight">{tab.label}</span>
+                        <span className={`text-[10px] font-black ${paletteFilter === tab.id ? "text-blue-300" : "text-slate-400"}`}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 3. Sleek Compact Legends Row */}
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 px-2 py-2 bg-slate-50/70 rounded-xl border border-slate-100 mb-3 text-[10px] font-bold text-slate-600 shrink-0">
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-md bg-emerald-600"></span> Done
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-md bg-rose-400"></span> Visited
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-md bg-purple-600"></span> Review
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-md bg-white border border-slate-300"></span> Left
+                    </div>
+                  </div>
+
+                  {/* 4. Scrollable Sections & Question Grid */}
+                  <div className="desktop-palette-scroll custom-scrollbar flex-1 overflow-y-auto pr-1">
+                    {activeTest?.sections && activeTest.sections.length > 0 ? (
+                      activeTest.sections.map((sec) => {
+                        let secAttempted = 0;
+                        let secTotal = 0;
+                        const secQuestions = [];
+
+                        activeTest.questions.forEach((qq, i) => {
+                          if (
+                            qq.section === sec ||
+                            (!qq.section && sec === activeTest.sections[0])
+                          ) {
+                            secTotal++;
+                            const a = answers[i];
+                            const isDone = a?.val !== null && a?.val !== undefined && a?.val !== "" && (!Array.isArray(a?.val) || a.val.length > 0);
+                            if (isDone) secAttempted++;
+                            secQuestions.push({ qIndex: i, num: secTotal });
+                          }
+                        });
+
+                        if (secTotal === 0) return null;
+
+                        const secRule = activeTest?.sectionRules ? Number(activeTest.sectionRules[sec]) : 0;
+                        const hasLimit = secRule > 0 && secRule < secTotal;
+                        const targetLimit = hasLimit ? secRule : secTotal;
+                        const isSecComplete = secAttempted >= targetLimit;
+
+                        return (
+                          <div key={sec} className="mb-5 last:mb-2">
+                            <div className="flex items-center justify-between mb-2.5">
+                              <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <i className="ti ti-folder text-blue-600"></i> {sec}
+                              </span>
+                              <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                                isSecComplete
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-blue-50 text-blue-700 border-blue-200"
+                              }`}>
+                                {secAttempted}/{targetLimit} {hasLimit ? "(Max)" : "Done"}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-5 gap-2">
+                              {secQuestions.map((q) => renderPalButton(q.qIndex, q.num, false))}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="grid grid-cols-5 gap-2">
+                        {activeTest?.questions?.map((_, i) => renderPalButton(i, i + 1, false))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 5. Sticky Bottom Final Submit Button */}
+                  <div className="pt-3 mt-2 border-t border-slate-100 shrink-0">
+                    <button
+                      type="button"
+                      className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 active:scale-[0.98] text-white font-black text-sm shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                      onClick={confirmAndSubmit}
+                    >
+                      <i className="ti ti-lock-check text-base"></i>
+                      Submit Final Exam
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* ======================================= */}
-              {/* MOBILE POPUP PALETTE (PREMIUM TAILWIND) */}
+              {/* MOBILE BOTTOM SHEET PALETTE (PREMIUM)   */}
               {/* ======================================= */}
-
-              {/* 1. Enhanced Blur Overlay (Clicks outside will close) */}
               {isMobilePaletteOpen && (
                 <div
                   className="hide-desktop fixed inset-0 z-[995] bg-slate-900/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease]"
@@ -2732,15 +3135,16 @@ function StudentPortalContent() {
                 ></div>
               )}
 
-              {/* 2. Premium Bottom Sheet Palette */}
               <div
-                className={`hide-desktop fixed bottom-0 left-0 right-0 z-[1000] bg-white rounded-t-[32px] shadow-[0_-15px_40px_rgba(0,0,0,0.2)] flex flex-col transition-transform duration-300 ${isMobilePaletteOpen ? "translate-y-0" : "translate-y-full"}`}
+                className={`hide-desktop fixed bottom-0 left-0 right-0 z-[1000] bg-white rounded-t-[32px] shadow-[0_-20px_50px_rgba(0,0,0,0.25)] flex flex-col transition-transform duration-300 ease-out ${
+                  isMobilePaletteOpen ? "translate-y-0" : "translate-y-full pointer-events-none"
+                }`}
                 style={{
                   maxHeight: "88vh",
                   height: isMobilePaletteOpen ? "auto" : "0",
                 }}
               >
-                {/* Premium Drag Indicator */}
+                {/* Pull Handle */}
                 <div
                   className="w-full flex justify-center pt-3 pb-2 shrink-0 cursor-pointer"
                   onClick={() => setIsMobilePaletteOpen(false)}
@@ -2748,44 +3152,78 @@ function StudentPortalContent() {
                   <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
                 </div>
 
-                {/* Header */}
-                <div className="px-5 pb-4 shrink-0 flex justify-between items-center">
-                  <div className="text-[18px] font-black text-slate-800 tracking-tight">
-                    Question Palette
+                {/* Mobile Drawer Header */}
+                <div className="px-5 pb-3 shrink-0 flex justify-between items-center border-b border-slate-100">
+                  <div>
+                    <div className="text-base font-black text-slate-800 tracking-tight flex items-center gap-2">
+                      <span>Question Palette</span>
+                      <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-full">
+                        {answeredQs}/{maxAllowedQuestions}
+                      </span>
+                    </div>
                   </div>
                   <button
-                    className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center active:scale-95 transition-all"
+                    type="button"
+                    className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center active:scale-95 transition-all cursor-pointer"
                     onClick={() => setIsMobilePaletteOpen(false)}
                   >
-                    <i className="ti ti-x text-lg"></i>
+                    <i className="ti ti-x text-base font-bold"></i>
                   </button>
                 </div>
 
-                {/* Legends */}
-                <div className="px-5 shrink-0">
-                  <div className="flex flex-wrap gap-4 mb-4 bg-slate-50 p-3 rounded-2xl border border-slate-100 justify-center">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
-                      <div className="w-3 h-3 rounded-full bg-white border border-slate-300"></div>
-                      Unvisited
+                {/* Mobile Filter Chips */}
+                <div className="px-5 pt-3 pb-2 shrink-0">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { id: "all", label: "All", count: activeTest?.questions?.length || 0 },
+                      { id: "answered", label: "Done", count: answeredQs },
+                      { id: "marked", label: "Review", count: markedQs },
+                      { id: "pending", label: "Left", count: Math.max(0, (activeTest?.questions?.length || 0) - answeredQs) },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setPaletteFilter(tab.id)}
+                        className={`px-1.5 py-1.5 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center transition-all cursor-pointer ${
+                          paletteFilter === tab.id
+                            ? "bg-slate-900 text-white shadow-xs"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200/70"
+                        }`}
+                      >
+                        <span className="leading-tight">{tab.label}</span>
+                        <span className={`text-[10px] font-black ${paletteFilter === tab.id ? "text-blue-300" : "text-slate-400"}`}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mobile Legends */}
+                <div className="px-5 pb-2 shrink-0">
+                  <div className="flex flex-wrap items-center justify-between gap-1 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100 text-[10px] font-bold text-slate-600">
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600"></span> Done
                     </div>
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
-                      <div className="w-3 h-3 rounded-full bg-[#185FA5]"></div>
-                      Answered
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-rose-400"></span> Visited
                     </div>
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
-                      <div className="w-3 h-3 rounded-full bg-[#FAC775]"></div>
-                      Marked
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-purple-600"></span> Review
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-white border border-slate-300"></span> Left
                     </div>
                   </div>
                 </div>
 
-                {/* Scrollable Questions Area */}
-                <div className="flex-1 overflow-y-auto px-5 pb-5 custom-scrollbar">
+                {/* Mobile Scrollable Grid */}
+                <div className="flex-1 overflow-y-auto px-5 py-2 custom-scrollbar">
                   {activeTest?.sections && activeTest.sections.length > 0 ? (
                     activeTest.sections.map((sec) => {
                       let secAttempted = 0;
                       let secTotal = 0;
-                      let secHTML = [];
+                      const secQuestions = [];
 
                       activeTest.questions.forEach((qq, i) => {
                         if (
@@ -2793,112 +3231,95 @@ function StudentPortalContent() {
                           (!qq.section && sec === activeTest.sections[0])
                         ) {
                           secTotal++;
-                          let a = answers[i];
-                          let isDone =
-                            a?.val !== null &&
-                            (!Array.isArray(a?.val) || a.val.length > 0);
-
+                          const a = answers[i];
+                          const isDone = a?.val !== null && a?.val !== undefined && a?.val !== "" && (!Array.isArray(a?.val) || a.val.length > 0);
                           if (isDone) secAttempted++;
-
-                          let cls =
-                            a?.marked && isDone
-                              ? "p-both"
-                              : a?.marked
-                                ? "p-marked"
-                                : isDone
-                                  ? "p-answered"
-                                  : "p-unanswered";
-
-                          secHTML.push(
-                            <button
-                              key={i}
-                              className={`pal-btn ${cls} ${i === curQ ? "p-current" : ""}`}
-                              onClick={() => {
-                                changeQuestion(i);
-                                setIsMobilePaletteOpen(false);
-                              }}
-                            >
-                              {secTotal}
-                            </button>,
-                          );
+                          secQuestions.push({ qIndex: i, num: secTotal });
                         }
                       });
 
                       if (secTotal === 0) return null;
 
+                      const secRule = activeTest?.sectionRules ? Number(activeTest.sectionRules[sec]) : 0;
+                      const hasLimit = secRule > 0 && secRule < secTotal;
+                      const targetLimit = hasLimit ? secRule : secTotal;
+                      const isSecComplete = secAttempted >= targetLimit;
+
                       return (
-                        <div key={sec} className="mb-6">
-                          <div className="flex justify-between items-center mb-3">
-                            <div className="text-[12px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                              <i className="ti ti-folder text-blue-500 text-sm"></i>{" "}
-                              {sec}
-                            </div>
-                            {(() => {
-                              const secRule = activeTest?.sectionRules
-                                ? Number(activeTest.sectionRules[sec])
-                                : 0;
-                              const hasLimit =
-                                secRule > 0 && secRule < secTotal;
-                              const targetLimit = hasLimit ? secRule : secTotal;
-                              const isSecComplete =
-                                secAttempted >= targetLimit;
-                              return (
-                                <div
-                                  className={`text-[10px] font-bold px-3 py-1 rounded-full border ${isSecComplete ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}
-                                >
-                                  {secAttempted}/{targetLimit}
-                                  {hasLimit ? " (Max)" : ""}
-                                </div>
-                              );
-                            })()}
+                        <div key={sec} className="mb-5">
+                          <div className="flex justify-between items-center mb-2.5">
+                            <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                              <i className="ti ti-folder text-blue-600 text-sm"></i> {sec}
+                            </span>
+                            <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                              isSecComplete
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
+                            }`}>
+                              {secAttempted}/{targetLimit} {hasLimit ? "(Max)" : "Done"}
+                            </span>
                           </div>
-                          <div className="palette-grid">{secHTML}</div>
+                          <div className="grid grid-cols-5 gap-2.5">
+                            {secQuestions.map((q) => renderPalButton(q.qIndex, q.num, true))}
+                          </div>
                         </div>
                       );
                     })
                   ) : (
-                    <div className="palette-grid">
-                      {activeTest?.questions?.map((_, i) => {
-                        let a = answers[i];
-                        let isDone =
-                          a?.val !== null &&
-                          (!Array.isArray(a?.val) || a.val.length > 0);
-                        let cls =
-                          a?.marked && isDone
-                            ? "p-both"
-                            : a?.marked
-                              ? "p-marked"
-                              : isDone
-                                ? "p-answered"
-                                : "p-unanswered";
-                        return (
-                          <button
-                            key={i}
-                            className={`pal-btn ${cls} ${i === curQ ? "p-current" : ""}`}
-                            onClick={() => {
-                              changeQuestion(i);
-                              setIsMobilePaletteOpen(false);
-                            }}
-                          >
-                            {i + 1}
-                          </button>
-                        );
-                      })}
+                    <div className="grid grid-cols-5 gap-2.5">
+                      {activeTest?.questions?.map((_, i) => renderPalButton(i, i + 1, true))}
                     </div>
                   )}
                 </div>
 
-                {/* Fixed Bottom Submit Button */}
+                {/* Fixed Mobile Bottom Submit Button */}
                 <div className="p-4 bg-white border-t border-slate-100 shrink-0">
                   <button
-                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl font-bold text-[15px] shadow-lg shadow-blue-600/20 flex justify-center items-center gap-2 transition-transform active:scale-95"
-                    onClick={confirmAndSubmit}
+                    type="button"
+                    className="w-full py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white rounded-2xl font-black text-[15px] shadow-lg shadow-blue-600/25 flex justify-center items-center gap-2 transition-transform active:scale-95 cursor-pointer"
+                    onClick={() => {
+                      setIsMobilePaletteOpen(false);
+                      confirmAndSubmit();
+                    }}
                   >
-                    <i className="ti ti-send text-lg"></i> Submit Final Test
+                    <i className="ti ti-lock-check text-lg"></i> Submit Final Test
                   </button>
                 </div>
               </div>
             </div>
+
+            
+            {/* FULL-SCREEN FIGURE LIGHTBOX MODAL */}
+            {zoomFigure && (
+              <div
+                className="fixed inset-0 z-[999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease]"
+                onClick={() => setZoomFigure(null)}
+              >
+                <div
+                  className="relative max-w-4xl max-h-[90vh] bg-white rounded-3xl p-6 shadow-2xl overflow-auto flex flex-col items-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    className="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-95 transition-all cursor-pointer"
+                    onClick={() => setZoomFigure(null)}
+                  >
+                    <i className="ti ti-x text-lg"></i>
+                  </button>
+                  <div className="mt-4 w-full flex justify-center">
+                    {zoomFigure.type === "image" && (
+                      <img src={zoomFigure.data} alt="Zoomed Diagram" className="max-w-full max-h-[75vh] object-contain rounded-xl" />
+                    )}
+                    {zoomFigure.type === "svg" && (
+                      <div dangerouslySetInnerHTML={{ __html: sanitizeSvg(zoomFigure.data) }} className="w-full flex justify-center overflow-auto" />
+                    )}
+                    {zoomFigure.type === "smiles" && (
+                      <SmilesViewer smilesCode={zoomFigure.data} width={380} height={320} />
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* VIRTUAL ROUGH PAD (Floating) */}
             {showRoughPad && (
@@ -2985,103 +3406,161 @@ function StudentPortalContent() {
               ></i>
             </button>
 
-            {/* CONFIRMATION MODAL */}
+            {/* EXECUTIVE FINAL SUBMISSION BENTO MODAL */}
             {showConfirmModal && (
-              <div
-                className="fixed inset-0 flex items-center justify-center p-4"
-                style={{
-                  zIndex: 9999,
-                  backdropFilter: "blur(8px)",
-                  background: "rgba(255, 255, 255, 0.2)",
-                }}
-              >
-                <div
-                  className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-8 animate-[popIn_0.3s_ease]"
-                  style={{ maxWidth: "420px", textAlign: "center" }}
-                >
-                  <div
-                    style={{
-                      width: "64px",
-                      height: "64px",
-                      background: "#EAF3DE",
-                      color: "#3B6D11",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "32px",
-                      margin: "0 auto 1rem",
-                    }}
-                  >
-                    <i className="ti ti-send"></i>
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-[fadeIn_0.2s_ease]">
+                <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xl p-6 sm:p-8 max-w-lg w-full animate-[popIn_0.25s_cubic-bezier(0.16,1,0.3,1)] max-h-[90vh] flex flex-col">
+                  {/* Modal Header */}
+                  <div className="text-center mb-5 shrink-0">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center text-3xl font-black mx-auto mb-3 shadow-lg shadow-blue-600/25 ring-4 ring-blue-50">
+                      <i className="ti ti-lock-check"></i>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-800 tracking-tight">
+                      Submit Exam Paper?
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-500 mt-1">
+                      Review your paper statistics before final encryption and lock.
+                    </p>
                   </div>
-                  <h3
-                    style={{
-                      fontSize: "22px",
-                      marginBottom: "10px",
-                      color: "#1e293b",
-                      fontWeight: 900,
-                    }}
-                  >
-                    Submit Exam?
-                  </h3>
-                  <p
-                    style={{
-                      fontSize: "15px",
-                      color: "var(--color-text-secondary)",
-                      marginBottom: "2rem",
-                      lineHeight: 1.6,
-                      fontWeight: 500,
-                    }}
-                  >
-                    You have attempted{" "}
-                    <strong style={{ color: "#185FA5" }}>{answeredQs}</strong>{" "}
-                    out of {maxAllowedQuestions} allowed questions
-                    {maxAllowedQuestions < (activeTest?.questions?.length || 0)
-                      ? ` (${activeTest?.questions?.length} total)`
-                      : ""}. Once submitted, you cannot change your answers.
-                  </p>
-                  <div style={{ display: "flex", gap: "12px" }}>
+
+                  {/* Bento Metric Summary (4 Cards) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5 shrink-0">
+                    {/* Answered */}
+                    <div className="bg-emerald-50/80 border border-emerald-200/80 rounded-2xl p-3 text-center">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700 mb-0.5 flex items-center justify-center gap-1">
+                        <i className="ti ti-circle-check text-xs"></i> Attempted
+                      </div>
+                      <div className="text-2xl font-black text-emerald-800 font-mono">
+                        {answeredQs}
+                      </div>
+                    </div>
+
+                    {/* Marked */}
+                    <div className="bg-purple-50/80 border border-purple-200/80 rounded-2xl p-3 text-center">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-purple-700 mb-0.5 flex items-center justify-center gap-1">
+                        <i className="ti ti-bookmark text-xs"></i> Marked
+                      </div>
+                      <div className="text-2xl font-black text-purple-800 font-mono">
+                        {markedQs}
+                      </div>
+                    </div>
+
+                    {/* Left / Pending */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-center">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5 flex items-center justify-center gap-1">
+                        <i className="ti ti-clock-pause text-xs"></i> Left
+                      </div>
+                      <div className="text-2xl font-black text-slate-700 font-mono">
+                        {Math.max(0, (activeTest?.questions?.length || 0) - answeredQs)}
+                      </div>
+                    </div>
+
+                    {/* Time Remaining */}
+                    <div className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-3 text-center">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-blue-700 mb-0.5 flex items-center justify-center gap-1">
+                        <i className="ti ti-hourglass-empty text-xs"></i> Time Left
+                      </div>
+                      <div className="text-xl sm:text-2xl font-black text-blue-900 font-mono">
+                        {formatTime(timeLeft)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section-wise Breakdown Table (If sections exist) */}
+                  {activeTest?.sections && activeTest.sections.length > 0 && (
+                    <div className="flex-1 overflow-y-auto mb-5 border border-slate-200/80 rounded-2xl overflow-hidden custom-scrollbar max-h-44">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-extrabold uppercase text-[10px]">
+                          <tr>
+                            <th className="py-2.5 px-3">Section</th>
+                            <th className="py-2.5 px-3 text-center">Attempted</th>
+                            <th className="py-2.5 px-3 text-center">Allowed</th>
+                            <th className="py-2.5 px-3 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                          {activeTest.sections.map((sec) => {
+                            let secAttempted = 0;
+                            let secTotal = 0;
+                            activeTest.questions.forEach((qq, idx) => {
+                              if (qq.section === sec || (!qq.section && sec === activeTest.sections[0])) {
+                                secTotal++;
+                                const a = answers[idx];
+                                if (a?.val !== null && a?.val !== undefined && a?.val !== "" && (!Array.isArray(a?.val) || a.val.length > 0)) {
+                                  secAttempted++;
+                                }
+                              }
+                            });
+                            const secRule = activeTest?.sectionRules ? Number(activeTest.sectionRules[sec]) : 0;
+                            const limit = secRule > 0 ? secRule : secTotal;
+                            const isLimitHit = secAttempted >= limit;
+
+                            return (
+                              <tr key={sec} className="hover:bg-slate-50/50">
+                                <td className="py-2 px-3 font-bold text-slate-800 flex items-center gap-1.5">
+                                  <i className="ti ti-folder text-blue-500 text-xs"></i> {sec}
+                                </td>
+                                <td className="py-2 px-3 text-center font-mono font-bold text-slate-900">
+                                  {secAttempted} / {secTotal}
+                                </td>
+                                <td className="py-2 px-3 text-center font-mono text-slate-500">
+                                  {secRule > 0 ? `Max ${secRule}` : "All"}
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                    isLimitHit
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : secAttempted > 0
+                                      ? "bg-blue-100 text-blue-800"
+                                      : "bg-slate-100 text-slate-600"
+                                  }`}>
+                                    {isLimitHit ? "Completed" : secAttempted > 0 ? "In Progress" : "Pending"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Warning Notice */}
+                  <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3 mb-5 text-[11px] font-medium text-amber-900 flex items-start gap-2 shrink-0">
+                    <i className="ti ti-alert-triangle text-amber-600 text-sm mt-0.5 shrink-0"></i>
+                    <span>
+                      <strong>Strict Security Notice:</strong> Once submitted, all answers are permanently locked and evaluated. You cannot re-enter this exam.
+                    </span>
+                  </div>
+
+                  {/* Modal Actions */}
+                  <div className="flex items-center gap-3 shrink-0">
                     <button
-                      className="btn"
-                      style={{
-                        flex: 1,
-                        padding: "12px",
-                        justifyContent: "center",
-                        fontWeight: 600,
-                        backgroundColor: "#f1f5f9",
-                        color: "#475569",
-                        border: "1px solid #e2e8f0",
-                      }}
+                      type="button"
+                      className="flex-1 py-3 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 active:bg-slate-100 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
                       onClick={cancelSubmit}
-                      disabled={isSubmitting} // Disable cancel while processing
+                      disabled={isSubmitting}
                     >
-                      Review Again
+                      <i className="ti ti-arrow-left"></i>
+                      Review Paper
                     </button>
 
-                    {/* THE BUTTON FIX: Removed isActionLockedRef to make it active again */}
                     <button
-                      className="btn btn-success"
-                      style={{
-                        flex: 1,
-                        padding: "12px",
-                        justifyContent: "center",
-                        fontWeight: 600,
-                        backgroundColor: isSubmitting ? "#94a3b8" : "#10b981",
-                        borderColor: isSubmitting ? "#94a3b8" : "#10b981",
-                        cursor: isSubmitting ? "not-allowed" : "pointer",
-                      }}
+                      type="button"
+                      className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 active:scale-[0.98] text-white font-black text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition-all cursor-pointer flex items-center justify-center gap-2"
                       onClick={() => handleFinalSubmit()}
-                      disabled={isSubmitting} // 🔥 FIX: Removed isActionLockedRef.current from here!
+                      disabled={isSubmitting}
                     >
-                      {/* SPINNER ADDED TO CONFIRM MODAL */}
                       {isSubmitting ? (
                         <>
-                          <i className="ti ti-loader animate-spin text-lg mr-2"></i>
-                          Submitting...
+                          <i className="ti ti-loader animate-spin text-base"></i>
+                          <span>Encrypting...</span>
                         </>
                       ) : (
-                        "Yes, Submit"
+                        <>
+                          <i className="ti ti-check text-base"></i>
+                          <span>Confirm & Lock Paper</span>
+                        </>
                       )}
                     </button>
                   </div>

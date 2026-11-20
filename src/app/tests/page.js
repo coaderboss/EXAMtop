@@ -51,9 +51,12 @@ export default function ManageTests() {
   const [sortBy, setSortBy] = useState("newest");
   const [vaultStatusTab, setVaultStatusTab] = useState("all"); // 'all' | 'live' | 'radar' | 'scheduled' | 'closed'
   const [copiedCodeId, setCopiedCodeId] = useState(null);
+  const [copiedLinkId, setCopiedLinkId] = useState(null);
+  const [showProjectorModal, setShowProjectorModal] = useState(false);
   const [visibleCount, setVisibleCount] = useState(8);
   const [isSubsLoading, setIsSubsLoading] = useState(false);
   const [subsVisibleCount, setSubsVisibleCount] = useState(25);
+  const [subsStatusFilter, setSubsStatusFilter] = useState("all"); // 'all' | 'evaluated' | 'pending'
   const searchRef = useRef(null);
 
   // Subject Badge Helper for Vault
@@ -75,6 +78,18 @@ export default function ManageTests() {
     navigator.clipboard.writeText(code);
     setCopiedCodeId(testId);
     setTimeout(() => setCopiedCodeId(null), 1800);
+  };
+
+  const handleCopyJoinLink = (e, code, testId) => {
+    if (e) e.stopPropagation();
+    if (!code) return;
+    const link =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/student?code=${code}`
+        : `https://examitop.com/student?code=${code}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLinkId(testId || code);
+    setTimeout(() => setCopiedLinkId(null), 1800);
   };
 
   // --- MODALS & SUB-VIEWS ---
@@ -240,6 +255,13 @@ export default function ManageTests() {
       window.scrollTo(0, 0);
     }
   }, [selectedTest?.id]);
+
+  // AUTO-SCROLL TO TOP ON SPA SUB-VIEW SWITCH OR TAB CHANGE
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, [modalType, activeTab]);
 
   // RESET SUBS PAGINATION & LOADING ON TEST SWITCH
   useEffect(() => {
@@ -1064,7 +1086,10 @@ export default function ManageTests() {
       });
       return;
     }
-    router.push(`/student?code=${code}`);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("examitop_demo_examiner", "true");
+    }
+    router.push(`/student?code=${code}&demo=true`);
   };
 
   const exportToCSV = (t) => {
@@ -1577,7 +1602,8 @@ export default function ManageTests() {
   };
 
   const openEditKey = () => {
-    setTempQuestions(JSON.parse(JSON.stringify(selectedTest.questions)));
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+    setTempQuestions(JSON.parse(JSON.stringify(selectedTest.questions || [])));
     setModalType("editKey");
   };
 
@@ -1594,6 +1620,7 @@ export default function ManageTests() {
   };
 
   const openEditSettings = () => {
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
     setEditSettingsData({
       duration: selectedTest.duration || 60,
       negMarking: selectedTest.negMarking || 0,
@@ -2306,11 +2333,11 @@ export default function ManageTests() {
         // ==========================================
         // VIEW 3: EVALUATE PAPER
         // ==========================================
-        <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
+        <div className="w-full max-w-[1360px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
           {/* STATIC PREMIUM EVALUATION NAVBAR */}
           <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-2xl border-2 border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] mb-2 mt-2">
             <button
-              className="flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors active:scale-95"
+              className="group flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-bold rounded-xl border border-slate-200/90 hover:border-slate-300 shadow-2xs transition-all active:scale-95 text-xs sm:text-sm cursor-pointer"
               onClick={() => {
                 try {
                   sessionStorage.removeItem("examitop_evalSubIdx");
@@ -3418,30 +3445,47 @@ export default function ManageTests() {
         // ==========================================
         // VIEW 2: TEST DASHBOARD
         // ==========================================
-        <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
+        <div className="w-full max-w-[1360px] mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8 animate-[fadeIn_0.3s_ease]">
           {/*   PREMIUM TEST DASHBOARD HEADER & TABS   */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+            {/* Sleek Breadcrumb Back Button */}
             <button
-              className="flex w-fit items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors active:scale-95 text-sm"
+              className="group flex w-fit items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 font-bold rounded-xl border border-slate-200/90 hover:border-slate-300 shadow-2xs transition-all active:scale-95 text-xs sm:text-sm cursor-pointer"
               onClick={handleBackToVault}
             >
-              <i className="ti ti-arrow-left text-lg"></i> Back
+              <i className="ti ti-arrow-left text-base text-slate-400 group-hover:text-slate-700 group-hover:-translate-x-0.5 transition-all"></i>
+              <span>Back to Vault</span>
             </button>
 
-            <div className="flex bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 w-full sm:w-fit overflow-hidden">
+            {/* Modern Segmented Navigation Tabs */}
+            <div className="flex bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 w-full sm:w-fit shadow-2xs">
               <button
-                className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${activeTab === "overview" ? "bg-white text-blue-700 shadow-sm ring-1 ring-black/5" : "text-slate-500 hover:text-slate-800"}`}
+                className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
+                  activeTab === "overview"
+                    ? "bg-white text-blue-700 shadow-2xs border border-slate-200/60 font-black"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
                 onClick={() => setActiveTab("overview")}
               >
-                <i className="ti ti-dashboard"></i> Overview
+                <i className="ti ti-dashboard text-base"></i>
+                <span>Overview</span>
               </button>
               <button
-                className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${activeTab === "subs" ? "bg-white text-blue-700 shadow-sm ring-1 ring-black/5" : "text-slate-500 hover:text-slate-800"}`}
+                className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 cursor-pointer ${
+                  activeTab === "subs"
+                    ? "bg-white text-blue-700 shadow-2xs border border-slate-200/60 font-black"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
                 onClick={() => setActiveTab("subs")}
               >
-                <i className="ti ti-users"></i> Subs
+                <i className="ti ti-users text-base"></i>
+                <span>Subs</span>
                 <span
-                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${activeTab === "subs" ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-500"}`}
+                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                    activeTab === "subs"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-slate-200 text-slate-600"
+                  }`}
                 >
                   {selectedTest.submissionCount !== undefined
                     ? selectedTest.submissionCount
@@ -3453,465 +3497,1671 @@ export default function ManageTests() {
             </div>
           </div>
 
-          {/* ULTRA-COMPACT DASHBOARD HERO CARD  */}
-          <div className="bg-slate-900 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 shadow-lg border border-slate-800 relative overflow-hidden mb-6">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500"></div>
+          {/* 🌟 1. EXECUTIVE TEST COMMAND HEADER (Clean Modern White SaaS Architecture) */}
+          {!modalType && (() => {
+            const stNow = Date.now();
+            const stClose = selectedTest.closeDate
+              ? new Date(selectedTest.closeDate).getTime()
+              : null;
+            const stOpen = selectedTest.openDate
+              ? new Date(selectedTest.openDate).getTime()
+              : null;
 
-            {/* Left Column (Title & Info) */}
-            <div className="flex flex-col min-w-0 z-10 w-full sm:w-auto">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[9px] font-extrabold text-blue-400 uppercase tracking-widest bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
-                  {selectedTest.subject || "General"}
-                </span>
-                {selectedTest.isLocal && (
-                  <span className="text-[9px] font-extrabold text-amber-400 uppercase tracking-widest bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 flex items-center gap-1">
-                    <i className="ti ti-device-floppy"></i> Local
-                  </span>
-                )}
-              </div>
+            let isLive = !(
+              selectedTest.isActive === false ||
+              (stClose && stNow > stClose)
+            );
+            let status = "live";
+            if (!isLive) status = "closed";
+            else if (stOpen && stNow < stOpen) status = "upcoming";
 
-              <h2 className="text-[18px] sm:text-xl font-black text-white mb-2.5 tracking-tight leading-snug truncate">
-                {selectedTest.title}
-              </h2>
+            const badge = getVaultSubjectBadge(selectedTest.subject);
 
-              <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs font-bold text-slate-300">
-                <span className="bg-slate-800/80 px-2 py-1 rounded border border-slate-700/50 font-mono text-[10px] sm:text-[11px] shadow-sm">
-                  <i className="ti ti-hash opacity-50"></i> {selectedTest.code}
-                </span>
-                <span className="bg-slate-800/80 px-2 py-1 rounded border border-slate-700/50 flex items-center gap-1 shadow-sm">
-                  <i className="ti ti-clock text-blue-400"></i>{" "}
-                  {selectedTest.duration}m
-                </span>
-                <span className="bg-slate-800/80 px-2 py-1 rounded border border-slate-700/50 flex items-center gap-1 shadow-sm">
-                  <i className="ti ti-target text-emerald-400"></i>{" "}
-                  {selectedTest.totalMarks} Mks
-                </span>
-              </div>
-            </div>
+            return (
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] mb-6 relative overflow-hidden">
+                {/* Top Ambient Accent Line */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500"></div>
 
-            {/* Right Column (Status & Live Counter - Flex Row on Mobile) */}
-            <div className="shrink-0 z-10 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2.5 w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-slate-700/50 sm:border-none">
-              {/* Status Badge */}
-              {(() => {
-                const stNow = Date.now();
-                const stClose = selectedTest.closeDate
-                  ? new Date(selectedTest.closeDate).getTime()
-                  : null;
-                const stOpen = selectedTest.openDate
-                  ? new Date(selectedTest.openDate).getTime()
-                  : null;
-
-                let stStatus = "live";
-                if (
-                  selectedTest.isActive === false ||
-                  (stClose && stNow > stClose)
-                )
-                  stStatus = "closed";
-                else if (stOpen && stNow < stOpen) stStatus = "upcoming";
-
-                return (
-                  <div
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded font-black text-[10px] uppercase tracking-widest border ${stStatus === "live" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : stStatus === "upcoming" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" : "bg-slate-800/50 text-slate-400 border-slate-700/50"}`}
-                  >
-                    {stStatus === "live" && (
-                      <>
-                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>{" "}
-                        Active
-                      </>
-                    )}
-                    {stStatus === "upcoming" && (
-                      <>
-                        <i className="ti ti-clock text-xs"></i> Scheduled
-                      </>
-                    )}
-                    {stStatus === "closed" && (
-                      <>
-                        <i className="ti ti-lock text-xs"></i> Closed
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* REDESIGNED SLEEK LIVE COUNTER BADGE */}
-              {liveCount > 0 ? (
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-rose-500/30 rounded-full text-white font-bold text-[11px] shadow-sm backdrop-blur-md">
-                  <div className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600 shadow-[0_0_6px_#e11d48]"></span>
-                  </div>
-                  <span>
-                    {liveCount}{" "}
-                    <span className="text-slate-400 font-semibold uppercase tracking-wider text-[9px] ml-0.5">
-                      In Exam
-                    </span>
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-800/50 border border-slate-700/50 rounded-full text-slate-400 font-bold text-[11px]">
-                  <span className="w-1.5 h-1.5 bg-slate-600 rounded-full"></span>
-                  <span>
-                    0{" "}
-                    <span className="font-semibold uppercase tracking-wider text-[9px] ml-0.5">
-                      In Exam
-                    </span>
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/*   MAIN OVERVIEW CONTENT (Perfect Layout via React Variables)   */}
-          {activeTab === "overview" &&
-            (() => {
-              const intakeCard = (
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-[0_4px_20px_rgb(0,0,0,0.03)] flex flex-col sm:flex-row items-center justify-between gap-5">
-                  <div className="flex-1 text-center sm:text-left">
-                    <h3 className="text-[13px] sm:text-[14px] font-extrabold text-slate-800 uppercase tracking-widest mb-1.5 flex items-center justify-center sm:justify-start gap-2">
-                      <i className="ti ti-door-enter text-blue-600 text-lg"></i>{" "}
-                      Exam Intake Access
-                    </h3>
-                    <p className="text-[12px] sm:text-[13px] text-slate-500 font-semibold leading-relaxed">
-                      Control whether students can join this test right now.
-                      Locking the intake will prevent any new students from
-                      starting the exam.
-                    </p>
-                  </div>
-                  {(() => {
-                    const now = Date.now();
-                    const closeTime = selectedTest.closeDate
-                      ? new Date(selectedTest.closeDate).getTime()
-                      : null;
-                    const openTime = selectedTest.openDate
-                      ? new Date(selectedTest.openDate).getTime()
-                      : null;
-                    let isLive = !(
-                      selectedTest.isActive === false ||
-                      (closeTime && now > closeTime)
-                    );
-
-                    return (
-                      <button
-                        className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm text-sm sm:text-base shrink-0 ${isLive ? "bg-rose-50 text-rose-700 border-2 border-rose-200 hover:bg-rose-100 hover:border-rose-300" : "bg-emerald-50 text-emerald-700 border-2 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"}`}
-                        onClick={() => toggleTestStatus(selectedTest)}
-                      >
-                        <i
-                          className={`ti ${isLive ? "ti-lock" : "ti-door-enter"} text-xl`}
-                        ></i>{" "}
-                        {isLive ? "Lock Exam Intake" : "Open Intake Now"}
-                      </button>
-                    );
-                  })()}
-                </div>
-              );
-
-              const settingsCard = (
-                <div className="bg-slate-50 p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
-                  <i className="ti ti-settings absolute -right-4 -top-4 text-slate-200 text-7xl sm:text-8xl pointer-events-none opacity-50"></i>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-5 relative z-10">
-                      <h3 className="text-[13px] font-extrabold text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
-                        <i className="ti ti-adjustments text-slate-700 text-lg"></i>{" "}
-                        Exam Settings
-                      </h3>
-                      <button
-                        className="text-[11px] sm:text-[12px] font-bold text-blue-700 bg-blue-100/80 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors shadow-sm"
-                        onClick={openEditSettings}
-                      >
-                        Edit Settings
-                      </button>
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                  {/* Left: Subject Badge + Title + Identity Chips */}
+                  <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
+                    <div
+                      className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-xl sm:text-2xl border shrink-0 ${badge.bg} shadow-2xs`}
+                    >
+                      <i className={badge.icon}></i>
                     </div>
 
-                    <div className="flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm relative z-10">
-                      <div className="flex justify-between items-center p-3.5 border-b border-slate-100">
-                        <span className="text-[12px] sm:text-[13px] font-bold text-slate-500">
-                          Duration
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">
+                          {selectedTest.subject || "General"}
                         </span>
-                        <span className="text-[13px] sm:text-[14px] font-black text-slate-800">
-                          {selectedTest.duration} Mins
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center p-3.5 border-b border-slate-100">
-                        <span className="text-[12px] sm:text-[13px] font-bold text-slate-500">
-                          Neg. Marking
-                        </span>
-                        <span className="text-[13px] sm:text-[14px] font-black text-rose-600">
-                          -{selectedTest.negMarking || 0}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center p-3.5 border-b border-slate-100">
-                        <span className="text-[12px] sm:text-[13px] font-bold text-slate-500">
-                          Results Type
-                        </span>
-                        <span className="text-[13px] sm:text-[14px] font-black text-slate-800">
-                          {selectedTest.resultVis === "instant"
-                            ? "Instant"
-                            : "Manual"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center p-3.5 border-b border-slate-100 bg-slate-50/50">
-                        <span className="text-[12px] font-bold text-slate-500">
-                          Radar Visibility
-                        </span>
-                        {selectedTest.radarVisible ? (
-                          <span className="text-[11px] font-extrabold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 flex items-center gap-1">
-                            <i className="ti ti-eye text-[10px]"></i> VISIBLE
+                        {selectedTest.isLocal && (
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+                            <i className="ti ti-device-floppy"></i> Local
                           </span>
-                        ) : (
-                          <span className="text-[11px] font-extrabold bg-slate-200 text-slate-600 px-2 py-0.5 rounded border border-slate-300 flex items-center gap-1">
-                            <i className="ti ti-eye-off text-[10px]"></i> HIDDEN
+                        )}
+                        {selectedTest.radarVisible && (
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-200 flex items-center gap-1">
+                            <i className="ti ti-radar text-xs"></i> Radar Discovery
                           </span>
                         )}
                       </div>
-                      <div className="flex justify-between items-center p-3.5 bg-slate-50/50">
-                        <span className="text-[12px] sm:text-[13px] font-bold text-slate-500">
-                          Direct Entry
+
+                      <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug truncate m-0">
+                        {selectedTest.title}
+                      </h2>
+
+                      {/* Identity Ribbon: Code copy, Direct Link copy, Duration, Marks */}
+                      <div className="flex items-center gap-2 sm:gap-3 mt-2 text-xs font-semibold text-slate-500 flex-wrap">
+                        {/* 1-Click Code Copy */}
+                        <button
+                          onClick={(e) =>
+                            handleCopyTestCode(
+                              e,
+                              selectedTest.code,
+                              selectedTest.id,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 font-mono text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-800 px-2 py-0.5 rounded-md border border-slate-200 font-bold transition-all cursor-pointer active:scale-95 shadow-2xs"
+                          title="Click to copy test code"
+                        >
+                          <span className="text-slate-400">#</span>
+                          <span>{selectedTest.code}</span>
+                          <i
+                            className={`ti ${
+                              copiedCodeId === selectedTest.id
+                                ? "ti-check text-emerald-600"
+                                : "ti-copy text-slate-400"
+                            } text-[11px]`}
+                          ></i>
+                        </button>
+
+                        {/* 1-Click Join URL Copy */}
+                        <button
+                          onClick={(e) =>
+                            handleCopyJoinLink(
+                              e,
+                              selectedTest.code,
+                              selectedTest.id,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 text-[11px] bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-md border border-blue-200/80 font-bold transition-all cursor-pointer active:scale-95 shadow-2xs"
+                          title="Copy direct join link for students"
+                        >
+                          <i
+                            className={`ti ${
+                              copiedLinkId === selectedTest.id
+                                ? "ti-check text-emerald-600"
+                                : "ti-link"
+                            } text-xs`}
+                          ></i>
+                          <span>
+                            {copiedLinkId === selectedTest.id
+                              ? "Link Copied! ✓"
+                              : "Copy Join Link"}
+                          </span>
+                        </button>
+
+                        <span className="text-slate-300 hidden sm:inline">
+                          •
                         </span>
-                        {selectedTest.directEntry ? (
-                          <span className="text-[11px] font-extrabold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
-                            <i className="ti ti-check text-[10px]"></i> ON
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-extrabold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">
-                            OFF
-                          </span>
-                        )}
+                        <span className="flex items-center gap-1 text-slate-600 font-medium">
+                          <i className="ti ti-clock text-slate-400"></i>
+                          {selectedTest.duration}m
+                        </span>
+
+                        <span className="text-slate-300 hidden sm:inline">
+                          •
+                        </span>
+                        <span className="flex items-center gap-1 text-slate-600 font-medium">
+                          <i className="ti ti-target text-slate-400"></i>
+                          {selectedTest.totalMarks} Marks
+                        </span>
+
+                        <span className="text-slate-300 hidden sm:inline">
+                          •
+                        </span>
+                        <span className="flex items-center gap-1 text-slate-600 font-medium">
+                          <i className="ti ti-list-numbers text-slate-400"></i>
+                          {selectedTest.questionCount ||
+                            selectedTest.questions?.length ||
+                            0}{" "}
+                          Qs
+                        </span>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
 
-              const toolsCard = (
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <h3 className="text-[12px] sm:text-[13px] font-extrabold text-slate-500 uppercase tracking-widest mb-5 flex items-center gap-1.5">
-                    <i className="ti ti-apps text-blue-500 text-lg"></i>{" "}
-                    Management Tools
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Demo Test */}
-                    <button
-                      onClick={() => autoJoinLocalTest(selectedTest.code)}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-blue-50 hover:border-blue-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-blue-600 group-hover:scale-105 transition-transform">
-                        <i className="ti ti-player-play text-xl"></i>
-                      </div>
-                      <div>
-                        <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 group-hover:text-blue-700">
-                          Demo Test
-                        </div>
-                        <div className="text-[11px] sm:text-[12px] text-slate-500 font-semibold mt-0.5">
-                          Experience as student
-                        </div>
-                      </div>
-                    </button>
-                    {/* Print Paper */}
-                    <button
-                      onClick={() => printTestPaper(selectedTest)}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-indigo-50 hover:border-indigo-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-indigo-600 group-hover:scale-105 transition-transform">
-                        <i className="ti ti-printer text-xl"></i>
-                      </div>
-                      <div>
-                        <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 group-hover:text-indigo-700">
-                          Print Paper
-                        </div>
-                        <div className="text-[11px] sm:text-[12px] text-slate-500 font-semibold mt-0.5">
-                          Generate PDF copy
-                        </div>
-                      </div>
-                    </button>
-                    {/* Edit Key */}
-                    <button
-                      onClick={openEditKey}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-amber-50 hover:border-amber-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-amber-600 group-hover:scale-105 transition-transform">
-                        <i className="ti ti-key text-xl"></i>
-                      </div>
-                      <div>
-                        <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 group-hover:text-amber-700">
-                          Edit Answer Key
-                        </div>
-                        <div className="text-[11px] sm:text-[12px] text-slate-500 font-semibold mt-0.5">
-                          Fix errors & Auto-Regrade
-                        </div>
-                      </div>
-                    </button>
-                    {/* Analytics */}
-                    <button
-                      onClick={() => setModalType("analytics")}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100 hover:bg-emerald-50 hover:border-emerald-200 transition-all text-left group shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0 text-emerald-600 group-hover:scale-105 transition-transform">
-                        <i className="ti ti-chart-pie text-xl"></i>
-                      </div>
-                      <div>
-                        <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 group-hover:text-emerald-700">
-                          View Analytics
-                        </div>
-                        <div className="text-[11px] sm:text-[12px] text-slate-500 font-semibold mt-0.5">
-                          Class performance stats
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              );
-
-              const resultsAndSharingCard = (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                    <h3 className="text-[12px] sm:text-[13px] font-extrabold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-1.5">
-                      <i className="ti ti-file-certificate text-indigo-500 text-lg"></i>{" "}
-                      Assessment Results
-                    </h3>
-                    {!selectedTest.released &&
-                    selectedTest.resultVis === "manual" ? (
-                      <button
-                        className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-600 text-white shadow-md shadow-blue-600/30 hover:bg-blue-700 transition-all active:scale-95 text-sm"
-                        onClick={() => publishResults(selectedTest)}
-                      >
-                        <i className="ti ti-send text-xl"></i> Publish Now
-                      </button>
-                    ) : selectedTest.resultVis === "scheduled" &&
-                      !selectedTest.released ? (
-                      <div className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-blue-50 text-blue-700 border border-blue-200 text-[13px] sm:text-sm text-center">
-                        <i className="ti ti-clock-play text-xl"></i>
-                        Scheduled:{" "}
-                        {selectedTest.resultPublishTime
-                          ? new Date(
-                              selectedTest.resultPublishTime,
-                            ).toLocaleString("en-IN", {
-                              dateStyle: "short",
-                              timeStyle: "short",
-                            })
-                          : "Pending"}
+                  {/* Right: Real-Time Status, Projector Mode & Intake Toggle */}
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 shrink-0 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                    {/* Live Candidates Badge */}
+                    {liveCount > 0 ? (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold shadow-2xs">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span>{liveCount} Active Now</span>
                       </div>
                     ) : (
-                      <div className="w-full p-3 rounded-xl font-bold flex items-center justify-center gap-2 bg-slate-50 text-slate-500 border border-slate-200 text-sm">
-                        <i
-                          className={`ti ${selectedTest.resultVis === "instant" ? "ti-bolt text-amber-500" : "ti-check text-emerald-500"} text-xl`}
-                        ></i>
-                        {selectedTest.resultVis === "instant"
-                          ? "Instant Access Active"
-                          : "Results Published"}
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 text-slate-500 border border-slate-200 text-xs font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                        <span>0 In Exam</span>
                       </div>
                     )}
-                  </div>
 
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                    <h3 className="text-[12px] sm:text-[13px] font-extrabold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-1.5">
-                      <i className="ti ti-share text-emerald-500 text-lg"></i>{" "}
-                      Quick Sharing
-                    </h3>
-                    <div className="flex gap-2">
-                      <button
-                        className="flex-1 p-3 rounded-xl bg-[#25d366]/10 text-[#075e54] hover:bg-[#25d366]/20 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-[#25d366]/20"
-                        onClick={() => shareTest(selectedTest, "whatsapp")}
-                        title="Share via WhatsApp"
-                      >
-                        <i className="ti ti-brand-whatsapp text-2xl"></i>
-                      </button>
-                      <button
-                        className="flex-1 p-3 rounded-xl bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/20 transition-all active:scale-95 flex items-center justify-center shadow-sm border border-[#0088cc]/20"
-                        onClick={() => shareTest(selectedTest, "telegram")}
-                        title="Share via Telegram"
-                      >
-                        <i className="ti ti-brand-telegram text-2xl"></i>
-                      </button>
-                    </div>
+                    {/* 📽️ Smartboard / Projector Mode Button */}
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => setShowProjectorModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200/80 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <i className="ti ti-device-tv text-sm"></i>
+                      <span>Smartboard Mode</span>
+                    </motion.button>
+
+                    {/* Intake Lock / Open Quick Toggle */}
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => toggleTestStatus(selectedTest)}
+                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+                        isLive
+                          ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+                          : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20"
+                      }`}
+                    >
+                      <i
+                        className={`ti ${isLive ? "ti-lock" : "ti-door-enter"} text-sm`}
+                      ></i>
+                      <span>{isLive ? "Lock Intake" : "Open Intake"}</span>
+                    </motion.button>
                   </div>
                 </div>
-              );
+              </div>
+            );
+          })()}
 
-              const dangerCard = (
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-rose-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2 translate-x-1/4"></div>
-                  <div className="relative z-10">
-                    <h3 className="text-[13px] font-extrabold text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                      <i className="ti ti-alert-triangle text-lg"></i> Danger
-                      Zone
-                    </h3>
-                    <p className="text-[12px] font-semibold text-slate-500 mb-5 leading-relaxed">
-                      Irreversible action. Deletes all questions, analytics, and
-                      student submissions permanently.
-                    </p>
-                  </div>
-                  <button
-                    className="w-full py-3 bg-rose-50 border-2 border-rose-200 text-rose-700 font-bold text-sm rounded-xl hover:bg-rose-100 hover:border-rose-300 transition-all active:scale-95 flex items-center justify-center gap-2 relative z-10 shadow-sm"
-                    onClick={() => triggerDelete(selectedTest)}
+          {/* 🌟 2. OVERVIEW TAB BENTO COMMAND CENTER */}
+          {activeTab === "overview" &&
+            (() => {
+              // ==========================================
+              // SPA SUB-VIEW 1: EXAM CONFIGURATION STUDIO
+              // ==========================================
+              if (modalType === "editSettings") {
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    className="space-y-6 mb-10"
                   >
-                    <i className="ti ti-trash text-lg"></i> Delete Entire Test
-                  </button>
-                </div>
+                    {/* Studio Header Bar */}
+                    <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setModalType(null)}
+                          className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                          title="Back to Overview"
+                        >
+                          <i className="ti ti-arrow-left text-lg"></i>
+                        </button>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight m-0">
+                              Exam Configuration Studio
+                            </h2>
+                            <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                              Settings & Rules
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium m-0 mt-0.5">
+                            Customize timing, grading penalties, access schedule, and radar visibility.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => setModalType(null)}
+                          disabled={isActionLoading}
+                          className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={saveTestSettings}
+                          disabled={isActionLoading}
+                          className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-blue-500/25 active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                        >
+                          {isActionLoading ? (
+                            <>
+                              <i className="ti ti-loader animate-spin text-sm"></i>
+                              <span>Saving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <i className="ti ti-check text-sm"></i>
+                              <span>Save Configuration</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Bento Grid Form */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                      {/* Card 1: Core Scoring & Time (7 Cols) */}
+                      <div className="lg:col-span-7 bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] space-y-5">
+                        <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-base border border-blue-200/60">
+                            <i className="ti ti-ruler-2"></i>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-extrabold text-slate-900 m-0">Core Exam Rules</h3>
+                            <p className="text-[11px] text-slate-400 font-medium m-0">Timing allowances and scoring penalties</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          {/* Duration Input */}
+                          <div>
+                            <label className="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                              <span>Assessment Duration (Minutes)</span>
+                              <span className="text-[11px] text-slate-400 font-medium">Currently: {editSettingsData.duration || 60} mins</span>
+                            </label>
+                            <div className="relative mb-2">
+                              <i className="ti ti-clock absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                              <input
+                                type="number"
+                                min="1"
+                                max="1440"
+                                value={editSettingsData.duration || ""}
+                                onChange={(e) => setEditSettingsData({ ...editSettingsData, duration: e.target.value })}
+                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:border-blue-400 focus:bg-white transition-all"
+                                placeholder="e.g. 60"
+                              />
+                            </div>
+                            {/* Presets */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Presets:</span>
+                              {[30, 45, 60, 90, 120, 180].map((mins) => (
+                                <button
+                                  key={mins}
+                                  type="button"
+                                  onClick={() => setEditSettingsData({ ...editSettingsData, duration: mins })}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                    Number(editSettingsData.duration) === mins
+                                      ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  {mins}m
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Negative Marking */}
+                          <div>
+                            <label className="text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                              <span>Negative Marking Penalty per Wrong Answer</span>
+                              <span className="text-[11px] text-rose-500 font-bold">
+                                {Number(editSettingsData.negMarking) > 0 ? `-${editSettingsData.negMarking} Marks` : "No Penalty"}
+                              </span>
+                            </label>
+                            <div className="relative mb-2">
+                              <i className="ti ti-minus absolute left-3.5 top-1/2 -translate-y-1/2 text-rose-400 text-lg"></i>
+                              <input
+                                type="number"
+                                step="0.25"
+                                min="0"
+                                value={editSettingsData.negMarking !== undefined ? editSettingsData.negMarking : 0}
+                                onChange={(e) => setEditSettingsData({ ...editSettingsData, negMarking: e.target.value })}
+                                className="w-full pl-10 pr-4 py-2.5 bg-rose-50/40 border-2 border-slate-200 rounded-xl text-sm font-bold text-rose-700 outline-none focus:border-rose-400 focus:bg-white transition-all"
+                                placeholder="0"
+                              />
+                            </div>
+                            {/* Presets */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Presets:</span>
+                              {[
+                                { label: "0 (Off)", val: 0 },
+                                { label: "-0.25", val: 0.25 },
+                                { label: "-0.33", val: 0.33 },
+                                { label: "-0.50", val: 0.5 },
+                                { label: "-1.00", val: 1.0 },
+                              ].map((item) => (
+                                <button
+                                  key={item.label}
+                                  type="button"
+                                  onClick={() => setEditSettingsData({ ...editSettingsData, negMarking: item.val })}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                    Number(editSettingsData.negMarking) === item.val
+                                      ? "bg-rose-600 text-white border-rose-600 shadow-2xs"
+                                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  {item.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Direct Entry Switch */}
+                          <div className="flex items-center justify-between p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200/80">
+                            <div className="pr-4">
+                              <div className="text-xs font-black text-emerald-950 flex items-center gap-1.5 mb-0.5">
+                                <i className="ti ti-bolt text-base text-emerald-600"></i> Direct Join Access
+                              </div>
+                              <div className="text-[11px] text-emerald-700/80 font-medium leading-relaxed">
+                                When enabled, students clicking direct links skip typing test codes and enter instructions immediately.
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditSettingsData({ ...editSettingsData, directEntry: !editSettingsData.directEntry })}
+                              className={`w-12 h-6 rounded-full cursor-pointer relative transition-colors duration-200 shrink-0 border border-black/5 ${
+                                editSettingsData.directEntry ? "bg-emerald-600" : "bg-slate-300"
+                              }`}
+                            >
+                              <div
+                                className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                                  editSettingsData.directEntry ? "left-6" : "left-[2px]"
+                                }`}
+                              ></div>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card 2: Schedule & Radar Window (5 Cols) */}
+                      <div className="lg:col-span-5 space-y-5">
+                        {/* Schedule Window */}
+                        <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] space-y-4">
+                          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-base border border-indigo-200/60">
+                              <i className="ti ti-calendar-time"></i>
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-extrabold text-slate-900 m-0">Intake Window</h3>
+                              <p className="text-[11px] text-slate-400 font-medium m-0">Automated start and expiry schedule</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3.5">
+                            <div>
+                              <label className="text-xs font-bold text-slate-700 mb-1 block">
+                                Intake Opens (Start Time)
+                              </label>
+                              <input
+                                type="datetime-local"
+                                value={editSettingsData.openDate || ""}
+                                onChange={(e) => setEditSettingsData({ ...editSettingsData, openDate: e.target.value })}
+                                className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold text-slate-700 mb-1 block">
+                                Intake Closes (Expiry Time)
+                              </label>
+                              <input
+                                type="datetime-local"
+                                value={editSettingsData.closeDate || ""}
+                                onChange={(e) => setEditSettingsData({ ...editSettingsData, closeDate: e.target.value })}
+                                className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Radar & Broadcast */}
+                        <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] space-y-4">
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-base border border-purple-200/60">
+                                <i className="ti ti-radar"></i>
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-extrabold text-slate-900 m-0">Live Radar Discovery</h3>
+                                <p className="text-[11px] text-slate-400 font-medium m-0">Broadcast exam to student radar</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditSettingsData({ ...editSettingsData, radarVisible: !editSettingsData.radarVisible })}
+                              className={`w-12 h-6 rounded-full cursor-pointer relative transition-colors duration-200 shrink-0 border border-black/5 ${
+                                editSettingsData.radarVisible ? "bg-purple-600" : "bg-slate-300"
+                              }`}
+                            >
+                              <div
+                                className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                                  editSettingsData.radarVisible ? "left-6" : "left-[2px]"
+                                }`}
+                              ></div>
+                            </button>
+                          </div>
+
+                          {editSettingsData.radarVisible && (
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
+                              <label className="text-xs font-bold text-slate-700 mb-1 block">
+                                Broadcast Note / Room Tag
+                              </label>
+                              <input
+                                type="text"
+                                value={editSettingsData.radarNote || ""}
+                                onChange={(e) => setEditSettingsData({ ...editSettingsData, radarNote: e.target.value })}
+                                placeholder="e.g. Hall 3B • Midterm Exam"
+                                className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-purple-400 focus:bg-white transition-all"
+                              />
+                            </motion.div>
+                          )}
+                        </div>
+
+                        {/* Results Policy */}
+                        <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] space-y-4">
+                          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                            <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center text-base border border-teal-200/60">
+                              <i className="ti ti-eye"></i>
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-extrabold text-slate-900 m-0">Result Visibility</h3>
+                              <p className="text-[11px] text-slate-400 font-medium m-0">Candidate score disclosure policy</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
+                            <select
+                              value={editSettingsData.resultVis || "manual"}
+                              onChange={(e) => setEditSettingsData({ ...editSettingsData, resultVis: e.target.value })}
+                              className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-teal-400 focus:bg-white transition-all"
+                            >
+                              <option value="manual">Manual Release (Default)</option>
+                              <option value="instant">Instant on Submission</option>
+                              <option value="scheduled">Scheduled Auto-Publish</option>
+                            </select>
+
+                            {editSettingsData.resultVis === "scheduled" && (
+                              <div>
+                                <label className="text-xs font-bold text-slate-700 mb-1 block">Publish Date & Time</label>
+                                <input
+                                  type="datetime-local"
+                                  value={editSettingsData.resultPublishTime || ""}
+                                  onChange={(e) => setEditSettingsData({ ...editSettingsData, resultPublishTime: e.target.value })}
+                                  className="w-full px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-teal-400 focus:bg-white transition-all"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              }
+
+              // ==========================================
+              // SPA SUB-VIEW 2: CLASS PERFORMANCE ANALYTICS
+              // ==========================================
+              if (modalType === "analytics") {
+                const safeSubs = Array.isArray(selectedTest.submissions)
+                  ? selectedTest.submissions.filter(Boolean)
+                  : Object.values(selectedTest.submissions || {}).filter(Boolean);
+
+                const totalSubs = safeSubs.length;
+                const totalMarks = Number(selectedTest.totalMarks) || 100;
+                const scores = safeSubs.map((s) => Number(s.score) || 0);
+                const highestScore = scores.length > 0 ? Math.max(...scores) : 0;
+                const lowestScore = scores.length > 0 ? Math.min(...scores) : 0;
+                const avgScoreVal = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : 0;
+                const avgPct = totalMarks > 0 ? Math.min(100, Math.round((Number(avgScoreVal) / totalMarks) * 100)) : 0;
+
+                const passThreshold = totalMarks * 0.4;
+                const passCount = scores.filter((s) => s >= passThreshold).length;
+                const passRate = totalSubs > 0 ? Math.round((passCount / totalSubs) * 100) : 0;
+
+                // Brackets: 0-25%, 26-50%, 51-75%, 76-100%
+                const brackets = [0, 0, 0, 0];
+                scores.forEach((s) => {
+                  const pct = totalMarks > 0 ? (s / totalMarks) * 100 : 0;
+                  if (pct <= 25) brackets[0]++;
+                  else if (pct <= 50) brackets[1]++;
+                  else if (pct <= 75) brackets[2]++;
+                  else brackets[3]++;
+                });
+                const maxBracketCount = Math.max(...brackets, 1);
+
+                // Toughest & Easiest
+                const qStats = (selectedTest.questions || []).map((q, idx) => {
+                  let wrongCount = 0;
+                  let correctCount = 0;
+                  let skippedCount = 0;
+
+                  safeSubs.forEach((sub) => {
+                    const detail = (sub.details || []).find((d, dIdx) => (d.q?.index !== undefined ? d.q.index : dIdx) === idx);
+                    if (!detail) {
+                      skippedCount++;
+                    } else if (Number(detail.earned || 0) > 0) {
+                      correctCount++;
+                    } else if (detail.status === "skipped") {
+                      skippedCount++;
+                    } else {
+                      wrongCount++;
+                    }
+                  });
+
+                  return {
+                    idx,
+                    text: q.text || `Question ${idx + 1}`,
+                    type: q.type || "mcq",
+                    marks: q.marks || 1,
+                    wrongCount,
+                    correctCount,
+                    skippedCount,
+                    accuracy: totalSubs > 0 ? Math.round((correctCount / totalSubs) * 100) : 0,
+                  };
+                });
+
+                const toughestQs = [...qStats].sort((a, b) => b.wrongCount - a.wrongCount).slice(0, 3);
+                const easiestQs = [...qStats].sort((a, b) => b.correctCount - a.correctCount).slice(0, 3);
+
+                const leaderboard = [...safeSubs]
+                  .sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0))
+                  .slice(0, 5);
+
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    className="space-y-6 mb-10"
+                  >
+                    {/* Analytics Studio Header */}
+                    <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setModalType(null)}
+                          className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                          title="Back to Overview"
+                        >
+                          <i className="ti ti-arrow-left text-lg"></i>
+                        </button>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight m-0">
+                              Class Performance Analytics
+                            </h2>
+                            <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              Live Studio
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium m-0 mt-0.5">
+                            Comprehensive statistical distribution, item analysis, and student leaderboard.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => exportToCSV(selectedTest)}
+                          disabled={totalSubs === 0}
+                          className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 font-bold text-xs sm:text-sm transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <i className="ti ti-download text-sm"></i>
+                          <span>Export CSV</span>
+                        </button>
+                        <button
+                          onClick={() => setModalType(null)}
+                          className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+
+                    {totalSubs === 0 ? (
+                      <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-10 text-center shadow-2xs">
+                        <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-2xl mx-auto mb-3">
+                          <i className="ti ti-chart-bar"></i>
+                        </div>
+                        <h3 className="text-base font-black text-slate-800 m-0 mb-1">No Submissions Recorded Yet</h3>
+                        <p className="text-xs text-slate-500 font-medium max-w-md mx-auto mb-4">
+                          Analytics and score distribution will automatically activate once candidates submit their responses.
+                        </p>
+                        <button
+                          onClick={() => setModalType(null)}
+                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                        >
+                          Return to Overview
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Row 1: 5 High-Impact KPI Stat Cards */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                          {/* 1. Submissions */}
+                          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              Submissions
+                            </span>
+                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                              {totalSubs}
+                            </div>
+                            <span className="text-[11px] font-semibold text-blue-600 mt-1 inline-flex items-center gap-1">
+                              <i className="ti ti-users text-xs"></i> Total Candidates
+                            </span>
+                          </div>
+
+                          {/* 2. Average Score */}
+                          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              Class Average
+                            </span>
+                            <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                              {avgScoreVal} <span className="text-xs font-semibold text-slate-400">/ {totalMarks}</span>
+                            </div>
+                            <span className={`text-[11px] font-semibold mt-1 inline-flex items-center gap-1 ${
+                              avgPct >= 60 ? "text-emerald-600" : avgPct >= 40 ? "text-amber-600" : "text-rose-600"
+                            }`}>
+                              <i className="ti ti-percentage text-xs"></i> {avgPct}% Mean
+                            </span>
+                          </div>
+
+                          {/* 3. Highest Score */}
+                          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              Highest Score
+                            </span>
+                            <div className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">
+                              {highestScore} <span className="text-xs font-semibold text-slate-400">/ {totalMarks}</span>
+                            </div>
+                            <span className="text-[11px] font-semibold text-emerald-700 mt-1 inline-flex items-center gap-1">
+                              <i className="ti ti-trophy text-xs"></i> Top Score
+                            </span>
+                          </div>
+
+                          {/* 4. Lowest Score */}
+                          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              Lowest Score
+                            </span>
+                            <div className="text-xl sm:text-2xl font-black text-rose-600 tracking-tight">
+                              {lowestScore} <span className="text-xs font-semibold text-slate-400">/ {totalMarks}</span>
+                            </div>
+                            <span className="text-[11px] font-semibold text-rose-700 mt-1 inline-flex items-center gap-1">
+                              <i className="ti ti-flag text-xs"></i> Bottom Mark
+                            </span>
+                          </div>
+
+                          {/* 5. Pass Rate */}
+                          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs col-span-2 sm:col-span-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              Passing Rate
+                            </span>
+                            <div className="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight">
+                              {passRate}%
+                            </div>
+                            <span className="text-[11px] font-semibold text-indigo-700 mt-1 inline-flex items-center gap-1">
+                              <i className="ti ti-check text-xs"></i> {passCount} of {totalSubs} Passed
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Row 2: Score Distribution Visualizer */}
+                        <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)]">
+                          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-base border border-indigo-200/60">
+                                <i className="ti ti-chart-histogram"></i>
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-extrabold text-slate-900 m-0">Score Distribution Curve</h3>
+                                <p className="text-[11px] text-slate-400 font-medium m-0">Candidate concentration across percentiles</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-2 sm:gap-4 pt-4">
+                            {[
+                              { label: "0-25%", tag: "Critical", count: brackets[0], bg: "bg-rose-50", bar: "bg-rose-500", text: "text-rose-700", border: "border-rose-200" },
+                              { label: "26-50%", tag: "Developing", count: brackets[1], bg: "bg-amber-50", bar: "bg-amber-500", text: "text-amber-700", border: "border-amber-200" },
+                              { label: "51-75%", tag: "Proficient", count: brackets[2], bg: "bg-sky-50", bar: "bg-sky-500", text: "text-sky-700", border: "border-sky-200" },
+                              { label: "76-100%", tag: "Excellence", count: brackets[3], bg: "bg-emerald-50", bar: "bg-emerald-500", text: "text-emerald-700", border: "border-emerald-200" },
+                            ].map((tier) => {
+                              const heightPct = Math.max(12, Math.round((tier.count / maxBracketCount) * 100));
+                              const sharePct = totalSubs > 0 ? Math.round((tier.count / totalSubs) * 100) : 0;
+                              return (
+                                <div key={tier.label} className={`rounded-2xl p-3 sm:p-4 border ${tier.border} ${tier.bg} flex flex-col justify-between text-center`}>
+                                  <div className="h-32 sm:h-40 flex items-end justify-center mb-3">
+                                    <div className="w-full max-w-[48px] flex flex-col items-center">
+                                      <span className="text-[11px] font-extrabold text-slate-700 mb-1">{tier.count}</span>
+                                      <div
+                                        style={{ height: `${heightPct}%` }}
+                                        className={`w-full rounded-t-xl ${tier.bar} transition-all duration-500 shadow-sm min-h-[14px]`}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className={`text-xs sm:text-sm font-black ${tier.text}`}>{tier.label}</div>
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{tier.tag}</div>
+                                    <div className="text-[10px] font-semibold text-slate-400 mt-0.5">{sharePct}% of class</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Row 3: Question Deep Dive (Toughest vs Easiest) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                          {/* Toughest Questions */}
+                          <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-2xs space-y-3">
+                            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                              <span className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-sm border border-rose-200">
+                                <i className="ti ti-alert-triangle"></i>
+                              </span>
+                              <div>
+                                <h4 className="text-xs font-black text-rose-900 uppercase tracking-wider m-0">Toughest Questions</h4>
+                                <p className="text-[10px] text-slate-400 font-medium m-0">Questions with the highest error/fail rates</p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              {toughestQs.map((q) => (
+                                <div key={q.idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="font-extrabold text-slate-900">Q{q.idx + 1} ({q.type.toUpperCase()})</span>
+                                    <span className="text-[10px] font-extrabold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                      {q.wrongCount} Failed ({totalSubs > 0 ? Math.round((q.wrongCount / totalSubs) * 100) : 0}%)
+                                    </span>
+                                  </div>
+                                  <div className="text-slate-600 line-clamp-2 font-medium">
+                                    <StaticMath isBlock={false} html={q.text} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Easiest Questions */}
+                          <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-2xs space-y-3">
+                            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                              <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm border border-emerald-200">
+                                <i className="ti ti-award"></i>
+                              </span>
+                              <div>
+                                <h4 className="text-xs font-black text-emerald-900 uppercase tracking-wider m-0">Highest Accuracy Questions</h4>
+                                <p className="text-[10px] text-slate-400 font-medium m-0">Questions answered correctly by most candidates</p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              {easiestQs.map((q) => (
+                                <div key={q.idx} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="font-extrabold text-slate-900">Q{q.idx + 1} ({q.type.toUpperCase()})</span>
+                                    <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                      {q.correctCount} Solved ({q.accuracy}%)
+                                    </span>
+                                  </div>
+                                  <div className="text-slate-600 line-clamp-2 font-medium">
+                                    <StaticMath isBlock={false} html={q.text} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Row 4: Top 5 Performers Leaderboard */}
+                        <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-2xs space-y-3">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                              <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-sm border border-amber-200">
+                                <i className="ti ti-crown"></i>
+                              </span>
+                              <div>
+                                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider m-0">Top Performers Leaderboard</h4>
+                                <p className="text-[10px] text-slate-400 font-medium m-0">Leading candidates in this assessment</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => { setActiveTab("subs"); setModalType(null); }}
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700 cursor-pointer flex items-center gap-1"
+                            >
+                              <span>View All Submissions</span>
+                              <i className="ti ti-arrow-right text-xs"></i>
+                            </button>
+                          </div>
+
+                          <div className="divide-y divide-slate-100">
+                            {leaderboard.map((sub, rIdx) => {
+                              const subScore = Number(sub.score) || 0;
+                              const subPct = totalMarks > 0 ? Math.round((subScore / totalMarks) * 100) : 0;
+                              const medals = ["🥇", "🥈", "🥉", "4th", "5th"];
+                              return (
+                                <div key={sub.id || rIdx} className="py-3 flex items-center justify-between gap-3 text-xs">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <span className="text-base shrink-0 w-7 text-center font-bold text-slate-400">
+                                      {medals[rIdx]}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <div className="font-extrabold text-slate-900 truncate">
+                                        {sub.name || "Student"}
+                                      </div>
+                                      <div className="text-[11px] text-slate-400 font-medium">
+                                        Roll: {sub.roll || "N/A"} &bull; {sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString() : ""}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <div className="font-black text-sm text-slate-900">
+                                      {subScore} <span className="text-[11px] text-slate-400 font-medium">/ {totalMarks}</span>
+                                    </div>
+                                    <div className="text-[11px] font-bold text-emerald-600">
+                                      {subPct}%
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </motion.div>
+                );
+              }
+
+              // ==========================================
+              // SPA SUB-VIEW 3: SMART ANSWER KEY STUDIO
+              // ==========================================
+              if (modalType === "editKey") {
+                const currentKeyQuestions = tempQuestions.length > 0
+                  ? tempQuestions
+                  : selectedTest.questions || [];
+
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    className="space-y-6 mb-10"
+                  >
+                    {/* Header Bar */}
+                    <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setModalType(null)}
+                          className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                          title="Back to Overview"
+                        >
+                          <i className="ti ti-arrow-left text-lg"></i>
+                        </button>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight m-0">
+                              Smart Answer Key & Auto-Regrade
+                            </h2>
+                            <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                              Auto-Regrade Engine
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium m-0 mt-0.5">
+                            Fix any incorrect question keys. All candidate scores recalculate instantly upon saving.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => setModalType(null)}
+                          disabled={isActionLoading}
+                          className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={saveNewKeyAndReevaluate}
+                          disabled={isActionLoading}
+                          className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-amber-500/25 active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                        >
+                          {isActionLoading ? (
+                            <>
+                              <i className="ti ti-loader animate-spin text-sm"></i>
+                              <span>Recalculating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <i className="ti ti-recharging text-sm"></i>
+                              <span>Save Key & Auto-Regrade</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Info Banner */}
+                    <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/90 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-white text-amber-600 flex items-center justify-center text-lg border border-amber-200 shrink-0 shadow-2xs">
+                        <i className="ti ti-info-circle"></i>
+                      </div>
+                      <div className="text-xs text-amber-900 leading-relaxed font-medium">
+                        <strong>Instant Recalculation Notice:</strong> When you save updated keys, all{" "}
+                        <strong>{selectedTest.submissions?.length || 0}</strong> existing submissions will be automatically re-graded against the new answers in real-time.
+                      </div>
+                    </div>
+
+                    {/* Question Cards List */}
+                    <div className="space-y-4">
+                      {currentKeyQuestions.map((q, i) => {
+                        const originalQ = selectedTest.questions && selectedTest.questions[i];
+                        const isKeyChanged =
+                          originalQ &&
+                          (q.type === "integer"
+                            ? q.correctInt !== originalQ.correctInt
+                            : JSON.stringify(q.correct || []) !== JSON.stringify(originalQ.correct || []));
+
+                        return (
+                          <div
+                            key={i}
+                            className={`bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border transition-all shadow-2xs ${
+                              isKeyChanged ? "border-amber-400 ring-2 ring-amber-100" : "border-slate-200/90"
+                            }`}
+                          >
+                            {/* Question Header */}
+                            <div className="flex items-center justify-between gap-3 mb-3 pb-2.5 border-b border-slate-100 flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="w-7 h-7 rounded-lg bg-blue-600 text-white font-black text-xs flex items-center justify-center shadow-2xs">
+                                  {i + 1}
+                                </span>
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                  {q.type.toUpperCase()}
+                                </span>
+                                {q.section && (
+                                  <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-150">
+                                    {q.section}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  +{q.marks || 1} Marks
+                                </span>
+                              </div>
+
+                              {isKeyChanged && (
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 flex items-center gap-1 animate-pulse">
+                                  <i className="ti ti-check"></i> Key Modified
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Question Text */}
+                            <div className="text-xs sm:text-sm font-semibold text-slate-800 mb-4 leading-relaxed">
+                              <StaticMath isBlock={false} html={q.text} />
+                            </div>
+
+                            {/* Option Selector based on type */}
+                            {q.type === "mcq" && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                {(q.options || []).map((opt, j) => {
+                                  const isSelected = (q.correct || []).includes(j);
+                                  const optLetter = String.fromCharCode(65 + j);
+                                  return (
+                                    <button
+                                      key={j}
+                                      type="button"
+                                      onClick={() => handleRekeyChange(i, "mcq", j)}
+                                      className={`p-3 rounded-xl border text-left transition-all flex items-center gap-2.5 cursor-pointer ${
+                                        isSelected
+                                          ? "bg-blue-50 border-blue-400 text-blue-900 shadow-2xs ring-1 ring-blue-300"
+                                          : "bg-slate-50/60 hover:bg-slate-100 border-slate-200 text-slate-700"
+                                      }`}
+                                    >
+                                      <span
+                                        className={`w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center shrink-0 border ${
+                                          isSelected
+                                            ? "bg-blue-600 text-white border-blue-600"
+                                            : "bg-white text-slate-500 border-slate-300"
+                                        }`}
+                                      >
+                                        {optLetter}
+                                      </span>
+                                      <div className="text-xs font-semibold truncate">
+                                        <StaticMath isBlock={false} html={opt.text || opt} />
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {q.type === "msq" && (
+                              <div>
+                                <div className="text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-wider">
+                                  Select all correct choices (Multi-Select):
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                  {(q.options || []).map((opt, j) => {
+                                    const isSelected = (q.correct || []).includes(j);
+                                    const optLetter = String.fromCharCode(65 + j);
+                                    return (
+                                      <button
+                                        key={j}
+                                        type="button"
+                                        onClick={() => handleRekeyChange(i, "msq", j)}
+                                        className={`p-3 rounded-xl border text-left transition-all flex items-center gap-2.5 cursor-pointer ${
+                                          isSelected
+                                            ? "bg-purple-50 border-purple-400 text-purple-900 shadow-2xs ring-1 ring-purple-300"
+                                            : "bg-slate-50/60 hover:bg-slate-100 border-slate-200 text-slate-700"
+                                        }`}
+                                      >
+                                        <span
+                                          className={`w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center shrink-0 border ${
+                                            isSelected
+                                              ? "bg-purple-600 text-white border-purple-600"
+                                              : "bg-white text-slate-500 border-slate-300"
+                                          }`}
+                                        >
+                                          {isSelected ? "✓" : optLetter}
+                                        </span>
+                                        <div className="text-xs font-semibold truncate">
+                                          <StaticMath isBlock={false} html={opt.text || opt} />
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {q.type === "integer" && (
+                              <div className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 w-fit">
+                                <span className="text-xs font-bold text-slate-700">Official Correct Integer Value:</span>
+                                <input
+                                  type="number"
+                                  value={q.correctInt !== undefined && q.correctInt !== null ? q.correctInt : ""}
+                                  onChange={(e) => handleRekeyChange(i, "integer", Number(e.target.value))}
+                                  className="w-24 px-3 py-1.5 bg-white border-2 border-slate-200 rounded-lg text-sm font-black text-slate-800 text-center outline-none focus:border-blue-400"
+                                  placeholder="e.g. 42"
+                                />
+                              </div>
+                            )}
+
+                            {q.type === "subjective" && (
+                              <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200/70 text-xs font-medium text-amber-800 flex items-center gap-2">
+                                <i className="ti ti-info-circle text-base text-amber-600"></i>
+                                <span>Subjective questions require manual evaluation in the Submissions Ledger.</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Sticky Bottom Save Dock */}
+                    <div className="sticky bottom-6 z-40 bg-white/95 backdrop-blur-md p-4 rounded-2xl border border-slate-200/90 shadow-xl flex items-center justify-between gap-4">
+                      <div className="text-xs font-semibold text-slate-600">
+                        Showing {currentKeyQuestions.length} Questions in Answer Key
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setModalType(null)}
+                          disabled={isActionLoading}
+                          className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm transition-all cursor-pointer"
+                        >
+                          Discard
+                        </button>
+                        <button
+                          onClick={saveNewKeyAndReevaluate}
+                          disabled={isActionLoading}
+                          className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-amber-500/25 flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                        >
+                          {isActionLoading ? (
+                            <>
+                              <i className="ti ti-loader animate-spin text-sm"></i>
+                              <span>Recalculating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <i className="ti ti-check text-sm"></i>
+                              <span>Save Key & Regrade</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              }
+
+              const now = Date.now();
+              const closeTime = selectedTest.closeDate
+                ? new Date(selectedTest.closeDate).getTime()
+                : null;
+              const openTime = selectedTest.openDate
+                ? new Date(selectedTest.openDate).getTime()
+                : null;
+
+              let isLive = !(
+                selectedTest.isActive === false ||
+                (closeTime && now > closeTime)
               );
 
               return (
-                <>
-                  {/*   BULLETPROOF CSS LAYOUT (Bypasses Tailwind Compile Issues)   */}
-                  <style>{`
-                          .overview-mobile-layout { display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2rem; width: 100%; }
-                          .overview-desktop-layout { display: none; width: 100%; gap: 1.5rem; margin-bottom: 2rem; align-items: flex-start; }
-                          
-                          /* 950px safe breakpoint for all laptops/tablets */
-                          @media (min-width: 950px) {
-                              .overview-mobile-layout { display: none !important; }
-                              .overview-desktop-layout { display: flex !important; }
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-8">
+                  {/* LEFT COLUMN: ACTION STUDIO & DISTRIBUTION (8 Cols) */}
+                  <div className="lg:col-span-8 space-y-5">
+                    {/* Bento Action Studio (4 Primary Examiner Tools) */}
+                    <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)]">
+                      <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-base border border-blue-200/60">
+                            <i className="ti ti-apps"></i>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-extrabold text-slate-900 tracking-tight m-0">
+                              Examiner Action Studio
+                            </h3>
+                            <p className="text-[11px] text-slate-400 font-medium m-0">
+                              Primary evaluation, testing, and assessment utilities
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {/* 1. Student Simulator / Demo Test */}
+                        <motion.button
+                          whileHover={{ y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => autoJoinLocalTest(selectedTest.code)}
+                          className="p-4 rounded-xl sm:rounded-2xl bg-slate-50/70 hover:bg-blue-50/50 border border-slate-200/80 hover:border-blue-300 transition-all text-left group cursor-pointer shadow-2xs flex flex-col justify-between"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-white text-blue-600 flex items-center justify-center text-lg border border-blue-200/60 shadow-2xs group-hover:scale-105 transition-transform">
+                              <i className="ti ti-device-laptop"></i>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60">
+                              Simulator
+                            </span>
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm text-slate-800 group-hover:text-blue-700 transition-colors">
+                              Student Simulator
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium mt-0.5 line-clamp-1">
+                              Experience test & timer as a candidate
+                            </div>
+                          </div>
+                          <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-blue-600">
+                            <span>Launch Demo</span>
+                            <i className="ti ti-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
+                          </div>
+                        </motion.button>
+
+                        {/* 2. Edit Key & Auto-Regrade */}
+                        <motion.button
+                          whileHover={{ y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={openEditKey}
+                          className="p-4 rounded-xl sm:rounded-2xl bg-slate-50/70 hover:bg-amber-50/50 border border-slate-200/80 hover:border-amber-300 transition-all text-left group cursor-pointer shadow-2xs flex flex-col justify-between"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-white text-amber-600 flex items-center justify-center text-lg border border-amber-200/60 shadow-2xs group-hover:scale-105 transition-transform">
+                              <i className="ti ti-key"></i>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60">
+                              Auto-Regrade
+                            </span>
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm text-slate-800 group-hover:text-amber-700 transition-colors">
+                              Edit Answer Key
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium mt-0.5 line-clamp-1">
+                              Fix typos & instantly recalculate all marks
+                            </div>
+                          </div>
+                          <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-amber-700">
+                            <span>Manage Key</span>
+                            <i className="ti ti-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
+                          </div>
+                        </motion.button>
+
+                        {/* 3. Class Performance Analytics */}
+                        <motion.button
+                          whileHover={{ y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setModalType("analytics")}
+                          className="p-4 rounded-xl sm:rounded-2xl bg-slate-50/70 hover:bg-emerald-50/50 border border-slate-200/80 hover:border-emerald-300 transition-all text-left group cursor-pointer shadow-2xs flex flex-col justify-between"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-white text-emerald-600 flex items-center justify-center text-lg border border-emerald-200/60 shadow-2xs group-hover:scale-105 transition-transform">
+                              <i className="ti ti-chart-donut-2"></i>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
+                              Insights
+                            </span>
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm text-slate-800 group-hover:text-emerald-700 transition-colors">
+                              Class Analytics
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium mt-0.5 line-clamp-1">
+                              Accuracy rate, toppers & question analysis
+                            </div>
+                          </div>
+                          <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-emerald-700">
+                            <span>View Analytics</span>
+                            <i className="ti ti-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
+                          </div>
+                        </motion.button>
+
+                        {/* 4. Print Paper (Offline PDF) */}
+                        <motion.button
+                          whileHover={{ y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => printTestPaper(selectedTest)}
+                          className="p-4 rounded-xl sm:rounded-2xl bg-slate-50/70 hover:bg-indigo-50/50 border border-slate-200/80 hover:border-indigo-300 transition-all text-left group cursor-pointer shadow-2xs flex flex-col justify-between"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-white text-indigo-600 flex items-center justify-center text-lg border border-indigo-200/60 shadow-2xs group-hover:scale-105 transition-transform">
+                              <i className="ti ti-printer"></i>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60">
+                              PDF Paper
+                            </span>
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm text-slate-800 group-hover:text-indigo-700 transition-colors">
+                              Printable Question Paper
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium mt-0.5 line-clamp-1">
+                              Export exam with candidate space for offline use
+                            </div>
+                          </div>
+                          <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-indigo-700">
+                            <span>Print PDF</span>
+                            <i className="ti ti-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
+                          </div>
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    {/* Results Transparency & Evaluation Controller */}
+                    <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl border border-indigo-200/60 shrink-0">
+                          <i className="ti ti-file-certificate"></i>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-slate-900 m-0">
+                              Assessment Results Release
+                            </h4>
+                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                              {selectedTest.resultVis || "instant"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium mt-0.5 m-0">
+                            {!selectedTest.released &&
+                            selectedTest.resultVis === "manual"
+                              ? "Results are held privately until you choose to publish them."
+                              : selectedTest.resultVis === "scheduled" &&
+                                !selectedTest.released
+                              ? `Auto-release scheduled for ${
+                                  selectedTest.resultPublishTime
+                                    ? new Date(
+                                        selectedTest.resultPublishTime,
+                                      ).toLocaleString("en-IN", {
+                                        dateStyle: "short",
+                                        timeStyle: "short",
+                                      })
+                                    : "specified time"
+                                }.`
+                              : "Students can see their marks and question paper review immediately."}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="w-full sm:w-auto shrink-0">
+                        {!selectedTest.released &&
+                        selectedTest.resultVis === "manual" ? (
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.96 }}
+                            onClick={() => publishResults(selectedTest)}
+                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <i className="ti ti-send text-sm"></i>
+                            <span>Publish Results Now</span>
+                          </motion.button>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                            <i className="ti ti-check text-sm text-emerald-600"></i>
+                            <span>Results Published</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quick Sharing & Distribution Hub */}
+                    <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)]">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-base border border-emerald-200/60">
+                            <i className="ti ti-share"></i>
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-900 m-0">
+                            Distribute Assessment
+                          </h4>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-semibold">
+                          Multiple student broadcast channels
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        {/* Copy Link */}
+                        <motion.button
+                          whileTap={{ scale: 0.96 }}
+                          onClick={(e) =>
+                            handleCopyJoinLink(
+                              e,
+                              selectedTest.code,
+                              selectedTest.id,
+                            )
                           }
-                      `}</style>
+                          className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <i
+                            className={`ti ${
+                              copiedLinkId === selectedTest.id
+                                ? "ti-check text-emerald-600"
+                                : "ti-link text-blue-600"
+                            } text-xl`}
+                          ></i>
+                          <span>
+                            {copiedLinkId === selectedTest.id
+                              ? "Copied! ✓"
+                              : "Copy Link"}
+                          </span>
+                        </motion.button>
 
-                  {/* 📱 MOBILE & TABLET LAYOUT */}
-                  {/* Logical Flow: Intake -> Settings -> Tools -> Results -> Danger */}
-                  <div className="overview-mobile-layout">
-                    {intakeCard}
-                    {settingsCard}
-                    {toolsCard}
-                    {resultsAndSharingCard}
-                    {dangerCard}
+                        {/* WhatsApp */}
+                        <motion.button
+                          whileTap={{ scale: 0.96 }}
+                          onClick={() => shareTest(selectedTest, "whatsapp")}
+                          className="p-3 rounded-xl bg-emerald-50/60 hover:bg-emerald-100/70 text-emerald-800 font-bold text-xs border border-emerald-200 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <i className="ti ti-brand-whatsapp text-xl text-emerald-600"></i>
+                          <span>WhatsApp</span>
+                        </motion.button>
+
+                        {/* Telegram */}
+                        <motion.button
+                          whileTap={{ scale: 0.96 }}
+                          onClick={() => shareTest(selectedTest, "telegram")}
+                          className="p-3 rounded-xl bg-sky-50/60 hover:bg-sky-100/70 text-sky-800 font-bold text-xs border border-sky-200 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <i className="ti ti-brand-telegram text-xl text-sky-600"></i>
+                          <span>Telegram</span>
+                        </motion.button>
+
+                        {/* Projector QR */}
+                        <motion.button
+                          whileTap={{ scale: 0.96 }}
+                          onClick={() => setShowProjectorModal(true)}
+                          className="p-3 rounded-xl bg-indigo-50/60 hover:bg-indigo-100/70 text-indigo-800 font-bold text-xs border border-indigo-200 transition-all flex flex-col items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <i className="ti ti-qrcode text-xl text-indigo-600"></i>
+                          <span>Show QR</span>
+                        </motion.button>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* 💻 DESKTOP LAYOUT (2 Columns - No Vertical Stretching!) */}
-                  <div className="overview-desktop-layout">
-                    {/* Left Column (Fixed 62% Width - Tools & Core Actions) */}
-                    <div
-                      style={{
-                        flex: "0 0 62%",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "1.5rem",
-                      }}
-                    >
-                      {intakeCard}
-                      {toolsCard}
-                      {resultsAndSharingCard}
+                  {/* RIGHT COLUMN: CONFIG MATRIX & SAFETY (4 Cols) */}
+                  <div className="lg:col-span-4 space-y-5">
+                    {/* Exam Configuration Matrix */}
+                    <div className="bg-white p-5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)]">
+                      <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <i className="ti ti-adjustments-horizontal text-slate-700 text-lg"></i>
+                          <h4 className="text-sm font-extrabold text-slate-900 m-0">
+                            Exam Parameters
+                          </h4>
+                        </div>
+                        <button
+                          onClick={openEditSettings}
+                          className="text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200/60 transition-colors cursor-pointer"
+                        >
+                          Edit Settings
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5 text-xs font-semibold">
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-150">
+                          <span className="text-slate-500 font-medium">
+                            Time Limit
+                          </span>
+                          <span className="font-bold text-slate-800">
+                            {selectedTest.duration} Minutes
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-150">
+                          <span className="text-slate-500 font-medium">
+                            Negative Marking
+                          </span>
+                          <span className="font-bold text-rose-600">
+                            -{selectedTest.negMarking || 0} Per Incorrect
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-150">
+                          <span className="text-slate-500 font-medium">
+                            Results Visibility
+                          </span>
+                          <span className="font-bold text-slate-800 capitalize">
+                            {selectedTest.resultVis || "Instant"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-150">
+                          <span className="text-slate-500 font-medium">
+                            Radar Discovery
+                          </span>
+                          {selectedTest.radarVisible ? (
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                              <i className="ti ti-eye text-[10px]"></i> ON RADAR
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300">
+                              DIRECT ONLY
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-150">
+                          <span className="text-slate-500 font-medium">
+                            Direct Entry Link
+                          </span>
+                          {selectedTest.directEntry ? (
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                              <i className="ti ti-check text-[10px]"></i> ACTIVE
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
+                              DISABLED
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-150">
+                          <span className="text-slate-500 font-medium">
+                            Max Questions
+                          </span>
+                          <span className="font-bold text-slate-800">
+                            {selectedTest.questionCount ||
+                              selectedTest.questions?.length ||
+                              0}{" "}
+                            Questions
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-150">
+                          <span className="text-slate-500 font-medium">
+                            Maximum Marks
+                          </span>
+                          <span className="font-bold text-slate-800">
+                            {selectedTest.totalMarks || 100} Marks
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Right Column (Fills remaining space - Settings & Danger) */}
-                    <div
-                      style={{
-                        flex: "1",
-                        minWidth: 0,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "1.5rem",
-                      }}
-                    >
-                      {settingsCard}
-                      {dangerCard}
+                    {/* Danger & Archive Zone */}
+                    <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-2xs">
+                      <div className="flex items-center gap-2 mb-2 text-rose-600 font-bold text-xs uppercase tracking-wider">
+                        <i className="ti ti-trash text-base"></i>
+                        <span>Trash & Archive</span>
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium leading-relaxed mb-4">
+                        Remove this exam from your active vault. Past student
+                        submissions and grades remain preserved.
+                      </p>
+                      <button
+                        onClick={() => triggerDelete(selectedTest)}
+                        className="w-full py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        <i className="ti ti-trash text-sm"></i>
+                        <span>Move to Trash</span>
+                      </button>
                     </div>
                   </div>
-                </>
+                </div>
               );
             })()}
 
-          {/*   PREMIUM SUBMISSIONS LEDGER (Tailwind SaaS Style)   */}
+          {/* 📽️ SMARTBOARD / PROJECTOR MODE MODAL */}
+          {showProjectorModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-[fadeIn_0.2s_ease]">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-200 shadow-2xl relative text-center"
+              >
+                <button
+                  onClick={() => setShowProjectorModal(false)}
+                  className="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-all cursor-pointer"
+                >
+                  <i className="ti ti-x text-lg"></i>
+                </button>
+
+                {/* Header Badge */}
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200 inline-flex items-center gap-1.5 mb-2">
+                  <i className="ti ti-device-tv text-xs"></i> Classroom
+                  Smartboard Mode
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mb-1 truncate">
+                  {selectedTest.title}
+                </h2>
+                <p className="text-xs text-slate-500 font-medium mb-5">
+                  Project this code or QR for student classroom intake.
+                </p>
+
+                {/* Big Readable Test Code */}
+                <div className="bg-slate-50 border-2 border-dashed border-indigo-200 rounded-2xl p-4 sm:p-5 mb-5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                    Student Intake Code
+                  </span>
+                  <div className="font-mono text-3xl sm:text-5xl font-black text-indigo-600 tracking-widest selection:bg-indigo-100">
+                    {selectedTest.code}
+                  </div>
+                  <button
+                    onClick={(e) =>
+                      handleCopyTestCode(e, selectedTest.code, selectedTest.id)
+                    }
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-indigo-600 text-slate-700 hover:text-white rounded-lg border border-slate-200 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                  >
+                    <i
+                      className={`ti ${
+                        copiedCodeId === selectedTest.id
+                          ? "ti-check text-emerald-500"
+                          : "ti-copy"
+                      }`}
+                    ></i>
+                    <span>
+                      {copiedCodeId === selectedTest.id
+                        ? "Copied! ✓"
+                        : "Copy Code"}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Dynamic QR Code */}
+                <div className="flex flex-col items-center justify-center mb-5">
+                  <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                        typeof window !== "undefined"
+                          ? `${window.location.origin}/student?code=${selectedTest.code}`
+                          : `https://examitop.com/student?code=${selectedTest.code}`,
+                      )}`}
+                      alt="Scan to join exam"
+                      className="w-36 h-36 sm:w-44 sm:h-44 object-contain"
+                    />
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-400 mt-2 flex items-center gap-1">
+                    <i className="ti ti-scan text-sm"></i> Students can scan
+                    camera to enter directly
+                  </span>
+                </div>
+
+                {/* Direct Link Copy Button */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) =>
+                      handleCopyJoinLink(
+                        e,
+                        selectedTest.code,
+                        selectedTest.id,
+                      )
+                    }
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <i
+                      className={`ti ${
+                        copiedLinkId === selectedTest.id
+                          ? "ti-check"
+                          : "ti-link"
+                      }`}
+                    ></i>
+                    <span>
+                      {copiedLinkId === selectedTest.id
+                        ? "Link Copied! ✓"
+                        : "Copy Direct Link"}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setShowProjectorModal(false)}
+                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm rounded-xl transition-all cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* 🌟 3. PREMIUM SUBMISSIONS LEDGER (Clean Modern White SaaS Architecture) */}
           {activeTab === "subs" &&
             (() => {
-              // 🔥 THE CRASH FIX: Ensure selectedTest exists before extracting submissions
               if (!selectedTest) return null;
 
               const rawSubs = selectedTest.submissions;
@@ -3919,12 +5169,11 @@ export default function ManageTests() {
                 ? rawSubs.filter(Boolean)
                 : Object.values(rawSubs || {}).filter(Boolean);
 
-              // Prevent SSR mismatched arrays
               if (isSubsLoading && safeSubmissions.length === 0) {
                 return (
-                  <div className="text-center py-16 px-4 bg-white rounded-2xl border border-slate-200 shadow-sm mt-6">
+                  <div className="text-center py-16 px-4 bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] mt-2">
                     <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-                    <h4 className="text-[17px] font-black text-slate-800 mb-1">
+                    <h4 className="text-[17px] font-black text-slate-900 mb-1">
                       Loading Submissions Ledger...
                     </h4>
                     <p className="text-xs text-slate-500 font-semibold max-w-sm mx-auto">
@@ -3934,1164 +5183,462 @@ export default function ManageTests() {
                 );
               }
 
-              if (safeSubmissions.length === 0)
+              if (safeSubmissions.length === 0) {
                 return (
-                  <div className="text-center py-12 px-4 bg-white rounded-xl border border-slate-100 shadow-sm mt-8">
-                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                      <i className="ti ti-ghost text-4xl text-slate-300"></i>
+                  <div className="text-center py-16 px-4 bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] mt-2">
+                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100 text-slate-300 text-3xl">
+                      <i className="ti ti-users"></i>
                     </div>
-                    <h4 className="text-lg font-bold text-slate-700 mb-1">
-                      No Submissions Found
+                    <h4 className="text-lg font-black text-slate-900 mb-1">
+                      No Submissions Recorded Yet
                     </h4>
-                    <p className="text-sm text-slate-500 font-medium">
-                      Wait for students to complete and submit the test.
+                    <p className="text-xs text-slate-500 font-medium max-w-sm mx-auto mb-5">
+                      Submissions and grading records will appear here as soon as candidates submit their tests.
                     </p>
+                    <button
+                      onClick={() => autoJoinLocalTest(selectedTest.code)}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/25 transition-all active:scale-95 cursor-pointer inline-flex items-center gap-2"
+                    >
+                      <i className="ti ti-device-laptop"></i>
+                      <span>Take a Demo Test First</span>
+                    </button>
                   </div>
                 );
+              }
 
-              const filteredSubs = searchQuery
-                ? safeSubmissions.filter(
-                    (s) =>
-                      s?.name
-                        ?.toLowerCase()
-                        .includes(searchQuery.toLowerCase()) ||
-                      s?.roll
-                        ?.toLowerCase()
-                        .includes(searchQuery.toLowerCase()),
-                  )
-                : safeSubmissions;
+              const totalMarks = Number(selectedTest.totalMarks) || 100;
+              const scores = safeSubmissions.map((s) => Number(s.score) || 0);
+              const avgScoreVal =
+                scores.length > 0
+                  ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
+                  : "0";
+
+              const isAutoPublished = Boolean(
+                selectedTest.resultVis === "scheduled" &&
+                  selectedTest.resultPublishTime &&
+                  Date.now() >= new Date(selectedTest.resultPublishTime).getTime()
+              );
+
+              const isSubPublished = (s) => {
+                if (!s) return false;
+                return Boolean(
+                  s.evaluated ||
+                    selectedTest.released ||
+                    selectedTest.resultVis === "instant" ||
+                    isAutoPublished ||
+                    s.isPublished
+                );
+              };
+
+              const evaluatedSubs = safeSubmissions.filter(isSubPublished);
+              const pendingSubs = safeSubmissions.filter((s) => !isSubPublished(s));
+
+              // Multi-criteria filtering
+              let filteredSubs = safeSubmissions;
+              if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase().trim();
+                filteredSubs = filteredSubs.filter(
+                  (s) =>
+                    (s?.name || "").toLowerCase().includes(q) ||
+                    (s?.roll || "").toLowerCase().includes(q)
+                );
+              }
+
+              if (subsStatusFilter === "evaluated") {
+                filteredSubs = filteredSubs.filter(isSubPublished);
+              } else if (subsStatusFilter === "pending") {
+                filteredSubs = filteredSubs.filter((s) => !isSubPublished(s));
+              }
 
               return (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-8 animate-[fadeIn_0.3s_ease]">
-                  {/* Ledger Header & Controls */}
-                  <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-[16px] sm:text-[18px] font-black text-slate-800 flex items-center gap-2 m-0 tracking-tight">
-                        <i className="ti ti-users-group text-blue-600 text-xl"></i>
-                        Submissions Ledger
-                        <span className="bg-blue-100 text-blue-700 text-[11px] px-2 py-0.5 rounded-full font-bold ml-1 border border-blue-200">
-                          {selectedTest.submissionCount !== undefined
-                            ? selectedTest.submissionCount
-                            : safeSubmissions.length}
-                        </span>
-                      </h3>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                      {/* Search Bar */}
-                      <div className="relative flex-1 sm:min-w-[260px]">
-                        <i className="ti ti-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none"></i>
-                        <input
-                          type="text"
-                          placeholder="Search by Name or Roll No..."
-                          value={searchQuery}
-                          onChange={(e) => {
-                            setSearchQuery(e.target.value);
-                            setSubsVisibleCount(25);
-                          }}
-                          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] sm:text-sm font-semibold text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all shadow-sm"
-                        />
+                <div className="space-y-5 mb-10 animate-[fadeIn_0.3s_ease]">
+                  {/* 1. EXECUTIVE SUBMISSIONS COMMAND DECK */}
+                  <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)]">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      {/* Left: Icon, Title & Badge */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-xl shadow-sm shadow-blue-500/25 shrink-0">
+                          <i className="ti ti-users-group"></i>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-base sm:text-xl font-black text-slate-900 tracking-tight m-0">
+                              Submissions Ledger
+                            </h2>
+                            <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-200">
+                              {safeSubmissions.length} Candidates
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium m-0 mt-0.5">
+                            Grade student papers, manage rank publishing, and export marks.
+                          </p>
+                        </div>
                       </div>
 
-                      {/* Publish Ranks Button */}
-                      <button
-                        className={`flex items-center justify-center gap-2 px-5 py-2.5 font-bold text-[13px] sm:text-sm rounded-xl transition-colors active:scale-95 shadow-sm whitespace-nowrap border ${selectedTest.ranksPublished ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"}`}
-                        onClick={() => toggleRankPublish(selectedTest)}
-                      >
-                        <i
-                          className={`ti ${selectedTest.ranksPublished ? "ti-eye-off" : "ti-medal"} text-lg`}
-                        ></i>
-                        {selectedTest.ranksPublished
-                          ? "Hide Ranks"
-                          : "Publish Ranks"}
-                      </button>
+                      {/* Right: Quick Action Controls */}
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        {/* Publish Ranks Toggle */}
+                        <button
+                          onClick={() => toggleRankPublish(selectedTest)}
+                          className={`px-3.5 py-2 sm:px-4 sm:py-2.5 font-bold text-xs rounded-xl transition-all active:scale-95 shadow-2xs whitespace-nowrap border flex items-center gap-1.5 cursor-pointer ${
+                            selectedTest.ranksPublished
+                              ? "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100"
+                              : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                          }`}
+                        >
+                          <i
+                            className={`ti ${
+                              selectedTest.ranksPublished ? "ti-eye-off" : "ti-medal"
+                            } text-base`}
+                          ></i>
+                          <span>
+                            {selectedTest.ranksPublished ? "Hide Ranks" : "Publish Ranks"}
+                          </span>
+                        </button>
 
-                      {/* Export CSV Button */}
-                      <button
-                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[13px] sm:text-sm rounded-xl hover:bg-emerald-100 transition-colors active:scale-95 shadow-sm whitespace-nowrap"
-                        onClick={() => exportToCSV(selectedTest)}
-                      >
-                        <i className="ti ti-file-spreadsheet text-lg"></i>{" "}
-                        Export CSV
-                      </button>
+                        {/* Export CSV Button */}
+                        <button
+                          onClick={() => exportToCSV(selectedTest)}
+                          className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200/90 font-bold text-xs rounded-xl hover:bg-emerald-100 transition-all active:scale-95 shadow-2xs whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <i className="ti ti-file-spreadsheet text-base"></i>
+                          <span>Export CSV</span>
+                        </button>
+
+                        {/* Open Analytics Studio Shortcut */}
+                        <button
+                          onClick={() => {
+                            if (typeof window !== "undefined") window.scrollTo(0, 0);
+                            setModalType("analytics");
+                          }}
+                          className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-slate-50 text-slate-700 border border-slate-200 font-bold text-xs rounded-xl hover:bg-slate-100 transition-all active:scale-95 shadow-2xs whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <i className="ti ti-chart-bar text-base text-blue-600"></i>
+                          <span>Analytics Studio</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Ledger List Container */}
-                  <div className="p-4 sm:p-6 bg-slate-50/30">
-                    {filteredSubs.length === 0 ? (
-                      /* Empty State */
-                      <div className="text-center py-12 px-4 bg-white rounded-xl border border-slate-100 shadow-sm">
-                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                          <i className="ti ti-ghost text-4xl text-slate-300"></i>
-                        </div>
-                        <h4 className="text-lg font-bold text-slate-700 mb-1">
-                          No Submissions Found
-                        </h4>
-                        <p className="text-sm text-slate-500 font-medium">
-                          Wait for students to complete and submit the test.
-                        </p>
+                  {/* 2. SUMMARY METRIC MATRIX (4 High-Density KPI Cards) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        Turned In
+                      </span>
+                      <div className="text-lg sm:text-xl font-black text-slate-900 leading-none">
+                        {safeSubmissions.length}
                       </div>
-                    ) : (
-                      /* Scrollable Submissions List */
-                      <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1 sm:pr-2">
-                        {filteredSubs.slice(0, subsVisibleCount).map((s, mapIdx) => {
-                          const trueIdx = safeSubmissions.indexOf(s);
-                          const targetIdx = trueIdx !== -1 ? trueIdx : mapIdx;
+                      <span className="text-[11px] font-semibold text-slate-500 mt-1 inline-block">
+                        Total papers
+                      </span>
+                    </div>
 
-                          return (
-                            <div
-                              key={targetIdx}
-                              className="bg-white p-4 rounded-xl border border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-200 hover:shadow-md transition-all duration-200 group"
-                            >
-                              {/* Left: Student Info */}
-                              <div className="flex items-center gap-3.5">
-                                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-500 text-lg shrink-0 shadow-inner group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-                                  {(s?.name || "S").charAt(0).toUpperCase()}
-                                </div>
-                                <div className="flex flex-col min-w-0">
-                                  <div className="font-bold text-[14px] sm:text-[15px] text-slate-800 truncate mb-0.5 group-hover:text-blue-700 transition-colors">
-                                    {s?.name || "Unknown Student"}
-                                  </div>
-                                  <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-widest">
-                                    <i className="ti ti-id"></i> Roll:{" "}
-                                    <span className="text-slate-500">
-                                      {s?.roll || "N/A"}
-                                    </span>
-                                  </div>
-                                </div>
+                    <div className="bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        Evaluated
+                      </span>
+                      <div className="text-lg sm:text-xl font-black text-emerald-600 leading-none">
+                        {evaluatedSubs.length}
+                      </div>
+                      <span className="text-[11px] font-semibold text-emerald-700 mt-1 inline-block">
+                        Results ready
+                      </span>
+                    </div>
+
+                    <div className="bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        Pending
+                      </span>
+                      <div className="text-lg sm:text-xl font-black text-amber-600 leading-none">
+                        {pendingSubs.length}
+                      </div>
+                      <span className="text-[11px] font-semibold text-amber-700 mt-1 inline-block">
+                        Needs grading
+                      </span>
+                    </div>
+
+                    <div className="bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        Class Average
+                      </span>
+                      <div className="text-lg sm:text-xl font-black text-blue-600 leading-none">
+                        {avgScoreVal} <span className="text-xs font-semibold text-slate-400">/ {totalMarks}</span>
+                      </div>
+                      <span className="text-[11px] font-semibold text-blue-700 mt-1 inline-block">
+                        Mean performance
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 3. SEARCH & SEGMENT FILTER STRIP */}
+                  <div className="bg-white p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    {/* Search Input */}
+                    <div className="relative flex-1 min-w-0">
+                      <i className="ti ti-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base pointer-events-none"></i>
+                      <input
+                        type="text"
+                        placeholder="Search candidates by name or roll number..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setSubsVisibleCount(25);
+                        }}
+                        className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-blue-400 focus:bg-white transition-all"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm cursor-pointer"
+                        >
+                          <i className="ti ti-x"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Segment Filter Pills */}
+                    <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl text-[11px] font-bold shrink-0 overflow-x-auto custom-scrollbar">
+                      {[
+                        { id: "all", label: "All", count: safeSubmissions.length },
+                        { id: "evaluated", label: "Evaluated", count: evaluatedSubs.length },
+                        { id: "pending", label: "Pending", count: pendingSubs.length },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setSubsStatusFilter(tab.id);
+                            setSubsVisibleCount(25);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                            subsStatusFilter === tab.id
+                              ? "bg-white text-blue-700 shadow-2xs font-extrabold"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          <span>{tab.label}</span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded-md text-[10px] ${
+                              subsStatusFilter === tab.id
+                                ? "bg-blue-100 text-blue-700 font-black"
+                                : "bg-slate-200/80 text-slate-500"
+                            }`}
+                          >
+                            {tab.count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 4. CANDIDATES LIST (Natural Flow, No 60vh trap) */}
+                  {filteredSubs.length === 0 ? (
+                    <div className="text-center py-12 px-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
+                      <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center mx-auto mb-3 text-slate-300 text-xl border border-slate-100">
+                        <i className="ti ti-search"></i>
+                      </div>
+                      <h4 className="text-sm font-black text-slate-800 mb-1">
+                        No Matching Candidates Found
+                      </h4>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Try clearing your search query or switching filter tabs.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredSubs.slice(0, subsVisibleCount).map((s, mapIdx) => {
+                        const trueIdx = safeSubmissions.indexOf(s);
+                        const targetIdx = trueIdx !== -1 ? trueIdx : mapIdx;
+
+                        return (
+                          <div
+                            key={targetIdx}
+                            className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-300 hover:shadow-sm transition-all duration-200 group"
+                          >
+                            {/* Left: Student Info */}
+                            <div className="flex items-center gap-3.5 min-w-0">
+                              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 flex items-center justify-center font-black text-blue-700 text-base shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                                {(s?.name || "S").charAt(0).toUpperCase()}
                               </div>
-
-                              {/* Right: Score & Actions (Border top on mobile) */}
-                              <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto mt-1 sm:mt-0 pt-3 sm:pt-0 border-t border-slate-100 sm:border-0">
-                                {/* Status / Score display */}
-                                <div className="text-left sm:text-right shrink-0">
-                                  {(() => {
-                                    const isAutoPublished =
-                                      selectedTest.resultVis === "scheduled" &&
-                                      selectedTest.resultPublishTime &&
-                                      Date.now() >=
-                                        new Date(
-                                          selectedTest.resultPublishTime,
-                                        ).getTime();
-                                    const isScheduledPending =
-                                      selectedTest.resultVis === "scheduled" &&
-                                      selectedTest.resultPublishTime &&
-                                      Date.now() <
-                                        new Date(
-                                          selectedTest.resultPublishTime,
-                                        ).getTime();
-
-                                    const showScore =
-                                      s.evaluated ||
-                                      selectedTest.resultVis === "instant" ||
-                                      selectedTest.released ||
-                                      isAutoPublished;
-
-                                    if (showScore) {
-                                      return (
-                                        <div className="flex flex-col items-start sm:items-end">
-                                          <div className="text-[16px] sm:text-[18px] font-black text-blue-700 leading-none mb-1.5">
-                                            {s.score}{" "}
-                                            <span className="text-[11px] sm:text-[12px] font-bold text-slate-400">
-                                              / {selectedTest.totalMarks}
-                                            </span>
-                                          </div>
-                                          <div className="text-[9px] font-extrabold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1">
-                                            <i className="ti ti-check"></i>{" "}
-                                            {s.evaluated
-                                              ? "Evaluated"
-                                              : isAutoPublished
-                                                ? "Auto-Published"
-                                                : "Published"}
-                                          </div>
-                                        </div>
-                                      );
-                                    } else if (isScheduledPending) {
-                                      return (
-                                        <div className="flex flex-col items-start sm:items-end">
-                                          <div className="text-[13px] sm:text-[14px] font-bold text-blue-600 leading-none mb-1.5 flex items-center gap-1">
-                                            <i className="ti ti-clock-play text-lg"></i>{" "}
-                                            Scheduled
-                                          </div>
-                                          <div className="text-[9px] font-extrabold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-200 uppercase tracking-widest flex items-center gap-1">
-                                            {new Date(
-                                              selectedTest.resultPublishTime,
-                                            ).toLocaleTimeString([], {
-                                              hour: "2-digit",
-                                              minute: "2-digit",
-                                            })}
-                                          </div>
-                                        </div>
-                                      );
-                                    } else {
-                                      return (
-                                        <div className="flex flex-col items-start sm:items-end">
-                                          <div className="text-[13px] sm:text-[14px] font-bold text-amber-600 leading-none mb-1.5 flex items-center gap-1">
-                                            <i className="ti ti-lock text-lg"></i>{" "}
-                                            In Review
-                                          </div>
-                                          <div className="text-[9px] font-extrabold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest flex items-center gap-1">
-                                            Manual Release
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                  })()}
+                              <div className="min-w-0">
+                                <div className="font-extrabold text-sm sm:text-base text-slate-900 truncate group-hover:text-blue-700 transition-colors">
+                                  {s?.name || "Candidate"}
                                 </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <button
-                                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white font-bold text-[13px] sm:text-sm rounded-xl shadow-md shadow-blue-600/20 hover:bg-blue-700 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center gap-1.5"
-                                    onClick={() => {
-                                      if (typeof window !== "undefined") window.scrollTo(0, 0);
-                                      setEvaluateSub({
-                                        sub: s,
-                                        test: selectedTest,
-                                        sIdx: targetIdx,
-                                      });
-                                      setEvalFilter("all");
-                                    }}
-                                  >
-                                    <i className="ti ti-microscope text-[16px] sm:text-lg"></i>{" "}
-                                    <span className="hidden sm:inline">
-                                      Evaluate
+                                <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5 flex-wrap">
+                                  <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px]">
+                                    <i className="ti ti-id text-xs"></i>
+                                    {s?.roll || "N/A"}
+                                  </span>
+                                  {s?.submittedAt && (
+                                    <span className="text-slate-400 font-medium">
+                                      &bull; {new Date(s.submittedAt).toLocaleDateString([], {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
                                     </span>
-                                  </button>
-
-                                  {/* Individual Publish Toggle */}
-                                  {selectedTest.resultVis === "manual" &&
-                                    !selectedTest.released && (
-                                      <button
-                                        className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border transition-colors active:scale-95 shrink-0 shadow-sm ${s.isPublished ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100" : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600"}`}
-                                        title={
-                                          s.isPublished
-                                            ? "Hide Result"
-                                            : "Publish Result Individually"
-                                        }
-                                        onClick={() =>
-                                          toggleIndividualPublish(
-                                            targetIdx,
-                                            s.isPublished,
-                                          )
-                                        }
-                                        disabled={isActionLoading}
-                                      >
-                                        <i
-                                          className={`ti ${s.isPublished ? "ti-eye" : "ti-eye-off"} text-lg`}
-                                        ></i>
-                                      </button>
-                                    )}
-
-                                  {/* Demo Test Delete Button */}
-                                  {(userRole === "admin" ||
-                                    s.uid === currentUser?.uid ||
-                                    s.email === currentUser?.email) && (
-                                    <button
-                                      className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-white text-rose-500 border border-rose-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors active:scale-95 shrink-0 shadow-sm"
-                                      title="Delete Demo Submission"
-                                      onClick={() =>
-                                        deleteSubmission(targetIdx, s.name)
-                                      }
-                                    >
-                                      <i className="ti ti-trash text-lg"></i>
-                                    </button>
                                   )}
                                 </div>
                               </div>
                             </div>
-                          );
-                        })}
 
-                        {filteredSubs.length > subsVisibleCount && (
-                          <div className="pt-2 pb-1 text-center">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSubsVisibleCount((prev) => prev + 25)
-                              }
-                              className="px-6 py-2.5 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 hover:border-blue-400 inline-flex items-center gap-2"
-                            >
-                              <i className="ti ti-chevron-down text-sm"></i>
-                              Load More Submissions (Showing{" "}
-                              {Math.min(subsVisibleCount, filteredSubs.length)}{" "}
-                              of {filteredSubs.length})
-                            </button>
+                            {/* Right: Score & Actions */}
+                            <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-5 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                              {/* Status / Score display */}
+                              <div className="text-left sm:text-right shrink-0">
+                                {(() => {
+                                  const isAutoPublished =
+                                    selectedTest.resultVis === "scheduled" &&
+                                    selectedTest.resultPublishTime &&
+                                    Date.now() >=
+                                      new Date(selectedTest.resultPublishTime).getTime();
+
+                                  const isScheduledPending =
+                                    selectedTest.resultVis === "scheduled" &&
+                                    selectedTest.resultPublishTime &&
+                                    Date.now() <
+                                      new Date(selectedTest.resultPublishTime).getTime();
+
+                                  const showScore = isSubPublished(s);
+
+                                  if (showScore) {
+                                    return (
+                                      <div className="flex flex-col items-start sm:items-end">
+                                        <div className="text-base sm:text-lg font-black text-slate-900 leading-none mb-1">
+                                          {s.score}{" "}
+                                          <span className="text-[11px] font-bold text-slate-400">
+                                            / {totalMarks}
+                                          </span>
+                                        </div>
+                                        <div className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 uppercase tracking-widest flex items-center gap-1">
+                                          <i className="ti ti-check"></i>{" "}
+                                          {s.evaluated
+                                            ? "Evaluated"
+                                            : isAutoPublished
+                                              ? "Auto-Published"
+                                              : "Published"}
+                                        </div>
+                                      </div>
+                                    );
+                                  } else if (isScheduledPending) {
+                                    return (
+                                      <div className="flex flex-col items-start sm:items-end">
+                                        <div className="text-xs sm:text-sm font-bold text-blue-600 leading-none mb-1 flex items-center gap-1">
+                                          <i className="ti ti-clock-play"></i> Scheduled
+                                        </div>
+                                        <div className="text-[9px] font-extrabold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-200 uppercase tracking-widest">
+                                          {new Date(selectedTest.resultPublishTime).toLocaleTimeString([], {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  } else {
+                                    return (
+                                      <div className="flex flex-col items-start sm:items-end">
+                                        <div className="text-xs sm:text-sm font-bold text-amber-600 leading-none mb-1 flex items-center gap-1">
+                                          <i className="ti ti-lock"></i> In Review
+                                        </div>
+                                        <div className="text-[9px] font-extrabold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 uppercase tracking-widest">
+                                          Manual Release
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                })()}
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  className="px-3.5 py-2 sm:px-4 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm shadow-blue-500/25 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                                  onClick={() => {
+                                    if (typeof window !== "undefined") window.scrollTo(0, 0);
+                                    setEvaluateSub({
+                                      sub: s,
+                                      test: selectedTest,
+                                      sIdx: targetIdx,
+                                    });
+                                    setEvalFilter("all");
+                                  }}
+                                >
+                                  <i className="ti ti-microscope text-sm"></i>
+                                  <span>Evaluate</span>
+                                </button>
+
+                                {/* Individual Publish Toggle */}
+                                {selectedTest.resultVis === "manual" && !selectedTest.released && (
+                                  <button
+                                    className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95 shrink-0 cursor-pointer ${
+                                      s.isPublished
+                                        ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100"
+                                        : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600"
+                                    }`}
+                                    title={
+                                      s.isPublished
+                                        ? "Hide Result"
+                                        : "Publish Result Individually"
+                                    }
+                                    onClick={() =>
+                                      toggleIndividualPublish(targetIdx, s.isPublished)
+                                    }
+                                    disabled={isActionLoading}
+                                  >
+                                    <i
+                                      className={`ti ${
+                                        s.isPublished ? "ti-eye" : "ti-eye-off"
+                                      } text-base`}
+                                    ></i>
+                                  </button>
+                                )}
+
+                                {/* Demo Test Delete Button */}
+                                {(userRole === "admin" ||
+                                  s.uid === currentUser?.uid ||
+                                  s.email === currentUser?.email) && (
+                                  <button
+                                    className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl bg-white text-rose-500 border border-rose-200 hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-95 shrink-0 cursor-pointer"
+                                    title="Delete Demo Submission"
+                                    onClick={() => deleteSubmission(targetIdx, s.name)}
+                                  >
+                                    <i className="ti ti-trash text-base"></i>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                        );
+                      })}
+
+                      {filteredSubs.length > subsVisibleCount && (
+                        <div className="pt-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setSubsVisibleCount((prev) => prev + 25)}
+                            className="px-6 py-2.5 bg-white hover:bg-slate-50 text-blue-600 border border-blue-200 rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-95 hover:border-blue-400 inline-flex items-center gap-2 cursor-pointer"
+                          >
+                            <i className="ti ti-chevron-down text-sm"></i>
+                            <span>
+                              Load More Candidates (Showing{" "}
+                              {Math.min(subsVisibleCount, filteredSubs.length)} of{" "}
+                              {filteredSubs.length})
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()}
 
-          {modalType === "editKey" && (
-            <div
-              className="fixed inset-0 flex items-center justify-center p-4"
-              style={{
-                zIndex: 100000,
-                background: "rgba(255, 255, 255, 0.2)", // LIGHT BLUR FIX
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              <div
-                className="modal-box"
-                style={{ maxWidth: "800px", animation: "popIn 0.3s ease" }}
-              >
-                <h3
-                  style={{
-                    marginBottom: "1rem",
-                    color: "#185FA5",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <i className="ti ti-key"></i> Smart Key Update
-                </h3>
-                <p
-                  style={{
-                    fontSize: "13px",
-                    color: "var(--color-text-secondary)",
-                    marginBottom: "1.5rem",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  Fix any wrong answers in your key below. When you save, all{" "}
-                  <strong>{selectedTest.submissions?.length || 0}</strong>{" "}
-                  existing student submissions will be automatically re-graded
-                  instantly.
-                </p>
-
-                <div
-                  style={{
-                    maxHeight: "50vh",
-                    overflowY: "auto",
-                    paddingRight: "10px",
-                    marginBottom: "1.5rem",
-                  }}
-                >
-                  {tempQuestions.map((q, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        marginBottom: "1.25rem",
-                        padding: "12px",
-                        border: "1px solid var(--color-border-secondary)",
-                        borderRadius: "8px",
-                        background: "var(--color-background-secondary)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          marginBottom: "8px",
-                          display: "flex",
-                          gap: "6px",
-                        }}
-                      >
-                        <span style={{ flexShrink: 0 }}>Q{i + 1}:</span>
-                        {/*   FIX: MathJax Protector applied to Edit Key Modal */}
-                        <StaticMath isBlock={false} html={q.text} />
-                      </div>
-
-                      {q.type === "mcq" && (
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "12px",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          {q.options.map((opt, j) => (
-                            <label
-                              key={j}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                fontSize: "13px",
-                                cursor: "pointer",
-                              }}
-                            >
-                              <input
-                                type="radio"
-                                name={`rekey_${i}`}
-                                checked={(q.correct || []).includes(j)}
-                                onChange={() => handleRekeyChange(i, "mcq", j)}
-                                style={{ width: "16px", height: "16px" }}
-                              />
-                              Opt {String.fromCharCode(65 + j)}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-
-                      {q.type === "msq" && (
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "12px",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          {q.options.map((opt, j) => (
-                            <label
-                              key={j}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                fontSize: "13px",
-                                cursor: "pointer",
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={(q.correct || []).includes(j)}
-                                onChange={() => handleRekeyChange(i, "msq", j)}
-                                style={{ width: "16px", height: "16px" }}
-                              />
-                              Opt {String.fromCharCode(65 + j)}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-
-                      {q.type === "integer" && (
-                        <label style={{ fontSize: "13px", fontWeight: 500 }}>
-                          Correct Integer Key:
-                          <input
-                            type="number"
-                            value={q.correctInt || ""}
-                            onChange={(e) =>
-                              handleRekeyChange(
-                                i,
-                                "integer",
-                                Number(e.target.value),
-                              )
-                            }
-                            style={{
-                              width: "100px",
-                              padding: "6px",
-                              fontSize: "14px",
-                              border: "1px solid #cbd5e1",
-                              borderRadius: "4px",
-                              marginLeft: "8px",
-                            }}
-                          />
-                        </label>
-                      )}
-
-                      {q.type === "subjective" && (
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "#854F0B",
-                            fontWeight: 500,
-                          }}
-                        >
-                          <i className="ti ti-info-circle"></i> Subjective
-                          question (Requires manual evaluation).
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button
-                    className="btn"
-                    style={{ flex: 1, padding: "12px", fontWeight: 600 }}
-                    onClick={() => setModalType(null)}
-                    disabled={isActionLoading}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    style={{
-                      flex: 2,
-                      background: isActionLoading ? "#94a3b8" : "#854F0B",
-                      borderColor: isActionLoading ? "#94a3b8" : "#854F0B",
-                      padding: "12px",
-                      fontWeight: 600,
-                      cursor: isActionLoading ? "not-allowed" : "pointer",
-                    }}
-                    onClick={saveNewKeyAndReevaluate}
-                    disabled={isActionLoading}
-                  >
-                    {isActionLoading ? (
-                      <>
-                        <i className="ti ti-loader animate-spin mr-1"></i>{" "}
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <i className="ti ti-refresh"></i> Update & Auto-Grade
-                        All
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {modalType === "editSettings" && (
-            <div
-              className="fixed inset-0 flex items-center justify-center p-4"
-              style={{
-                zIndex: 100000,
-                background: "rgba(255, 255, 255, 0.2)", // LIGHT BLUR FIX
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              <div className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-[popIn_0.3s_cubic-bezier(0.16,1,0.3,1)_forwards]">
-                {/* Modal Header */}
-                <div className="bg-slate-50 p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl shadow-inner">
-                      <i className="ti ti-adjustments"></i>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-slate-800 m-0 leading-none">
-                        Exam Configuration
-                      </h3>
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 leading-none">
-                        Manage Rules & Access
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 transition-colors"
-                    onClick={() => setModalType(null)}
-                  >
-                    <i className="ti ti-x text-lg"></i>
-                  </button>
-                </div>
-
-                {/* Modal Body (Scrollable) */}
-                <div className="p-5 sm:p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6 bg-slate-50/50">
-                  {/* Section 1: Core Rules */}
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <i className="ti ti-ruler-2"></i> Core Rules
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
-                          Duration (Mins)
-                        </label>
-                        <div className="relative">
-                          <i className="ti ti-clock absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
-                          <input
-                            type="number"
-                            value={editSettingsData.duration}
-                            onChange={(e) =>
-                              setEditSettingsData({
-                                ...editSettingsData,
-                                duration: e.target.value,
-                              })
-                            }
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
-                          Negative Marking
-                        </label>
-                        <div className="relative">
-                          <i className="ti ti-minus absolute left-3.5 top-1/2 -translate-y-1/2 text-rose-400 text-lg"></i>
-                          <input
-                            type="number"
-                            step="0.25"
-                            value={editSettingsData.negMarking}
-                            onChange={(e) =>
-                              setEditSettingsData({
-                                ...editSettingsData,
-                                negMarking: e.target.value,
-                              })
-                            }
-                            className="w-full pl-10 pr-4 py-2.5 bg-rose-50/50 border-2 border-slate-200 rounded-xl text-sm font-bold text-rose-700 outline-none focus:border-rose-400 focus:bg-white transition-all"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section 2: Schedule & Visibility */}
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <i className="ti ti-calendar-time"></i> Schedule &
-                      Visibility
-                    </h4>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-                      <div>
-                        <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
-                          Auto-Open Intake (Start)
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={editSettingsData.openDate}
-                          onChange={(e) =>
-                            setEditSettingsData({
-                              ...editSettingsData,
-                              openDate: e.target.value,
-                            })
-                          }
-                          className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
-                          Auto-Close Intake (End)
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={editSettingsData.closeDate}
-                          onChange={(e) =>
-                            setEditSettingsData({
-                              ...editSettingsData,
-                              closeDate: e.target.value,
-                            })
-                          }
-                          className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                      <div>
-                        <div className="text-[13px] font-black text-indigo-900 mb-0.5 flex items-center gap-1.5">
-                          <i className="ti ti-radar text-lg"></i> Show on
-                          Student Radar
-                        </div>
-                        <div className="text-[11px] font-semibold text-indigo-700/70">
-                          If OFF, students won't see this test (Keeps it as
-                          Draft).
-                        </div>
-                      </div>
-                      <div
-                        className={`w-12 h-6 rounded-full cursor-pointer relative transition-colors duration-300 shrink-0 border border-black/5 ${editSettingsData.radarVisible ? "bg-indigo-500" : "bg-slate-300"}`}
-                        onClick={() =>
-                          setEditSettingsData({
-                            ...editSettingsData,
-                            radarVisible: !editSettingsData.radarVisible,
-                          })
-                        }
-                      >
-                        <div
-                          className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${editSettingsData.radarVisible ? "left-6" : "left-[2px]"}`}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {editSettingsData.radarVisible && (
-                      <div className="mt-3 animate-[fadeIn_0.3s_ease]">
-                        <label className="text-[11px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wider">
-                          Note for Students (Optional)
-                        </label>
-                        <textarea
-                          value={editSettingsData.radarNote}
-                          onChange={(e) =>
-                            setEditSettingsData({
-                              ...editSettingsData,
-                              radarNote: e.target.value,
-                            })
-                          }
-                          placeholder="e.g. Bring your calculators..."
-                          className="w-full p-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 outline-none focus:border-indigo-400 transition-all min-h-[60px] resize-y custom-scrollbar"
-                        ></textarea>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Section 3: Access & Security */}
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <i className="ti ti-shield-lock"></i> Access & Security
-                    </h4>
-
-                    <div className="mb-5 flex flex-col gap-4">
-                      <div>
-                        <label className="text-[12px] font-bold text-slate-600 mb-1.5 block">
-                          Results Visibility
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={editSettingsData.resultVis}
-                            onChange={(e) =>
-                              setEditSettingsData({
-                                ...editSettingsData,
-                                resultVis: e.target.value,
-                                resultPublishTime:
-                                  e.target.value !== "scheduled"
-                                    ? ""
-                                    : editSettingsData.resultPublishTime,
-                              })
-                            }
-                            className="w-full px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-white transition-all appearance-none cursor-pointer"
-                          >
-                            <option value="manual">
-                              Manual Verification (Publish Later)
-                            </option>
-                            <option value="instant">
-                              Instant Access (Show after submit)
-                            </option>
-                            <option value="scheduled">
-                              Scheduled (Auto-Publish)
-                            </option>
-                          </select>
-                          <i className="ti ti-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
-                        </div>
-                      </div>
-
-                      {/* 🔥 SCHEDULED TIME INPUT (Sirf tab dikhega jab Scheduled select hoga) */}
-                      {editSettingsData.resultVis === "scheduled" && (
-                        <div className="animate-[fadeIn_0.3s_ease]">
-                          <label className="text-[12px] font-bold text-slate-600 mb-1.5 flex items-center gap-1">
-                            <i className="ti ti-clock-play text-blue-500"></i>{" "}
-                            Publish Date & Time
-                          </label>
-                          <input
-                            type="datetime-local"
-                            value={editSettingsData.resultPublishTime || ""}
-                            onChange={(e) =>
-                              setEditSettingsData({
-                                ...editSettingsData,
-                                resultPublishTime: e.target.value,
-                              })
-                            }
-                            className="w-full px-4 py-2.5 bg-blue-50/50 border-2 border-blue-200 rounded-xl text-[13px] font-semibold text-blue-800 outline-none focus:border-blue-400 focus:bg-white transition-all"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
-                      <div>
-                        <div className="text-[13px] font-black text-emerald-900 mb-0.5 flex items-center gap-1.5">
-                          <i className="ti ti-bolt text-lg"></i> Enable Direct
-                          Entry
-                        </div>
-                        <div className="text-[11px] font-semibold text-emerald-700/70">
-                          Allow students to join instantly without the exam
-                          code.
-                        </div>
-                      </div>
-                      <div
-                        className={`w-12 h-6 rounded-full cursor-pointer relative transition-colors duration-300 shrink-0 border border-black/5 ${editSettingsData.directEntry ? "bg-emerald-500" : "bg-slate-300"}`}
-                        onClick={() =>
-                          setEditSettingsData({
-                            ...editSettingsData,
-                            directEntry: !editSettingsData.directEntry,
-                          })
-                        }
-                      >
-                        <div
-                          className={`absolute top-[2px] w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300 ${editSettingsData.directEntry ? "left-6" : "left-[2px]"}`}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Modal Footer */}
-                <div className="bg-white p-5 sm:p-6 border-t border-slate-100 flex gap-3 shrink-0">
-                  <button
-                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors active:scale-95"
-                    onClick={() => setModalType(null)}
-                    disabled={isActionLoading}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                    onClick={saveTestSettings}
-                    disabled={isActionLoading}
-                  >
-                    {isActionLoading ? (
-                      <>
-                        <i className="ti ti-loader animate-spin text-lg"></i>{" "}
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <i className="ti ti-device-floppy text-lg"></i> Save
-                        Configuration
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Custom CSS Bell Curve & Analytics */}
-          {modalType === "analytics" && (
-            <div
-              className="fixed inset-0 flex items-center justify-center p-4"
-              style={{
-                zIndex: 100000,
-                background: "rgba(255, 255, 255, 0.2)",
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              <div
-                className="modal-box"
-                style={{ maxWidth: "900px", animation: "popIn 0.3s ease" }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: "1.5rem",
-                  }}
-                >
-                  <h3
-                    style={{
-                      color: "#185FA5",
-                      margin: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <i
-                      className="ti ti-chart-bar"
-                      style={{ fontSize: "24px" }}
-                    ></i>{" "}
-                    Class Analytics
-                  </h3>
-                  <button
-                    className="btn btn-sm"
-                    onClick={() => setModalType(null)}
-                  >
-                    Close
-                  </button>
-                </div>
-
-                {(() => {
-                  const safeSubmissions = Array.isArray(
-                    selectedTest.submissions,
-                  )
-                    ? selectedTest.submissions.filter(Boolean)
-                    : Object.values(selectedTest.submissions || {}).filter(
-                        Boolean,
-                      );
-
-                  if (isSubsLoading && safeSubmissions.length === 0) {
-                    return (
-                      <div className="text-center py-12">
-                        <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3"></div>
-                        <p className="text-sm font-bold text-slate-600">
-                          Loading student analytics...
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  if (safeSubmissions.length === 0)
-                    return (
-                      <p>Not enough data! At least 1 student must submit.</p>
-                    );
-
-                  const totalStudents = safeSubmissions.length;
-                  const scores = safeSubmissions.map((s) =>
-                    Number(s.score || 0),
-                  );
-                  const maxScore =
-                    scores.length > 0
-                      ? scores.reduce(
-                          (max, s) => (s > max ? s : max),
-                          scores[0],
-                        )
-                      : 0;
-                  const minScore =
-                    scores.length > 0
-                      ? scores.reduce(
-                          (min, s) => (s < min ? s : min),
-                          scores[0],
-                        )
-                      : 0;
-                  const avgScore = (
-                    scores.reduce((a, b) => a + b, 0) / totalStudents
-                  ).toFixed(2);
-                  const passRate = Math.round(
-                    (safeSubmissions.filter(
-                      (s) => s.score / (selectedTest.totalMarks || 1) >= 0.33,
-                    ).length /
-                      totalStudents) *
-                      100,
-                  );
-
-                  let qStats = (selectedTest.questions || []).map((q, i) => ({
-                    qIndex: i,
-                    text: q.text,
-                    wrongCount: 0,
-                    correctCount: 0,
-                  }));
-                  safeSubmissions.forEach((sub) => {
-                    (sub.details || []).forEach((d, i) => {
-                      if (qStats[i]) {
-                        if (d.status === "wrong") qStats[i].wrongCount++;
-                        else if (d.status === "correct")
-                          qStats[i].correctCount++;
-                      }
-                    });
-                  });
-
-                  const toughestQs = [...qStats]
-                    .sort((a, b) => b.wrongCount - a.wrongCount)
-                    .slice(0, 3);
-                  const easiestQs = [...qStats]
-                    .sort((a, b) => b.correctCount - a.correctCount)
-                    .slice(0, 3);
-
-                  let brackets = [0, 0, 0, 0];
-                  scores.forEach((s) => {
-                    let pct = (s / selectedTest.totalMarks) * 100;
-                    if (pct <= 25) brackets[0]++;
-                    else if (pct <= 50) brackets[1]++;
-                    else if (pct <= 75) brackets[2]++;
-                    else brackets[3]++;
-                  });
-                  const maxBracket = brackets.reduce(
-                    (max, b) => (b > max ? b : max),
-                    1,
-                  );
-
-                  return (
-                    <>
-                      <div className="grid4" style={{ marginBottom: "2rem" }}>
-                        <div
-                          className="stat-card"
-                          style={{ borderColor: "#185FA5", padding: "1rem" }}
-                        >
-                          <div
-                            className="stat-val"
-                            style={{ color: "#185FA5", fontSize: "24px" }}
-                          >
-                            {avgScore}
-                          </div>
-                          <div className="stat-lbl">Average Score</div>
-                        </div>
-                        <div
-                          className="stat-card"
-                          style={{ borderColor: "#3B6D11", padding: "1rem" }}
-                        >
-                          <div
-                            className="stat-val"
-                            style={{ color: "#3B6D11", fontSize: "24px" }}
-                          >
-                            {maxScore}
-                          </div>
-                          <div className="stat-lbl">Highest Score</div>
-                        </div>
-                        <div
-                          className="stat-card"
-                          style={{ borderColor: "#A32D2D", padding: "1rem" }}
-                        >
-                          <div
-                            className="stat-val"
-                            style={{ color: "#A32D2D", fontSize: "24px" }}
-                          >
-                            {minScore}
-                          </div>
-                          <div className="stat-lbl">Lowest Score</div>
-                        </div>
-                        <div
-                          className="stat-card"
-                          style={{ borderColor: "#854F0B", padding: "1rem" }}
-                        >
-                          <div
-                            className="stat-val"
-                            style={{ color: "#854F0B", fontSize: "24px" }}
-                          >
-                            {passRate}%
-                          </div>
-                          <div className="stat-lbl">Class Pass Rate</div>
-                        </div>
-                      </div>
-
-                      <div className="grid2">
-                        <div
-                          style={{
-                            background: "var(--color-background-primary)",
-                            border: "1px solid var(--color-border-secondary)",
-                            borderRadius: "12px",
-                            padding: "1.5rem",
-                          }}
-                        >
-                          <h4 style={{ marginTop: 0, marginBottom: "15px" }}>
-                            <i className="ti ti-trending-up"></i> Score
-                            Distribution
-                          </h4>
-                          <div
-                            className="bar-chart"
-                            style={{ height: "180px", marginTop: "2rem" }}
-                          >
-                            {brackets.map((count, i) => (
-                              <div key={i} className="bar-col">
-                                <div
-                                  className="bar-val"
-                                  style={{
-                                    color: [
-                                      "#A32D2D",
-                                      "#854F0B",
-                                      "#185FA5",
-                                      "#3B6D11",
-                                    ][i],
-                                  }}
-                                >
-                                  {count}
-                                </div>
-                                <div
-                                  className="bar"
-                                  style={{
-                                    height: `${(count / maxBracket) * 120}px`,
-                                    background: [
-                                      "#FCEBEB",
-                                      "#FAEEDA",
-                                      "#E6F1FB",
-                                      "#EAF3DE",
-                                    ][i],
-                                    border: `1px solid ${["#A32D2D", "#854F0B", "#185FA5", "#3B6D11"][i]}`,
-                                  }}
-                                ></div>
-                                <div
-                                  className="bar-lbl"
-                                  style={{ fontSize: "10px" }}
-                                >
-                                  {["0-25%", "26-50%", "51-75%", "76-100%"][i]}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "1rem",
-                          }}
-                        >
-                          <div
-                            style={{
-                              background: "#FCEBEB",
-                              border: "1px solid #F7C1C1",
-                              borderRadius: "12px",
-                              padding: "1rem",
-                            }}
-                          >
-                            <h4
-                              style={{
-                                marginTop: 0,
-                                color: "#A32D2D",
-                                fontSize: "14px",
-                                marginBottom: "8px",
-                              }}
-                            >
-                              <i className="ti ti-alert-triangle"></i> Toughest
-                              (Max Mistakes)
-                            </h4>
-                            <ul
-                              style={{
-                                margin: 0,
-                                paddingLeft: "20px",
-                                fontSize: "13px",
-                                color: "#791F1F",
-                              }}
-                            >
-                              {toughestQs.map((q) => (
-                                <li
-                                  key={q.qIndex}
-                                  style={{ marginBottom: "6px" }}
-                                >
-                                  <strong>Q{q.qIndex + 1}:</strong>{" "}
-                                  {q.text.substring(0, 35)}... <br />
-                                  <span
-                                    className="badge b-red"
-                                    style={{
-                                      fontSize: "10px",
-                                      marginTop: "4px",
-                                    }}
-                                  >
-                                    Failed by {q.wrongCount} students
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div
-                            style={{
-                              background: "#EAF3DE",
-                              border: "1px solid #C0DD97",
-                              borderRadius: "12px",
-                              padding: "1rem",
-                            }}
-                          >
-                            <h4
-                              style={{
-                                marginTop: 0,
-                                color: "#27500A",
-                                fontSize: "14px",
-                                marginBottom: "8px",
-                              }}
-                            >
-                              <i className="ti ti-award"></i> Easiest (Most
-                              Correct)
-                            </h4>
-                            <ul
-                              style={{
-                                margin: 0,
-                                paddingLeft: "20px",
-                                fontSize: "13px",
-                                color: "#27500A",
-                              }}
-                            >
-                              {easiestQs.map((q) => (
-                                <li
-                                  key={q.qIndex}
-                                  style={{ marginBottom: "6px" }}
-                                >
-                                  <strong>Q{q.qIndex + 1}:</strong>{" "}
-                                  {q.text.substring(0, 35)}... <br />
-                                  <span
-                                    className="badge b-green"
-                                    style={{
-                                      fontSize: "10px",
-                                      marginTop: "4px",
-                                    }}
-                                  >
-                                    Solved by {q.correctCount} students
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
         </div>
       ) : (
         // ==========================================
         // VIEW 1: MASTER VAULT (List of Tests)
         // ==========================================
-        <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-3 sm:py-6 pb-24 animate-[fadeIn_0.3s_ease]">
+        <div className="w-full max-w-[1360px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-3 sm:py-6 pb-24 animate-[fadeIn_0.3s_ease]">
           {/* 🧭 1. COMPACT COMMAND HEADER (Space-Saving & High-Density) */}
           <div className="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] mb-4 sm:mb-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">

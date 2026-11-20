@@ -7,7 +7,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { database } from "../lib/firebase";
-import { ref, update, remove } from "firebase/database";
+import { ref, update, remove, get } from "firebase/database";
 import Script from "next/script";
 
 function Header() {
@@ -24,6 +24,7 @@ function Header() {
   // Profile States
   const [showProfile, setShowProfile] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
     college: "",
     phone: "",
@@ -120,6 +121,24 @@ function Header() {
     }
   }, []);
 
+  // 2.5 FETCH USER PROFILE DATA ON MODAL OPEN
+  useEffect(() => {
+    if (showProfile && currentUser?.uid) {
+      get(ref(database, `users/${currentUser.uid}`))
+        .then((snap) => {
+          if (snap.exists()) {
+            const d = snap.val();
+            setProfileData({
+              college: d.college || currentUser.college || "",
+              phone: d.phone || currentUser.phone || "",
+              rollNo: d.rollNo || d.examinerId || currentUser.rollNo || "",
+            });
+          }
+        })
+        .catch((e) => console.error("Error fetching user profile", e));
+    }
+  }, [showProfile, currentUser]);
+
   // 3. CLICK OUTSIDE TO CLOSE SETTINGS
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -188,17 +207,21 @@ function Header() {
 
   //   PROFILE SAVE FUNCTION (Jo miss ho gaya tha)
   const saveProfile = async () => {
-    if (!currentUser) return;
+    if (!currentUser?.uid) return;
+    setIsSavingProfile(true);
     try {
       await update(ref(database, `users/${currentUser.uid}`), {
-        college: profileData.college,
-        phone: profileData.phone,
-        rollNo: profileData.rollNo,
+        college: profileData.college || "",
+        phone: profileData.phone || "",
+        rollNo: profileData.rollNo || "",
       });
       setIsEditingProfile(false);
       showToast("Profile updated successfully!", "success");
     } catch (e) {
+      console.error("Save profile error:", e);
       showToast("Failed to update profile.", "error");
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -316,9 +339,11 @@ function Header() {
           position: "sticky",
           top: 0,
           zIndex: 100,
-          background: "var(--color-background-primary)",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
-          borderBottom: "1px solid var(--color-border-secondary)",
+          background: "rgba(255, 255, 255, 0.9)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.03)",
+          borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
         }}
       >
         <div
@@ -377,26 +402,28 @@ function Header() {
           {/* Actions Area */}
           <div
             className="header-actions"
-            style={{ display: "flex", alignItems: "center", gap: "12px" }}
+            style={{ display: "flex", alignItems: "center", gap: "10px" }}
           >
+
             {/* Settings Dropdown */}
             <div style={{ position: "relative" }} ref={settingsRef}>
               <button
                 className="btn btn-sm btn-ghost"
                 onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                 style={{
-                  borderRadius: "50%",
-                  width: "40px",
-                  height: "40px",
+                  borderRadius: "12px",
+                  width: "38px",
+                  height: "38px",
                   padding: 0,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: "var(--color-background-secondary)",
-                  border: "1px solid var(--color-border-secondary)",
-                  color: "var(--color-text-primary)",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  color: "#475569",
                   transition: "all 0.2s ease",
                   cursor: "pointer",
+                  boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
                 }}
               >
                 <i
@@ -586,18 +613,29 @@ function Header() {
                   display: "flex",
                   alignItems: "center",
                   gap: "6px",
-                  padding: "10px 18px",
-                  background: "#FCEBEB",
-                  color: "#A32D2D",
-                  border: "1px solid #F7C1C1",
+                  padding: "8px 16px",
+                  background: "#ffffff",
+                  color: "#64748b",
+                  border: "1px solid #e2e8f0",
                   fontWeight: 700,
-                  fontSize: "14px",
+                  fontSize: "13px",
                   borderRadius: "12px",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
+                  boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.color = "#e11d48";
+                  e.currentTarget.style.borderColor = "#fecdd3";
+                  e.currentTarget.style.background = "#fff1f2";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.color = "#64748b";
+                  e.currentTarget.style.borderColor = "#e2e8f0";
+                  e.currentTarget.style.background = "#ffffff";
                 }}
               >
-                <i className="ti ti-logout" style={{ fontSize: "18px" }}></i>{" "}
+                <i className="ti ti-logout" style={{ fontSize: "17px" }}></i>{" "}
                 <span className="hide-mobile">Logout</span>
               </button>
             ) : (
@@ -631,11 +669,13 @@ function Header() {
           <div
             id="dynamic-nav-wrapper"
             style={{
-              background: "var(--color-background-secondary)",
-              borderBottom: "1px solid var(--color-border-secondary)",
+              background: "rgba(248, 250, 252, 0.8)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              borderBottom: "1px solid rgba(226, 232, 240, 0.7)",
               transition:
                 "max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease-out, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
-              maxHeight: isNavVisible ? "60px" : "0px",
+              maxHeight: isNavVisible ? "54px" : "0px",
               opacity: isNavVisible ? 1 : 0,
               transform: isNavVisible ? "translateY(0)" : "translateY(-4px)",
               overflowX: "auto",
@@ -650,10 +690,13 @@ function Header() {
               id="dynamic-nav-tabs"
               style={{
                 display: "flex",
-                gap: "8px",
-                padding: "10px 20px",
+                gap: "6px",
+                padding: "4px 8px",
+                background: "rgba(241, 245, 249, 0.7)",
+                borderRadius: "12px",
+                border: "1px solid rgba(226, 232, 240, 0.8)",
                 width: "max-content",
-                margin: "0 auto",
+                margin: "6px auto",
               }}
             >
               {renderNavTabs()}
@@ -662,468 +705,303 @@ function Header() {
         )}
       </div>
 
-      {/* ADVANCED PREMIUM PROFILE MODAL */}
+      {/* 🌟 EXECUTIVE LIGHT BENTO PROFILE STUDIO (Clean, Crisp, Light Website Theme) */}
       {showProfile && currentUser && (
         <div
-          className="modal-bg"
-          style={{ zIndex: 99999, padding: "20px" }}
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/25 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]"
           onClick={() => {
             setShowProfile(false);
             setIsEditingProfile(false);
           }}
         >
           <div
-            className="modal-box"
+            className="profile-studio-card w-full max-w-[440px] max-h-[92vh] flex flex-col rounded-[28px] bg-white border border-slate-200 shadow-[0_25px_70px_-15px_rgba(15,23,42,0.15),0_4px_20px_rgba(15,23,42,0.06)] overflow-hidden relative animate-[modalSlideUp_0.25s_cubic-bezier(0.16,1,0.3,1)]"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "420px",
-              width: "100%",
-              padding: 0,
-              borderRadius: "20px",
-              overflow: "hidden",
-              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
-              border: "none",
-              background: "var(--color-background-primary)",
-            }}
+            style={{ backgroundColor: "#ffffff", color: "#0f172a" }}
           >
+            {/* 1. ELEGANT LIGHT TOP BANNER */}
             <div
+              className="relative p-5 pb-8 select-none border-b border-blue-100/60"
               style={{
-                background: "linear-gradient(135deg, #185FA5 0%, #0B0F19 100%)",
-                height: "110px",
-                position: "relative",
+                background: "linear-gradient(135deg, #eff6ff 0%, #f5f3ff 50%, #f0fdf4 100%)",
               }}
             >
-              <button
-                onClick={() => {
-                  setShowProfile(false);
-                  setIsEditingProfile(false);
-                }}
-                style={{
-                  position: "absolute",
-                  right: "16px",
-                  top: "16px",
-                  background: "rgba(255,255,255,0.2)",
-                  border: "none",
-                  color: "#fff",
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "0.2s",
-                }}
-                onMouseOver={(e) =>
-                  (e.currentTarget.style.background = "rgba(255,255,255,0.3)")
-                }
-                onMouseOut={(e) =>
-                  (e.currentTarget.style.background = "rgba(255,255,255,0.2)")
-                }
-              >
-                <i className="ti ti-x" style={{ fontSize: "18px" }}></i>
-              </button>
-            </div>
+              {/* Top Row: Verified Role Chip & Close Button */}
+              <div className="flex items-center justify-between">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 text-blue-700 border border-blue-200/90 text-[11px] font-black uppercase tracking-wider shadow-2xs">
+                  <i className="ti ti-shield-check text-xs text-blue-600"></i>
+                  <span>
+                    {userRole === "examiner"
+                      ? "Verified Educator"
+                      : userRole === "admin"
+                      ? "System Admin"
+                      : "Verified Student"}
+                  </span>
+                </div>
 
-            <div
-              style={{
-                width: "90px",
-                height: "90px",
-                background: "var(--color-background-primary)",
-                borderRadius: "50%",
-                padding: "4px",
-                position: "absolute",
-                top: "65px",
-                left: "50%",
-                transform: "translateX(-50%)",
-                zIndex: 2,
-              }}
-            >
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  background: "linear-gradient(135deg, #185FA5, #3C3489)",
-                  color: "#fff",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "32px",
-                  fontWeight: 800,
-                  boxShadow: "0 4px 15px rgba(24,95,165,0.3)",
-                }}
-              >
-                {currentUser.displayName
-                  ? currentUser.displayName.charAt(0).toUpperCase()
-                  : "U"}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfile(false);
+                    setIsEditingProfile(false);
+                  }}
+                  className="w-8 h-8 rounded-full bg-white/90 hover:bg-white text-slate-400 hover:text-slate-800 border border-slate-200/80 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-2xs"
+                  title="Close"
+                >
+                  <i className="ti ti-x text-sm"></i>
+                </button>
               </div>
             </div>
 
-            <div
-              style={{
-                padding: "60px 24px 24px 24px",
-                textAlign: "center",
-                position: "relative",
-                background: "var(--color-background-primary)",
-              }}
-            >
-              <h3
-                style={{
-                  margin: "0 0 4px 0",
-                  fontSize: "22px",
-                  color: "var(--color-text-primary)",
-                  fontWeight: 800,
-                }}
-              >
+            {/* 2. AVATAR & IDENTITY */}
+            <div className="px-6 pt-0 pb-6 text-center flex-1 overflow-y-auto" style={{ backgroundColor: "#ffffff" }}>
+              {/* Elevated Modern Avatar */}
+              <div className="relative -mt-10 mb-3 inline-block">
+                <div
+                  className="w-20 h-20 rounded-2xl text-white flex items-center justify-center font-black text-2xl select-none mx-auto ring-4 ring-white shadow-md shadow-blue-500/20"
+                  style={{
+                    background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)",
+                  }}
+                >
+                  {currentUser.displayName
+                    ? currentUser.displayName.charAt(0).toUpperCase()
+                    : currentUser.email?.charAt(0).toUpperCase() || "U"}
+                </div>
+                {/* Active Indicator Pulse */}
+                <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                </span>
+              </div>
+
+              {/* Display Name */}
+              <h3 className="text-xl font-black text-slate-900 tracking-tight m-0 mb-1" style={{ color: "#0f172a" }}>
                 {currentUser.displayName || "Platform User"}
               </h3>
-              <div
-                style={{
-                  color: "var(--color-text-secondary)",
-                  fontSize: "13px",
-                  marginBottom: "24px",
-                  fontFamily: "monospace",
-                  background: "var(--color-background-secondary)",
-                  display: "inline-block",
-                  padding: "4px 12px",
-                  borderRadius: "20px",
-                  border: "1px solid var(--color-border-secondary)",
-                }}
-              >
-                {currentUser.email}
+
+              {/* Copyable Email Pill */}
+              <div className="flex items-center justify-center mb-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentUser?.email) {
+                      navigator.clipboard.writeText(currentUser.email);
+                      showToast("Email address copied!", "success");
+                    }
+                  }}
+                  className="group inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200/80 text-slate-600 border border-slate-200 text-xs font-mono transition-all cursor-pointer"
+                  title="Click to copy email"
+                >
+                  <i className="ti ti-mail text-xs text-slate-400 group-hover:text-blue-600"></i>
+                  <span>{currentUser.email}</span>
+                  <i className="ti ti-copy text-[11px] text-slate-400 group-hover:text-blue-600 transition-colors"></i>
+                </button>
               </div>
 
               {!isEditingProfile ? (
-                <>
-                  <div
-                    style={{
-                      background: "var(--color-background-secondary)",
-                      borderRadius: "16px",
-                      padding: "20px",
-                      textAlign: "left",
-                      marginBottom: "24px",
-                      border: "1px solid var(--color-border-secondary)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "16px",
-                        marginBottom: "16px",
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "var(--color-text-secondary)",
-                            fontWeight: 600,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                          }}
-                        >
-                          <i className="ti ti-shield"></i> Role
-                        </div>
-                        <div
-                          style={{
-                            fontWeight: 800,
-                            color: "#185FA5",
-                            fontSize: "15px",
-                            marginTop: "4px",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          {userRole}
-                        </div>
+                /* 3. POLISHED LIGHT BENTO TILES */
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2.5 text-left">
+                    {/* Role Tile */}
+                    <div className="p-3.5 rounded-2xl bg-blue-50/50 border border-blue-100/80 hover:bg-blue-50/80 transition-colors">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 flex items-center gap-1">
+                          <i className="ti ti-shield text-xs"></i> Role
+                        </span>
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-100/90 text-blue-700">ACTIVE</span>
                       </div>
-                      <div>
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "var(--color-text-secondary)",
-                            fontWeight: 600,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                          }}
-                        >
-                          <i className="ti ti-id"></i> ID / Roll No
-                        </div>
-                        <div
-                          style={{
-                            fontWeight: 700,
-                            color: "var(--color-text-primary)",
-                            fontSize: "15px",
-                            marginTop: "4px",
-                          }}
-                        >
-                          {currentUser.rollNo ||
-                            currentUser.examinerId ||
-                            "N/A"}
-                        </div>
+                      <div className="text-sm font-black text-slate-900 uppercase tracking-wide">
+                        {userRole || "User"}
                       </div>
                     </div>
-                    <div
-                      style={{
-                        paddingTop: "16px",
-                        borderTop: "1px solid var(--color-border-secondary)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "var(--color-text-secondary)",
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.5px",
-                        }}
-                      >
-                        <i className="ti ti-building-bank"></i> Institution
+
+                    {/* ID / Roll Tile */}
+                    <div className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100/80 hover:bg-indigo-50/80 transition-colors relative group">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 flex items-center gap-1">
+                          <i className="ti ti-id text-xs"></i> ID / Roll No
+                        </span>
+                        {(profileData.rollNo || currentUser.rollNo || currentUser.examinerId) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const idVal = profileData.rollNo || currentUser.rollNo || currentUser.examinerId;
+                              navigator.clipboard.writeText(idVal);
+                              showToast("ID copied to clipboard!", "success");
+                            }}
+                            className="text-indigo-400 hover:text-indigo-700 transition-colors cursor-pointer"
+                            title="Copy ID"
+                          >
+                            <i className="ti ti-copy text-xs"></i>
+                          </button>
+                        )}
                       </div>
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          color: "var(--color-text-primary)",
-                          fontSize: "15px",
-                          marginTop: "4px",
-                        }}
-                      >
+                      <div className="text-sm font-bold text-slate-900 truncate" title={profileData.rollNo || currentUser.rollNo || currentUser.examinerId || "N/A"}>
+                        {profileData.rollNo || currentUser.rollNo || currentUser.examinerId || "Not assigned"}
+                      </div>
+                    </div>
+
+                    {/* Institution Tile */}
+                    <div className="col-span-2 p-3.5 rounded-2xl bg-purple-50/40 border border-purple-100/80 hover:bg-purple-50/70 transition-colors">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-purple-600 flex items-center gap-1 mb-1">
+                        <i className="ti ti-building-bank text-xs"></i> Institution / College
+                      </div>
+                      <div className="text-sm font-bold text-slate-800 truncate" title={profileData.college || "Not specified"}>
                         {profileData.college || "Not specified"}
                       </div>
                     </div>
+
+                    {/* Phone Tile */}
+                    <div className="col-span-2 p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100/80 flex items-center justify-between hover:bg-emerald-50/70 transition-colors">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-wider text-emerald-600 flex items-center gap-1 mb-0.5">
+                          <i className="ti ti-phone text-xs"></i> Contact Phone
+                        </div>
+                        <div className="text-sm font-bold text-slate-800">
+                          {profileData.phone || "Not linked"}
+                        </div>
+                      </div>
+                      <span className={"text-[10px] font-extrabold px-2 py-0.5 rounded-full " + (profileData.phone ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400")}>
+                        {profileData.phone ? "Verified" : "Optional"}
+                      </span>
+                    </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: "12px" }}>
+                  {/* Action Buttons Deck */}
+                  <div className="flex gap-2.5 pt-2">
                     <button
-                      className="btn"
-                      style={{
-                        flex: 1,
-                        justifyContent: "center",
-                        padding: "14px",
-                        fontWeight: 600,
-                        background: "var(--color-background-secondary)",
-                        color: "var(--color-text-primary)",
-                        border: "1px solid var(--color-border-secondary)",
-                      }}
+                      type="button"
                       onClick={() => setShowProfile(false)}
+                      className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm border border-slate-200/90 shadow-2xs transition-all active:scale-95 cursor-pointer"
                     >
                       Close
                     </button>
                     <button
-                      className="btn btn-primary"
-                      style={{
-                        flex: 1,
-                        justifyContent: "center",
-                        padding: "14px",
-                        fontWeight: 600,
-                        background: "#185FA5",
-                        color: "#fff",
-                        border: "none",
-                        boxShadow: "0 4px 15px rgba(24,95,165,0.2)",
-                      }}
-                      onClick={() => {
-                        setProfileData({
-                          college: currentUser.college || "",
-                          phone: currentUser.phone || "",
-                          rollNo: currentUser.rollNo || "",
-                        });
-                        setIsEditingProfile(true);
-                      }}
+                      type="button"
+                      onClick={() => setIsEditingProfile(true)}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm shadow-blue-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <i className="ti ti-edit"></i> Edit Details
+                      <i className="ti ti-edit text-sm"></i>
+                      <span>Edit Details</span>
                     </button>
                   </div>
 
-                  <div
-                    style={{
-                      marginTop: "24px",
-                      paddingTop: "16px",
-                      borderTop: "1px dashed var(--color-border-secondary)",
-                    }}
-                  >
-                    <button
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--color-text-secondary)",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "6px",
-                        width: "100%",
-                        transition: "color 0.2s",
-                      }}
-                      onMouseOver={(e) =>
-                        (e.currentTarget.style.color = "#A32D2D")
-                      }
-                      onMouseOut={(e) =>
-                        (e.currentTarget.style.color =
-                          "var(--color-text-secondary)")
-                      }
-                      onClick={deleteAccount}
-                    >
-                      <i
-                        className="ti ti-alert-triangle"
-                        style={{ fontSize: "14px" }}
-                      ></i>{" "}
-                      Danger Zone: Delete Account
-                    </button>
-                  </div>
-                </>
+                  {/* Danger Zone Accordion Safeguard */}
+                  <details className="group mt-3 pt-3 border-t border-slate-100 text-left">
+                    <summary className="cursor-pointer text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors list-none flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <i className="ti ti-alert-triangle text-amber-500"></i>
+                        <span>Account Management & Danger Zone</span>
+                      </span>
+                      <i className="ti ti-chevron-down text-xs text-slate-400 group-open:rotate-180 transition-transform"></i>
+                    </summary>
+                    <div className="mt-2.5 p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200/70 text-left">
+                      <p className="text-[11px] text-rose-700 font-medium mb-2.5 leading-relaxed">
+                        Permanently delete your ExamiTop account and exam vault records. This action cannot be undone.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={deleteAccount}
+                        className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-2xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <i className="ti ti-trash text-xs"></i>
+                        <span>Delete Account</span>
+                      </button>
+                    </div>
+                  </details>
+                </div>
               ) : (
-                <div
-                  style={{ textAlign: "left", animation: "fadeIn 0.3s ease" }}
+                /* 4. CRISP LIGHT EDIT FORM */
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveProfile();
+                  }}
+                  className="space-y-3.5 text-left animate-[fadeIn_0.2s_ease-out]"
                 >
-                  <label
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      color: "var(--color-text-secondary)",
-                      marginBottom: "6px",
-                      display: "block",
-                    }}
-                  >
-                    Roll Number / Exam ID{" "}
-                    <span style={{ color: "#A32D2D" }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 2104540100"
-                    value={profileData.rollNo}
-                    onChange={(e) =>
-                      setProfileData({ ...profileData, rollNo: e.target.value })
-                    }
-                    style={{
-                      marginBottom: "16px",
-                      width: "100%",
-                      padding: "12px",
-                      borderRadius: "10px",
-                      border: "2px solid var(--color-border-secondary)",
-                      background: "var(--color-background-primary)",
-                      color: "var(--color-text-primary)",
-                      outline: "none",
-                      transition: "border 0.2s",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#185FA5")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor =
-                        "var(--color-border-secondary)")
-                    }
-                  />
+                  {/* Roll No Input */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                      <i className="ti ti-id text-blue-500"></i>
+                      <span>Exam ID / Roll Number</span>
+                      <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 2104540100"
+                      value={profileData.rollNo}
+                      onChange={(e) =>
+                        setProfileData({ ...profileData, rollNo: e.target.value })
+                      }
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-xs sm:text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                    />
+                  </div>
 
-                  <label
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      color: "var(--color-text-secondary)",
-                      marginBottom: "6px",
-                      display: "block",
-                    }}
-                  >
-                    Institution / College Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. UIET Kanpur"
-                    value={profileData.college}
-                    onChange={(e) =>
-                      setProfileData({
-                        ...profileData,
-                        college: e.target.value,
-                      })
-                    }
-                    style={{
-                      marginBottom: "16px",
-                      width: "100%",
-                      padding: "12px",
-                      borderRadius: "10px",
-                      border: "2px solid var(--color-border-secondary)",
-                      background: "var(--color-background-primary)",
-                      color: "var(--color-text-primary)",
-                      outline: "none",
-                      transition: "border 0.2s",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#185FA5")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor =
-                        "var(--color-border-secondary)")
-                    }
-                  />
+                  {/* Institution Input */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                      <i className="ti ti-building-bank text-purple-500"></i>
+                      <span>Institution / College</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Delhi Technological University"
+                      value={profileData.college}
+                      onChange={(e) =>
+                        setProfileData({
+                          ...profileData,
+                          college: e.target.value,
+                        })
+                      }
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-xs sm:text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                    />
+                  </div>
 
-                  <label
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      color: "var(--color-text-secondary)",
-                      marginBottom: "6px",
-                      display: "block",
-                    }}
-                  >
-                    Phone Number
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="+91 XXXXX XXXXX"
-                    value={profileData.phone}
-                    onChange={(e) =>
-                      setProfileData({ ...profileData, phone: e.target.value })
-                    }
-                    style={{
-                      marginBottom: "24px",
-                      width: "100%",
-                      padding: "12px",
-                      borderRadius: "10px",
-                      border: "2px solid var(--color-border-secondary)",
-                      background: "var(--color-background-primary)",
-                      color: "var(--color-text-primary)",
-                      outline: "none",
-                      transition: "border 0.2s",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#185FA5")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor =
-                        "var(--color-border-secondary)")
-                    }
-                  />
+                  {/* Phone Input */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                      <i className="ti ti-phone text-emerald-500"></i>
+                      <span>Contact Phone</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="+91 XXXXX XXXXX"
+                      value={profileData.phone}
+                      onChange={(e) =>
+                        setProfileData({ ...profileData, phone: e.target.value })
+                      }
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-xs sm:text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none"
+                    />
+                  </div>
 
-                  <div style={{ display: "flex", gap: "12px" }}>
+                  {/* Form Action Buttons */}
+                  <div className="flex gap-2.5 pt-2">
                     <button
-                      className="btn"
-                      style={{
-                        flex: 1,
-                        justifyContent: "center",
-                        padding: "14px",
-                        background: "var(--color-background-secondary)",
-                        color: "var(--color-text-primary)",
-                        border: "1px solid var(--color-border-secondary)",
-                        fontWeight: 600,
-                      }}
+                      type="button"
+                      disabled={isSavingProfile}
                       onClick={() => setIsEditingProfile(false)}
+                      className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold border border-slate-200 transition-all cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
-                      className="btn btn-success"
-                      style={{
-                        flex: 1,
-                        justifyContent: "center",
-                        padding: "14px",
-                        fontWeight: 600,
-                        background: "#3B6D11",
-                        color: "#fff",
-                        border: "none",
-                        boxShadow: "0 4px 15px rgba(59,109,17,0.2)",
-                      }}
-                      onClick={saveProfile}
+                      type="submit"
+                      disabled={isSavingProfile}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm shadow-blue-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
-                      <i className="ti ti-device-floppy"></i> Save Info
+                      {isSavingProfile ? (
+                        <>
+                          <i className="ti ti-loader animate-spin text-sm"></i>
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="ti ti-device-floppy text-sm"></i>
+                          <span>Save Changes</span>
+                        </>
+                      )}
                     </button>
                   </div>
-                </div>
+                </form>
               )}
             </div>
           </div>
